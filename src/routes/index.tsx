@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
-import { actions, brl, norm, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { actions, brl, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,9 +26,28 @@ function PDV() {
   const [sel, setSel] = useState(0);
   const [payment, setPayment] = useState<Payment>("Pix");
   const [received, setReceived] = useState("");
+  const [customer, setCustomer] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [quick, setQuick] = useState(false);
+  const [cam, setCam] = useState(false);
+  const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const search = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setQuick(localStorage.getItem("mobflow:quick") === "1"); }, []);
+  const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
+
+  const scanAdd = (code: string) => {
+    const p = products.find((x) => x.code === code.trim());
+    if (p) { actions.addToCart(p.id, 1); setFlash(`+1 ${p.name}`); return true; }
+    setFlash(`código não cadastrado: ${code}`);
+    return false;
+  };
+  const onChangeQ = (v: string) => {
+    if (quick && /^\d{6,}$/.test(v.trim()) && products.some((p) => p.code === v.trim())) { scanAdd(v); setQ(""); return; }
+    setQ(v);
+  };
 
   const results = useMemo(() => {
     const n = norm(q.trim());
@@ -44,13 +64,13 @@ function PDV() {
   const finish = () => {
     if (!lines.length) return;
     if (payment === "Dinheiro" && recv && recv < total) return;
-    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined);
-    if (s) { setDone(s); setReceived(""); setQ(""); }
+    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf);
+    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setFlash(""); }
   };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (editing !== undefined) return;
+      if (editing !== undefined || cam) return;
       if (e.key === "F9") { e.preventDefault(); finish(); }
       else if (e.key === "F8") { e.preventDefault(); actions.clearCart(); }
       else if (e.key === "F6") { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3] ?? "Pix"); }
@@ -81,19 +101,29 @@ function PDV() {
       <AppHeader />
       <main className="grid lg:grid-cols-[1fr_380px] gap-4">
         <section className="glass p-4">
-          <div className="flex items-center gap-3 field px-4 py-3">
-            <span className="font-mono text-[11px] text-primary">/</span>
-            <input
-              ref={search}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={onSearchKey}
-              placeholder="Buscar nome, código ou bipar… (ex: 3*cafe)"
-              className="flex-1 bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
-            />
-            <span className="ml-auto font-mono text-[10px] text-muted-foreground whitespace-nowrap">
-              {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
-            </span>
+          <div className="flex gap-2">
+            <div className="flex-1 flex items-center gap-3 field px-4 py-3">
+              <span className="font-mono text-[11px] text-primary">/</span>
+              <input
+                ref={search}
+                value={q}
+                onChange={(e) => onChangeQ(e.target.value)}
+                onKeyDown={onSearchKey}
+                placeholder="Buscar nome, código ou bipar… (ex: 3*cafe)"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
+              />
+              <span className="ml-auto font-mono text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
+                {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
+              </span>
+            </div>
+            <button onClick={() => setCam(true)} className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera">📷</button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              <span className={`h-3 w-6 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-2 w-2 rounded-full bg-background transition-all ${quick ? "left-3.5" : "left-0.5"}`} /></span>
+              Bipe rápido {quick ? "ligado" : "desligado"}
+            </button>
+            {flash && <span className={`font-mono text-[11px] ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mt-4 max-h-[calc(100vh-330px)] overflow-y-auto pr-1">
@@ -158,6 +188,10 @@ function PDV() {
             ))}
           </div>
           <div className="pt-3 border-t border-border">
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Cliente (opcional)" className="field text-[13px] text-foreground" />
+              <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
+            </div>
             <div className="flex justify-between items-baseline">
               <span className="label-mono">Total</span>
               <span className="font-display text-[40px] leading-none text-heading">R$ {brl(total)}</span>
@@ -193,17 +227,21 @@ function PDV() {
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-6 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto h-14 w-14 rounded-full bg-primary/15 ring-1 ring-primary/50 grid place-items-center text-primary text-2xl">✓</div>
             <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">VENDA CONCLUÍDA</h2>
-            <p className="font-mono text-[12px] text-muted-foreground">{done.payment} · {done.items.length} itens</p>
+            <p className="font-mono text-[12px] text-muted-foreground">{done.payment} · {done.items.length} itens{done.customer ? ` · ${done.customer}` : ""}</p>
             <p className="mt-3 font-display text-5xl text-primary">R$ {brl(done.total)}</p>
             {done.received && done.received > done.total && (
               <p className="mt-2 font-mono text-sm text-foreground">Troco: R$ {brl(done.received - done.total)}</p>
             )}
-            <button autoFocus onClick={() => setDone(null)} className="mt-5 w-full rounded-xl bg-primary text-primary-foreground font-bold py-3">
+            <button onClick={() => printReceipt(done)} className="mt-5 w-full rounded-xl bg-secondary ring-1 ring-border text-secondary-foreground font-semibold py-3 hover:text-foreground">
+              🧾 Gerar comprovante
+            </button>
+            <button autoFocus onClick={() => setDone(null)} className="mt-2 w-full rounded-xl bg-primary text-primary-foreground font-bold py-3">
               Nova venda <kbd className="font-mono text-[11px] opacity-70">ESC</kbd>
             </button>
           </div>
         </div>
       )}
+      {cam && <CameraScanner title="Bipar produtos" onCode={scanAdd} onClose={() => setCam(false)} />}
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
     </div>
   );
