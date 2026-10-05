@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 export type Product = { id: string; code: string; name: string; price: number; stock: number; minStock: number; category: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
-export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number }[]; total: number; payment: Payment; received?: number };
+export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number }[]; total: number; payment: Payment; received?: number | undefined };
 
 type State = { products: Product[]; cart: CartItem[]; sales: Sale[] };
 
