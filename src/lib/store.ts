@@ -79,7 +79,7 @@ export const actions = {
     set({ products, cart: [], sales: [sale, ...state.sales] });
     return sale;
   },
-  saveProduct(p: Omit<Product, "id"> & { id?: string }) {
+  saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
     else set({ products: [{ ...p, id: uid() }, ...state.products] });
   },
