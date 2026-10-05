@@ -53,7 +53,7 @@ function PDV() {
       if (editing !== undefined) return;
       if (e.key === "F9") { e.preventDefault(); finish(); }
       else if (e.key === "F8") { e.preventDefault(); actions.clearCart(); }
-      else if (e.key === "F6") { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3]); }
+      else if (e.key === "F6") { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3] ?? "Pix"); }
       else if (e.key === "Escape") { setDone(null); setQ(""); search.current?.focus(); }
     };
     window.addEventListener("keydown", onKey);
@@ -68,7 +68,7 @@ function PDV() {
     else if (e.key === "Enter") {
       e.preventDefault();
       const m = q.match(/^(\d+)\*(.*)$/);
-      const term = m ? m[2] : q;
+      const term = (m ? m[2] : q) ?? "";
       const exact = products.find((p) => p.code === term.trim());
       const target = exact ?? results[sel];
       if (target) { actions.addToCart(target.id, m ? Number(m[1]) : 1); setQ(""); }
