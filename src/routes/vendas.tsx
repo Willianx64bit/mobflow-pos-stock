@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { brl, useStore } from "@/lib/store";
+import { brl, printReceipt, useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/vendas")({
   head: () => ({
@@ -38,9 +38,10 @@ function Vendas() {
           {sales.map((s) => (
             <div key={s.id} className="py-3 flex flex-wrap items-center gap-4 text-[13px]">
               <span className="font-mono text-[11px] text-muted-foreground w-36">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
-              <span className="flex-1 min-w-48 text-foreground truncate">{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</span>
+              <span className="flex-1 min-w-48 text-foreground truncate">{s.customer ? `${s.customer} — ` : ""}{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</span>
               <span className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground">{s.payment}</span>
               <span className="font-mono text-heading w-28 text-right">R$ {brl(s.total)}</span>
+              <button onClick={() => printReceipt(s)} className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground hover:text-foreground">🧾 comprovante</button>
             </div>
           ))}
         </div>

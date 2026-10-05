@@ -5,6 +5,7 @@ const tabs = [
   { to: "/", label: "Venda", key: "F2" },
   { to: "/estoque", label: "Estoque", key: "F3" },
   { to: "/vendas", label: "Vendas", key: "F4" },
+  { to: "/conferencia", label: "Conferência", key: "F7" },
 ] as const;
 
 export function AppHeader() {
@@ -32,7 +33,7 @@ export function AppHeader() {
             <div className="font-mono text-[9px] uppercase tracking-[.2em] text-muted-foreground">PDV + ESTOQUE</div>
           </div>
         </div>
-        <nav className="flex items-center gap-2">
+        <nav className="flex flex-wrap items-center gap-2">
           {tabs.map((t) => (
             <Link
               key={t.to}
