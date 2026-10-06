@@ -75,7 +75,7 @@ function Estoque() {
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
             <div className="grid grid-cols-[130px_1fr_120px_110px_90px_110px_70px] gap-x-3 label-mono px-2 pb-2">
-              <span>Código</span><span>Produto</span><span>Categoria</span><span>Preço R$</span><span>Qtd</span><span>Situação</span><span />
+              <span>Código</span><span>Produto</span><span>Categoria</span><span>Preço R$</span><span>Estoque</span><span>Situação</span><span />
             </div>
             <div className="divide-y divide-border/50">
               {list.map((p) => {
@@ -87,7 +87,7 @@ function Estoque() {
                     <span className="text-muted-foreground text-[12px]">{p.category}</span>
                     <Cell money value={p.price} onSave={(n) => actions.updateField(p.id, "price", n)} />
                     <div className="flex items-center gap-1">
-                      <Cell value={p.stock} danger={low} onSave={(n) => actions.updateField(p.id, "stock", n)} />
+                      <Cell value={p.stock} weight={p.unit === "kg"} danger={low} onSave={(n) => actions.updateField(p.id, "stock", n)} />
                       <button onClick={() => actions.updateField(p.id, "stock", p.stock + 1)} className="h-6 w-6 shrink-0 rounded-md text-subtle hover:bg-accent">+</button>
                     </div>
                     <span className={`font-mono text-[11px] ${low ? "text-destructive" : "text-muted-foreground"}`}>{p.stock <= 0 ? "⚠ esgotado" : low ? "⚠ baixo" : "normal"}</span>
@@ -99,7 +99,7 @@ function Estoque() {
             </div>
           </div>
         </div>
-        <p className="mt-3 font-mono text-[10px] text-muted-foreground">Clique no preço ou na quantidade para editar direto · ↵ salva</p>
+        <p className="mt-3 font-mono text-[10px] text-muted-foreground">Clique no preço ou estoque para editar · produtos por peso aceitam kg ou g · ↵ salva</p>
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
     </div>
