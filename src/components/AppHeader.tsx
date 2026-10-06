@@ -7,6 +7,7 @@ const tabs = [
   { to: "/estoque", label: "Estoque", key: "F3", icon: "□" },
   { to: "/vendas", label: "Vendas", key: "F4", icon: "↗" },
   { to: "/conferencia", label: "Conferência", key: "F7", icon: "✓" },
+  { to: "/recebimento", label: "Recebimento", key: "F8", icon: "↓" },
 ] as const;
 
 export function AppHeader() {
