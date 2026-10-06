@@ -81,6 +81,15 @@ function Recebimento() {
 function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => void }) {
   const products = useStore((s) => s.products);
   const conference = useStore((s) => s.conferences.find(c => c.receivingId === note.id));
+  const [productId, setProductId] = useState("");
+  const [qty, setQty] = useState("");
+  const addProduct = () => {
+    const n = Number(qty.replace(",", "."));
+    if (!productId || !Number.isFinite(n) || n <= 0) return;
+    actions.addReceivingItems(note.id, [{ productId, expected: n }]);
+    setProductId("");
+    setQty("");
+  };
   const receivedByProduct = new Map(note.items.map((i: any) => [i.productId, i.received ?? conference?.counts?.[i.productId] ?? 0]));
   return <section className="glass p-4 mt-4">
     <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -94,6 +103,18 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
       <div className="rounded-xl bg-secondary/60 p-3"><div className="label-mono">Recebido</div><div className="text-lg font-bold text-foreground">{note.items.reduce((s: number, i: any) => s + Number(receivedByProduct.get(i.productId) || 0), 0)}</div></div>
       <div className="rounded-xl bg-secondary/60 p-3"><div className="label-mono">Situação</div><div className="text-lg font-bold text-foreground">{note.status}</div></div>
     </div>
+    {note.status === "pendente" && <div className="mt-4 rounded-xl bg-secondary/50 ring-1 ring-border p-3">
+      <div className="font-semibold text-foreground mb-2">Adicionar produtos à nota</div>
+      <div className="grid grid-cols-[1fr_120px_auto] gap-2">
+        <select value={productId} onChange={e => setProductId(e.target.value)} className="field text-sm text-foreground">
+          <option value="">Selecione o produto</option>
+          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <input value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9,.]/g, ""))} inputMode="decimal" placeholder="Quantidade" className="field text-sm text-foreground" />
+        <button type="button" onClick={addProduct} disabled={!productId || !qty} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold disabled:opacity-40">+ Adicionar</button>
+      </div>
+      <div className="mt-2 text-[11px] text-muted-foreground">Pode incluir produtos depois de salvar, enquanto a conferência ainda não foi finalizada.</div>
+    </div>}
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Esperado</th><th className="text-right">Recebido</th><th className="text-right">Diferença</th></tr></thead>
       <tbody className="divide-y divide-border/50">{note.items.map((i: any) => { const received=Number(receivedByProduct.get(i.productId)||0); const diff=received-i.expected; const p=products.find(x=>x.id===i.productId); return <tr key={i.productId}><td className="py-3"><div className="text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p?.code}</div></td><td className="text-right font-mono">{i.expected} {i.unit==="kg"?"kg":"un."}</td><td className="text-right font-mono">{received} {i.unit==="kg"?"kg":"un."}</td><td className={`text-right font-mono ${diff===0?"text-primary":"text-destructive"}`}>{diff>0?"+":""}{diff} {i.unit==="kg"?"kg":"un."}</td></tr>; })}</tbody></table>
