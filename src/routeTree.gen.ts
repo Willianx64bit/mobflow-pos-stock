@@ -46,14 +46,13 @@ export interface FileRoutesByFullPath {
   '/conferencia': typeof ConferenciaRoute
   '/estoque': typeof EstoqueRoute
   '/recebimento': typeof RecebimentoRoute
-  '/recebimento': typeof RecebimentoRoute
-  '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/estoque': typeof EstoqueRoute
+  '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
 }
 export interface FileRoutesById {
@@ -61,6 +60,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/estoque': typeof EstoqueRoute
+  '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
 }
 export interface FileRouteTypes {
