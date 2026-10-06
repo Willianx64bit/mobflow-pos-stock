@@ -1,5 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 
@@ -40,12 +40,29 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const note = useStore(s => s.receiving.find(n => n.id === noteId));
   const products = useStore(s => s.products);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
+  const [productQty, setProductQty] = useState("");
+
   if (!note) return null;
 
   const setReceived = (id: string, value: string) => {
     const n = Number(value.replace(",", "."));
     setCounts(c => ({ ...c, [id]: Number.isFinite(n) ? Math.max(0, n) : 0 }));
   };
+
+  const openProduct = (product: typeof products[number]) => {
+    setSelectedProduct(product);
+    setProductQty(String(counts[product.id] ?? ""));
+  };
+
+  const saveProductQty = () => {
+    if (!selectedProduct) return;
+    setReceived(selectedProduct.id, productQty);
+    setSelectedProduct(null);
+    setProductQty("");
+  };
+
   const finish = () => {
     const cid = actions.startReceivingConference(note.id);
     if (!cid) return;
@@ -58,20 +75,109 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     <div className="flex flex-wrap items-center gap-3 mb-4">
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
       <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}</div></div>
+      <button onClick={() => setCameraOpen(true)} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold">📷 Câmera</button>
     </div>
+
+    <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4 text-[12px] text-secondary-foreground">
+      Use a câmera para ler o código de barras. O produto será aberto para você informar a quantidade recebida e salvar.
+    </div>
+
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]">
-        <thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Vai chegar</th><th className="text-right">Recebido</th></tr></thead>
+        <thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Vai chegar</th><th className="text-right">Recebido</th><th></th></tr></thead>
         <tbody className="divide-y divide-border/50">
-          {note.items.map(i => <tr key={i.productId}>
-            <td className="py-3"><div className="text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === i.productId)?.code}</div></td>
-            <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
-            <td className="text-right"><input type="number" min="0" step={i.unit === "kg" ? "0.001" : "1"} value={counts[i.productId] ?? ""} onChange={e => setReceived(i.productId, e.target.value)} placeholder="0" className="field w-24 text-right font-mono text-sm text-foreground py-1" /></td>
-          </tr>)}
+          {note.items.map(i => {
+            const product = products.find(p => p.id === i.productId);
+            return <tr key={i.productId}>
+              <td className="py-3"><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button></td>
+              <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
+              <td className="text-right"><input type="number" min="0" step={i.unit === "kg" ? "0.001" : "1"} value={counts[i.productId] ?? ""} onChange={e => setReceived(i.productId, e.target.value)} placeholder="0" className="field w-24 text-right font-mono text-sm text-foreground py-1" /></td>
+              <td className="text-right"><button type="button" onClick={() => product && openProduct(product)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Abrir</button></td>
+            </tr>;
+          })}
         </tbody>
       </table>
     </div>
+
     <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver diferença. Quando houver divergência, o estoque ficará aguardando sua aprovação em <b>Recebimento</b>.</div>
     <button onClick={() => confirm("Finalizar esta conferência?") && finish()} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Finalizar conferência</button>
+
+    {cameraOpen && <BarcodeScanner products={products} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
+
+    {selectedProduct && <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-border p-5 shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          {selectedProduct.photo ? <img src={selectedProduct.photo} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-border" /> : <div className="h-16 w-16 rounded-xl bg-secondary grid place-items-center text-xs text-muted-foreground">Sem foto</div>}
+          <div className="flex-1"><div className="font-bold text-lg text-foreground">{selectedProduct.name}</div><div className="font-mono text-[11px] text-muted-foreground">Código: {selectedProduct.code}</div></div>
+          <button onClick={() => setSelectedProduct(null)} className="text-xl text-muted-foreground">×</button>
+        </div>
+        <div className="label-mono mb-2">Quantidade recebida</div>
+        <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="0" />
+        <button onClick={saveProductQty} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Salvar quantidade</button>
+      </div>
+    </div>}
   </section>;
+}
+
+function BarcodeScanner({ products, onProduct, onClose }: {
+  products: { code: string; name: string; id: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; ref?: string; cost?: number; photo?: string }[];
+  onProduct: (product: (typeof products)[number]) => void;
+  onClose: () => void;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [error, setError] = useState("");
+  const [manualCode, setManualCode] = useState("");
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let timer: number | undefined;
+    let active = true;
+
+    const start = async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("Câmera não disponível neste navegador.");
+        const BarcodeDetectorCtor = (window as any).BarcodeDetector;
+        if (!BarcodeDetectorCtor) throw new Error("Leitura automática de código não é compatível neste navegador. Use o campo abaixo.");
+        const detector = new BarcodeDetectorCtor({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "itf"] });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+        if (!active || !videoRef.current) return;
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        const scan = async () => {
+          if (!active || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const value = codes?.[0]?.rawValue?.trim();
+            if (value) {
+              const p = products.find(x => x.code === value);
+              if (p) { onProduct(p); return; }
+              setError(`Código ${value} não está cadastrado nesta nota.`);
+            }
+          } catch {}
+          timer = window.setTimeout(scan, 350);
+        };
+        scan();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Não foi possível abrir a câmera.");
+      }
+    };
+    start();
+    return () => { active = false; if (timer) window.clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); };
+  }, [products, onProduct]);
+
+  const findManual = () => {
+    const code = manualCode.trim();
+    const p = products.find(x => x.code === code);
+    if (p) onProduct(p); else setError("Produto não encontrado pelo código informado.");
+  };
+
+  return <div className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center">
+    <div className="w-full max-w-lg rounded-2xl bg-background p-4 ring-1 ring-border">
+      <div className="flex items-center gap-3 mb-3"><div className="flex-1 font-bold text-foreground">Ler código do produto</div><button onClick={onClose} className="text-2xl text-muted-foreground">×</button></div>
+      <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-border"><video ref={videoRef} muted playsInline className="h-full w-full object-cover" /></div>
+      <p className="mt-3 text-xs text-muted-foreground">Aponte a câmera para o código de barras.</p>
+      <div className="mt-3 flex gap-2"><input value={manualCode} onChange={e => setManualCode(e.target.value)} onKeyDown={e => e.key === "Enter" && findManual()} placeholder="Ou digite o código" className="field flex-1 text-foreground" /><button onClick={findManual} className="rounded-xl bg-secondary ring-1 ring-border px-4 font-semibold text-secondary-foreground">Buscar</button></div>
+      {error && <div className="mt-3 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">{error}</div>}
+    </div>
+  </div>;
 }
