@@ -40,8 +40,8 @@ function Recebimento() {
       <div className="font-display text-2xl tracking-[.12em] text-heading mb-4">RECEBIMENTO</div>
       <form onSubmit={save} className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <input value={number} onChange={e => setNumber(e.target.value)} placeholder="Número da nota" className="field text-sm text-foreground" />
-          <input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="Fornecedor" className="field text-sm text-foreground" />
+          <input value={number} onChange={e => setNumber(e.target.value)} placeholder="Número da nota" required className="field text-sm text-foreground" />
+          <input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="Fornecedor" required className="field text-sm text-foreground" />
         </div>
         <div className="grid grid-cols-[1fr_120px_auto] gap-2">
           <select value={productId} onChange={e => setProductId(e.target.value)} className="field text-sm text-foreground">
