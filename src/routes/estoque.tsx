@@ -77,15 +77,15 @@ function Estoque() {
         </div>
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
-            <div className="grid grid-cols-[130px_1fr_120px_110px_90px_110px_70px] gap-x-3 label-mono px-2 pb-2">
-              <span>Código</span><span>Produto</span><span>Categoria</span><span>Preço R$</span><span>Estoque</span><span>Situação</span><span />
+            <div className="grid grid-cols-[48px_130px_1fr_120px_110px_90px_110px_70px] gap-x-3 label-mono px-2 pb-2">
+              <span>Foto</span><span>Código</span><span>Produto</span><span>Categoria</span><span>Preço R$</span><span>Estoque</span><span>Situação</span><span />
             </div>
             <div className="divide-y divide-border/50">
               {list.map((p) => {
                 const low = p.stock <= p.minStock;
                 return (
                   <div key={p.id} className={`grid grid-cols-[130px_1fr_120px_110px_90px_110px_70px] gap-x-3 items-center py-1.5 px-2 text-[13px] rounded-lg ${low ? "bg-destructive/5" : ""}`}>
-                    <span className="font-mono text-[11px] text-muted-foreground">{p.code}</span>
+                    <div className="h-9 w-9 overflow-hidden rounded-md bg-surface ring-1 ring-border/50 grid place-items-center">{p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] text-muted-foreground">—</span>}</div>\n                    <span className="font-mono text-[11px] text-muted-foreground">{p.code}</span>
                     <span className="text-foreground truncate">{p.name}</span>
                     <span className="text-muted-foreground text-[12px]">{p.category}</span>
                     <Cell money value={p.price} onSave={(n) => actions.updateField(p.id, "price", n)} />
