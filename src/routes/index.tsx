@@ -32,7 +32,7 @@ function PDV() {
   const [cam, setCam] = useState(false);
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
-  const [editing, setEditing] = useState<Product | null | undefined>(undefined);
+  const [editing, setEditing] = useState<Product | null | undefined>(undefined);\n  const [pendingWeight, setPendingWeight] = useState<Product | null>(null);\n  const [weightInput, setWeightInput] = useState("");
   const search = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setQuick(localStorage.getItem("mobflow:quick") === "1"); }, []);
@@ -91,7 +91,7 @@ function PDV() {
       const term = (m ? m[2] : q) ?? "";
       const exact = products.find((p) => p.code === term.trim());
       const target = exact ?? results[sel];
-      if (target) { actions.addToCart(target.id, m ? Number(m[1]) : 1); setQ(""); }
+      if (target) { if (m) { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
     }
   };
@@ -132,7 +132,7 @@ function PDV() {
               return (
                 <button
                   key={p.id}
-                  onClick={() => { actions.addToCart(p.id); search.current?.focus(); }}
+                  onClick={() => { requestAdd(p); search.current?.focus(); }}
                   onContextMenu={(e) => { e.preventDefault(); setEditing(p); }}
                   className={`text-left rounded-xl bg-muted ring-1 p-3 transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
@@ -142,7 +142,7 @@ function PDV() {
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
                   <div className="flex justify-between font-mono text-[11px] mt-0.5">
                     <span className="text-subtle">{brl(p.price)}</span>
-                    <span className={p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}>×{p.stock}</span>
+                    <span className={p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}>{p.unit === "kg" ? `${brl(p.stock)}kg` : `×${p.stock}`}</span>
                   </div>
                 </button>
               );
@@ -179,7 +179,7 @@ function PDV() {
                   <div className="font-mono text-[11px] text-muted-foreground">{brl(p.price)} × {qty} = <span className="text-subtle">{brl(p.price * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
-                  <button onClick={() => actions.addToCart(p.id, -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
+                  <button onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
                   <span className="font-mono text-[13px] text-foreground w-6 text-center">{qty}</span>
                   <button onClick={() => actions.addToCart(p.id, 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
                 </div>
@@ -241,7 +241,7 @@ function PDV() {
           </div>
         </div>
       )}
-      {cam && <CameraScanner title="Bipar produtos" onCode={scanAdd} onClose={() => setCam(false)} />}
+      {cam && <CameraScanner title="Bipar produtos" onCode={scanAdd} onClose={() => setCam(false)} />}\n      {pendingWeight && (\n        <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPendingWeight(null)}>\n          <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-5" onClick={(e) => e.stopPropagation()}>\n            <div className="label-mono">PRODUTO POR PESO</div>\n            <h2 className="mt-1 font-display text-2xl tracking-[.08em] text-heading">{pendingWeight.name}</h2>\n            <p className="mt-2 text-[12px] text-muted-foreground">Informe obrigatoriamente o peso em <b>kg ou g</b>.</p>\n            <input autoFocus value={weightInput} onChange={(e) => setWeightInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && confirmWeight()} placeholder="Ex.: 500g ou 1,25kg" className="field mt-4 w-full font-mono text-lg text-foreground" inputMode="decimal" />\n            <div className="flex gap-2 mt-3">\n              <button onClick={() => setPendingWeight(null)} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>\n              <button onClick={confirmWeight} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Adicionar</button>\n            </div>\n          </div>\n        </div>\n      )}
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
     </div>
   );
