@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConferenciaRouteImport } from './routes/conferencia'
+import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as VendasRouteImport } from './routes/vendas'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const ConferenciaRoute = ConferenciaRouteImport.update({
   id: '/conferencia',
   path: '/conferencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecebimentoRoute = RecebimentoRouteImport.update({
+  id: '/recebimento',
+  path: '/recebimento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EstoqueRoute = EstoqueRouteImport.update({
@@ -39,6 +45,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/estoque': typeof EstoqueRoute
+  '/recebimento': typeof RecebimentoRoute
+  '/recebimento': typeof RecebimentoRoute
+  '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
 }
 export interface FileRoutesByTo {
@@ -56,15 +65,16 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/conferencia' | '/estoque' | '/vendas'
+  fullPaths: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/conferencia' | '/estoque' | '/vendas'
-  id: '__root__' | '/' | '/conferencia' | '/estoque' | '/vendas'
+  to: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
+  id: '__root__' | '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConferenciaRoute: typeof ConferenciaRoute
+  RecebimentoRoute: typeof RecebimentoRoute
   EstoqueRoute: typeof EstoqueRoute
   VendasRoute: typeof VendasRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/conferencia'
       fullPath: '/conferencia'
       preLoaderRoute: typeof ConferenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recebimento': {
+      id: '/recebimento'
+      path: '/recebimento'
+      fullPath: '/recebimento'
+      preLoaderRoute: typeof RecebimentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/estoque': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConferenciaRoute: ConferenciaRoute,
+  RecebimentoRoute: RecebimentoRoute,
   EstoqueRoute: EstoqueRoute,
   VendasRoute: VendasRoute,
 }
