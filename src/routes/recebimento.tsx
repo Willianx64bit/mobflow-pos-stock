@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, useStore } from "@/lib/store";
+import { actions, useStore, type ReceivingNote } from "@/lib/store";
 
 export const Route = createFileRoute("/recebimento")({
   head: () => ({ meta: [{ title: "MobFlow — Recebimento" }, { name: "description", content: "Cadastro e aprovação de notas recebidas." }] }),
@@ -82,7 +82,7 @@ function Recebimento() {
   </div>;
 }
 
-function ReceivingDetail({ note, onBack }: { note: typeof notes extends never[] ? never : any; onBack: () => void }) {
+function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => void }) {
   const products = useStore((s) => s.products);
   const conference = useStore((s) => s.conferences.find(c => c.receivingId === note.id));
   const receivedByProduct = new Map(note.items.map((i: any) => [i.productId, i.received ?? conference?.counts?.[i.productId] ?? 0]));
