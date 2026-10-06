@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg" };
+export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
 export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number; unit?: "un" | "kg" }[]; total: number; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
