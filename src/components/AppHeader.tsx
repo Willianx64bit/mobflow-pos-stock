@@ -2,7 +2,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 const tabs = [
-  { to: "/", label: "Venda", key: "F2" },
+  { to: "/", label: "PDV", key: "F2" },
   { to: "/estoque", label: "Estoque", key: "F3" },
   { to: "/vendas", label: "Vendas", key: "F4" },
   { to: "/conferencia", label: "Conferência", key: "F7" },
