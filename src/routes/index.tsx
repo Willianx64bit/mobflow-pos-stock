@@ -32,15 +32,37 @@ function PDV() {
   const [cam, setCam] = useState(false);
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
-  const [editing, setEditing] = useState<Product | null | undefined>(undefined);\n  const [pendingWeight, setPendingWeight] = useState<Product | null>(null);\n  const [weightInput, setWeightInput] = useState("");
+  const [editing, setEditing] = useState<Product | null | undefined>(undefined);
+  const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
+  const [weightInput, setWeightInput] = useState("");
   const search = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setQuick(localStorage.getItem("mobflow:quick") === "1"); }, []);
   const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
 
+  const parseWeight = (value: string) => {
+    const v = value.trim().toLowerCase().replace(",", ".");
+    if (/^\d+(?:\.\d+)?\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;
+    if (/^\d+(?:\.\d+)?\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());
+    return null;
+  };
+  const requestAdd = (p: Product) => {
+    if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
+    actions.addToCart(p.id, 1);
+    setFlash(`+1 ${p.name}`);
+  };
+  const confirmWeight = () => {
+    if (!pendingWeight) return;
+    const kg = parseWeight(weightInput);
+    if (kg === null || kg <= 0) { setFlash("Informe o peso com kg ou g"); return; }
+    actions.addToCart(pendingWeight.id, kg);
+    setFlash(`+${brl(kg)} kg ${pendingWeight.name}`);
+    setPendingWeight(null);
+    setWeightInput("");
+  };
   const scanAdd = (code: string) => {
     const p = products.find((x) => x.code === code.trim());
-    if (p) { actions.addToCart(p.id, 1); setFlash(`+1 ${p.name}`); return true; }
+    if (p) { requestAdd(p); return true; }
     setFlash(`código não cadastrado: ${code}`);
     return false;
   };
@@ -91,7 +113,7 @@ function PDV() {
       const term = (m ? m[2] : q) ?? "";
       const exact = products.find((p) => p.code === term.trim());
       const target = exact ?? results[sel];
-      if (target) { if (m) { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
+      if (target) { if (m && target.unit === "un") { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
     }
   };
