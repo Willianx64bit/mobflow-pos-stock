@@ -12,7 +12,9 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { isAuthenticated, LoginScreen } from "../components/LoginScreen";
+import { LoginScreen } from "../components/LoginScreen";
+import { supabase } from "@/lib/supabase";
+import { hydrateStore } from "@/lib/store";
 
 function NotFoundComponent() {
   return (
@@ -121,16 +123,28 @@ function RootComponent() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    setAuthenticated(isAuthenticated());
-    setCheckingAuth(false);
+    let active = true;
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) await hydrateStore();
+      if (active) {
+        setAuthenticated(Boolean(data.session));
+        setCheckingAuth(false);
+      }
+    });
+    return () => { active = false; };
   }, []);
+
+  const handleLogin = async () => {
+    await hydrateStore();
+    setAuthenticated(true);
+  };
 
   if (checkingAuth) {
     return <div className="min-h-screen bg-background" />;
   }
 
   if (!authenticated) {
-    return <LoginScreen onLogin={() => setAuthenticated(true)} />;
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
