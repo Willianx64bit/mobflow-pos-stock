@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
 const tabs = [
@@ -93,6 +94,17 @@ export function AppHeader() {
                 aria-label={darkMode ? "Ativar tema branco" : "Ativar tema escuro"}
               >
                 {darkMode ? "☀️" : "🌙"}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  localStorage.removeItem("mobflow-authenticated");
+                  window.location.reload();
+                }}
+                className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left"
+              >
+                ↪ Sair da conta
               </button>
               <button
                 type="button"
