@@ -29,6 +29,7 @@ export type Conference = {
 type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[] };
 
 const KEY = "mobflow:v1";
+const OWNER_KEY = "mobflow:owner";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const seed: Product[] = [
@@ -83,10 +84,21 @@ export async function hydrateStore() {
       .eq("owner_id", user.id)
       .maybeSingle();
 
+    const localOwner = localStorage.getItem(OWNER_KEY);
     if (!error && data?.state) {
       state = { ...state, ...data.state };
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    } else if (!error && !localOwner) {
+      // First cloud login: migrate the legacy local data once.
+      load();
+    } else if (!error) {
+      // A different account must never inherit another account's browser data.
+      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [] };
     }
+
+    try {
+      localStorage.setItem(OWNER_KEY, user.id);
+      localStorage.setItem(KEY, JSON.stringify(state));
+    } catch {}
     cloudReady = true;
     if (!data?.state && !error) await persistState();
     listeners.forEach((l) => l());
