@@ -41,11 +41,8 @@ function PDV() {
   const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
 
   const parseWeight = (value: string) => {
-    const v = value.trim().toLowerCase().replace(",", ".");
-    if (/^\d+(?:\.\d+)?\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;
-    if (/^\d+(?:\.\d+)?\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());
-    if (/^\d+$/.test(v)) return Number(v) / 1000;
-    return null;
+    const digits = value.replace(/\D/g, "");
+    return digits ? Number(digits) / 1000 : null;
   };
   const weightGrams = Math.max(0, Number(weightInput.replace(/\D/g, "")) || 0);
   const weightKg = weightGrams / 1000;
