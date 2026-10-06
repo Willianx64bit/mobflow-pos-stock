@@ -71,7 +71,7 @@ function Recebimento() {
           <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${n.status === "divergente" ? "bg-destructive/15 text-destructive" : n.status === "aceito" || n.status === "conferido" ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"}`}>{n.status}</span>
           <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
           {n.status === "pendente" && <button onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-semibold">Conferir</button>}
-          {n.status === "divergente" && <div className="flex gap-2"><button onClick={() => actions.acceptReceiving(n.id)} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-bold">Aceitar divergência</button><button onClick={() => actions.rejectReceiving(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Rejeitar</button></div>}
+          {(n.status === "divergente" || n.status === "conferido") && <div className="flex gap-2"><button onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-bold disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button onClick={() => actions.rejectReceiving(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Rejeitar</button>}</div>}
           {n.status === "rejeitado" && <span className="text-[11px] text-muted-foreground">estoque não alterado</span>}
         </div>)}
       </div>
@@ -96,9 +96,9 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
       <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}</div></div>
       <span className="font-mono text-[11px] rounded-md px-2 py-1 bg-secondary text-secondary-foreground">{note.status}</span>
-      {(note.status === "divergente" || note.status === "conferido") && !note.stockReleased && <div className="flex flex-wrap gap-2 ml-auto">
-        <button onClick={() => actions.acceptReceiving(note.id)} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold">✓ Aceitar e liberar estoque</button>
-        <button onClick={() => actions.rejectReceiving(note.id)} className="rounded-xl bg-secondary ring-1 ring-border px-4 py-2 font-semibold text-secondary-foreground">Rejeitar</button>
+      {(note.status === "divergente" || note.status === "conferido") && <div className="flex flex-wrap gap-2 ml-auto">
+        <button onClick={() => actions.acceptReceiving(note.id)} disabled={!!note.stockReleased} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold disabled:opacity-50">{note.stockReleased ? "Estoque já liberado" : "✓ Aceitar e liberar estoque"}</button>
+        {!note.stockReleased && <button onClick={() => actions.rejectReceiving(note.id)} className="rounded-xl bg-secondary ring-1 ring-border px-4 py-2 font-semibold text-secondary-foreground">Rejeitar</button>}
       </div>}
     </div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
