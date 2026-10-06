@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type Product = { id: string; code: string; name: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg" };
+export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg" };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
 export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number; unit?: "un" | "kg" }[]; total: number; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
@@ -22,7 +22,7 @@ const seed: Product[] = [
   ["7891000800", "Refrigerante 2L", 8.9, 30, "Bebidas"],
   ["7891000900", "Água Mineral 1,5L", 4.5, 120, "Bebidas"],
 ].map(([code, name, price, stock, category]) => ({
-  id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un",
+  id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
 }));
 
 let state: State = { products: seed, cart: [], sales: [], conferences: [] };
