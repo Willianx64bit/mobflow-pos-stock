@@ -11,7 +11,8 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";\nimport { isAuthenticated, LoginScreen } from "../components/LoginScreen";
+import { reportLovableError } from "../lib/lovable-error-reporting";
+import { isAuthenticated, LoginScreen } from "../components/LoginScreen";
 
 function NotFoundComponent() {
   return (
