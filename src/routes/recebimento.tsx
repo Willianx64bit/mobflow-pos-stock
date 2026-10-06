@@ -12,11 +12,15 @@ function Recebimento() {
   const products = useStore((s) => s.products);
   const notes = useStore((s) => s.receiving ?? []);
   const navigate = useNavigate();
+  const search = useSearch({ from: "/recebimento" }) as { nota?: string };
   const [number, setNumber] = useState("");
   const [supplier, setSupplier] = useState("");
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState("");
   const [items, setItems] = useState<{ productId: string; expected: number }[]>([]);
+
+  const selected = notes.find(n => n.id === search.nota);
+  if (selected) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} /></div>;
 
   const addItem = () => {
     const n = Number(qty.replace(",", "."));
@@ -35,11 +39,7 @@ function Recebimento() {
     setNumber(""); setSupplier(""); setProductId(""); setQty(""); setItems([]);
   };
 
- <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />  const search = useSearch({ from: "/recebimento" }) as { nota?: string };\n  const selectedId = search.nota || "";
-  const selected = notes.find(n => n.id === selectedId);
-  if (selected) return <ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} />;
-
-  return
+  return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
     <section className="glass p-4">
       <div className="font-display text-2xl tracking-[.12em] text-heading mb-4">RECEBIMENTO</div>
       <form onSubmit={save} className="space-y-3">
@@ -67,10 +67,7 @@ function Recebimento() {
       <div className="divide-y divide-border/50">
         {!notes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">nenhuma nota cadastrada</p>}
         {notes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-56">
-            <div className="font-semibold text-foreground">NF {n.number}</div>
-            <div className="font-mono text-[11px] text-muted-foreground">{n.supplier} · {n.items.length} produtos</div>
-          </div>
+          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier} · {n.items.length} produtos</div></div>
           <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${n.status === "divergente" ? "bg-destructive/15 text-destructive" : n.status === "aceito" || n.status === "conferido" ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"}`}>{n.status}</span>
           <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
           {n.status === "pendente" && <button onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-semibold">Conferir</button>}
@@ -81,7 +78,6 @@ function Recebimento() {
     </section>
   </div>;
 }
-
 function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => void }) {
   const products = useStore((s) => s.products);
   const conference = useStore((s) => s.conferences.find(c => c.receivingId === note.id));
