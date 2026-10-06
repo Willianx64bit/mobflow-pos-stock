@@ -113,7 +113,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
 
     {cameraOpen && <BarcodeScanner products={products} allowedIds={new Set(note.items.map(i => i.productId))} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
 
-    {selectedProduct && <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
+    {selectedProduct && <div className="mfb-product-modal fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-border p-5 shadow-xl">
         <div className="flex items-center gap-3 mb-4">
           {selectedProduct.photo ? <img src={selectedProduct.photo} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-border" /> : <div className="h-16 w-16 rounded-xl bg-secondary grid place-items-center text-xs text-muted-foreground">Sem foto</div>}
