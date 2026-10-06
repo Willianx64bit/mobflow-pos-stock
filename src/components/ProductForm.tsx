@@ -17,13 +17,13 @@ export function ProductForm({ product, onClose }: Props) {
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
 
-  const num = (s: string) => Number(s.replace(",", ".")) || 0;
+  const num = (s: string) => Number(s.replace(",", ".")) || 0;\n  const weight = (s: string) => {\n    const v = s.trim().toLowerCase().replace(",", ".");\n    if (/^\\d+(?:\\.\\d+)?\\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;\n    if (/^\\d+(?:\\.\\d+)?\\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());\n    return null;\n  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return;
     actions.saveProduct({
       id: product?.id, name: f.name.trim(), code: f.code.trim() || String(Date.now()).slice(-10),
-      category: f.category.trim() || "Geral", price: num(f.price), stock: Math.round(num(f.stock)), minStock: Math.round(num(f.minStock)),
+      category: f.category.trim() || "Geral", price: num(f.price), stock: f.unit === "kg" ? stock! : Math.round(stock), minStock: f.unit === "kg" ? minStock! : Math.round(minStock), unit: f.unit,
     });
     onClose();
   };
@@ -54,8 +54,8 @@ export function ProductForm({ product, onClose }: Props) {
         </div>
         <div className="grid grid-cols-3 gap-3">
           {input("price", "Preço R$", { mono: true, mode: "decimal" })}
-          {input("stock", "Estoque", { mono: true, mode: "numeric" })}
-          {input("minStock", "Mínimo", { mono: true, mode: "numeric" })}
+          {input("stock", f.unit === "kg" ? "Estoque (ex: 2kg)" : "Estoque", { mono: true, mode: "decimal" })}
+          {input("minStock", f.unit === "kg" ? "Mínimo (ex: 500g)" : "Mínimo", { mono: true, mode: "decimal" })}
         </div>
         <div className="flex gap-2 pt-1">
           {product && (
