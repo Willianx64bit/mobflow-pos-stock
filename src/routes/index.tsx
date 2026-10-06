@@ -173,8 +173,8 @@ function PDV() {
                   onContextMenu={(e) => { e.preventDefault(); setEditing(p); }}
                   className={`text-left rounded-xl bg-muted ring-1 p-3 transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
-                  <div className="aspect-[4/3] rounded-lg bg-surface ring-1 ring-border/50 grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
-                    {p.name.split(" ")[0]}
+                  <div className="aspect-[4/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
+                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : p.name.split(" ")[0]}
                   </div>
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
                   <div className="flex justify-between font-mono text-[11px] mt-0.5">
