@@ -198,7 +198,7 @@ function PDV() {
 
         <aside className="glass p-4 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
           <div className="flex items-center justify-between pb-3 border-b border-border">
-            <span className="font-display text-[20px] tracking-[.12em] text-heading">CARRINHO</span>
+            <span className="font-display text-[20px] tracking-[.12em] text-heading">CHECKOUT</span>
             <span className="font-mono text-[11px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
