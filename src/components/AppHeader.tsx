@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 const tabs = [
@@ -38,7 +38,18 @@ export function AppHeader() {
     };
   }, [navigate]);
 
-  const closeSidebar = () => { localStorage.setItem("mobflow-sidebar", "closed"); setOpen(false); };\n\n  const toggleSidebar = () => setOpen((value) => {
+  const closeSidebar = () => {
+    localStorage.setItem("mobflow-sidebar", "closed");
+    setOpen(false);
+  };
+
+  const selectTab = (to: (typeof tabs)[number]["to"]) => {
+    localStorage.setItem("mobflow-sidebar", "closed");
+    setOpen(false);
+    navigate({ to });
+  };
+
+  const toggleSidebar = () => setOpen((value) => {
     const next = !value;
     localStorage.setItem("mobflow-sidebar", next ? "open" : "closed");
     return next;
@@ -59,18 +70,16 @@ export function AppHeader() {
 
             <nav className="flex-1 px-2 space-y-1">
               {tabs.map((t) => (
-                <Link
+                <button
                   key={t.to}
-                  to={t.to}
-                  onClick={closeSidebar}
-                  activeOptions={{ exact: true }}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  activeProps={{ className: "!bg-primary !text-primary-foreground !ring-1 !ring-primary" }}
+                  type="button"
+                  onClick={() => selectTab(t.to)}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                   <span className="w-6 text-center text-base">{t.icon}</span>
-                  <span className="flex-1">{t.label}</span>
+                  <span className="flex-1 text-left">{t.label}</span>
                   <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>
-                </Link>
+                </button>
               ))}
             </nav>
 
