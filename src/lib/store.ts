@@ -34,7 +34,8 @@ function load() {
   loaded = true;
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) state = { ...state, ...JSON.parse(raw) };\n    state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
+    if (raw) state = { ...state, ...JSON.parse(raw) };
+    state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
   } catch {}
 }
 function set(next: Partial<State>) {
@@ -57,7 +58,8 @@ export const actions = {
     const p = state.products.find((x) => x.id === productId);
     if (!p) return;
     const cur = state.cart.find((c) => c.productId === productId);
-    const nextQty = Math.max(0, (cur?.qty ?? 0) + qty);\n    if (nextQty > p.stock) return;
+    const nextQty = Math.max(0, (cur?.qty ?? 0) + qty);
+    if (nextQty > p.stock) return;
     const cart = nextQty === 0
       ? state.cart.filter((c) => c.productId !== productId)
       : cur ? state.cart.map((c) => (c.productId === productId ? { ...c, qty: nextQty } : c)) : [...state.cart, { productId, qty: nextQty }];
