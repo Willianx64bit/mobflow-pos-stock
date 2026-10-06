@@ -151,6 +151,27 @@ export const actions = {
   updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
     set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, ...patch } : n) });
   },
+  addReceivingItems(id: string, items: { productId: string; expected: number }[]) {
+    const note = (state.receiving ?? []).find((n) => n.id === id);
+    if (!note || note.status !== "pendente") return;
+    const additions = items
+      .map((item) => {
+        const p = state.products.find((x) => x.id === item.productId);
+        const expected = Number(item.expected);
+        return p && Number.isFinite(expected) && expected > 0
+          ? { productId: p.id, name: p.name, expected, unit: p.unit as "un" | "kg" }
+          : null;
+      })
+      .filter(Boolean) as ReceivingItem[];
+    if (!additions.length) return;
+    const merged = [...note.items];
+    for (const item of additions) {
+      const existing = merged.find((i) => i.productId === item.productId);
+      if (existing) existing.expected += item.expected;
+      else merged.push(item);
+    }
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, items: merged } : n) });
+  },
   startReceivingConference(receivingId: string) {
     const n = (state.receiving ?? []).find((x) => x.id === receivingId);
     if (!n || n.status !== "pendente") return null;
