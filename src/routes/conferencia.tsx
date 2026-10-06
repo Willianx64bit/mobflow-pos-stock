@@ -41,6 +41,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const products = useStore(s => s.products);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [reopenCamera, setReopenCamera] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
 
@@ -63,6 +64,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     setCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
     setSelectedProduct(null);
     setProductQty("");
+    if (reopenCamera) setCameraOpen(true);
   };
 
   const finish = () => {
@@ -78,6 +80,15 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
       <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}</div></div>
       <button onClick={() => setCameraOpen(true)} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold">📷 Câmera</button>
+      <label className="flex items-center gap-2 rounded-xl bg-secondary ring-1 ring-border px-3 py-2 text-sm text-secondary-foreground cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={reopenCamera}
+          onChange={e => setReopenCamera(e.target.checked)}
+          className="h-4 w-4 accent-primary"
+        />
+        Reabrir câmera após salvar
+      </label>
     </div>
 
     <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4 text-[12px] text-secondary-foreground">
