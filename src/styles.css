@@ -146,13 +146,15 @@
   overflow-y: auto;
 }
 
-@media (max-height: 600px) and (max-width: 640px) {
+@media (max-width: 640px) {
   .mfb-product-modal {
-    place-items: start center;
+    align-items: start;
+    justify-items: center;
     padding-top: max(0.5rem, env(safe-area-inset-top));
     padding-bottom: 0.5rem;
   }
   .mfb-product-modal > div {
     max-height: calc(100dvh - 1rem);
+    margin-top: 0;
   }
 }
