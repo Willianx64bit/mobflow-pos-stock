@@ -25,6 +25,7 @@ export function ProductForm({ product, onClose }: Props) {
     const v = s.trim().toLowerCase().replace(",", ".");
     if (/^\d+(?:\.\d+)?\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;
     if (/^\d+(?:\.\d+)?\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());
+    if (/^\d+(?:\.\d+)?$/.test(v)) return Number(v);
     return null;
   };
 
@@ -33,7 +34,9 @@ export function ProductForm({ product, onClose }: Props) {
     if (!f.name.trim()) return;
     const stock = f.unit === "kg" ? weight(f.stock) : num(f.stock);
     const minStock = f.unit === "kg" ? weight(f.minStock) : num(f.minStock);
-    if (f.unit === "kg" && (stock === null || minStock === null || stock < 0 || minStock < 0)) return;
+    if (f.unit === "kg" && (stock === null || minStock === null || stock < 0 || minStock < 0)) {
+      return;
+    }
 
     actions.saveProduct({
       id: product?.id,
@@ -82,10 +85,10 @@ export function ProductForm({ product, onClose }: Props) {
         </label>
         <div className="grid grid-cols-3 gap-3">
           {input("price", f.unit === "kg" ? "Preço por kg R$" : "Preço R$", { mono: true, mode: "decimal" })}
-          {input("stock", f.unit === "kg" ? "Estoque (ex: 2kg)" : "Estoque", { mono: true, mode: "decimal" })}
-          {input("minStock", f.unit === "kg" ? "Mínimo (ex: 500g)" : "Mínimo", { mono: true, mode: "decimal" })}
+          {input("stock", f.unit === "kg" ? "Estoque (kg ou g)" : "Estoque", { mono: true, mode: "decimal" })}
+          {input("minStock", f.unit === "kg" ? "Mínimo (kg ou g)" : "Mínimo", { mono: true, mode: "decimal" })}
         </div>
-        {f.unit === "kg" && <p className="font-mono text-[10px] text-primary">Produto por peso: informe sempre o estoque e o mínimo com kg ou g. O preço é por kg.</p>}
+        {f.unit === "kg" && <p className="font-mono text-[10px] text-primary">Produto por peso: 2 = 2 kg, 500g = 0,5 kg. O preço é por kg.</p>}
         <div className="flex gap-2 pt-1">
           {product && (
             <button type="button" onClick={() => { if (confirm("Excluir este produto?")) { actions.deleteProduct(product.id); onClose(); } }}
