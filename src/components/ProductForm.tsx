@@ -5,8 +5,8 @@ type Props = { product?: Product | null; onClose: () => void };
 
 export function ProductForm({ product, onClose }: Props) {
   const [f, setF] = useState({
-    name: product?.name ?? "", code: product?.code ?? "", category: product?.category ?? "",
-    price: product ? String(product.price).replace(".", ",") : "",
+    name: product?.name ?? "", code: product?.code ?? "", ref: product?.ref ?? "", category: product?.category ?? "",
+    price: product ? String(product.price).replace(".", ",") : "",\n    cost: product?.cost != null ? String(product.cost).replace(".", ",") : "",
     stock: product ? String(product.stock).replace(".", ",") : "",
     minStock: product ? String(product.minStock).replace(".", ",") : "5",
     unit: product?.unit ?? "un",
@@ -83,7 +83,7 @@ export function ProductForm({ product, onClose }: Props) {
             <option value="kg">Peso (kg/g)</option>
           </select>
         </label>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">\n          {input("price", f.unit === "kg" ? "Preço por kg R$" : "Preço R$", { mono: true, mode: "decimal" })}\n          {input("cost", f.unit === "kg" ? "Custo por kg R$" : "Custo R$ (opcional)", { mono: true, mode: "decimal" })}\n        </div>\n        <div className="grid grid-cols-2 gap-3">
           {input("price", f.unit === "kg" ? "Preço por kg R$" : "Preço R$", { mono: true, mode: "decimal" })}
           {input("stock", f.unit === "kg" ? "Estoque (kg ou g)" : "Estoque", { mono: true, mode: "decimal" })}
           {input("minStock", f.unit === "kg" ? "Mínimo (kg ou g)" : "Mínimo", { mono: true, mode: "decimal" })}
