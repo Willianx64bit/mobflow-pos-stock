@@ -96,7 +96,8 @@ function PDV() {
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
   const total = lines.reduce((s, l) => s + l.p.price * l.qty, 0);
   const count = lines.reduce((s, l) => s + l.qty, 0);
-  const recv = Number(received.replace(",", ".")) || 0;\n
+  const recv = Number(received.replace(",", ".")) || 0;
+
   const finish = () => {
     if (!lines.length) return;
     if (payment === "Dinheiro" && recv && recv < total) return;
@@ -186,7 +187,8 @@ function PDV() {
             <button onClick={() => setEditing(null)} className="rounded-xl ring-1 ring-dashed ring-primary/40 p-3 grid place-items-center text-primary text-sm font-semibold hover:bg-primary/5 min-h-32">
               + Novo produto
             </button>
-          </div>\n          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · botão direito edita · F6 pagamento · F8 limpar · F9 finalizar</p>
+          </div>
+          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · botão direito edita · F6 pagamento · F8 limpar · F9 finalizar</p>
         </section>
 
         <aside className="glass p-4 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
