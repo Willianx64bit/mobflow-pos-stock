@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { supabase } from "@/lib/supabase";
 
 export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string };
 export type CartItem = { productId: string; qty: number };
@@ -46,6 +47,8 @@ const seed: Product[] = [
 
 let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [] };
 let loaded = false;
+let cloudReady = false;
+let hydrating: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 function load() {
@@ -57,9 +60,44 @@ function load() {
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
   } catch {}
 }
+async function persistState() {
+  if (!cloudReady || typeof window === "undefined") return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("app_state").upsert({
+    owner_id: user.id,
+    state,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+export async function hydrateStore() {
+  if (hydrating) return hydrating;
+  hydrating = (async () => {
+    load();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("app_state")
+      .select("state")
+      .eq("owner_id", user.id)
+      .maybeSingle();
+
+    if (!error && data?.state) {
+      state = { ...state, ...data.state };
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    }
+    cloudReady = true;
+    if (!data?.state && !error) await persistState();
+    listeners.forEach((l) => l());
+  })().finally(() => { hydrating = null; });
+  return hydrating;
+}
+
 function set(next: Partial<State>) {
   state = { ...state, ...next };
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  if (cloudReady) void persistState();
   listeners.forEach((l) => l());
 }
 
