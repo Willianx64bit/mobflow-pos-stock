@@ -1,15 +1,7 @@
 import { FormEvent, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
-const VALID_USERNAME_HASH = "0a41dbd0bbe8517ad8eb785900b11b23b23d9a61e62bc68362d2f0c9182c2de9";
-const VALID_PASSWORD_HASH = "ffdb88d3c5bb1a79855f2a675ed200e39ae49a19319c8c3410bbc74bc10a49f9";
-const VALID_CNPJ_HASH = "d6bed3e585a9ae4dcc72fcb07b67fbd79902ed8e4f322d2f4c67d0f5b6f926f8";
 const AUTH_KEY = "mobflow-authenticated";
-
-async function sha256(value: string) {
-  const data = new TextEncoder().encode(value);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export function isAuthenticated() {
   return localStorage.getItem(AUTH_KEY) === "1";
@@ -39,18 +31,29 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const [u, p, c] = await Promise.all([
-      sha256(username.trim()),
-      sha256(password),
-      sha256(cnpj.replace(/\D/g, "")),
-    ]);
-    if (u === VALID_USERNAME_HASH && p === VALID_PASSWORD_HASH && c === VALID_CNPJ_HASH) {
+    try {
+      const { data, error } = await supabase.functions.invoke("mobflow-login", {
+        body: { username: username.trim(), password, cnpj: cnpj.replace(/\D/g, "") },
+      });
+      if (error || !data?.session) {
+        setError(data?.error || "Não foi possível entrar. Verifique os dados.");
+        return;
+      }
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+      if (sessionError) {
+        setError("Não foi possível iniciar a sessão.");
+        return;
+      }
       localStorage.setItem(AUTH_KEY, "1");
       onLogin();
-    } else {
-      setError("Usuário, senha ou CNPJ inválido.");
+    } catch {
+      setError("Não foi possível conectar ao servidor.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
