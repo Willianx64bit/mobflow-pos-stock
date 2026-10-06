@@ -47,7 +47,6 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     setCounts(c => ({ ...c, [id]: Number.isFinite(n) ? Math.max(0, n) : 0 }));
   };
   const finish = () => {
-    actions.patchConference;
     const cid = actions.startReceivingConference(note.id);
     if (!cid) return;
     for (const i of note.items) actions.setCount(cid, i.productId, counts[i.productId] ?? 0);
