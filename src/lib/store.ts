@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
-export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number; unit?: "un" | "kg" }[]; total: number; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
+export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number; unit?: "un" | "kg" }[]; total: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
 export type Conference = { id: string; name: string; date: string; status: "aberta" | "finalizada"; counts: Record<string, number>; unknown: string[]; adjusted?: boolean };
 
 type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[] };
@@ -67,14 +67,16 @@ export const actions = {
   },
   removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }); },
   clearCart() { set({ cart: [] }); },
-  checkout(payment: Payment, received?: number, customer?: string, cpf?: string): Sale | null {
+  checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Sale | null {
     if (!state.cart.length) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
       return { name: p.name, price: p.price, qty: c.qty, unit: p.unit };
     });
-    const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, payment, received, customer: customer || undefined, cpf: cpf || undefined };
+    const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+    const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
+    const total = Math.max(0, subtotal - discountValue);
+    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
@@ -131,7 +133,7 @@ export function printReceipt(s: Sale) {
 <p>Data: ${new Date(s.date).toLocaleString("pt-BR")}</p><p>Nº: ${s.id.toUpperCase()}</p>
 ${s.customer ? `<p>Cliente: ${s.customer}</p>` : ""}${s.cpf ? `<p>CPF: ${s.cpf}</p>` : ""}<hr/>
 <table>${rows}</table><hr/>
-<table><tr><td><b>TOTAL</b></td><td style="text-align:right"><b>R$ ${brl(s.total)}</b></td></tr>
+<table>${s.discount ? `<tr><td>Subtotal</td><td style="text-align:right">R$ ${brl(s.subtotal ?? s.total + s.discount)}</td></tr><tr><td>Desconto</td><td style="text-align:right">- R$ ${brl(s.discount)}</td></tr>` : ""}<tr><td><b>TOTAL</b></td><td style="text-align:right"><b>R$ ${brl(s.total)}</b></td></tr>
 <tr><td>Pagamento</td><td style="text-align:right">${s.payment}</td></tr>
 ${s.received && s.received > s.total ? `<tr><td>Recebido</td><td style="text-align:right">${brl(s.received)}</td></tr><tr><td>Troco</td><td style="text-align:right">${brl(s.received - s.total)}</td></tr>` : ""}</table>
 <hr/><p class="c">Obrigado pela preferência!</p><script>window.onload=()=>{window.print()}</script></body></html>`);
