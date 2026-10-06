@@ -102,7 +102,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver diferença. Quando houver divergência, o estoque ficará aguardando sua aprovação em <b>Recebimento</b>.</div>
     <button onClick={() => confirm("Finalizar esta conferência?") && finish()} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Finalizar conferência</button>
 
-    {cameraOpen && <BarcodeScanner products={products} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
+    {cameraOpen && <BarcodeScanner products={products} allowedIds={new Set(note.items.map(i => i.productId))} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
 
     {selectedProduct && <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-border p-5 shadow-xl">
@@ -119,8 +119,9 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   </section>;
 }
 
-function BarcodeScanner({ products, onProduct, onClose }: {
+function BarcodeScanner({ products, allowedIds, onProduct, onClose }: {
   products: { code: string; name: string; id: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; ref?: string; cost?: number; photo?: string }[];
+  allowedIds: Set<string>;
   onProduct: (product: (typeof products)[number]) => void;
   onClose: () => void;
 }) {
@@ -150,8 +151,8 @@ function BarcodeScanner({ products, onProduct, onClose }: {
             const value = codes?.[0]?.rawValue?.trim();
             if (value) {
               const p = products.find(x => x.code === value);
-              if (p) { onProduct(p); return; }
-              setError(`Código ${value} não está cadastrado nesta nota.`);
+              if (p && allowedIds.has(p.id)) { onProduct(p); return; }
+              setError(`Código ${value} não pertence aos produtos desta nota.`);
             }
           } catch {}
           timer = window.setTimeout(scan, 350);
@@ -168,7 +169,8 @@ function BarcodeScanner({ products, onProduct, onClose }: {
   const findManual = () => {
     const code = manualCode.trim();
     const p = products.find(x => x.code === code);
-    if (p) onProduct(p); else setError("Produto não encontrado pelo código informado.");
+    if (p && allowedIds.has(p.id)) onProduct(p);
+    else setError("Produto não encontrado ou não pertence aos produtos desta nota.");
   };
 
   return <div className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center">
