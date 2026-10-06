@@ -264,7 +264,20 @@ function PDV() {
         </div>
       )}
       {cam && <CameraScanner title="Bipar produtos" onCode={scanAdd} onClose={() => setCam(false)} />}
-      {pendingWeight && (\n        <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPendingWeight(null)}>\n          <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-5" onClick={(e) => e.stopPropagation()}>\n            <div className="label-mono">PRODUTO POR PESO</div>\n            <h2 className="mt-1 font-display text-2xl tracking-[.08em] text-heading">{pendingWeight.name}</h2>\n            <p className="mt-2 text-[12px] text-muted-foreground">Informe obrigatoriamente o peso em <b>kg ou g</b>.</p>\n            <input autoFocus value={weightInput} onChange={(e) => setWeightInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && confirmWeight()} placeholder="Ex.: 500g ou 1,25kg" className="field mt-4 w-full font-mono text-lg text-foreground" inputMode="decimal" />\n            <div className="flex gap-2 mt-3">\n              <button onClick={() => setPendingWeight(null)} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>\n              <button onClick={confirmWeight} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Adicionar</button>\n            </div>\n          </div>\n        </div>\n      )}
+      {pendingWeight && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPendingWeight(null)}>
+          <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="label-mono">PRODUTO POR PESO</div>
+            <h2 className="mt-1 font-display text-2xl tracking-[.08em] text-heading">{pendingWeight.name}</h2>
+            <p className="mt-2 text-[12px] text-muted-foreground">Informe obrigatoriamente o peso em <b>kg ou g</b>.</p>
+            <input autoFocus value={weightInput} onChange={(e) => setWeightInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && confirmWeight()} placeholder="Ex.: 500g ou 1,25kg" className="field mt-4 w-full font-mono text-lg text-foreground" inputMode="decimal" />
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => setPendingWeight(null)} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>
+              <button onClick={confirmWeight} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Adicionar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
     </div>
   );
