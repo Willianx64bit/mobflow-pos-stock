@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const AUTH_KEY = "mobflow-authenticated";
+const REMEMBER_KEY = "mobflow-remember-login";
 
 export function isAuthenticated() {
   return localStorage.getItem(AUTH_KEY) === "1";
@@ -17,6 +18,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [cnpj, setCnpj] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) !== "0");
 
   const formatCnpj = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -31,6 +33,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
+    if (!rememberLogin) localStorage.removeItem("mobflow-authenticated");
     try {
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
         body: { username: username.trim(), password, cnpj: cnpj.replace(/\D/g, "") },
@@ -79,6 +83,10 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full font-mono text-foreground" />
           </div>
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input type="checkbox" checked={rememberLogin} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
+            <span>Lembrar login</span>
+          </label>
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar no MobFlow"}
           </button>
