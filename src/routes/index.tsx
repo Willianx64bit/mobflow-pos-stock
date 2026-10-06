@@ -34,7 +34,7 @@ function PDV() {
   const [done, setDone] = useState<Sale | null>(null);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
-  const [weightInput, setWeightInput] = useState("");
+  const [weightInput, setWeightInput] = useState("0");
   const search = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setQuick(localStorage.getItem("mobflow:quick") === "1"); }, []);
@@ -44,21 +44,40 @@ function PDV() {
     const v = value.trim().toLowerCase().replace(",", ".");
     if (/^\d+(?:\.\d+)?\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;
     if (/^\d+(?:\.\d+)?\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());
+    if (/^\d+$/.test(v)) return Number(v) / 1000;
     return null;
   };
+  const weightGrams = Math.max(0, Number(weightInput.replace(/\D/g, "")) || 0);
+  const weightKg = weightGrams / 1000;
+  const weightDisplay = weightGrams >= 1000
+    ? `${Math.floor(weightGrams / 1000)} kg${weightGrams % 1000 ? ` ${weightGrams % 1000} g` : ""}`
+    : `${weightGrams} g`;
+  const addWeightDigit = (digit: string) => {
+    setWeightInput((v) => {
+      const digits = `${v.replace(/\D/g, "")}${digit}`.replace(/^0+(?=\d)/, "");
+      return digits || "0";
+    });
+  };
+  const removeWeightDigit = () => {
+    setWeightInput((v) => {
+      const digits = v.replace(/\D/g, "").slice(0, -1);
+      return digits || "0";
+    });
+  };
   const requestAdd = (p: Product) => {
-    if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
+    if (p.unit === "kg") { setPendingWeight(p); setWeightInput("0"); return; }
     actions.addToCart(p.id, 1);
     setFlash(`+1 ${p.name}`);
   };
   const confirmWeight = () => {
     if (!pendingWeight) return;
     const kg = parseWeight(weightInput);
-    if (kg === null || kg <= 0) { setFlash("Informe o peso com kg ou g"); return; }
+    if (kg === null || kg <= 0) { setFlash("Informe o peso"); return; }
+    if (kg > pendingWeight.stock) { setFlash(`Peso maior que o estoque: ${brl(pendingWeight.stock)} kg`); return; }
     actions.addToCart(pendingWeight.id, kg);
     setFlash(`+${brl(kg)} kg ${pendingWeight.name}`);
     setPendingWeight(null);
-    setWeightInput("");
+    setWeightInput("0");
   };
   const scanAdd = (code: string) => {
     const p = products.find((x) => x.code === code.trim());
@@ -267,13 +286,24 @@ function PDV() {
       {pendingWeight && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPendingWeight(null)}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-5" onClick={(e) => e.stopPropagation()}>
-            <div className="label-mono">PRODUTO POR PESO</div>
+            <div className="label-mono">PESAGEM</div>
             <h2 className="mt-1 font-display text-2xl tracking-[.08em] text-heading">{pendingWeight.name}</h2>
-            <p className="mt-2 text-[12px] text-muted-foreground">Informe obrigatoriamente o peso em <b>kg ou g</b>.</p>
-            <input autoFocus value={weightInput} onChange={(e) => setWeightInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && confirmWeight()} placeholder="Ex.: 500g ou 1,25kg" className="field mt-4 w-full font-mono text-lg text-foreground" inputMode="decimal" />
+            <div className="mt-4 rounded-xl bg-well ring-1 ring-border p-4 text-center">
+              <div className="font-display text-4xl text-heading">{weightDisplay}</div>
+              <div className="mt-1 font-mono text-[12px] text-muted-foreground">R$ {brl(pendingWeight.price)}/kg · estoque {brl(pendingWeight.stock)} kg</div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              {["1","2","3","4","5","6","7","8","9"].map((digit) => (
+                <button key={digit} onClick={() => addWeightDigit(digit)} className="rounded-xl bg-secondary ring-1 ring-border py-3.5 text-lg font-bold text-foreground hover:bg-accent">{digit}</button>
+              ))}
+              <button onClick={() => setWeightInput("0")} className="rounded-xl bg-secondary ring-1 ring-border py-3.5 text-lg font-bold text-secondary-foreground">C</button>
+              <button onClick={() => addWeightDigit("0")} className="rounded-xl bg-secondary ring-1 ring-border py-3.5 text-lg font-bold text-foreground hover:bg-accent">0</button>
+              <button onClick={removeWeightDigit} className="rounded-xl bg-secondary ring-1 ring-border py-3.5 text-lg font-bold text-secondary-foreground">⌫</button>
+            </div>
+            <p className="mt-3 text-center font-mono text-[10px] text-muted-foreground">Digite em gramas: 5 = 5g · 500 = 500g · 1250 = 1kg 250g</p>
             <div className="flex gap-2 mt-3">
               <button onClick={() => setPendingWeight(null)} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>
-              <button onClick={confirmWeight} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Adicionar</button>
+              <button onClick={confirmWeight} disabled={weightKg <= 0} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">Adicionar</button>
             </div>
           </div>
         </div>
