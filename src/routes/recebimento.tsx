@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, useStore } from "@/lib/store";
 
@@ -28,7 +28,7 @@ function Recebimento() {
     setQty("");
   };
 
-  const save = (e: React.FormEvent) => {
+  const save = (e: FormEvent) => {
     e.preventDefault();
     if (!items.length) return;
     actions.createReceiving(number, supplier, items);
