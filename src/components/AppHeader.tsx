@@ -11,6 +11,12 @@ const tabs = [
 export function AppHeader() {
   const navigate = useNavigate();
   const [time, setTime] = useState("");
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+    localStorage.setItem("mobflow-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
+
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     tick();
@@ -45,7 +51,16 @@ export function AppHeader() {
               {t.label} <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>
             </Link>
           ))}
-          <span className="ml-3 font-mono text-[11px] text-muted-foreground">{time}</span>
+          <button
+            type="button"
+            onClick={() => setDarkMode((value) => !value)}
+            className="ml-1 px-3 py-2 rounded-xl text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent"
+            aria-label={darkMode ? "Ativar tema branco" : "Ativar tema escuro"}
+            title={darkMode ? "Tema branco" : "Tema escuro"}
+          >
+            {darkMode ? "☀️" : "🌙"}
+          </button>
+          <span className="ml-1 font-mono text-[11px] text-muted-foreground">{time}</span>
         </nav>
       </header>
       <div className="h-[3px] rounded-full bg-primary/15 overflow-hidden mb-4">
