@@ -5,8 +5,12 @@ type Props = { product?: Product | null; onClose: () => void };
 
 export function ProductForm({ product, onClose }: Props) {
   const [f, setF] = useState({
-    name: product?.name ?? "", code: product?.code ?? "", ref: product?.ref ?? "", category: product?.category ?? "",
-    price: product ? String(product.price).replace(".", ",") : "",\n    cost: product?.cost != null ? String(product.cost).replace(".", ",") : "",
+    name: product?.name ?? "",
+    code: product?.code ?? "",
+    ref: product?.ref ?? "",
+    category: product?.category ?? "",
+    price: product ? String(product.price).replace(".", ",") : "",
+    cost: product?.cost != null ? String(product.cost).replace(".", ",") : "",
     stock: product ? String(product.stock).replace(".", ",") : "",
     minStock: product ? String(product.minStock).replace(".", ",") : "5",
     unit: product?.unit ?? "un",
@@ -34,16 +38,16 @@ export function ProductForm({ product, onClose }: Props) {
     if (!f.name.trim()) return;
     const stock = f.unit === "kg" ? weight(f.stock) : num(f.stock);
     const minStock = f.unit === "kg" ? weight(f.minStock) : num(f.minStock);
-    if (f.unit === "kg" && (stock === null || minStock === null || stock < 0 || minStock < 0)) {
-      return;
-    }
+    if (f.unit === "kg" && (stock === null || minStock === null || stock < 0 || minStock < 0)) return;
 
     actions.saveProduct({
       id: product?.id,
       name: f.name.trim(),
+      ref: f.ref.trim() || undefined,
       code: f.code.trim() || String(Date.now()).slice(-10),
       category: f.category.trim() || "Geral",
       price: num(f.price),
+      cost: f.cost.trim() ? num(f.cost) : undefined,
       stock: f.unit === "kg" ? stock! : Math.round(stock),
       minStock: f.unit === "kg" ? minStock! : Math.round(minStock),
       unit: f.unit,
@@ -74,8 +78,9 @@ export function ProductForm({ product, onClose }: Props) {
         {input("name", "Nome", { ref: true })}
         <div className="grid grid-cols-2 gap-3">
           {input("code", "Código de barras", { mono: true, mode: "numeric" })}
-          {input("category", "Categoria")}
+          {input("ref", "REF (opcional)", { mono: true })}
         </div>
+        {input("category", "Categoria")}
         <label className="flex flex-col gap-1.5">
           <span className="label-mono">Tipo de venda</span>
           <select value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value as "un" | "kg" })} className="field text-sm text-foreground">
@@ -83,8 +88,11 @@ export function ProductForm({ product, onClose }: Props) {
             <option value="kg">Peso (kg/g)</option>
           </select>
         </label>
-        <div className="grid grid-cols-2 gap-3">\n          {input("price", f.unit === "kg" ? "Preço por kg R$" : "Preço R$", { mono: true, mode: "decimal" })}\n          {input("cost", f.unit === "kg" ? "Custo por kg R$" : "Custo R$ (opcional)", { mono: true, mode: "decimal" })}\n        </div>\n        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {input("price", f.unit === "kg" ? "Preço por kg R$" : "Preço R$", { mono: true, mode: "decimal" })}
+          {input("cost", f.unit === "kg" ? "Custo por kg R$" : "Custo R$ (opcional)", { mono: true, mode: "decimal" })}
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           {input("stock", f.unit === "kg" ? "Estoque (kg ou g)" : "Estoque", { mono: true, mode: "decimal" })}
           {input("minStock", f.unit === "kg" ? "Mínimo (kg ou g)" : "Mínimo", { mono: true, mode: "decimal" })}
         </div>
