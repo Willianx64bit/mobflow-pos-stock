@@ -6,10 +6,13 @@ type Props = { product?: Product | null; onClose: () => void };
 export function ProductForm({ product, onClose }: Props) {
   const [f, setF] = useState({
     name: product?.name ?? "", code: product?.code ?? "", category: product?.category ?? "",
-    price: product ? String(product.price).replace(".", ",") : "", stock: product ? String(product.stock) : "",
-    minStock: product ? String(product.minStock) : "5",
+    price: product ? String(product.price).replace(".", ",") : "",
+    stock: product ? String(product.stock).replace(".", ",") : "",
+    minStock: product ? String(product.minStock).replace(".", ",") : "5",
+    unit: product?.unit ?? "un",
   });
   const first = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     first.current?.focus();
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -17,16 +20,34 @@ export function ProductForm({ product, onClose }: Props) {
     return () => window.removeEventListener("keydown", k);
   }, [onClose]);
 
-  const num = (s: string) => Number(s.replace(",", ".")) || 0;\n  const weight = (s: string) => {\n    const v = s.trim().toLowerCase().replace(",", ".");\n    if (/^\\d+(?:\\.\\d+)?\\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;\n    if (/^\\d+(?:\\.\\d+)?\\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());\n    return null;\n  };
+  const num = (s: string) => Number(s.replace(",", ".")) || 0;
+  const weight = (s: string) => {
+    const v = s.trim().toLowerCase().replace(",", ".");
+    if (/^\d+(?:\.\d+)?\s*g$/.test(v)) return Number(v.replace(/g$/, "").trim()) / 1000;
+    if (/^\d+(?:\.\d+)?\s*kg$/.test(v)) return Number(v.replace(/kg$/, "").trim());
+    return null;
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return;
+    const stock = f.unit === "kg" ? weight(f.stock) : num(f.stock);
+    const minStock = f.unit === "kg" ? weight(f.minStock) : num(f.minStock);
+    if (f.unit === "kg" && (stock === null || minStock === null || stock < 0 || minStock < 0)) return;
+
     actions.saveProduct({
-      id: product?.id, name: f.name.trim(), code: f.code.trim() || String(Date.now()).slice(-10),
-      category: f.category.trim() || "Geral", price: num(f.price), stock: f.unit === "kg" ? stock! : Math.round(stock), minStock: f.unit === "kg" ? minStock! : Math.round(minStock), unit: f.unit,
+      id: product?.id,
+      name: f.name.trim(),
+      code: f.code.trim() || String(Date.now()).slice(-10),
+      category: f.category.trim() || "Geral",
+      price: num(f.price),
+      stock: f.unit === "kg" ? stock! : Math.round(stock),
+      minStock: f.unit === "kg" ? minStock! : Math.round(minStock),
+      unit: f.unit,
     });
     onClose();
   };
+
   const input = (key: keyof typeof f, label: string, opts: { mono?: boolean; ref?: boolean; mode?: "decimal" | "numeric" } = {}) => (
     <label className="flex flex-col gap-1.5">
       <span className="label-mono">{label}</span>
@@ -52,11 +73,19 @@ export function ProductForm({ product, onClose }: Props) {
           {input("code", "Código de barras", { mono: true, mode: "numeric" })}
           {input("category", "Categoria")}
         </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="label-mono">Tipo de venda</span>
+          <select value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value as "un" | "kg" })} className="field text-sm text-foreground">
+            <option value="un">Unidade</option>
+            <option value="kg">Peso (kg/g)</option>
+          </select>
+        </label>
         <div className="grid grid-cols-3 gap-3">
-          {input("price", "Preço R$", { mono: true, mode: "decimal" })}
+          {input("price", f.unit === "kg" ? "Preço por kg R$" : "Preço R$", { mono: true, mode: "decimal" })}
           {input("stock", f.unit === "kg" ? "Estoque (ex: 2kg)" : "Estoque", { mono: true, mode: "decimal" })}
           {input("minStock", f.unit === "kg" ? "Mínimo (ex: 500g)" : "Mínimo", { mono: true, mode: "decimal" })}
         </div>
+        {f.unit === "kg" && <p className="font-mono text-[10px] text-primary">Produto por peso: informe sempre o estoque e o mínimo com kg ou g. O preço é por kg.</p>}
         <div className="flex gap-2 pt-1">
           {product && (
             <button type="button" onClick={() => { if (confirm("Excluir este produto?")) { actions.deleteProduct(product.id); onClose(); } }}
