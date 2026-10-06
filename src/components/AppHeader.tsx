@@ -62,7 +62,8 @@ export function AppHeader() {
                 <Link
                   key={t.to}
                   to={t.to}
-                  onClick={closeSidebar}\n                  activeOptions={{ exact: true }}
+                  onClick={closeSidebar}
+                  activeOptions={{ exact: true }}
                   className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"
                   activeProps={{ className: "!bg-primary !text-primary-foreground !ring-1 !ring-primary" }}
                 >
