@@ -96,7 +96,7 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
       <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}</div></div>
       <span className="font-mono text-[11px] rounded-md px-2 py-1 bg-secondary text-secondary-foreground">{note.status}</span>
-      {note.status === "divergente" && <div className="flex flex-wrap gap-2 ml-auto">
+      {(note.status === "divergente" || note.status === "conferido") && !note.stockReleased && <div className="flex flex-wrap gap-2 ml-auto">
         <button onClick={() => actions.acceptReceiving(note.id)} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold">✓ Aceitar e liberar estoque</button>
         <button onClick={() => actions.rejectReceiving(note.id)} className="rounded-xl bg-secondary ring-1 ring-border px-4 py-2 font-semibold text-secondary-foreground">Rejeitar</button>
       </div>}
