@@ -28,6 +28,8 @@ function PDV() {
   const [received, setReceived] = useState("");
   const [customer, setCustomer] = useState("");
   const [cpf, setCpf] = useState("");
+  const [discountType, setDiscountType] = useState<"R$" | "%">("R$");
+  const [discountInput, setDiscountInput] = useState("");
   const [quick, setQuick] = useState(false);
   const [cam, setCam] = useState(false);
   const [flash, setFlash] = useState("");
@@ -94,15 +96,18 @@ function PDV() {
   }, [q, products]);
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
-  const total = lines.reduce((s, l) => s + l.p.price * l.qty, 0);
+  const subtotal = lines.reduce((s, l) => s + l.p.price * l.qty, 0);
+  const discountNumber = Number(discountInput.replace(",", ".")) || 0;
+  const discount = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discountNumber)) / 100 : Math.min(subtotal, Math.max(0, discountNumber));
+  const total = Math.max(0, subtotal - discount);
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const recv = Number(received.replace(",", ".")) || 0;
 
   const finish = () => {
     if (!lines.length) return;
     if (payment === "Dinheiro" && recv && recv < total) return;
-    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf);
-    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setFlash(""); }
+    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
+    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
   };
 
   useEffect(() => {
@@ -214,12 +219,20 @@ function PDV() {
             ))}
           </div>
           <div className="pt-3 border-t border-border">
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-2">
               <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Cliente (opcional)" className="field text-[13px] text-foreground" />
               <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
             </div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="flex rounded-lg bg-secondary ring-1 ring-border p-1 shrink-0">
+                <button type="button" onClick={() => setDiscountType("R$")} className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-colors ${discountType === "R$" ? "bg-primary text-primary-foreground" : "text-secondary-foreground"}`}>R$</button>
+                <button type="button" onClick={() => setDiscountType("%")} className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-colors ${discountType === "%" ? "bg-primary text-primary-foreground" : "text-secondary-foreground"}`}>%</button>
+              </div>
+              <input value={discountInput} onChange={(e) => setDiscountInput(e.target.value.replace(/[^0-9,\.]/g, ""))} inputMode="decimal" placeholder={discountType === "R$" ? "Desconto em R$" : "Desconto em %"} className="field flex-1 font-mono text-[13px] text-foreground" />
+              {discount > 0 && <span className="font-mono text-[11px] text-destructive whitespace-nowrap">- R$ {brl(discount)}</span>}
+            </div>
             <div className="flex justify-between items-baseline">
-              <span className="label-mono">Total</span>
+              <span className="label-mono">{discount > 0 ? "Total com desconto" : "Total"}</span>
               <span className="font-display text-[40px] leading-none text-heading">R$ {brl(total)}</span>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-4">
