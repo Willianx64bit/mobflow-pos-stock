@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, type ReceivingNote } from "@/lib/store";
@@ -35,7 +35,7 @@ function Recebimento() {
     setNumber(""); setSupplier(""); setProductId(""); setQty(""); setItems([]);
   };
 
- <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />  const selectedId = (new URLSearchParams(window.location.search).get("nota") || "");
+ <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />  const search = useSearch({ from: "/recebimento" }) as { nota?: string };\n  const selectedId = search.nota || "";
   const selected = notes.find(n => n.id === selectedId);
   if (selected) return <ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} />;
 
