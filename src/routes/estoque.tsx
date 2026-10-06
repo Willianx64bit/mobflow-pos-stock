@@ -16,13 +16,16 @@ export const Route = createFileRoute("/estoque")({
   component: Estoque,
 });
 
-function Cell({ value, onSave, money, danger }: { value: number; onSave: (n: number) => void; money?: boolean; danger?: boolean }) {
-  const fmt = money ? brl(value) : String(value);
+function Cell({ value, onSave, money, danger, weight }: { value: number; onSave: (n: number) => void; money?: boolean; danger?: boolean; weight?: boolean }) {
+  const fmt = money ? brl(value) : weight ? `${brl(value)}kg` : String(value);
   const [v, setV] = useState(fmt);
   useEffect(() => setV(fmt), [fmt]);
   const commit = () => {
-    const n = Number(v.replace(/\./g, money ? "" : ".").replace(",", "."));
-    if (!Number.isNaN(n) && n !== value) onSave(money ? n : Math.round(n)); else setV(fmt);
+    const raw = weight ? v.trim().toLowerCase().replace(",", ".") : v;
+    const n = weight
+      ? (/^\d+(?:\.\d+)?\s*g$/.test(raw) ? Number(raw.replace(/g$/, "").trim()) / 1000 : /^\d+(?:\.\d+)?\s*kg$/.test(raw) ? Number(raw.replace(/kg$/, "").trim()) : NaN)
+      : Number(raw.replace(/\./g, money ? "" : ".").replace(",", "."));
+    if (!Number.isNaN(n) && n !== value) onSave(money ? n : weight ? n : Math.round(n)); else setV(fmt);
   };
   return (
     <input value={v} onChange={(e) => setV(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
