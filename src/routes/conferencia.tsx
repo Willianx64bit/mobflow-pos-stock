@@ -53,12 +53,14 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
 
   const openProduct = (product: typeof products[number]) => {
     setSelectedProduct(product);
-    setProductQty(String(counts[product.id] ?? ""));
+    setProductQty("");
   };
 
   const saveProductQty = () => {
     if (!selectedProduct) return;
-    setReceived(selectedProduct.id, productQty);
+    const n = Number(productQty.replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) return;
+    setCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
     setSelectedProduct(null);
     setProductQty("");
   };
@@ -91,7 +93,14 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
             return <tr key={i.productId}>
               <td className="py-3"><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button></td>
               <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
-              <td className="text-right"><input type="number" min="0" step={i.unit === "kg" ? "0.001" : "1"} value={counts[i.productId] ?? ""} onChange={e => setReceived(i.productId, e.target.value)} placeholder="0" className="field w-24 text-right font-mono text-sm text-foreground py-1" /></td>
+              <td className="text-right">
+                <div className="font-mono font-semibold">{counts[i.productId] ?? 0} {i.unit === "kg" ? "kg" : "un."}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {Math.max(0, i.expected - (counts[i.productId] ?? 0)) > 0
+                    ? "Falta " + Math.max(0, i.expected - (counts[i.productId] ?? 0)) + " " + (i.unit === "kg" ? "kg" : "un.")
+                    : "Quantidade completa"}
+                </div>
+              </td>
               <td className="text-right"><button type="button" onClick={() => product && openProduct(product)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Abrir</button></td>
             </tr>;
           })}
@@ -111,9 +120,14 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
           <div className="flex-1"><div className="font-bold text-lg text-foreground">{selectedProduct.name}</div><div className="font-mono text-[11px] text-muted-foreground">Código: {selectedProduct.code}</div></div>
           <button onClick={() => setSelectedProduct(null)} className="text-xl text-muted-foreground">×</button>
         </div>
-        <div className="label-mono mb-2">Quantidade recebida</div>
-        <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="0" />
-        <button onClick={saveProductQty} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Salvar quantidade</button>
+        <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4">
+          <div className="text-[11px] text-muted-foreground">Já coletado</div>
+          <div className="text-2xl font-bold text-foreground">{counts[selectedProduct.id] ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
+          <div className="text-[11px] text-muted-foreground mt-1">Esperado nesta nota: {note.items.find(i => i.productId === selectedProduct.id)?.expected ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
+        </div>
+        <div className="label-mono mb-2">Quantidade desta coleta</div>
+        <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="Ex.: 20" />
+        <button onClick={saveProductQty} disabled={!productQty} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">+ Somar quantidade</button>
       </div>
     </div>}
   </section>;
