@@ -190,24 +190,19 @@ export const actions = {
     const note = (state.receiving ?? []).find((n) => n.id === conf.receivingId);
     if (!note) return;
     const divergent = note.items.some((i) => (conf.counts[i.productId] ?? 0) !== i.expected);
-    const products = divergent ? state.products : state.products.map((p) => {
-      const item = note.items.find((i) => i.productId === p.id);
-      return item ? { ...p, stock: p.stock + item.expected } : p;
-    });
     set({
-      products,
       receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
         ...n,
         items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0 })),
         status: divergent ? "divergente" : "conferido",
-        stockReleased: !divergent,
+        stockReleased: false,
       } : n),
       conferences: state.conferences.map((c) => c.id === id ? { ...c, status: "finalizada", adjusted: !divergent } : c),
     });
   },
   acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
-    if (!note || note.status !== "divergente" || note.stockReleased) return;
+    if (!note || (note.status !== "divergente" && note.status !== "conferido") || note.stockReleased) return;
     const products = state.products.map((p) => {
       const item = note.items.find((i) => i.productId === p.id);
       return item ? { ...p, stock: p.stock + (item.received ?? 0) } : p;
