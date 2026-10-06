@@ -4,9 +4,28 @@ export type Product = { id: string; code: string; ref?: string; name: string; pr
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
 export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number; unit?: "un" | "kg" }[]; total: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
-export type Conference = { id: string; name: string; date: string; status: "aberta" | "finalizada"; counts: Record<string, number>; unknown: string[]; adjusted?: boolean };
+export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
+export type ReceivingNote = {
+  id: string;
+  number: string;
+  supplier: string;
+  date: string;
+  items: ReceivingItem[];
+  status: "pendente" | "conferido" | "divergente" | "aceito" | "rejeitado";
+  stockReleased?: boolean;
+};
+export type Conference = {
+  id: string;
+  name: string;
+  date: string;
+  status: "aberta" | "finalizada";
+  counts: Record<string, number>;
+  unknown: string[];
+  adjusted?: boolean;
+  receivingId?: string;
+};
 
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[] };
+type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[] };
 
 const KEY = "mobflow:v1";
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -25,7 +44,7 @@ const seed: Product[] = [
   id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
 }));
 
-let state: State = { products: seed, cart: [], sales: [], conferences: [] };
+let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [] };
 let loaded = false;
 const listeners = new Set<() => void>();
 
@@ -116,7 +135,73 @@ export const actions = {
     const products = adjust ? state.products.map((p) => (p.id in conf.counts ? { ...p, stock: conf.counts[p.id]! } : p)) : state.products;
     set({ products, conferences: state.conferences.map((c) => (c.id === id ? { ...c, status: "finalizada", adjusted: adjust } : c)) });
   },
-  deleteConference(id: string) { set({ conferences: state.conferences.filter((c) => c.id !== id) }); },
+  createReceiving(number: string, supplier: string, items: { productId: string; expected: number }[]) {
+    const receiving: ReceivingNote = {
+      id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado",
+      date: new Date().toISOString(),
+      items: items.map((i) => {
+        const p = state.products.find((x) => x.id === i.productId)!;
+        return { productId: p.id, name: p.name, expected: Math.max(0, i.expected), unit: p.unit };
+      }),
+      status: "pendente",
+    };
+    set({ receiving: [receiving, ...(state.receiving ?? [])] });
+    return receiving.id;
+  },
+  updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, ...patch } : n) });
+  },
+  startReceivingConference(receivingId: string) {
+    const n = (state.receiving ?? []).find((x) => x.id === receivingId);
+    if (!n || n.status !== "pendente") return null;
+    const existing = state.conferences.find((c) => c.receivingId === receivingId && c.status === "aberta");
+    if (existing) return existing.id;
+    const c: Conference = {
+      id: uid(), name: `Nota ${n.number} · ${n.supplier}`, date: new Date().toISOString(),
+      status: "aberta", counts: {}, unknown: [], receivingId,
+    };
+    set({ conferences: [c, ...(state.conferences ?? [])] });
+    return c.id;
+  },
+  finishReceivingConference(id: string) {
+    const conf = state.conferences.find((c) => c.id === id);
+    if (!conf?.receivingId) return;
+    const note = (state.receiving ?? []).find((n) => n.id === conf.receivingId);
+    if (!note) return;
+    const divergent = note.items.some((i) => (conf.counts[i.productId] ?? 0) !== i.expected);
+    const products = divergent ? state.products : state.products.map((p) => {
+      const item = note.items.find((i) => i.productId === p.id);
+      return item ? { ...p, stock: p.stock + item.expected } : p;
+    });
+    set({
+      products,
+      receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
+        ...n,
+        items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0 })),
+        status: divergent ? "divergente" : "conferido",
+        stockReleased: !divergent,
+      } : n),
+      conferences: state.conferences.map((c) => c.id === id ? { ...c, status: "finalizada", adjusted: !divergent } : c),
+    });
+  },
+  acceptReceiving(id: string) {
+    const note = (state.receiving ?? []).find((n) => n.id === id);
+    if (!note || note.status !== "divergente" || note.stockReleased) return;
+    const products = state.products.map((p) => {
+      const item = note.items.find((i) => i.productId === p.id);
+      return item ? { ...p, stock: p.stock + (item.received ?? 0) } : p;
+    });
+    set({
+      products,
+      receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "aceito", stockReleased: true } : n),
+    });
+  },
+  rejectReceiving(id: string) {
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "rejeitado", stockReleased: false } : n) });
+  },
+  deleteReceiving(id: string) {
+    set({ receiving: (state.receiving ?? []).filter((n) => n.id !== id), conferences: state.conferences.filter((c) => c.receivingId !== id) });
+  },
 };
 
 export const formatCpf = (v: string) => {
