@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 const tabs = [
   { to: "/", label: "PDV", key: "F2", icon: "▣" },
   { to: "/conferencia", label: "Conferência", key: "F7", icon: "✓" },
+  { to: "/fiado", label: "Fiado", key: "", icon: "💳" },
   { to: "/gerencia", label: "Acesso Gerência", key: "", icon: "🔒" },
 ] as const;
 
