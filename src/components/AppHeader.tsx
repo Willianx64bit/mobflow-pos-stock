@@ -45,7 +45,7 @@ export function AppHeader() {
     setOpen(false);
   };
 
-  const selectTab = (to: (typeof tabs)[number]["to"]) => {
+  const selectTab = (to: (typeof publicTabs | typeof managementTabs)[number]["to"]) => {
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
