@@ -47,8 +47,8 @@ const EstoqueRoute = EstoqueRouteImport.update({
 } as any)
 const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
   id: '/fiado/$customer',
-  path: '/$customer',
-  getParentRoute: () => FiadoRouteImport,
+  path: '/fiado/$customer',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const FiadoRoute = FiadoRouteImport.update({
   id: '/fiado',
@@ -77,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado': typeof FiadoRoute
@@ -116,7 +117,6 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/estoque'
     | '/fiado/$customer'
-    | '/fiado/$customer'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
@@ -128,6 +128,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
+    | '/fiado/$customer'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
@@ -139,6 +140,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
+    | '/fiado/$customer'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
@@ -151,6 +153,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   DashboardRoute: typeof DashboardRoute
   EstoqueRoute: typeof EstoqueRoute
+  FiadoCustomerRoute: typeof FiadoCustomerRoute
   FiadoRoute: typeof FiadoRoute
   GerenciaRoute: typeof GerenciaRoute
   RecebimentoRoute: typeof RecebimentoRoute
@@ -194,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EstoqueRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fiado/$customer': {
+      id: '/fiado/$customer'
+      path: '/fiado/$customer'
+      fullPath: '/fiado/$customer'
+      preLoaderRoute: typeof FiadoCustomerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fiado': {
       id: '/fiado'
       path: '/fiado'
@@ -231,6 +241,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   DashboardRoute: DashboardRoute,
   EstoqueRoute: EstoqueRoute,
+  FiadoCustomerRoute: FiadoCustomerRoute,
   FiadoRoute: FiadoRoute,
   GerenciaRoute: GerenciaRoute,
   RecebimentoRoute: RecebimentoRoute,
