@@ -21,8 +21,11 @@ const firstDayOfMonth = () => {
   return localDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
 };
 
-function saleProfit(s: { items: { price: number; cost?: number; qty: number }[] }) {
-  return s.items.reduce((sum, i) => sum + (i.price - (i.cost ?? 0)) * i.qty, 0);
+function saleProfit(s: { total: number; items: { price: number; cost?: number; qty: number }[] }) {
+  // Lucro = valor efetivamente vendido - custo dos produtos.
+  // Assim desconto reduz o lucro e o faturamento não é contado como lucro.
+  const costTotal = s.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
+  return Math.max(0, s.total - costTotal);
 }
 
 export const Route = createFileRoute("/gerencia")({
