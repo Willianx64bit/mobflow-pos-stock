@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
@@ -37,6 +37,7 @@ function Cell({ value, onSave, money, danger, weight }: { value: number; onSave:
 
 function Estoque() {
   const products = useStore((s) => s.products);
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
@@ -67,6 +68,7 @@ function Estoque() {
         ))}
       </div>
       <section className="glass p-4">
+        <div className="flex justify-end mb-3"><button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button></div>
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrar por nome, código ou categoria…" className="field flex-1 min-w-60 text-sm text-foreground" />
           <button onClick={() => setOnlyLow(!onlyLow)}
