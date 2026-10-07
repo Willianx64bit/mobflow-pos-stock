@@ -38,6 +38,7 @@ function PDV() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
+  const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -142,6 +143,17 @@ function PDV() {
   useEffect(() => { setSel(0); }, [q]);
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && scanTimer.current) {
+      clearTimeout(scanTimer.current);
+      scanTimer.current = null;
+      const value = q.trim();
+      if (/^\d{6,}$/.test(value) && products.some((p) => p.code === value)) {
+        e.preventDefault();
+        scanAdd(value);
+        setQ("");
+        return;
+      }
+    }
     if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(s + 1, results.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)); }
     else if (e.key === "Enter") {
@@ -237,13 +249,24 @@ function PDV() {
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
                   <button type="button" onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
                   <input
-                    value={p.unit === "kg" ? brl(qty) : String(qty)}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(",", ".").replace(/[^0-9.]/g, "");
+                    value={qtyDrafts[p.id] ?? (p.unit === "kg" ? brl(qty) : String(qty))}
+                    onChange={(e) => setQtyDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/[^0-9,.]/g, "") }))}
+                    onFocus={(e) => {
+                      e.currentTarget.select();
+                      setQtyDrafts((d) => ({ ...d, [p.id]: p.unit === "kg" ? brl(qty) : String(qty) }));
+                    }}
+                    onBlur={(e) => {
+                      const raw = e.currentTarget.value.replace(",", ".");
                       const value = Number(raw);
                       if (Number.isFinite(value)) actions.setCartQty(p.id, value);
+                      setQtyDrafts((d) => { const next = { ...d }; delete next[p.id]; return next; });
                     }}
-                    onFocus={(e) => e.currentTarget.select()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }
+                    }}
                     inputMode="decimal"
                     aria-label={`Quantidade de ${p.name}`}
                     className="w-14 bg-transparent text-center font-mono text-[13px] text-foreground outline-none"
