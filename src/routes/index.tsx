@@ -21,6 +21,7 @@ const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix"];
 
 function PDV() {
   const products = useStore((s) => s.products);
+  const settings = useStore((s) => s.settings);
   const cart = useStore((s) => s.cart);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
@@ -141,6 +142,12 @@ function PDV() {
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
+      {(settings.companyName || settings.companyLogo) && (
+        <div className="mb-4 glass px-4 py-3 flex items-center gap-3">
+          {settings.companyLogo && <img src={settings.companyLogo} alt="" className="h-11 w-11 rounded-xl object-contain bg-background ring-1 ring-border" />}
+          {settings.companyName && <div className="font-display text-xl tracking-[.08em] text-heading truncate">{settings.companyName}</div>}
+        </div>
+      )}
       <main className="grid lg:grid-cols-[1fr_380px] gap-4">
         <section className="glass p-4">
           <div className="flex gap-2">
