@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
-export type Sale = { id: string; date: string; items: { name: string; price: number; qty: number; unit?: "un" | "kg" }[]; total: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
+export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number; qty: number; unit?: "un" | "kg" }[]; total: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
@@ -167,7 +167,7 @@ export const actions = {
     if (!state.cart.length) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
-      return { name: p.name, price: p.price, qty: c.qty, unit: p.unit };
+      return { name: p.name, price: p.price, cost: p.cost, qty: c.qty, unit: p.unit };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
