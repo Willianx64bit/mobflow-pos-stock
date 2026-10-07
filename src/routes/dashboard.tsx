@@ -17,9 +17,14 @@ const firstDayOfMonth = () => {
   return localDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
 };
 
-function saleProfit(s: { total: number; items: { price: number; cost?: number | undefined; qty: number }[] }) {
-  const costTotal = s.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
-  return Math.max(0, s.total - costTotal);
+function saleProfit(s: { total: number; items: { name: string; price: number; cost?: number | undefined; qty: number }[] }, products: { name: string; cost?: number | undefined }[]) {
+  const costTotal = s.items.reduce((sum, i) => {
+    const savedCost = i.cost;
+    const fallbackCost = products.find((p) => p.name === i.name)?.cost;
+    const cost = savedCost ?? fallbackCost;
+    return sum + (cost ?? 0) * i.qty;
+  }, 0);
+  return s.total - costTotal;
 }
 
 export const Route = createFileRoute("/dashboard")({
@@ -51,7 +56,7 @@ function Dashboard() {
   }), [sales, from, to]);
 
   const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
-  const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s), 0);
+  const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -112,7 +117,7 @@ function Dashboard() {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold text-heading">R$ {brl(s.total)}</div>
-                      <div className="text-xs text-primary">Lucro R$ {brl(saleProfit(s))}</div>
+                      <div className="text-xs text-primary">Lucro R$ {brl(saleProfit(s, products))}</div>
                     </div>
                   </div>
                 ))}
