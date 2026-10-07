@@ -94,6 +94,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
@@ -117,6 +118,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
+    | '/fiado'
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
@@ -127,6 +129,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
+    | '/fiado'
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
@@ -179,6 +182,13 @@ declare module '@tanstack/react-router' {
       path: '/estoque'
       fullPath: '/estoque'
       preLoaderRoute: typeof EstoqueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fiado': {
+      id: '/fiado'
+      path: '/fiado'
+      fullPath: '/fiado'
+      preLoaderRoute: typeof FiadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gerencia': {

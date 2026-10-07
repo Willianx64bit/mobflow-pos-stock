@@ -5,7 +5,8 @@ export type Product = { id: string; code: string; ref?: string | undefined; name
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyLogo?: string | undefined };
-export type FiadoPayment = { value: number; date: string };\nexport type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] };
+export type FiadoPayment = { value: number; date: string };
+export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
