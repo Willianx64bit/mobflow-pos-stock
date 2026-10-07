@@ -11,6 +11,9 @@ export const Route = createFileRoute("/fiado")({
 function Fiado() {
   const sales = useStore((s) => s.sales);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"todos" | "pendentes" | "pagos">("todos");
+  const [paymentValue, setPaymentValue] = useState("");
 
   const fiado = useMemo(() => sales.filter((s) => s.payment === "Fiado"), [sales]);
   const customers = useMemo(() => {
@@ -23,6 +26,7 @@ function Fiado() {
   }, [fiado]);
   const paidTotal = (s: Sale) => (s.payments ?? (s.paid ? [{ value: s.total, date: s.paidAt ?? s.date }] : [])).reduce((sum, p) => sum + p.value, 0);
   const remaining = (s: Sale) => Math.max(0, s.total - paidTotal(s));
+  const visibleCustomers = useMemo(() => customers.filter(([customer, customerSales]) => { const matchesSearch = customer.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()); const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0); const matchesFilter = filter === "todos" || (filter === "pendentes" ? balance > 0 : balance <= 0); return matchesSearch && matchesFilter; }), [customers, search, filter]);
   const open = fiado.filter((s) => remaining(s) > 0);
   const totalOpen = open.reduce((sum, s) => sum + remaining(s), 0);
 
@@ -45,8 +49,9 @@ function Fiado() {
         </section>
 
         <section className="space-y-3">
+          <section className="glass p-4"><div className="grid gap-3 md:grid-cols-[1fr_auto]"><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Pesquisar cliente..." className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/30" /><div className="flex gap-2">{(["todos", "pendentes", "pagos"] as const).map((item) => <button key={item} onClick={() => setFilter(item)} className={`rounded-xl px-4 py-2 text-xs font-bold ${filter === item ? "bg-primary text-primary-foreground" : "bg-secondary hover:bg-accent"}`}>{item === "todos" ? "Todos" : item === "pendentes" ? "Pendentes" : "Pagos"}</button>)}</div></div></section>
           {customers.length === 0 && <div className="glass p-8 text-center text-sm text-muted-foreground">Nenhum fiado registrado.</div>}
-          {customers.map(([customer, customerSales]) => {
+          {visibleCustomers.map(([customer, customerSales]) => {
             const total = customerSales.reduce((sum, s) => sum + remaining(s), 0);
             const customerPending = total > 0;
             const key = customer;
@@ -61,7 +66,7 @@ function Fiado() {
                     </div>
                     <div className="text-xs text-muted-foreground">{customerSales.length} compra(s) · {customerSales.filter((s) => remaining(s) > 0).length} pendente(s)</div>
                   </div>
-                  <div className="font-display text-2xl text-destructive">R$ {brl(total)}</div>
+                  <div className="text-right"><div className="font-display text-2xl text-destructive">R$ {brl(total)}</div><div className="text-[11px] text-muted-foreground">saldo restante</div></div>
                   <button onClick={() => setExpanded(isOpen ? null : key)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Detalhar compra</button>
                   <button onClick={() => printFiadoBalance(customer, customerSales.concat(sales.filter(s => s.payment === "Fiado" && s.paid && (s.customer || "").trim() === customer.trim())))} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🖨 Imprimir saldo</button>
                 </div>
@@ -79,10 +84,7 @@ function Fiado() {
                             <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div>
                             <div className="text-[11px] text-muted-foreground">Pago: R$ {brl(paidTotal(s))} · Saldo: R$ {brl(remaining(s))}</div>
                           </div>
-                          {remaining(s) > 0 ? <button onClick={() => {
-                            const value = Number(window.prompt(`Valor pago agora (saldo R$ ${brl(remaining(s))}):`, brl(remaining(s)).replace(".", "").replace(",", ".")));
-                            if (Number.isFinite(value) && value > 0) actions.addFiadoPayment(s.id, value);
-                          }} className="rounded-lg bg-orange-500/15 px-3 py-2 text-xs font-bold text-orange-600 ring-1 ring-orange-500/30 hover:bg-orange-500/25">💰 Adicionar pagamento</button> : <span className="rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 ring-1 ring-green-500/30">Pago</span>}
+                          {remaining(s) > 0 ? <div className="basis-full mt-2 rounded-xl border border-border/60 bg-background/60 p-4"><div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Registrar pagamento</div><div className="flex flex-wrap items-center gap-3"><div className="font-display text-4xl text-heading">R$ {brl(remaining(s))}</div><div className="text-xs text-muted-foreground">falta pagar</div><input inputMode="decimal" value={paymentValue} onChange={(e) => setPaymentValue(e.target.value)} placeholder="0,00" className="w-36 rounded-xl border-2 border-border bg-background px-4 py-3 text-lg font-bold text-center outline-none focus:border-primary" /><button onClick={() => { const value = Number(paymentValue.replace(",", ".")); if (Number.isFinite(value) && value > 0) { actions.addFiadoPayment(s.id, value); setPaymentValue(""); } }} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90">Adicionar pagamento</button><button onClick={() => { actions.addFiadoPayment(s.id, remaining(s)); setPaymentValue(""); }} className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600">Quitar tudo</button></div></div> : <span className="rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 ring-1 ring-green-500/30">Pago</span>}
                           <button onClick={() => printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Compra</button>
                           {(s.payments ?? []).length > 0 && <div className="basis-full pl-1 text-[11px] text-muted-foreground">Pagamentos: {(s.payments ?? []).map((p, i) => <span key={i} className="ml-2">R$ {brl(p.value)} ({new Date(p.date).toLocaleDateString("pt-BR")})</span>)}</div>}
                         </div>
