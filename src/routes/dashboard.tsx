@@ -17,7 +17,8 @@ const firstDayOfMonth = () => {
   return localDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
 };
 
-function saleProfit(s: { total: number; items: { name: string; price: number; cost?: number | undefined; qty: number }[] }, products: { name: string; cost?: number | undefined }[]) {
+function saleProfit(s: { total: number; profit?: number; items: { name: string; price: number; cost?: number | undefined; qty: number }[] }, products: { name: string; cost?: number | undefined }[]) {
+  if (typeof s.profit === "number") return s.profit;
   const costTotal = s.items.reduce((sum, i) => {
     const savedCost = i.cost;
     const fallbackCost = products.find((p) => p.name === i.name)?.cost;
