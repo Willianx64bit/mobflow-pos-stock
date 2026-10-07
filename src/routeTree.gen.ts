@@ -136,6 +136,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gerencia': {
+      id: '/gerencia'
+      path: '/gerencia'
+      fullPath: '/gerencia'
+      preLoaderRoute: typeof GerenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
