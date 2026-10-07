@@ -15,6 +15,7 @@ import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FiadoRouteImport } from './routes/fiado'
+import { Route as FiadoClienteRouteImport } from './routes/fiado.cliente'
 import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
@@ -50,6 +51,11 @@ const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
   path: '/fiado/$customer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FiadoClienteRoute = FiadoClienteRouteImport.update({
+  id: '/fiado/cliente',
+  path: '/fiado/cliente',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FiadoRoute = FiadoRouteImport.update({
   id: '/fiado',
   path: '/fiado',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/cliente': typeof FiadoClienteRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
@@ -90,6 +97,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/cliente': typeof FiadoClienteRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
@@ -103,6 +111,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/cliente': typeof FiadoClienteRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/estoque'
     | '/fiado/$customer'
+    | '/fiado/cliente'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
@@ -242,6 +252,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   EstoqueRoute: EstoqueRoute,
   FiadoCustomerRoute: FiadoCustomerRoute,
+  FiadoClienteRoute: FiadoClienteRoute,
   FiadoRoute: FiadoRoute,
   GerenciaRoute: GerenciaRoute,
   RecebimentoRoute: RecebimentoRoute,
