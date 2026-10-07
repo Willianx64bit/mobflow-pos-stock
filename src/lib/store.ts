@@ -207,7 +207,7 @@ export const actions = {
     for (const r of rows) {
       const i = products.findIndex((p) => p.code === r.code);
       if (i >= 0) {
-        const p = products[i];
+        const p = products[i]!;
         products[i] = { ...p, name: r.name || p.name, stock: mode === "add" ? p.stock + r.qty : r.qty, price: r.price ?? p.price };
         updated++;
       } else {
