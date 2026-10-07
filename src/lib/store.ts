@@ -201,6 +201,23 @@ export const actions = {
     if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
     else set({ products: [{ ...p, id: uid() }, ...state.products] });
   },
+  importProducts(rows: { code: string; name: string; qty: number; price?: number }[], mode: "replace" | "add") {
+    const products = [...state.products];
+    let created = 0, updated = 0;
+    for (const r of rows) {
+      const i = products.findIndex((p) => p.code === r.code);
+      if (i >= 0) {
+        const p = products[i];
+        products[i] = { ...p, name: r.name || p.name, stock: mode === "add" ? p.stock + r.qty : r.qty, price: r.price ?? p.price };
+        updated++;
+      } else {
+        products.unshift({ id: uid(), code: r.code, name: r.name || r.code, price: r.price ?? 0, stock: r.qty, minStock: 5, category: "Geral", unit: "un", ref: undefined, cost: undefined });
+        created++;
+      }
+    }
+    set({ products });
+    return { created, updated };
+  },
   updateField(id: string, field: "price" | "stock", value: number) {
     set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)) });
   },
