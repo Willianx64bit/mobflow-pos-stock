@@ -17,7 +17,7 @@ export const Route = createFileRoute("/")({
   component: PDV,
 });
 
-const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix"];
+const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix", "Fiado"];
 
 function PDV() {
   const products = useStore((s) => s.products);
@@ -123,6 +123,7 @@ function PDV() {
 
   const finish = () => {
     if (!lines.length) return;
+    if (payment === "Fiado" && !customer.trim()) { setFlash("Informe o cliente para vender fiado"); return; }
     if (payment === "Dinheiro" && recv && recv < total) return;
     const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
     if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
@@ -301,7 +302,7 @@ function PDV() {
               <span className="label-mono">{discount > 0 ? "Total com desconto" : "Total"}</span>
               <span className="font-display text-[40px] leading-none text-heading">R$ {brl(total)}</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
               {PAYMENTS.map((m) => (
                 <button key={m} onClick={() => setPayment(m)}
                   className={`rounded-lg py-2.5 text-[12px] font-semibold ring-1 transition-colors ${payment === m ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground hover:text-foreground"}`}>
@@ -309,7 +310,7 @@ function PDV() {
                 </button>
               ))}
             </div>
-            {payment === "Dinheiro" && (
+            {payment === "Fiado" ? <div className="mt-3 rounded-xl bg-primary/10 ring-1 ring-primary/30 p-3 text-xs text-primary">Venda ficará em aberto para <b>{customer.trim() || "informar cliente"}</b>. O lucro só será contabilizado quando o fiado for marcado como pago.</div> : payment === "Dinheiro" && (
               <div className="mt-3 flex items-center gap-2">
                 <input value={received} onChange={(e) => setReceived(e.target.value)} inputMode="decimal" placeholder="Valor recebido"
                   className="field flex-1 font-mono text-sm text-foreground" onKeyDown={(e) => e.key === "Enter" && finish()} />
