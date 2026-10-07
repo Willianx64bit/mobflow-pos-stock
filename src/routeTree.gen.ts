@@ -78,8 +78,6 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
-  '/fiado/$customer': typeof FiadoCustomerRoute
-  '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
@@ -91,6 +89,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
@@ -103,6 +102,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
