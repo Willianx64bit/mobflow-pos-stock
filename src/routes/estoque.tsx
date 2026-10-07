@@ -82,31 +82,31 @@ function Estoque() {
         </div>
         <div className="overflow-x-auto">
           <div className="min-w-[808px]">
-            <div className="grid grid-cols-[48px_130px_1fr_120px_110px_90px_110px_70px] gap-x-3 label-mono px-2 pb-2">
-              <span>Foto</span><span>Código</span><span>Produto</span><span>Categoria</span><span>Preço R$</span><span>Estoque</span><span>Situação</span><span />
+            <div className="grid grid-cols-[34px_72px_150px_1fr_110px_110px] gap-x-4 label-mono px-2 pb-3 text-[14px]">
+              <span></span><span>Foto</span><span>Código</span><span>Descrição</span><span>Quantidade</span><span>Preço</span>
             </div>
             <div className="divide-y divide-border/50">
               {list.map((p) => {
                 const low = p.stock <= p.minStock;
                 return (
-                  <div key={p.id} className={`grid grid-cols-[48px_130px_1fr_120px_110px_90px_110px_70px] gap-x-3 items-center py-1.5 px-2 text-[13px] rounded-lg ${low ? "bg-destructive/5" : ""}`}>
-                    <div className="h-9 w-9 overflow-hidden rounded-md bg-surface ring-1 ring-border/50 grid place-items-center">{p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] text-muted-foreground">—</span>}</div>\n                    <span className="font-mono text-[11px] text-muted-foreground">{p.code}</span>
-                    <span className="text-foreground truncate">{p.name}</span>
-                    <span className="text-muted-foreground text-[12px]">{p.category}</span>
-                    <Cell money value={p.price} onSave={(n) => actions.updateField(p.id, "price", n)} />
-                    <div className="flex items-center gap-1">
-                      <Cell value={p.stock} weight={p.unit === "kg"} danger={low} onSave={(n) => actions.updateField(p.id, "stock", n)} />
-                      <button onClick={() => actions.updateField(p.id, "stock", p.stock + 1)} className="h-6 w-6 shrink-0 rounded-md text-subtle hover:bg-accent">+</button>
+                  <div key={p.id} className={`grid grid-cols-[34px_72px_150px_1fr_110px_110px] gap-x-4 items-center py-3 px-2 text-[16px] rounded-lg ${low ? "bg-destructive/5" : ""}`}>
+                    <button onClick={() => setEditing(p)} aria-label={`Editar ${p.name}`} title="Editar produto" className="h-7 w-7 rounded-md grid place-items-center text-muted-foreground hover:text-primary hover:bg-accent text-lg">
+                      ✎
+                    </button>
+                    <div className="h-12 w-12 overflow-hidden rounded-md bg-surface ring-1 ring-border/50 grid place-items-center">
+                      {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : <span className="text-xs text-muted-foreground">—</span>}
                     </div>
-                    <span className={`font-mono text-[11px] ${low ? "text-destructive" : "text-muted-foreground"}`}>{p.stock <= 0 ? "⚠ esgotado" : low ? "⚠ baixo" : "normal"}</span>
-                    <button onClick={() => setEditing(p)} className="font-mono text-[11px] uppercase tracking-[.15em] text-muted-foreground hover:text-primary">Editar</button>
+                    <span className="font-mono text-[14px] text-muted-foreground truncate">{p.code}</span>
+                    <span className="text-foreground truncate font-medium">{p.name}</span>
+                    <div className={low ? "text-destructive font-semibold" : "text-foreground"}>
+                      <Cell value={p.stock} weight={p.unit === "kg"} onSave={(n) => actions.updateField(p.id, "stock", n)} />
+                    </div>
+                    <Cell money value={p.price} onSave={(n) => actions.updateField(p.id, "price", n)} />
                   </div>
                 );
               })}
-              {list.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">nenhum produto encontrado</p>}
+              {list.length === 0 && <p className="py-10 text-center font-mono text-[13px] text-muted-foreground">nenhum produto encontrado</p>}
             </div>
-          </div>
-        </div>
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Clique no preço ou estoque para editar · produtos por peso aceitam kg ou g · ↵ salva</p>
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
