@@ -53,7 +53,6 @@ function Recebimento() {
         <div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div>
         <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button>
       </div>
-      <div className="font-display text-2xl hidden">RECEBIMENTO</div> tracking-[.12em] text-heading mb-4">RECEBIMENTO</div>
       <form onSubmit={save} className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input value={number} onChange={e => setNumber(e.target.value)} placeholder="Número da nota" required className="field text-sm text-foreground" />
