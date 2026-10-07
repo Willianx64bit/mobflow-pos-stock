@@ -14,6 +14,8 @@ import { Route as ConferenciaRouteImport } from './routes/conferencia'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as VendasRouteImport } from './routes/vendas'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as GerenciaRouteImport } from './routes/gerencia'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +42,16 @@ const VendasRoute = VendasRouteImport.update({
   path: '/vendas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GerenciaRoute = GerenciaRouteImport.update({
+  id: '/gerencia',
+  path: '/gerencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +59,8 @@ export interface FileRoutesByFullPath {
   '/estoque': typeof EstoqueRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/dashboard': typeof DashboardRoute
+  '/gerencia': typeof GerenciaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +68,8 @@ export interface FileRoutesByTo {
   '/estoque': typeof EstoqueRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/dashboard': typeof DashboardRoute
+  '/gerencia': typeof GerenciaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -67,8 +83,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
-  id: '__root__' | '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
+  to: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
+  id: '__root__' | '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +93,8 @@ export interface RootRouteChildren {
   RecebimentoRoute: typeof RecebimentoRoute
   EstoqueRoute: typeof EstoqueRoute
   VendasRoute: typeof VendasRoute
+  DashboardRoute: typeof DashboardRoute
+  GerenciaRoute: typeof GerenciaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -125,6 +143,8 @@ const rootRouteChildren: RootRouteChildren = {
   RecebimentoRoute: RecebimentoRoute,
   EstoqueRoute: EstoqueRoute,
   VendasRoute: VendasRoute,
+  DashboardRoute: DashboardRoute,
+  GerenciaRoute: GerenciaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
