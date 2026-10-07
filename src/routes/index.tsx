@@ -290,6 +290,19 @@ function PDV() {
             <h2 className="mt-1 font-display text-2xl tracking-[.08em] text-heading">{pendingWeight.name}</h2>
             <div className="mt-4 rounded-xl bg-well ring-1 ring-border p-4 text-center">
               <div className="font-display text-4xl text-heading">{weightDisplay}</div>
+              <input
+                autoFocus
+                value={weightInput}
+                onChange={(e) => setWeightInput(e.target.value.replace(/\D/g, "") || "0")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmWeight();
+                  if (e.key === "Escape") setPendingWeight(null);
+                }}
+                inputMode="numeric"
+                aria-label="Peso em gramas"
+                className="mt-3 w-full rounded-lg bg-background px-3 py-2 text-center font-mono text-sm text-foreground outline-none ring-1 ring-border focus:ring-primary"
+              />
+              <div className="mt-1 font-mono text-[11px] text-muted-foreground">Digite os gramas no teclado ou use os números abaixo</div>
               <div className="mt-1 font-mono text-[12px] text-muted-foreground">R$ {brl(pendingWeight.price)}/kg · estoque {brl(pendingWeight.stock)} kg</div>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-4">
