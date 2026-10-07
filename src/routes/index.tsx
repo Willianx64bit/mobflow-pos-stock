@@ -287,7 +287,7 @@ function PDV() {
           </div>
           <div className="pt-3 border-t border-border">
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Cliente (opcional)" className="field text-[13px] text-foreground" />
+              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
               <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
             </div>
             <div className="flex items-center gap-2 mb-3">
@@ -310,7 +310,7 @@ function PDV() {
                 </button>
               ))}
             </div>
-            {payment === "Fiado" ? <div className="mt-3 rounded-xl bg-primary/10 ring-1 ring-primary/30 p-3 text-xs text-primary">Venda ficará em aberto para <b>{customer.trim() || "informar cliente"}</b>. O lucro só será contabilizado quando o fiado for marcado como pago.</div> : payment === "Dinheiro" && (
+            {payment === "Dinheiro" && (
               <div className="mt-3 flex items-center gap-2">
                 <input value={received} onChange={(e) => setReceived(e.target.value)} inputMode="decimal" placeholder="Valor recebido"
                   className="field flex-1 font-mono text-sm text-foreground" onKeyDown={(e) => e.key === "Enter" && finish()} />
