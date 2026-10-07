@@ -62,9 +62,14 @@ function Gerencia() {
   const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
 
-  const enter = () => {
+  const enter = async () => {
     if (password === "gerencia123") {
       sessionStorage.setItem("mobflow-management", "1");
+      const data = new TextEncoder().encode(password);
+      const digest = await crypto.subtle.digest("SHA-256", data);
+      const hash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      sessionStorage.setItem("mobflow-management-pass-hash", hash);
+      sessionStorage.setItem("mobflow-management-user", "GERENCIA");
       setUnlocked(true);
       setError("");
       return;
@@ -74,6 +79,8 @@ function Gerencia() {
 
   const lock = () => {
     sessionStorage.removeItem("mobflow-management");
+    sessionStorage.removeItem("mobflow-management-pass-hash");
+    sessionStorage.removeItem("mobflow-management-user");
     setUnlocked(false);
     setPassword("");
   };
