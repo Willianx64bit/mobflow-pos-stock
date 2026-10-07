@@ -102,7 +102,6 @@ function Gerencia() {
               <p className="mt-2 text-sm text-muted-foreground">Acesso liberado pela conta de gerência.</p>
               {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
               <button onClick={() => void enter()} disabled={checkingAccess} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">{checkingAccess ? "Verificando..." : "Entrar na gerência"}</button>
-              <button onClick={() => navigate({ to: "/" })} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground hover:opacity-90">Entrar na gerência</button>
               <button onClick={() => navigate({ to: "/" })} className="mt-2 w-full rounded-xl bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-accent">Voltar</button>
             </div>
           </section>
