@@ -112,6 +112,9 @@
 .mfb-bar { animation: mfb-bar 0.6s cubic-bezier(0.32, 0.72, 0, 1) both; transform-origin: left; }
 .mfb-blink { animation: mfb-blink 1.15s steps(1) infinite; }
 
+body.mfb-side-open { padding-left: 16rem; transition: padding-left 0.2s ease; }
+@media (max-width: 767px) { body.mfb-side-open { padding-left: 0; } }
+
 .dark {
   --background: oklch(0.16 0.015 240);
   --foreground: oklch(0.94 0.01 240);

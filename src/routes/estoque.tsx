@@ -107,6 +107,8 @@ function Estoque() {
               })}
               {list.length === 0 && <p className="py-10 text-center font-mono text-[13px] text-muted-foreground">nenhum produto encontrado</p>}
             </div>
+          </div>
+        </div>
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Clique no preço ou estoque para editar · produtos por peso aceitam kg ou g · ↵ salva</p>
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}

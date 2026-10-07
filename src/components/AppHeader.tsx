@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 const tabs = [
   { to: "/", label: "PDV", key: "F2", icon: "▣" },
@@ -12,9 +13,18 @@ const tabs = [
 export function AppHeader() {
   const navigate = useNavigate();
   const [time, setTime] = useState("");
-  const [open, setOpen] = useState(() => localStorage.getItem("mobflow-sidebar") !== "closed");
+  const [open, setOpen] = useState(() => {
+    const saved = localStorage.getItem("mobflow-sidebar");
+    if (saved === "open") return true;
+    if (saved === "closed") return false;
+    return window.innerWidth >= 768;
+  });
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
   const settings = useStore((s) => s.settings);
+
+  useEffect(() => {
+    document.body.classList.toggle("mfb-side-open", open);
+  }, [open]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -51,7 +61,7 @@ export function AppHeader() {
     return next;
   });
 
-  return (
+  return createPortal(
     <>
       {open ? (
         <aside className="fixed left-0 top-0 z-50 h-screen w-64 transition-transform duration-200">
@@ -94,6 +104,7 @@ export function AppHeader() {
           ›
         </button>
       )}
-    </>
+    </>,
+    document.body,
   );
 }
