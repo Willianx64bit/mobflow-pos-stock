@@ -11,7 +11,41 @@ export function ProductForm({ product, onClose }: Props) {
     unit: product?.unit ?? "un", photo: product?.photo ?? "",
   });
   const first = useRef<HTMLInputElement>(null);
-  useEffect(() => { first.current?.focus(); const k=(e:KeyboardEvent)=>e.key==="Escape"&&onClose(); window.addEventListener("keydown",k); return()=>window.removeEventListener("keydown",k); },[onClose]);
+  useEffect(() => {
+    first.current?.focus();
+    const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (product) return;
+    let buffer = "";
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onScannerKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (buffer.length >= 6) {
+          e.preventDefault();
+          e.stopPropagation();
+          setF((v) => ({ ...v, code: buffer }));
+          window.setTimeout(() => document.querySelector<HTMLFormElement>("form")?.requestSubmit(), 0);
+        }
+        buffer = "";
+        if (timer) clearTimeout(timer);
+        timer = null;
+        return;
+      }
+      if (e.key.length !== 1 || !/\d/.test(e.key)) return;
+      buffer += e.key;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { buffer = ""; timer = null; }, 120);
+    };
+    window.addEventListener("keydown", onScannerKey, true);
+    return () => {
+      window.removeEventListener("keydown", onScannerKey, true);
+      if (timer) clearTimeout(timer);
+    };
+  }, [product]);
 
   const num=(s:string)=>Number(s.replace(",","."))||0;
   const cleanNumber=(value:string)=>{
