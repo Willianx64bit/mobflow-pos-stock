@@ -40,19 +40,18 @@ function Gerencia() {
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [details, setDetails] = useState(false);
-  const [from, setFrom] = useState(firstDayOfMonth);
-  const [to, setTo] = useState(isoToday);
+  const [from] = useState(firstDayOfMonth);
+  const [to] = useState(isoToday);
 
   const today = isoToday();
-  const todays = useMemo(() => sales.filter((s) => new Date(s.date).toISOString().slice(0, 10) === today), [sales, today]);
+  const todays = useMemo(() => sales.filter((s) => localDateKey(new Date(s.date)) === today), [sales, today]);
   const todaySales = todays.reduce((sum, s) => sum + s.total, 0);
   const todayProfit = todays.reduce((sum, s) => sum + saleProfit(s), 0);
   const low = useMemo(() => products.filter((p) => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock), [products]);
   const recent = sales.slice(0, 5);
 
   const periodSales = useMemo(() => sales.filter((s) => {
-    const day = new Date(s.date).toISOString().slice(0, 10);
+    const day = localDateKey(new Date(s.date));
     return day >= from && day <= to;
   }), [sales, from, to]);
   const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
@@ -98,8 +97,8 @@ function Gerencia() {
                   <div className="flex items-center gap-2"><span className="text-xl">📊</span><h1 className="font-display text-2xl tracking-[.1em] text-heading">DASHBOARD</h1></div>
                   <p className="text-sm text-muted-foreground mt-1">Resumo rápido da operação de hoje.</p>
                 </div>
-                <button onClick={() => setDetails((v) => !v)} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-accent">
-                  {details ? "Fechar detalhes" : "Ver mais detalhes"}
+                <button onClick={() => navigate({ to: "/dashboard" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-accent">
+                  Ver mais detalhes
                 </button>
               </div>
 
@@ -124,29 +123,15 @@ function Gerencia() {
               <div className="mt-5 grid lg:grid-cols-2 gap-4">
                 <div className="rounded-2xl border border-border/60 p-4">
                   <div className="mb-3"><h2 className="font-semibold text-heading">Últimas vendas</h2><p className="text-xs text-muted-foreground mt-0.5">Máximo de 5 movimentações</p></div>
-                  {recent.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Nenhuma venda registrada.</div> : <div className="divide-y divide-border/50">{recent.map((s) => <div key={s.id} className="py-2.5 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-sm font-semibold">R$ {brl(s.total)}</div></div>)}</div>}
+                  {recent.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Nenhuma venda registrada.</div> : <button onClick={() => navigate({ to: "/vendas" })} className="w-full text-left"><div className="divide-y divide-border/50">{recent.map((s) => <div key={s.id} className="py-2.5 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-sm font-semibold">R$ {brl(s.total)}</div></div>)}</div>}
                 </div>
                 <div className="rounded-2xl border border-border/60 p-4">
                   <div className="mb-3"><h2 className="font-semibold text-heading">⚠️ Estoque baixo</h2><p className="text-xs text-muted-foreground mt-0.5">Produtos no mínimo ou abaixo dele</p></div>
-                  {low.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Estoque em dia.</div> : <div className="divide-y divide-border/50">{low.slice(0, 5).map((p) => <div key={p.id} className="py-2.5 flex items-center justify-between gap-3"><span className="text-sm truncate">{p.name}</span><span className="text-sm font-semibold text-destructive">{p.unit === "kg" ? brl(p.stock) + " kg" : p.stock} <span className="text-xs font-normal text-muted-foreground">/ mín. {p.unit === "kg" ? brl(p.minStock) + " kg" : p.minStock}</span></span></div>)}</div>}
-                  {low.length > 5 && <div className="mt-3 text-xs text-muted-foreground">+ {low.length - 5} produto(s) com estoque baixo</div>}
+                  {low.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Estoque em dia.</div> : <button onClick={() => navigate({ to: "/estoque" })} className="w-full text-left"><div className="divide-y divide-border/50">{low.slice(0, 5).map((p) => <div key={p.id} className="py-2.5 flex items-center justify-between gap-3"><span className="text-sm truncate">{p.name}</span><span className="text-sm font-semibold text-destructive">{p.unit === "kg" ? brl(p.stock) + " kg" : p.stock} <span className="text-xs font-normal text-muted-foreground">/ mín. {p.unit === "kg" ? brl(p.minStock) + " kg" : p.minStock}</span></span></div>)}</div>}
+                  {low.length > 5 && <div className="mt-3 text-xs text-muted-foreground">+ {low.length - 5} produto(s) com estoque baixo</div>}</div></button>
                 </div>
               </div>
 
-              {details && <div className="mt-5 rounded-2xl border border-border/60 p-4 md:p-5">
-                <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
-                  <div><h2 className="font-semibold text-heading">Detalhes por período</h2><p className="text-xs text-muted-foreground mt-0.5">Escolha qualquer intervalo de datas para consultar o histórico.</p></div>
-                  <div className="flex flex-wrap gap-2">
-                    <label className="text-xs text-muted-foreground">De<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 block rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" /></label>
-                    <label className="text-xs text-muted-foreground">Até<input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 block rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" /></label>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                  <div className="rounded-xl bg-secondary/60 p-4"><div className="text-xs text-muted-foreground">Vendas no período</div><div className="mt-1 text-xl font-bold">R$ {brl(periodTotal)}</div><div className="text-xs text-muted-foreground">{periodSales.length} venda(s)</div></div>
-                  <div className="rounded-xl bg-secondary/60 p-4"><div className="text-xs text-muted-foreground">Lucro no período</div><div className="mt-1 text-xl font-bold text-primary">R$ {brl(periodProfit)}</div><div className="text-xs text-muted-foreground">soma somente do lucro</div></div>
-                </div>
-                {periodSales.length > 0 && <div className="divide-y divide-border/50">{periodSales.map((s) => <div key={s.id} className="py-2.5 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-sm truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR")} · {s.payment}</div></div><div className="text-right"><div className="text-sm font-semibold">R$ {brl(s.total)}</div><div className="text-xs text-primary">Lucro R$ {brl(saleProfit(s))}</div></div></div>)}</div>}
-              </div>}
             </section>
 
             <section className="glass p-5 md:p-6">
