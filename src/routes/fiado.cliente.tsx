@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
 
@@ -16,7 +16,11 @@ function formatMoneyInput(value: string) {
 
 function FiadoCliente() {
   const navigate = useNavigate();
-  const customer = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("nome") || "Cliente não informado" : "Cliente não informado";
+  const [customer, setCustomer] = useState("");
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("nome") || "Cliente não informado";
+    setCustomer(value);
+  }, []);
   const sales = useStore((s) => s.sales);
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
   const customerSales = useMemo(
