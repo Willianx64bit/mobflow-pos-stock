@@ -24,11 +24,6 @@ function Fiado() {
   }, [open]);
   const totalOpen = open.reduce((sum, s) => sum + s.total, 0);
 
-  if (sessionStorage.getItem("mobflow-management") !== "1") {
-    navigate({ to: "/gerencia" });
-    return null;
-  }
-
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
@@ -44,9 +39,6 @@ function Fiado() {
               <div className="label-mono">SALDO TOTAL</div>
               <div className="font-display text-3xl text-destructive">R$ {brl(totalOpen)}</div>
             </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button>
           </div>
         </section>
 
