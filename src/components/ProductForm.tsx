@@ -11,41 +11,13 @@ export function ProductForm({ product, onClose }: Props) {
     unit: product?.unit ?? "un", photo: product?.photo ?? "",
   });
   const first = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    first.current?.focus();
+    (product ? first.current : codeInput.current)?.focus();
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
-  }, [onClose]);
-
-  useEffect(() => {
-    if (product) return;
-    let buffer = "";
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const onScannerKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        if (buffer.length >= 6) {
-          e.preventDefault();
-          e.stopPropagation();
-          setF((v) => ({ ...v, code: buffer }));
-          window.setTimeout(() => document.querySelector<HTMLFormElement>("form")?.requestSubmit(), 0);
-        }
-        buffer = "";
-        if (timer) clearTimeout(timer);
-        timer = null;
-        return;
-      }
-      if (e.key.length !== 1 || !/\d/.test(e.key)) return;
-      buffer += e.key;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { buffer = ""; timer = null; }, 120);
-    };
-    window.addEventListener("keydown", onScannerKey, true);
-    return () => {
-      window.removeEventListener("keydown", onScannerKey, true);
-      if (timer) clearTimeout(timer);
-    };
-  }, [product]);
+  }, [onClose, product]);
 
   const num=(s:string)=>Number(s.replace(",","."))||0;
   const cleanNumber=(value:string)=>{
@@ -68,7 +40,7 @@ export function ProductForm({ product, onClose }: Props) {
     <div className="flex items-center justify-between"><h2 className="font-display text-2xl tracking-[.12em] text-heading">{product?"EDITAR PRODUTO":"NOVO PRODUTO"}</h2><kbd className="font-mono text-[10px] text-muted-foreground">ESC</kbd></div>
     <div className="flex items-center gap-4"><div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-secondary ring-1 ring-border grid place-items-center">{f.photo?<img src={f.photo} alt="Foto do produto" className="h-full w-full object-cover"/>:<span className="text-2xl text-muted-foreground">📷</span>}</div><label className="flex-1 cursor-pointer"><span className="label-mono">Foto do produto</span><div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher foto <span className="text-xs text-muted-foreground">(até 5 MB)</span></div><input type="file" accept="image/*" onChange={choosePhoto} className="hidden"/></label>{f.photo&&<button type="button" onClick={()=>setF(v=>({...v,photo:""}))} className="self-end rounded-lg px-2 py-2 text-xs text-destructive hover:bg-destructive/10">Remover</button>}</div>
     {input("name","Nome",{ref:true})}
-    <div className="grid grid-cols-2 gap-3">{<label className="flex flex-col gap-1.5"><span className="label-mono">Código de barras</span><input inputMode="numeric" value={f.code} onChange={e=>setF({...f,code:e.target.value.replace(/\D/g,"")})} onKeyDown={e=>{if(e.key==="Enter" && f.code.trim()){e.preventDefault();e.currentTarget.form?.requestSubmit();}}} className="field text-sm text-foreground font-mono"/></label>}{input("ref","REF (opcional)",{mono:true})}</div>
+    <div className="grid grid-cols-2 gap-3">{<label className="flex flex-col gap-1.5"><span className="label-mono">Código de barras</span><input ref={codeInput} inputMode="numeric" value={f.code} onChange={e=>setF({...f,code:e.target.value.replace(/\D/g,"")})} onKeyDown={e=>{if(e.key==="Enter" && f.code.trim()){e.preventDefault();e.currentTarget.form?.requestSubmit();}}} className="field text-sm text-foreground font-mono"/></label>}{input("ref","REF (opcional)",{mono:true})}</div>
     {input("category","Categoria")}
     <label className="flex flex-col gap-1.5"><span className="label-mono">Tipo de venda</span><select value={f.unit} onChange={e=>setF({...f,unit:e.target.value as "un"|"kg"})} className="field text-sm text-foreground"><option value="un">Unidade</option><option value="kg">Peso (kg/g)</option></select></label>
     <div className="grid grid-cols-2 gap-3">{input("price",f.unit==="kg"?"Preço por kg R$":"Preço R$",{mono:true,mode:"decimal"})}{input("cost",f.unit==="kg"?"Custo por kg R$":"Custo R$ (opcional)",{mono:true,mode:"decimal"})}</div>
