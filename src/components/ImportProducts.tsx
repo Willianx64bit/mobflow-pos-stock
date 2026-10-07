@@ -22,7 +22,7 @@ const toNum = (v: unknown) => typeof v === "number" ? v : Number(String(v ?? "")
 export function ImportProducts({ onClose }: { onClose: () => void }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [mode, setMode] = useState<"replace" | "add">("replace");
+  const [mode, setMode] = useState<"replace" | "add">("add");
   const [done, setDone] = useState("");
 
   const read = async (file: File) => {
