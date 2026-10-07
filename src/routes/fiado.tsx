@@ -12,15 +12,16 @@ function Fiado() {
   const sales = useStore((s) => s.sales);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const open = useMemo(() => sales.filter((s) => s.payment === "Fiado" && !s.paid), [sales]);
+  const fiado = useMemo(() => sales.filter((s) => s.payment === "Fiado"), [sales]);
   const customers = useMemo(() => {
     const map = new Map<string, Sale[]>();
-    open.forEach((s) => {
+    fiado.forEach((s) => {
       const name = (s.customer || "Cliente não informado").trim();
       map.set(name, [...(map.get(name) || []), s]);
     });
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [open]);
+  }, [fiado]);
+  const open = fiado.filter((s) => !s.paid);
   const totalOpen = open.reduce((sum, s) => sum + s.total, 0);
 
   return (
@@ -32,7 +33,7 @@ function Fiado() {
             <div>
               <div className="label-mono">CONTAS EM ABERTO</div>
               <h1 className="mt-1 font-display text-3xl tracking-[.1em] text-heading">FIADO</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{customers.length} cliente(s) · {open.length} compra(s) em aberto</p>
+              <p className="mt-1 text-sm text-muted-foreground">{customers.length} cliente(s) · {open.length} compra(s) pendente(s)</p>
             </div>
             <div className="text-right">
               <div className="label-mono">SALDO TOTAL</div>
@@ -42,9 +43,9 @@ function Fiado() {
         </section>
 
         <section className="space-y-3">
-          {customers.length === 0 && <div className="glass p-8 text-center text-sm text-muted-foreground">Nenhum fiado em aberto. Tudo pago. ✓</div>}
+          {customers.length === 0 && <div className="glass p-8 text-center text-sm text-muted-foreground">Nenhum fiado registrado.</div>}
           {customers.map(([customer, customerSales]) => {
-            const total = customerSales.reduce((sum, s) => sum + s.total, 0);
+            const total = customerSales.reduce((sum, s) => sum + (!s.paid ? s.total : 0), 0);
             const key = customer;
             const isOpen = expanded === key;
             return (
@@ -52,7 +53,7 @@ function Fiado() {
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="text-lg font-bold text-heading">{customer}</div>
-                    <div className="text-xs text-muted-foreground">{customerSales.length} compra(s) em aberto</div>
+                    <div className="text-xs text-muted-foreground">{customerSales.length} compra(s) · {customerSales.filter((s) => !s.paid).length} pendente(s)</div>
                   </div>
                   <div className="font-display text-2xl text-destructive">R$ {brl(total)}</div>
                   <button onClick={() => setExpanded(isOpen ? null : key)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Detalhar compra</button>
@@ -61,14 +62,14 @@ function Fiado() {
 
                 {isOpen && (
                   <div className="mt-4 divide-y divide-border/50 rounded-xl bg-secondary/40 px-3">
-                    {customerSales.map((s) => (
+                    {customerSales.sort((a, b) => +new Date(b.date) - +new Date(a.date)).map((s) => (
                       <div key={s.id} className="py-3">
                         <div className="flex flex-wrap items-center gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold text-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
                             <div className="mt-1 text-xs text-muted-foreground">{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
                           </div>
-                          <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div>
+                          <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${s.paid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{s.paid ? "Pago" : "Pendente"}</span>
                           <button onClick={() => { if (confirm(`Confirmar que ${customer} pagou R$ ${brl(s.total)}?`)) actions.markFiadoPaid(s.id); }} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">✓ Marcar pago</button>
                           <button onClick={() => printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Compra</button>
                         </div>
