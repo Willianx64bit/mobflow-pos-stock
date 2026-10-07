@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 export type Product = { id: string; code: string; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
+export type AppSettings = { companyName: string; companyLogo?: string | undefined };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
 export type ReceivingNote = {
@@ -26,7 +27,8 @@ export type Conference = {
   receivingId?: string;
 };
 
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[] };
+type AppSettings = { companyName: string; companyLogo?: string };
+type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -46,7 +48,7 @@ const seed: Product[] = [
   id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
 }));
 
-let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [] };
+let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], settings: { companyName: "" } };
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
@@ -118,7 +120,7 @@ export async function hydrateStore() {
       load();
     } else if (!error) {
       // A different account must never inherit another account's browser data.
-      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [] };
+      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], settings: state.settings ?? { companyName: "" } };
     }
 
     try {
@@ -181,6 +183,10 @@ export const actions = {
     });
     set({ products, cart: [], sales: [sale, ...state.sales] });
     return sale;
+  },
+  updateSettings(settings: AppSettings) { set({ settings }); },
+  resetAppData() {
+    set({ products: [], cart: [], sales: [], conferences: [], receiving: [], settings: state.settings });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
