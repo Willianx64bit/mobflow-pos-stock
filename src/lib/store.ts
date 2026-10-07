@@ -50,6 +50,8 @@ let state: State = { products: seed, cart: [], sales: [], conferences: [], recei
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+let realtimeOwnerId: string | null = null;
 const listeners = new Set<() => void>();
 
 function load() {
@@ -61,6 +63,30 @@ function load() {
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
   } catch {}
 }
+function startRealtime(userId: string) {
+  if (typeof window === "undefined" || realtimeOwnerId === userId) return;
+  if (realtimeChannel) {
+    void supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+  realtimeOwnerId = userId;
+  realtimeChannel = supabase
+    .channel(`mobflow-state:${userId}`)
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "app_state",
+      filter: `owner_id=eq.${userId}`,
+    }, (payload) => {
+      const remoteState = payload.new?.state;
+      if (!remoteState || typeof remoteState !== "object") return;
+      state = { ...state, ...remoteState } as State;
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      listeners.forEach((l) => l());
+    })
+    .subscribe();
+}
+
 async function persistState() {
   if (!cloudReady || typeof window === "undefined") return;
   const { data: { user } } = await supabase.auth.getUser();
@@ -100,6 +126,7 @@ export async function hydrateStore() {
       localStorage.setItem(KEY, JSON.stringify(state));
     } catch {}
     cloudReady = true;
+    startRealtime(user.id);
     if (!data?.state && !error) await persistState();
     listeners.forEach((l) => l());
   })().finally(() => { hydrating = null; });
