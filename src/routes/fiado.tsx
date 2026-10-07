@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
 
@@ -13,7 +14,9 @@ function Fiado() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "pendentes" | "pagos">("todos");
+  const navigate = useNavigate();
   const [paymentValue, setPaymentValue] = useState("");
+  const formatMoneyInput = (value: string) => { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
   const fiado = useMemo(() => sales.filter((s) => s.payment === "Fiado"), [sales]);
   const customers = useMemo(() => {
@@ -67,7 +70,7 @@ function Fiado() {
                     <div className="text-xs text-muted-foreground">{customerSales.length} compra(s) · {customerSales.filter((s) => remaining(s) > 0).length} pendente(s)</div>
                   </div>
                   <div className="text-right"><div className="font-display text-2xl text-destructive">R$ {brl(total)}</div><div className="text-[11px] text-muted-foreground">saldo restante</div></div>
-                  <button onClick={() => setExpanded(isOpen ? null : key)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Detalhar compra</button>
+                  <button onClick={() => navigate({ to: "/fiado/$customer", params: { customer: encodeURIComponent(customer) } })} className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20">👤 Ver cliente</button>
                   <button onClick={() => printFiadoBalance(customer, customerSales.concat(sales.filter(s => s.payment === "Fiado" && s.paid && (s.customer || "").trim() === customer.trim())))} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🖨 Imprimir saldo</button>
                 </div>
 
@@ -84,7 +87,7 @@ function Fiado() {
                             <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div>
                             <div className="text-[11px] text-muted-foreground">Pago: R$ {brl(paidTotal(s))} · Saldo: R$ {brl(remaining(s))}</div>
                           </div>
-                          {remaining(s) > 0 ? <div className="basis-full mt-2 rounded-xl border border-border/60 bg-background/60 p-4"><div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Registrar pagamento</div><div className="flex flex-wrap items-center gap-3"><div className="font-display text-4xl text-heading">R$ {brl(remaining(s))}</div><div className="text-xs text-muted-foreground">falta pagar</div><input inputMode="decimal" value={paymentValue} onChange={(e) => setPaymentValue(e.target.value)} placeholder="0,00" className="w-36 rounded-xl border-2 border-border bg-background px-4 py-3 text-lg font-bold text-center outline-none focus:border-primary" /><button onClick={() => { const value = Number(paymentValue.replace(",", ".")); if (Number.isFinite(value) && value > 0) { actions.addFiadoPayment(s.id, value); setPaymentValue(""); } }} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90">Adicionar pagamento</button><button onClick={() => { actions.addFiadoPayment(s.id, remaining(s)); setPaymentValue(""); }} className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600">Quitar tudo</button></div></div> : <span className="rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 ring-1 ring-green-500/30">Pago</span>}
+                          {remaining(s) > 0 ? <div className="basis-full mt-2 rounded-xl border border-border/60 bg-background/60 p-4"><div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Registrar pagamento</div><div className="flex flex-wrap items-center gap-3"><div className="font-display text-4xl text-heading">R$ {brl(remaining(s))}</div><div className="text-xs text-muted-foreground">falta pagar</div><input inputMode="decimal" value={paymentValue} onChange={(e) => setPaymentValue(formatMoneyInput(e.target.value))} placeholder="0,00" className="w-36 rounded-xl border-2 border-border bg-background px-4 py-3 text-lg font-bold text-center outline-none focus:border-primary" /><button onClick={() => { const value = Number(paymentValue.replace(/\./g, "").replace(",", ".")); if (Number.isFinite(value) && value > 0) { actions.addFiadoPayment(s.id, value); setPaymentValue(""); } }} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90">Adicionar pagamento</button><button onClick={() => { actions.addFiadoPayment(s.id, remaining(s)); setPaymentValue(""); }} className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600">Quitar tudo</button></div></div> : <span className="rounded-full bg-green-500/15 px-2.5 py-1 text-[11px] font-bold text-green-600 ring-1 ring-green-500/30">Pago</span>}
                           <button onClick={() => printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Compra</button>
                           {(s.payments ?? []).length > 0 && <div className="basis-full pl-1 text-[11px] text-muted-foreground">Pagamentos: {(s.payments ?? []).map((p, i) => <span key={i} className="ml-2">R$ {brl(p.value)} ({new Date(p.date).toLocaleDateString("pt-BR")})</span>)}</div>}
                         </div>
