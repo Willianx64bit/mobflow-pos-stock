@@ -201,7 +201,7 @@ export const actions = {
     if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
     else set({ products: [{ ...p, id: uid() }, ...state.products] });
   },
-  importProducts(rows: { code: string; name: string; qty: number; price?: number }[], mode: "replace" | "add") {
+  importProducts(rows: { code: string; name: string; qty: number; price?: number | undefined }[], mode: "replace" | "add") {
     const products = [...state.products];
     let created = 0, updated = 0;
     for (const r of rows) {

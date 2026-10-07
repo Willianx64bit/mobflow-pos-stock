@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as XLSX from "xlsx";
 import { actions } from "@/lib/store";
 
-type Row = { code: string; name: string; qty: number; price?: number };
+type Row = { code: string; name: string; qty: number; price?: number | undefined };
 
 export function downloadTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
@@ -28,7 +28,7 @@ export function ImportProducts({ onClose }: { onClose: () => void }) {
   const read = async (file: File) => {
     setDone("");
     const wb = XLSX.read(await file.arrayBuffer());
-    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0] ?? ""]!, { defval: "" });
     const out: Row[] = [], errs: string[] = [];
     data.forEach((raw, i) => {
       const r: Record<string, unknown> = {};
@@ -38,10 +38,10 @@ export function ImportProducts({ onClose }: { onClose: () => void }) {
       const q = toNum(r["quantidade"] ?? r["qtd"]);
       const pk = Object.keys(r).find((k) => k.startsWith("preco"));
       const pr = pk && String(r[pk]).trim() !== "" ? toNum(r[pk]) : undefined;
-      if (!code && !name) return;
+      if (!code && !name) return undefined;
       if (!code) return errs.push(`Linha ${i + 2}: sem código`);
       if (Number.isNaN(q)) return errs.push(`Linha ${i + 2}: quantidade inválida`);
-      out.push({ code, name, qty: q, price: pr !== undefined && !Number.isNaN(pr) ? pr : undefined });
+      out.push({ code, name, qty: q, price: pr !== undefined && !Number.isNaN(pr) ? pr : undefined }); return undefined;
     });
     setRows(out); setErrors(errs);
   };
