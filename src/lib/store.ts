@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 
-export type Product = { id: string; code: string; ref?: string; name: string; price: number; cost?: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string };
+export type Product = { id: string; code: string; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix";
-export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number; qty: number; unit?: "un" | "kg" }[]; total: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
+export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
@@ -78,7 +78,7 @@ function startRealtime(userId: string) {
       table: "app_state",
       filter: `owner_id=eq.${userId}`,
     }, (payload) => {
-      const remoteState = payload.new?.state;
+      const remoteState = (payload.new as Record<string, unknown> | undefined)?.["state"];
       if (!remoteState || typeof remoteState !== "object") return;
       state = { ...state, ...remoteState } as State;
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}

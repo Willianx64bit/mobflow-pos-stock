@@ -21,7 +21,7 @@ const firstDayOfMonth = () => {
   return localDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
 };
 
-function saleProfit(s: { total: number; items: { price: number; cost?: number; qty: number }[] }) {
+function saleProfit(s: { total: number; items: { price: number; cost?: number | undefined; qty: number }[] }) {
   // Lucro = valor efetivamente vendido - custo dos produtos.
   // Assim desconto reduz o lucro e o faturamento não é contado como lucro.
   const costTotal = s.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
@@ -123,12 +123,12 @@ function Gerencia() {
               <div className="mt-5 grid lg:grid-cols-2 gap-4">
                 <div className="rounded-2xl border border-border/60 p-4">
                   <div className="mb-3"><h2 className="font-semibold text-heading">Últimas vendas</h2><p className="text-xs text-muted-foreground mt-0.5">Máximo de 5 movimentações</p></div>
-                  {recent.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Nenhuma venda registrada.</div> : <button onClick={() => navigate({ to: "/vendas" })} className="w-full text-left"><div className="divide-y divide-border/50">{recent.map((s) => <div key={s.id} className="py-2.5 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-sm font-semibold">R$ {brl(s.total)}</div></div>)}</div>}
+                  {recent.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Nenhuma venda registrada.</div> : <button onClick={() => navigate({ to: "/vendas" })} className="w-full text-left"><div className="divide-y divide-border/50">{recent.map((s) => <div key={s.id} className="py-2.5 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-sm font-semibold">R$ {brl(s.total)}</div></div>)}</div></button>}
                 </div>
                 <div className="rounded-2xl border border-border/60 p-4">
                   <div className="mb-3"><h2 className="font-semibold text-heading">⚠️ Estoque baixo</h2><p className="text-xs text-muted-foreground mt-0.5">Produtos no mínimo ou abaixo dele</p></div>
-                  {low.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Estoque em dia.</div> : <button onClick={() => navigate({ to: "/estoque" })} className="w-full text-left"><div className="divide-y divide-border/50">{low.slice(0, 5).map((p) => <div key={p.id} className="py-2.5 flex items-center justify-between gap-3"><span className="text-sm truncate">{p.name}</span><span className="text-sm font-semibold text-destructive">{p.unit === "kg" ? brl(p.stock) + " kg" : p.stock} <span className="text-xs font-normal text-muted-foreground">/ mín. {p.unit === "kg" ? brl(p.minStock) + " kg" : p.minStock}</span></span></div>)}</div>}
-                  {low.length > 5 && <div className="mt-3 text-xs text-muted-foreground">+ {low.length - 5} produto(s) com estoque baixo</div>}</div></button>
+                  {low.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Estoque em dia.</div> : <button onClick={() => navigate({ to: "/estoque" })} className="w-full text-left"><div className="divide-y divide-border/50">{low.slice(0, 5).map((p) => <div key={p.id} className="py-2.5 flex items-center justify-between gap-3"><span className="text-sm truncate">{p.name}</span><span className="text-sm font-semibold text-destructive">{p.unit === "kg" ? brl(p.stock) + " kg" : p.stock} <span className="text-xs font-normal text-muted-foreground">/ mín. {p.unit === "kg" ? brl(p.minStock) + " kg" : p.minStock}</span></span></div>)}</div></button>}
+                  {low.length > 5 && <div className="mt-3 text-xs text-muted-foreground">+ {low.length - 5} produto(s) com estoque baixo</div>}
                 </div>
               </div>
 

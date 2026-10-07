@@ -17,7 +17,7 @@ export function ProductForm({ product, onClose }: Props) {
   const cleanNumber=(value:string)=>{
     let v=value.replace(/[^0-9,\.]/g,"").replace(".",",");
     if(v.includes(",")) {
-      const [a,b]=v.split(",");
+      const [a="",b=""]=v.split(",");
       v=(a.replace(/^0+(?=\d)/,"")||"0")+","+b.replace(/,/g,"");
     } else v=v.replace(/^0+(?=\d)/,"");
     return v;
@@ -25,7 +25,7 @@ export function ProductForm({ product, onClose }: Props) {
   const weight=(s:string)=>{const v=s.trim().toLowerCase().replace(",",".");if(/^\d+(?:\.\d+)?\s*g$/.test(v))return Number(v.replace(/g$/,"").trim())/1000;if(/^\d+(?:\.\d+)?\s*kg$/.test(v))return Number(v.replace(/kg$/,"").trim());if(/^\d+(?:\.\d+)?$/.test(v))return Number(v);return null;};
 
   const submit=(e:React.FormEvent)=>{e.preventDefault();if(!f.name.trim())return;const stock=f.unit==="kg"?weight(f.stock):num(f.stock),minStock=f.unit==="kg"?weight(f.minStock):num(f.minStock);if(f.unit==="kg"&&(stock===null||minStock===null||stock<0||minStock<0))return;
-    actions.saveProduct({id:product?.id,name:f.name.trim(),ref:f.ref.trim()||undefined,code:f.code.trim()||String(Date.now()).slice(-10),category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock),minStock:f.unit==="kg"?minStock!:Math.round(minStock),unit:f.unit,photo:f.photo||undefined});onClose();};
+    actions.saveProduct({id:product?.id,name:f.name.trim(),ref:f.ref.trim()||undefined,code:f.code.trim()||String(Date.now()).slice(-10),category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:f.photo||undefined});onClose();};
 
   const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){alert("A foto deve ter no máximo 5 MB.");return;}const reader=new FileReader();reader.onload=()=>setF(v=>({...v,photo:String(reader.result)}));reader.readAsDataURL(file);};
   const input=(key:keyof typeof f,label:string,opts:{mono?:boolean;ref?:boolean;mode?:"decimal"|"numeric"}={})=><label className="flex flex-col gap-1.5"><span className="label-mono">{label}</span><input ref={opts.ref?first:undefined} inputMode={opts.mode} value={f[key]} onChange={e=>setF({...f,[key]:opts.mode==="decimal"?cleanNumber(e.target.value):e.target.value})} className={`field text-sm text-foreground ${opts.mono?"font-mono":""}`}/></label>;

@@ -145,7 +145,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
 }
 
 function BarcodeScanner({ products, allowedIds, onProduct, onClose }: {
-  products: { code: string; name: string; id: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; ref?: string; cost?: number; photo?: string }[];
+  products: { code: string; name: string; id: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; ref?: string | undefined; cost?: number | undefined; photo?: string | undefined }[];
   allowedIds: Set<string>;
   onProduct: (product: (typeof products)[number]) => void;
   onClose: () => void;

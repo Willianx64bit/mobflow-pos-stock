@@ -11,11 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConferenciaRouteImport } from './routes/conferencia'
-import { Route as RecebimentoRouteImport } from './routes/recebimento'
-import { Route as EstoqueRouteImport } from './routes/estoque'
-import { Route as VendasRouteImport } from './routes/vendas'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
+import { Route as RecebimentoRouteImport } from './routes/recebimento'
+import { Route as VendasRouteImport } from './routes/vendas'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -27,9 +27,9 @@ const ConferenciaRoute = ConferenciaRouteImport.update({
   path: '/conferencia',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RecebimentoRoute = RecebimentoRouteImport.update({
-  id: '/recebimento',
-  path: '/recebimento',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EstoqueRoute = EstoqueRouteImport.update({
@@ -37,66 +37,88 @@ const EstoqueRoute = EstoqueRouteImport.update({
   path: '/estoque',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VendasRoute = VendasRouteImport.update({
-  id: '/vendas',
-  path: '/vendas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const GerenciaRoute = GerenciaRouteImport.update({
   id: '/gerencia',
   path: '/gerencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecebimentoRoute = RecebimentoRouteImport.update({
+  id: '/recebimento',
+  path: '/recebimento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VendasRoute = VendasRouteImport.update({
+  id: '/vendas',
+  path: '/vendas',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
+  '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
-  '/dashboard': typeof DashboardRoute
-  '/gerencia': typeof GerenciaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
+  '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
-  '/dashboard': typeof DashboardRoute
-  '/gerencia': typeof GerenciaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
+  '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
-  '/dashboard': typeof DashboardRoute
-  '/gerencia': typeof GerenciaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
+  fullPaths:
+    | '/'
+    | '/conferencia'
+    | '/dashboard'
+    | '/estoque'
+    | '/gerencia'
+    | '/recebimento'
+    | '/vendas'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
-  id: '__root__' | '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
+  to:
+    | '/'
+    | '/conferencia'
+    | '/dashboard'
+    | '/estoque'
+    | '/gerencia'
+    | '/recebimento'
+    | '/vendas'
+  id:
+    | '__root__'
+    | '/'
+    | '/conferencia'
+    | '/dashboard'
+    | '/estoque'
+    | '/gerencia'
+    | '/recebimento'
+    | '/vendas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConferenciaRoute: typeof ConferenciaRoute
-  RecebimentoRoute: typeof RecebimentoRoute
-  EstoqueRoute: typeof EstoqueRoute
-  VendasRoute: typeof VendasRoute
   DashboardRoute: typeof DashboardRoute
+  EstoqueRoute: typeof EstoqueRoute
   GerenciaRoute: typeof GerenciaRoute
+  RecebimentoRoute: typeof RecebimentoRoute
+  VendasRoute: typeof VendasRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -115,11 +137,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConferenciaRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/recebimento': {
-      id: '/recebimento'
-      path: '/recebimento'
-      fullPath: '/recebimento'
-      preLoaderRoute: typeof RecebimentoRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/estoque': {
@@ -129,25 +151,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EstoqueRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/vendas': {
-      id: '/vendas'
-      path: '/vendas'
-      fullPath: '/vendas'
-      preLoaderRoute: typeof VendasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/gerencia': {
       id: '/gerencia'
       path: '/gerencia'
       fullPath: '/gerencia'
       preLoaderRoute: typeof GerenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recebimento': {
+      id: '/recebimento'
+      path: '/recebimento'
+      fullPath: '/recebimento'
+      preLoaderRoute: typeof RecebimentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vendas': {
+      id: '/vendas'
+      path: '/vendas'
+      fullPath: '/vendas'
+      preLoaderRoute: typeof VendasRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -156,11 +178,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConferenciaRoute: ConferenciaRoute,
-  RecebimentoRoute: RecebimentoRoute,
-  EstoqueRoute: EstoqueRoute,
-  VendasRoute: VendasRoute,
   DashboardRoute: DashboardRoute,
+  EstoqueRoute: EstoqueRoute,
   GerenciaRoute: GerenciaRoute,
+  RecebimentoRoute: RecebimentoRoute,
+  VendasRoute: VendasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
