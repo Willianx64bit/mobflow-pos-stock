@@ -98,10 +98,10 @@ function Estoque() {
                     </div>
                     <span className="font-mono text-[14px] text-muted-foreground truncate">{p.code}</span>
                     <span className="text-foreground truncate font-medium">{p.name}</span>
-                    <div className={low ? "text-destructive font-semibold" : "text-foreground"}>
-                      <Cell value={p.stock} weight={p.unit === "kg"} onSave={(n) => actions.updateField(p.id, "stock", n)} />
-                    </div>
-                    <Cell money value={p.price} onSave={(n) => actions.updateField(p.id, "price", n)} />
+                    <span className={low ? "text-destructive font-semibold" : "text-foreground"}>
+                      {p.unit === "kg" ? `${p.stock} kg` : `${p.stock} un`}
+                    </span>
+                    <span className="text-foreground font-medium">R$ {brl(p.price)}</span>
                   </div>
                 );
               })}
@@ -109,7 +109,7 @@ function Estoque() {
             </div>
           </div>
         </div>
-        <p className="mt-3 font-mono text-[10px] text-muted-foreground">Clique no preço ou estoque para editar · produtos por peso aceitam kg ou g · ↵ salva</p>
+        <p className="mt-3 font-mono text-[10px] text-muted-foreground">Use o ✎ no início do produto para editar.</p>
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
       {importing && <ImportProducts onClose={() => setImporting(false)} />}
