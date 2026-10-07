@@ -60,7 +60,7 @@ function PDV() {
   const removeWeightDigit = () => {
     setWeightInput((v) => {
       const digits = v.replace(/\D/g, "").slice(0, -1);
-      return digits || "0";
+      return digits;
     });
   };
   const requestAdd = (p: Product) => {
@@ -183,7 +183,7 @@ function PDV() {
                   </div>
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
                   <div className="mt-auto pt-2 text-center">
-                    <div className="text-xl font-bold leading-none text-heading">R$ {brl(p.price)}</div>
+                    <div className="text-xl font-bold leading-none text-heading">{p.unit === "kg" ? `R$ ${brl(p.price)} kg` : `R$ ${brl(p.price)}`}</div>
                     <div className={`mt-1 font-mono text-[11px] ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
                     </div>
