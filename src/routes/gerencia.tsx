@@ -82,7 +82,7 @@ function Gerencia() {
     const data = new TextEncoder().encode(password);
     const digest = await crypto.subtle.digest("SHA-256", data);
     const hash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    if (hash !== "ffdb88d3c5bb1a79855f2a675ed200e39ae49a19319c8c3410bbc74bc10a49f9") {
+    if (hash !== "70494370e745ad94dcc33a34500d86a562f2028ccca2cf77f5bcff0f3f549cbe") {
       setError("Senha da gerência incorreta.");
       setCheckingAccess(false);
       return;
