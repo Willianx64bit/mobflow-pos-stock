@@ -340,7 +340,7 @@ function PDV() {
           </div>
         </div>
       )}
-      {cam && <CameraScanner title="Bipar produtos" onCode={scanAdd} onClose={() => setCam(false)} />}
+      {cam && <CameraScanner title="Bipar produtos" onCode={(code) => { if (quick) scanAdd(code); else { setQ(code.trim()); setFlash(`código pesquisado: ${code.trim()}`); setCam(false); search.current?.focus(); } }} onClose={() => setCam(false)} />}
       {pendingWeight && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPendingWeight(null)}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-5" onClick={(e) => e.stopPropagation()}>
