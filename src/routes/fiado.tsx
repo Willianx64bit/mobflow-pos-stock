@@ -69,7 +69,7 @@ function Fiado() {
                             <div className="text-sm font-semibold text-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
                             <div className="mt-1 text-xs text-muted-foreground">{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
                           </div>
-                          <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${s.paid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{s.paid ? "Pago" : "Pendente"}</span>
+                          <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div><button disabled={s.paid} onClick={() => { if (confirm(`Confirmar que ${customer} pagou R$ ${brl(s.total)}?`)) actions.markFiadoPaid(s.id); }} className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${s.paid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30 cursor-default" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30 hover:bg-orange-500/25"}`}>{s.paid ? "Pago" : "Pendente · marcar pago"}</button>
                           <button onClick={() => printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Compra</button>
                         </div>
                       </div>
