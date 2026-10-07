@@ -98,7 +98,7 @@ function Configuracoes() {
               <div className="space-y-3">
                 <label className="flex flex-col gap-1.5">
                   <span className="label-mono">Nome da empresa</span>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Mercado do Willian" className="field text-sm text-foreground" />
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" className="field text-sm text-foreground" />
                 </label>
                 <label className="block cursor-pointer">
                   <span className="label-mono">Logo da empresa</span>
