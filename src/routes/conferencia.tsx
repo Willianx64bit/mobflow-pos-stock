@@ -22,7 +22,6 @@ function Conferencia() {
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
     <section className="glass p-4">
-      <div className="flex justify-end mb-3"><button onClick={() => window.location.href = "/gerencia"} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button></div>
       <div className="font-display text-2xl tracking-[.12em] text-heading mb-1">CONFERÊNCIA</div>
       <div className="label-mono mb-4">Notas pendentes de recebimento</div>
       {!pending.length && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">nenhuma nota pendente</p>}
