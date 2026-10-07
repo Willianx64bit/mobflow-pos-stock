@@ -15,6 +15,7 @@ import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FiadoRouteImport } from './routes/fiado'
+import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as VendasRouteImport } from './routes/vendas'
@@ -44,6 +45,11 @@ const EstoqueRoute = EstoqueRouteImport.update({
   path: '/estoque',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
+  id: '/fiado/$customer',
+  path: '/$customer',
+  getParentRoute: () => FiadoRouteImport,
+} as any)
 const FiadoRoute = FiadoRouteImport.update({
   id: '/fiado',
   path: '/fiado',
@@ -71,6 +77,8 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado': typeof FiadoRoute
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
@@ -107,6 +115,8 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
+    | '/fiado/$customer'
+    | '/fiado/$customer'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
