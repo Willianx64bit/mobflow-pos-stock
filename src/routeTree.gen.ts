@@ -78,10 +78,12 @@ export interface FileRoutesById {
   '/estoque': typeof EstoqueRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/dashboard': typeof DashboardRoute
+  '/gerencia': typeof GerenciaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas'
+  fullPaths: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
   id: '__root__' | '/' | '/conferencia' | '/estoque' | '/recebimento' | '/vendas' | '/dashboard' | '/gerencia'
