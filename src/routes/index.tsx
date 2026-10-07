@@ -143,14 +143,20 @@ function PDV() {
   useEffect(() => { setSel(0); }, [q]);
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && scanTimer.current) {
-      clearTimeout(scanTimer.current);
-      scanTimer.current = null;
+    if (e.key === "Enter") {
+      if (scanTimer.current) {
+        clearTimeout(scanTimer.current);
+        scanTimer.current = null;
+      }
       const value = q.trim();
       if (/^\d{6,}$/.test(value) && products.some((p) => p.code === value)) {
         e.preventDefault();
-        scanAdd(value);
-        setQ("");
+        if (quick) {
+          scanAdd(value);
+          setQ("");
+        } else {
+          setFlash(`código pesquisado: ${value}`);
+        }
         return;
       }
     }
