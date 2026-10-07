@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
+import { ImportProducts } from "@/components/ImportProducts";
 import { actions, brl, norm, useStore, type Product } from "@/lib/store";
 
 export const Route = createFileRoute("/estoque")({
@@ -39,6 +40,7 @@ function Estoque() {
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === "F7" || (e.key === "n" && e.altKey)) { e.preventDefault(); setEditing(null); } };
@@ -70,6 +72,9 @@ function Estoque() {
           <button onClick={() => setOnlyLow(!onlyLow)}
             className={`rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 ${onlyLow ? "bg-destructive/15 ring-destructive/50 text-destructive" : "bg-secondary ring-border text-secondary-foreground"}`}>
             ⚠ Só estoque baixo
+          </button>
+          <button onClick={() => setImporting(true)} className="rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 bg-secondary ring-border text-secondary-foreground hover:bg-accent">
+            ⬆ Importar planilha
           </button>
           <button onClick={() => setEditing(null)} className="text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg px-4 py-2 hover:bg-primary/85">
             + Produto <kbd className="font-mono text-[10px] opacity-70">F7</kbd>
@@ -105,6 +110,7 @@ function Estoque() {
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Clique no preço ou estoque para editar · produtos por peso aceitam kg ou g · ↵ salva</p>
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
+      {importing && <ImportProducts onClose={() => setImporting(false)} />}
     </div>
   );
 }
