@@ -70,7 +70,7 @@ function Fiado() {
                     <div className="text-xs text-muted-foreground">{customerSales.length} compra(s) · {customerSales.filter((s) => remaining(s) > 0).length} pendente(s)</div>
                   </div>
                   <div className="text-right"><div className="font-display text-2xl text-destructive">R$ {brl(total)}</div><div className="text-[11px] text-muted-foreground">saldo restante</div></div>
-                  <a href={`/fiado/${encodeURIComponent(customer)}`} className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20">👤 Ver cliente</a>
+                  <a href={`/fiado/cliente?nome=${encodeURIComponent(customer)}`} className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20">👤 Ver cliente</a>
                   <button onClick={() => printFiadoBalance(customer, customerSales.concat(sales.filter(s => s.payment === "Fiado" && s.paid && (s.customer || "").trim() === customer.trim())))} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🖨 Imprimir saldo</button>
                 </div>
 
