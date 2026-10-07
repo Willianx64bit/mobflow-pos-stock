@@ -162,6 +162,16 @@ export const actions = {
       : cur ? state.cart.map((c) => (c.productId === productId ? { ...c, qty: nextQty } : c)) : [...state.cart, { productId, qty: nextQty }];
     set({ cart });
   },
+  setCartQty(productId: string, qty: number) {
+    const p = state.products.find((x) => x.id === productId);
+    if (!p || !Number.isFinite(qty)) return;
+    const normalized = p.unit === "kg" ? Math.round(Math.max(0, qty) * 1000) / 1000 : Math.floor(Math.max(0, qty));
+    const nextQty = Math.min(p.stock, normalized);
+    const cart = nextQty <= 0
+      ? state.cart.filter((c) => c.productId !== productId)
+      : state.cart.map((c) => c.productId === productId ? { ...c, qty: nextQty } : c);
+    set({ cart });
+  },
   removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }); },
   clearCart() { set({ cart: [] }); },
   checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Sale | null {
