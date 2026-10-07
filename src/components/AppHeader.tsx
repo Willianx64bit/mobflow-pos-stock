@@ -12,9 +12,18 @@ const tabs = [
 export function AppHeader() {
   const navigate = useNavigate();
   const [time, setTime] = useState("");
-  const [open, setOpen] = useState(() => localStorage.getItem("mobflow-sidebar") !== "closed");
+  const [open, setOpen] = useState(() => {
+    const saved = localStorage.getItem("mobflow-sidebar");
+    if (saved === "open") return true;
+    if (saved === "closed") return false;
+    return window.innerWidth >= 768;
+  });
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
   const settings = useStore((s) => s.settings);
+
+  useEffect(() => {
+    document.body.classList.toggle("mfb-side-open", open);
+  }, [open]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
