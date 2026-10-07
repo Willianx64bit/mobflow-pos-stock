@@ -3,9 +3,9 @@ import { supabase } from "@/lib/supabase";
 
 export type Product = { id: string; code: string; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type CartItem = { productId: string; qty: number };
-export type Payment = "Dinheiro" | "Cartão" | "Pix";
+export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyLogo?: string | undefined };
-export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined };
+export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
@@ -184,14 +184,22 @@ export const actions = {
     const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
     const total = Math.max(0, subtotal - discountValue);
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
-    const profit = total - costTotal;
-    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined };
+    const profit = payment === "Fiado" ? 0 : total - costTotal;
+    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString() };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
     });
     set({ products, cart: [], sales: [sale, ...state.sales] });
     return sale;
+  },
+  markFiadoPaid(id: string) {
+    const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
+    if (!sale || sale.paid) return;
+    const costTotal = sale.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
+    const profit = sale.total - costTotal;
+    const paidAt = new Date().toISOString();
+    set({ sales: state.sales.map((s) => s.id === id ? { ...s, paid: true, paidAt, profit } : s) });
   },
   updateSettings(settings: AppSettings) { set({ settings }); },
   resetAppData() {
@@ -335,6 +343,16 @@ export const formatCpf = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
   return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 };
+
+export function printFiadoBalance(customer: string, sales: Sale[]) {
+  const open = sales.filter((s) => s.payment === "Fiado" && !s.paid && (s.customer || "").trim() === customer.trim());
+  const total = open.reduce((sum, s) => sum + s.total, 0);
+  const rows = open.map((s) => `<tr><td>${new Date(s.date).toLocaleDateString("pt-BR")} · ${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right">R$ ${brl(s.total)}</td></tr>`).join("");
+  const w = window.open("", "_blank", "width=420,height=700");
+  if (!w) return;
+  w.document.write(`<html><head><title>Saldo fiado - ${customer}</title><style>body{font-family:monospace;font-size:12px;width:320px;margin:12px auto}h1{text-align:center;font-size:18px}hr{border:0;border-top:1px dashed #000}table{width:100%}td{padding:4px 0;vertical-align:top}.c{text-align:center}</style></head><body><h1>CONTA FIADO</h1><p class="c">${customer}</p><hr/><table>${rows}</table><hr/><p><b>SALDO EM ABERTO: R$ ${brl(total)}</b></p><p class="c">Não é documento fiscal</p><script>window.onload=()=>window.print()</script></body></html>`);
+  w.document.close();
+}
 
 export function printReceipt(s: Sale) {
   const w = window.open("", "_blank", "width=380,height=640");
