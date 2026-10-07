@@ -1,4 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
@@ -13,6 +14,7 @@ export function AppHeader() {
   const [time, setTime] = useState("");
   const [open, setOpen] = useState(() => localStorage.getItem("mobflow-sidebar") !== "closed");
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
+  const settings = useStore((s) => s.settings);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -55,10 +57,13 @@ export function AppHeader() {
         <aside className="fixed left-0 top-0 z-50 h-screen w-64 transition-transform duration-200">
           <div className="h-full bg-popover/95 backdrop-blur-xl ring-r-1 ring-border flex flex-col">
             <div className="h-20 flex items-center px-4 gap-3">
-              <div className="h-9 w-9 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>
+              {settings.companyLogo ? (
+                <img src={settings.companyLogo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" />
+              ) : (
+                <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>
+              )}
               <div className="leading-none min-w-0">
-                <div className="font-display tracking-[.18em] text-[20px] text-heading">MOBFLOW</div>
-                <div className="font-mono text-[9px] uppercase tracking-[.2em] text-muted-foreground">PDV + ESTOQUE</div>
+                <div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div>
               </div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
