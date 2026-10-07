@@ -36,7 +36,7 @@ function PDV() {
   const [done, setDone] = useState<Sale | null>(null);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
-  const [weightInput, setWeightInput] = useState("0");
+  const [weightInput, setWeightInput] = useState("");
   const search = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setQuick(localStorage.getItem("mobflow:quick") === "1"); }, []);
@@ -54,7 +54,7 @@ function PDV() {
   const addWeightDigit = (digit: string) => {
     setWeightInput((v) => {
       const digits = `${v.replace(/\D/g, "")}${digit}`.replace(/^0+(?=\d)/, "");
-      return digits || "0";
+      return digits;
     });
   };
   const removeWeightDigit = () => {
@@ -64,7 +64,7 @@ function PDV() {
     });
   };
   const requestAdd = (p: Product) => {
-    if (p.unit === "kg") { setPendingWeight(p); setWeightInput("0"); return; }
+    if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
     actions.addToCart(p.id, 1);
     setFlash(`+1 ${p.name}`);
   };
@@ -76,7 +76,7 @@ function PDV() {
     actions.addToCart(pendingWeight.id, kg);
     setFlash(`+${brl(kg)} kg ${pendingWeight.name}`);
     setPendingWeight(null);
-    setWeightInput("0");
+    setWeightInput("");
   };
   const scanAdd = (code: string) => {
     const p = products.find((x) => x.code === code.trim());
@@ -293,7 +293,7 @@ function PDV() {
               <input
                 autoFocus
                 value={weightInput}
-                onChange={(e) => setWeightInput(e.target.value.replace(/\D/g, "") || "0")}
+                onChange={(e) => setWeightInput(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") confirmWeight();
                   if (e.key === "Escape") setPendingWeight(null);
