@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 const managementTabs = [
   { to: "/estoque", label: "Estoque", icon: "□" },
   { to: "/vendas", label: "Vendas", icon: "↗" },
+  { to: "/fiado", label: "Fiado", icon: "💳" },
   { to: "/recebimento", label: "Recebimento", icon: "↓" },
   { to: "/configuracoes", label: "Configurações", icon: "⚙" },
 ] as const;
