@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 
 const managementTabs = [
   { to: "/estoque", label: "Estoque", icon: "□" },
@@ -43,6 +44,8 @@ function Gerencia() {
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
+  const [checkingAccess, setCheckingAccess] = useState(false);
+  const [error, setError] = useState("");
   const [from] = useState(firstDayOfMonth);
   const [to] = useState(isoToday);
 
@@ -60,9 +63,24 @@ function Gerencia() {
   const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
 
-  const enter = () => {
+  const enter = async () => {
+    setCheckingAccess(true);
+    setError("");
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Faça login na conta para acessar a gerência.");
+      setCheckingAccess(false);
+      return;
+    }
+    const { data: profile } = await supabase.from("profiles").select("username").eq("id", user.id).maybeSingle();
+    if (profile?.username !== "TESTE.MOBFLOW") {
+      setError("Esta conta não tem acesso à gerência.");
+      setCheckingAccess(false);
+      return;
+    }
     sessionStorage.setItem("mobflow-management", "1");
     setUnlocked(true);
+    setCheckingAccess(false);
   };
 
   const lock = () => {
@@ -81,8 +99,10 @@ function Gerencia() {
             <div className="w-full max-w-sm glass p-6 text-center">
               <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center text-2xl">🔒</div>
               <h1 className="font-display text-2xl tracking-[.12em] text-heading">ACESSO GERÊNCIA</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Acesso administrativo sem senha.</p>
-              <button onClick={enter} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground hover:opacity-90">Entrar na gerência</button>
+              <p className="mt-2 text-sm text-muted-foreground">Acesso liberado pela conta de gerência.</p>
+              {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+              <button onClick={() => void enter()} disabled={checkingAccess} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">{checkingAccess ? "Verificando..." : "Entrar na gerência"}</button>
+              <button onClick={() => navigate({ to: "/" })} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground hover:opacity-90">Entrar na gerência</button>
               <button onClick={() => navigate({ to: "/" })} className="mt-2 w-full rounded-xl bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-accent">Voltar</button>
             </div>
           </section>
