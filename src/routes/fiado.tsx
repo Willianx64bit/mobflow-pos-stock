@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
@@ -9,7 +9,6 @@ export const Route = createFileRoute("/fiado")({
 });
 
 function Fiado() {
-  const navigate = useNavigate();
   const sales = useStore((s) => s.sales);
   const [expanded, setExpanded] = useState<string | null>(null);
 
