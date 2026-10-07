@@ -17,7 +17,7 @@ const firstDayOfMonth = () => {
   return localDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
 };
 
-function saleProfit(s: { total: number; items: { price: number; cost?: number; qty: number }[] }) {
+function saleProfit(s: { total: number; items: { price: number; cost?: number | undefined; qty: number }[] }) {
   const costTotal = s.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
   return Math.max(0, s.total - costTotal);
 }
