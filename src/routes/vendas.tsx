@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, printReceipt, useStore } from "@/lib/store";
 
@@ -16,6 +16,7 @@ export const Route = createFileRoute("/vendas")({
 
 function Vendas() {
   const sales = useStore((s) => s.sales);
+  const navigate = useNavigate();
   const today = new Date().toDateString();
   const todays = sales.filter((s) => new Date(s.date).toDateString() === today);
   const sum = (arr: typeof sales) => arr.reduce((t, s) => t + s.total, 0);
@@ -32,6 +33,7 @@ function Vendas() {
         ))}
       </div>
       <section className="glass p-4">
+        <div className="flex justify-end mb-3"><button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button></div>
         <div className="label-mono mb-3">Histórico</div>
         <div className="divide-y divide-border/50">
           {sales.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">nenhuma venda ainda</p>}
