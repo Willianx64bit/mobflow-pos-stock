@@ -16,11 +16,17 @@ function Recebimento() {
   const [number, setNumber] = useState("");
   const [supplier, setSupplier] = useState("");
   const [productId, setProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [qty, setQty] = useState("");
   const [items, setItems] = useState<{ productId: string; expected: number }[]>([]);
 
   const selected = notes.find(n => n.id === search.nota);
   if (selected) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} /></div>;
+
+  const productSuggestions = products.filter(p => {
+    const term = productSearch.trim().toLowerCase();
+    return !term || p.name.toLowerCase().includes(term) || p.code.includes(term);
+  }).slice(0, 8);
 
   const addItem = () => {
     const n = Number(qty.replace(",", "."));
@@ -30,6 +36,8 @@ function Recebimento() {
       return found ? cur.map((i) => i.productId === productId ? { ...i, expected: i.expected + n } : i) : [...cur, { productId, expected: n }];
     });
     setQty("");
+    setProductId("");
+    setProductSearch("");
   };
 
   const save = (e: FormEvent) => {
@@ -41,17 +49,24 @@ function Recebimento() {
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
     <section className="glass p-4">
-      <div className="font-display text-2xl tracking-[.12em] text-heading mb-4">RECEBIMENTO</div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div>
+        <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button>
+      </div>
+      <div className="font-display text-2xl hidden">RECEBIMENTO</div> tracking-[.12em] text-heading mb-4">RECEBIMENTO</div>
       <form onSubmit={save} className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input value={number} onChange={e => setNumber(e.target.value)} placeholder="Número da nota" required className="field text-sm text-foreground" />
           <input value={supplier} onChange={e => setSupplier(e.target.value)} placeholder="Fornecedor" required className="field text-sm text-foreground" />
         </div>
         <div className="grid grid-cols-[1fr_120px_auto] gap-2">
-          <select value={productId} onChange={e => setProductId(e.target.value)} className="field text-sm text-foreground">
-            <option value="">Selecione o produto</option>
-            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <div className="relative">
+            <input value={productSearch} onChange={e => { setProductSearch(e.target.value); if (!e.target.value) setProductId(""); }} placeholder="Pesquisar produto ou código" className="field w-full text-sm text-foreground" />
+            {productSearch && !productId && <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto rounded-xl bg-background ring-1 ring-border shadow-xl">
+              {productSuggestions.map(p => <button key={p.id} type="button" onClick={() => { setProductId(p.id); setProductSearch(p.name); }} className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-b border-border/40 last:border-0"><span className="font-medium text-foreground">{p.name}</span><span className="ml-2 font-mono text-xs text-muted-foreground">{p.code}</span></button>)}
+              {!productSuggestions.length && <div className="px-3 py-3 text-xs text-muted-foreground">Nenhum produto encontrado.</div>}
+            </div>}
+          </div>
           <input value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9,.]/g, ""))} inputMode="decimal" placeholder="Quantidade" className="field text-sm text-foreground" />
           <button type="button" onClick={addItem} className="rounded-xl bg-secondary ring-1 ring-border px-4 font-semibold text-secondary-foreground">Adicionar</button>
         </div>
@@ -82,12 +97,18 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
   const products = useStore((s) => s.products);
   const conference = useStore((s) => s.conferences.find(c => c.receivingId === note.id));
   const [productId, setProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [qty, setQty] = useState("");
+  const productSuggestions = products.filter(p => {
+    const term = productSearch.trim().toLowerCase();
+    return !term || p.name.toLowerCase().includes(term) || p.code.includes(term);
+  }).slice(0, 8);
   const addProduct = () => {
     const n = Number(qty.replace(",", "."));
     if (!productId || !Number.isFinite(n) || n <= 0) return;
     actions.addReceivingItems(note.id, [{ productId, expected: n }]);
     setProductId("");
+    setProductSearch("");
     setQty("");
   };
   const receivedByProduct = new Map(note.items.map((i: any) => [i.productId, i.received ?? conference?.counts?.[i.productId] ?? 0]));
@@ -110,10 +131,13 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
     {note.status === "pendente" && <div className="mt-4 rounded-xl bg-secondary/50 ring-1 ring-border p-3">
       <div className="font-semibold text-foreground mb-2">Adicionar produtos à nota</div>
       <div className="grid grid-cols-[1fr_120px_auto] gap-2">
-        <select value={productId} onChange={e => setProductId(e.target.value)} className="field text-sm text-foreground">
-          <option value="">Selecione o produto</option>
-          {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        <div className="relative">
+          <input value={productSearch} onChange={e => { setProductSearch(e.target.value); if (!e.target.value) setProductId(""); }} placeholder="Pesquisar produto ou código" className="field w-full text-sm text-foreground" />
+          {productSearch && !productId && <div className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-auto rounded-xl bg-background ring-1 ring-border shadow-xl">
+            {productSuggestions.map(p => <button key={p.id} type="button" onClick={() => { setProductId(p.id); setProductSearch(p.name); }} className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-b border-border/40 last:border-0"><span className="font-medium text-foreground">{p.name}</span><span className="ml-2 font-mono text-xs text-muted-foreground">{p.code}</span></button>)}
+            {!productSuggestions.length && <div className="px-3 py-3 text-xs text-muted-foreground">Nenhum produto encontrado.</div>}
+          </div>}
+        </div>
         <input value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9,.]/g, ""))} inputMode="decimal" placeholder="Quantidade" className="field text-sm text-foreground" />
         <button type="button" onClick={addProduct} disabled={!productId || !qty} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold disabled:opacity-40">+ Adicionar</button>
       </div>
