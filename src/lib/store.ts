@@ -27,7 +27,6 @@ export type Conference = {
   receivingId?: string;
 };
 
-type AppSettings = { companyName: string; companyLogo?: string };
 type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
