@@ -41,7 +41,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const products = useStore(s => s.products);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [reopenCamera, setReopenCamera] = useState(true);
+  const [reopenCamera, setReopenCamera] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
 
