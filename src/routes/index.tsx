@@ -38,9 +38,14 @@ function PDV() {
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
+  const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const search = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setQuick(localStorage.getItem("mobflow:quick") === "1"); }, []);
+  useEffect(() => {
+    setQuick(localStorage.getItem("mobflow:quick") === "1");
+    return () => { if (scanTimer.current) clearTimeout(scanTimer.current); };
+  }, []);
   const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
 
   const parseWeight = (value: string) => {
@@ -80,14 +85,25 @@ function PDV() {
     setWeightInput("");
   };
   const scanAdd = (code: string) => {
-    const p = products.find((x) => x.code === code.trim());
+    const normalized = code.trim();
+    const now = Date.now();
+    if (!normalized) return false;
+    if (lastScanRef.current?.code === normalized && now - lastScanRef.current.at < 500) return true;
+    lastScanRef.current = { code: normalized, at: now };
+    const p = products.find((x) => x.code === normalized);
     if (p) { requestAdd(p); return true; }
-    setFlash(`código não cadastrado: ${code}`);
+    setFlash(`código não cadastrado: ${normalized}`);
     return false;
   };
   const onChangeQ = (v: string) => {
-    if (quick && /^\d{6,}$/.test(v.trim()) && products.some((p) => p.code === v.trim())) { scanAdd(v); setQ(""); return; }
     setQ(v);
+    if (!quick) return;
+    if (scanTimer.current) clearTimeout(scanTimer.current);
+    const value = v.trim();
+    if (!/^\d{6,}$/.test(value)) return;
+    scanTimer.current = setTimeout(() => {
+      if (products.some((p) => p.code === value)) { scanAdd(value); setQ(""); }
+    }, 120);
   };
 
   const results = useMemo(() => {
@@ -219,9 +235,21 @@ function PDV() {
                   <div className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? `${brl(p.price)}/kg × ${brl(qty)}kg` : `${brl(p.price)} × ${qty}`} = <span className="text-subtle">{brl(p.price * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
-                  <button onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
-                  <span className="font-mono text-[13px] text-foreground min-w-12 text-center">{p.unit === "kg" ? `${brl(qty)}kg` : qty}</span>
-                  <button onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
+                  <button type="button" onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
+                  <input
+                    value={p.unit === "kg" ? brl(qty) : String(qty)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(",", ".").replace(/[^0-9.]/g, "");
+                      const value = Number(raw);
+                      if (Number.isFinite(value)) actions.setCartQty(p.id, value);
+                    }}
+                    onFocus={(e) => e.currentTarget.select()}
+                    inputMode="decimal"
+                    aria-label={`Quantidade de ${p.name}`}
+                    className="w-14 bg-transparent text-center font-mono text-[13px] text-foreground outline-none"
+                  />
+                  <span className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
+                  <button type="button" onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
                 </div>
                 <button onClick={() => actions.removeFromCart(p.id)} className="text-muted-foreground hover:text-destructive text-sm" aria-label="Remover">×</button>
               </div>
