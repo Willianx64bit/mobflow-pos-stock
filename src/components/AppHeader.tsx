@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 const tabs = [
   { to: "/", label: "PDV", key: "F2", icon: "▣" },
@@ -60,7 +61,7 @@ export function AppHeader() {
     return next;
   });
 
-  return (
+  return createPortal(
     <>
       {open ? (
         <aside className="fixed left-0 top-0 z-50 h-screen w-64 transition-transform duration-200">
@@ -103,6 +104,7 @@ export function AppHeader() {
           ›
         </button>
       )}
-    </>
+    </>,
+    document.body,
   );
 }
