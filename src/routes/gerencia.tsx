@@ -9,10 +9,16 @@ const managementTabs = [
   { to: "/recebimento", label: "Recebimento", icon: "↓" },
 ] as const;
 
-const isoToday = () => new Date().toISOString().slice(0, 10);
+const localDateKey = (d = new Date()) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+};
+const isoToday = () => localDateKey();
 const firstDayOfMonth = () => {
   const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+  return localDateKey(new Date(d.getFullYear(), d.getMonth(), 1));
 };
 
 function saleProfit(s: { items: { price: number; cost?: number; qty: number }[] }) {
