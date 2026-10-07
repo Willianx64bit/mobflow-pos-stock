@@ -70,7 +70,6 @@ function Fiado() {
                             <div className="mt-1 text-xs text-muted-foreground">{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
                           </div>
                           <div className="font-mono font-bold text-heading">R$ {brl(s.total)}</div><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${s.paid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{s.paid ? "Pago" : "Pendente"}</span>
-                          <button onClick={() => { if (confirm(`Confirmar que ${customer} pagou R$ ${brl(s.total)}?`)) actions.markFiadoPaid(s.id); }} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground">✓ Marcar pago</button>
                           <button onClick={() => printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Compra</button>
                         </div>
                       </div>
