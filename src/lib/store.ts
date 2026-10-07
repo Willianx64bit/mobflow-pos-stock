@@ -5,7 +5,7 @@ export type Product = { id: string; code: string; ref?: string | undefined; name
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyLogo?: string | undefined };
-export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined };
+export type FiadoPayment = { value: number; date: string };\nexport type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
@@ -185,7 +185,7 @@ export const actions = {
     const total = Math.max(0, subtotal - discountValue);
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = payment === "Fiado" ? 0 : total - costTotal;
-    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString() };
+    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
@@ -193,13 +193,26 @@ export const actions = {
     set({ products, cart: [], sales: [sale, ...state.sales] });
     return sale;
   },
+  addFiadoPayment(id: string, value: number) {
+    const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
+    if (!sale || sale.paid || !Number.isFinite(value) || value <= 0) return false;
+    const payments = sale.payments ?? (sale.paid ? [{ value: sale.total, date: sale.paidAt ?? sale.date }] : []);
+    const alreadyPaid = payments.reduce((sum, p) => sum + p.value, 0);
+    const remaining = Math.max(0, sale.total - alreadyPaid);
+    const amount = Math.min(remaining, Math.round(value * 100) / 100);
+    if (amount <= 0) return false;
+    const nextPayments = [...payments, { value: amount, date: new Date().toISOString() }];
+    const paidTotal = nextPayments.reduce((sum, p) => sum + p.value, 0);
+    const isPaid = paidTotal >= sale.total - 0.005;
+    const costTotal = sale.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
+    const profit = isPaid ? sale.total - costTotal : 0;
+    set({ sales: state.sales.map((s) => s.id === id ? { ...s, payments: nextPayments, paid: isPaid, paidAt: isPaid ? new Date().toISOString() : undefined, profit } : s) });
+    return true;
+  },
   markFiadoPaid(id: string) {
     const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
     if (!sale || sale.paid) return;
-    const costTotal = sale.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
-    const profit = sale.total - costTotal;
-    const paidAt = new Date().toISOString();
-    set({ sales: state.sales.map((s) => s.id === id ? { ...s, paid: true, paidAt, profit } : s) });
+    actions.addFiadoPayment(id, sale.total);
   },
   updateSettings(settings: AppSettings) { set({ settings }); },
   resetAppData() {
@@ -345,9 +358,12 @@ export const formatCpf = (v: string) => {
 };
 
 export function printFiadoBalance(customer: string, sales: Sale[]) {
-  const open = sales.filter((s) => s.payment === "Fiado" && !s.paid && (s.customer || "").trim() === customer.trim());
-  const total = open.reduce((sum, s) => sum + s.total, 0);
-  const rows = open.map((s) => `<tr><td>${new Date(s.date).toLocaleDateString("pt-BR")} · ${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right">R$ ${brl(s.total)}</td></tr>`).join("");
+  const open = sales.filter((s) => s.payment === "Fiado" && (s.customer || "").trim() === customer.trim()).map((s) => {
+    const paid = (s.payments ?? (s.paid ? [{ value: s.total, date: s.paidAt ?? s.date }] : [])).reduce((sum, p) => sum + p.value, 0);
+    return { sale: s, remaining: Math.max(0, s.total - paid) };
+  }).filter((x) => x.remaining > 0);
+  const total = open.reduce((sum, x) => sum + x.remaining, 0);
+  const rows = open.map(({ sale: s, remaining }) => `<tr><td>${new Date(s.date).toLocaleDateString("pt-BR")} · ${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right">R$ ${brl(remaining)}</td></tr>`).join("");
   const w = window.open("", "_blank", "width=420,height=700");
   if (!w) return;
   w.document.write(`<html><head><title>Saldo fiado - ${customer}</title><style>body{font-family:monospace;font-size:12px;width:320px;margin:12px auto}h1{text-align:center;font-size:18px}hr{border:0;border-top:1px dashed #000}table{width:100%}td{padding:4px 0;vertical-align:top}.c{text-align:center}</style></head><body><h1>CONTA FIADO</h1><p class="c">${customer}</p><hr/><table>${rows}</table><hr/><p><b>SALDO EM ABERTO: R$ ${brl(total)}</b></p><p class="c">Não é documento fiscal</p><script>window.onload=()=>window.print()</script></body></html>`);
