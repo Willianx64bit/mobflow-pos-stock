@@ -7,6 +7,7 @@ const managementTabs = [
   { to: "/estoque", label: "Estoque", icon: "□" },
   { to: "/vendas", label: "Vendas", icon: "↗" },
   { to: "/recebimento", label: "Recebimento", icon: "↓" },
+  { to: "/configuracoes", label: "Configurações", icon: "⚙" },
 ] as const;
 
 const localDateKey = (d = new Date()) => {
