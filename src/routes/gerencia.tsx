@@ -108,7 +108,7 @@ function Gerencia() {
                   <div className="mt-2 text-2xl font-bold text-heading">R$ {brl(todaySales)}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{todays.length} venda(s)</div>
                 </div>
-                <div className="rounded-2xl bg-secondary/60 p-4 ring-1 ring-border/60">
+                <div className="aspect-square rounded-full bg-secondary/60 p-5 ring-1 ring-border/60 flex flex-col items-center justify-center text-center shadow-sm">
                   <div className="text-xs uppercase tracking-wider text-muted-foreground">Lucro de hoje</div>
                   <div className="mt-2 text-2xl font-bold text-primary">R$ {brl(todayProfit)}</div>
                   <div className="mt-1 text-xs text-muted-foreground">somente lucro das vendas</div>
