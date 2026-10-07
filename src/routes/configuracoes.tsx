@@ -14,6 +14,10 @@ function Configuracoes() {
   const [name, setName] = useState(settings.companyName);
   const [logo, setLogo] = useState(settings.companyLogo ?? "");
   const [saved, setSaved] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetUser, setResetUser] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState("");
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -42,10 +46,33 @@ function Configuracoes() {
     setTimeout(() => setSaved(false), 1800);
   };
 
-  const reset = () => {
-    const ok = confirm("ATENÇÃO: isso apagará todos os produtos, vendas, estoque, conferências e recebimentos desta conta. A configuração da empresa será mantida. Deseja continuar?");
+  const openReset = () => {
+    setResetUser("");
+    setResetPassword("");
+    setResetError("");
+    setResetOpen(true);
+  };
+
+  const reset = async () => {
+    const savedUser = sessionStorage.getItem("mobflow-management-user");
+    const savedHash = sessionStorage.getItem("mobflow-management-pass-hash");
+    const data = new TextEncoder().encode(resetPassword);
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    const hash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    if (resetUser.trim().toUpperCase() !== savedUser || !savedHash || hash !== savedHash) {
+      setResetError("Nome de usuário ou senha da gerência incorretos.");
+      return;
+    }
+
+    const ok = confirm("Esta alteração não pode ser desfeita, você tem certeza?");
     if (!ok) return;
+
     actions.resetAppData();
+    setResetOpen(false);
+    setResetUser("");
+    setResetPassword("");
+    setResetError("");
     alert("Dados zerados. A conta e as configurações da empresa foram mantidas.");
   };
 
@@ -88,7 +115,25 @@ function Configuracoes() {
         <section className="glass p-5 md:p-6 ring-1 ring-destructive/30">
           <h2 className="font-display text-xl tracking-[.08em] text-heading">ZERAR APLICAÇÃO</h2>
           <p className="mt-2 text-sm text-muted-foreground">Apaga produtos, vendas, estoque, conferências e recebimentos. Login, conta e configurações da empresa ficam preservados.</p>
-          <button onClick={reset} className="mt-4 rounded-xl bg-destructive px-5 py-3 font-semibold text-destructive-foreground hover:opacity-90">🗑️ Zerar tudo e começar do zero</button>
+          <button onClick={openReset} className="mt-4 rounded-xl bg-destructive px-5 py-3 font-semibold text-destructive-foreground hover:opacity-90">🗑️ Zerar tudo e começar do zero</button>
+          {resetOpen && (
+            <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md glass p-6 shadow-2xl">
+                <div className="text-2xl">⚠️</div>
+                <h3 className="mt-2 font-display text-xl tracking-[.08em] text-heading">CONFIRMAÇÃO DE GERÊNCIA</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Informe as credenciais da gerência para continuar.</p>
+                <div className="mt-4 space-y-3">
+                  <input autoFocus value={resetUser} onChange={(e) => { setResetUser(e.target.value); setResetError(""); }} placeholder="Nome de usuário da gerência" className="field w-full text-sm text-foreground" />
+                  <input type="password" value={resetPassword} onChange={(e) => { setResetPassword(e.target.value); setResetError(""); }} onKeyDown={(e) => { if (e.key === "Enter") void reset(); }} placeholder="Senha da gerência" className="field w-full text-sm text-foreground" />
+                </div>
+                {resetError && <p className="mt-2 text-sm text-destructive">{resetError}</p>}
+                <div className="mt-5 flex gap-2">
+                  <button onClick={() => setResetOpen(false)} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">Cancelar</button>
+                  <button onClick={() => void reset()} className="flex-1 rounded-xl bg-destructive px-4 py-3 font-semibold text-destructive-foreground hover:opacity-90">Continuar</button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </div>
