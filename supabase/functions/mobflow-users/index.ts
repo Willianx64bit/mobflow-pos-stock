@@ -35,9 +35,13 @@ Deno.serve(async (req) => {
       const { data: existing } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
       if (existing) return json({ error: "Esse usuário já existe." }, 409);
       const email = username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
-      const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: displayName, role: "pdv" } });
-      if (createError || !created.user) return json({ error: createError?.message ?? "Não foi possível criar o usuário." }, 400);
-      const { error: insertError } = await admin.from("profiles").insert({ id: created.user.id, username, cnpj: manager.cnpj, account_id: manager.account_id, role: "pdv", active: true, display_name: displayName });
+      const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { display_name: displayName, role: "pdv", username, cnpj: manager.cnpj, account_id: manager.account_id } });
+      if (createError || !created.user) {
+        console.error("createUser failed", createError);
+        const msg = createError?.message ?? "";
+        return json({ error: msg.includes("Database error") ? "O banco recusou a criação do usuário. Aplique a atualização do banco (gatilho de novos usuários) e tente de novo." : msg.includes("already") ? "Esse usuário já existe." : (msg || "Não foi possível criar o usuário.") }, 400);
+      }
+      const { error: insertError } = await admin.from("profiles").upsert({ id: created.user.id, username, cnpj: manager.cnpj, account_id: manager.account_id, role: "pdv", active: true, display_name: displayName }, { onConflict: "id" });
       if (insertError) { await admin.auth.admin.deleteUser(created.user.id); return json({ error: "Não foi possível salvar o usuário." }, 500); }
       return json({ ok: true });
     }
