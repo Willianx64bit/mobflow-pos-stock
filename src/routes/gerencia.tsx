@@ -239,42 +239,4 @@ function Gerencia() {
       </main>
     </div>
   );
-}  useEffect(() => {
-    let active = true;
-    const checkManager = async () => {
-      if (sessionStorage.getItem("mobflow-management") === "1") {
-        if (active) setUnlocked(true);
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
-      if (active && profile?.role === "manager" && profile.active !== false) {
-        sessionStorage.setItem("mobflow-management", "1");
-        setUnlocked(true);
-      }
-    };
-    void checkManager();
-    return () => { active = false; };
-  }, []);
-
-  const handleManagerLogin = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Não foi possível iniciar a sessão da gerência.");
-      return;
-    }
-    const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
-    if (profile?.role !== "manager" || profile.active === false) {
-      await supabase.auth.signOut();
-      localStorage.removeItem("mobflow-authenticated");
-      sessionStorage.removeItem("mobflow-role");
-      sessionStorage.removeItem("mobflow-username");
-      setError("Esse usuário não possui acesso à gerência.");
-      return;
-    }
-    sessionStorage.setItem("mobflow-management", "1");
-    await hydrateStore();
-    setUnlocked(true);
-    setError("");
-  };
+}
