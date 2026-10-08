@@ -44,9 +44,11 @@ export function AppHeader() {
   }, [open]);
 
   useEffect(() => {
+    if (!mounted) return;
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("mobflow-theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+  }, [darkMode, mounted]);
+
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
