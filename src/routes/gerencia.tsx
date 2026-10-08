@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { LoginScreen } from "@/components/LoginScreen";
 import { brl, hydrateStore, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
@@ -68,25 +67,65 @@ function Gerencia() {
     return () => { active = false; };
   }, []);
 
-  const handleManagerLogin = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Não foi possível iniciar a sessão da gerência.");
-      return;
-    }
-    const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
-    if (profile?.role !== "manager" || profile.active === false) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [cnpj, setCnpj] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const formatCnpj = (value: string) =>
+    value.replace(/\D/g, "").slice(0, 14)
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+
+  const handleManagerLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
       await supabase.auth.signOut();
-      localStorage.removeItem("mobflow-authenticated");
+      sessionStorage.removeItem("mobflow-management");
+      sessionStorage.removeItem("mobflow-pdv-authorized");
       sessionStorage.removeItem("mobflow-role");
       sessionStorage.removeItem("mobflow-username");
-      setError("Esse usuário não possui acesso à gerência.");
-      return;
+
+      const { data, error: loginError } = await supabase.functions.invoke("mobflow-login", {
+        body: { username: username.trim(), password, cnpj },
+      });
+
+      if (loginError || !data?.session) {
+        setError(data?.error || "Usuário, senha ou CNPJ inválidos.");
+        return;
+      }
+
+      if (data.profile?.role !== "manager") {
+        setError("Esse usuário não possui acesso à gerência.");
+        return;
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      });
+
+      if (sessionError) {
+        setError("Não foi possível iniciar a sessão.");
+        return;
+      }
+
+      localStorage.setItem("mobflow-authenticated", "1");
+      sessionStorage.setItem("mobflow-management", "1");
+      sessionStorage.setItem("mobflow-role", "manager");
+      sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
+      await hydrateStore();
+      setUnlocked(true);
+    } catch {
+      setError("Não foi possível conectar ao servidor.");
+    } finally {
+      setLoading(false);
     }
-    sessionStorage.setItem("mobflow-management", "1");
-    await hydrateStore();
-    setUnlocked(true);
-    setError("");
   };
 
 
@@ -118,7 +157,22 @@ function Gerencia() {
         {!unlocked ? (
           <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
             <div className="w-full max-w-md">
-              <LoginScreen mode="empresa" onLogin={() => void handleManagerLogin()} />
+              <div className="w-full rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+                <div className="text-center">
+                  <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-3xl text-primary">M</div>
+                  <div className="mt-4 font-display tracking-[.18em] text-3xl text-heading">MOBFLOW</div>
+                  <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">GERÊNCIA</div>
+                </div>
+                <form onSubmit={handleManagerLogin} className="mt-7 space-y-4">
+                  <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus placeholder="Usuário da empresa" className="field w-full text-foreground" />
+                  <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Senha" className="field w-full text-foreground" />
+                  <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
+                  {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
+                  <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+                    {loading ? "Validando..." : "Entrar na gerência"}
+                  </button>
+                </form>
+              </div>
             </div>
           </section>
         ) : (
