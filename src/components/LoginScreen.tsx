@@ -13,6 +13,7 @@ export function logout() {
 }
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [loginMode, setLoginMode] = useState<"pdv" | "manager">("pdv");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -37,7 +38,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     if (!rememberLogin) localStorage.removeItem("mobflow-authenticated");
     try {
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj: cnpj.replace(/\D/g, "") },
+        body: { username: username.trim(), password, cnpj: loginMode === "manager" ? cnpj.replace(/\D/g, "") : "" },
       });
       if (error || !data?.session) {
         setError(data?.error || "Não foi possível entrar. Verifique os dados.");
@@ -71,9 +72,14 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">PDV + ESTOQUE</div>
         </div>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
+        <div className="mt-8 grid grid-cols-2 gap-2 rounded-xl bg-muted/50 p-1">
+          <button type="button" onClick={() => { setLoginMode("pdv"); setError(""); }} className={`rounded-lg py-2.5 text-sm font-semibold ${loginMode === "pdv" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>PDV</button>
+          <button type="button" onClick={() => { setLoginMode("manager"); setError(""); }} className={`rounded-lg py-2.5 text-sm font-semibold ${loginMode === "manager" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Gerência</button>
+        </div>
+
+        <form onSubmit={submit} className="mt-4 space-y-4">
           <div>
-            <label className="label-mono block mb-1.5">Nome de usuário</label>
+            <label className="label-mono block mb-1.5">{loginMode === "pdv" ? "Usuário do PDV" : "Usuário da gerência"}</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
           </div>
           <div>
@@ -90,7 +96,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             <span>Lembrar login</span>
           </label>
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
-            {loading ? "Validando..." : "Entrar no MobFlow"}
+            {loading ? "Validando..." : loginMode === "pdv" ? "Entrar no PDV" : "Entrar na Gerência"}
           </button>
         </form>
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
