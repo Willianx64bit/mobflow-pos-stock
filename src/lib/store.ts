@@ -8,10 +8,12 @@ export type AppSettings = { companyName: string; companyLogo?: string | undefine
 export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
+export type Supplier = { name: string; cnpj?: string };
 export type ReceivingNote = {
   id: string;
   number: string;
   supplier: string;
+  supplierCnpj?: string;
   date: string;
   items: ReceivingItem[];
   status: "pendente" | "conferido" | "divergente" | "aceito" | "rejeitado";
@@ -28,7 +30,7 @@ export type Conference = {
   receivingId?: string;
 };
 
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; settings: AppSettings };
+type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -48,7 +50,7 @@ const seed: Product[] = [
   id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
 }));
 
-let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], settings: { companyName: "" } };
+let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], suppliers: [], settings: { companyName: "" } };
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
@@ -63,6 +65,7 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) state = { ...state, ...JSON.parse(raw) };
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
+    state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
   } catch {}
 }
 function startRealtime(userId: string) {
@@ -120,7 +123,7 @@ export async function hydrateStore() {
       load();
     } else if (!error) {
       // A different account must never inherit another account's browser data.
-      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], settings: state.settings ?? { companyName: "" } };
+      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
     }
 
     try {
@@ -268,9 +271,9 @@ export const actions = {
     const products = adjust ? state.products.map((p) => (p.id in conf.counts ? { ...p, stock: conf.counts[p.id]! } : p)) : state.products;
     set({ products, conferences: state.conferences.map((c) => (c.id === id ? { ...c, status: "finalizada", adjusted: adjust } : c)) });
   },
-  createReceiving(number: string, supplier: string, items: { productId: string; expected: number }[]) {
+  createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
     const receiving: ReceivingNote = {
-      id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado",
+      id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado", supplierCnpj: supplierCnpj?.trim() || undefined,
       date: new Date().toISOString(),
       items: items.map((i) => {
         const p = state.products.find((x) => x.id === i.productId)!;
@@ -278,7 +281,7 @@ export const actions = {
       }),
       status: "pendente",
     };
-    set({ receiving: [receiving, ...(state.receiving ?? [])] });
+    set({ receiving: [receiving, ...(state.receiving ?? [])], suppliers: supplier.trim() ? (() => { const name = supplier.trim(); const cnpj = supplierCnpj?.trim() || undefined; const existing = (state.suppliers ?? []).find(s => s.name.toLowerCase() === name.toLowerCase()); return existing ? (state.suppliers ?? []).map(s => s.name.toLowerCase() === name.toLowerCase() ? { ...s, name, cnpj: cnpj || s.cnpj } : s) : [{ name, cnpj }, ...(state.suppliers ?? [])]; })() : (state.suppliers ?? []) });
     return receiving.id;
   },
   updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
