@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 export type Product = { id: string; code: string; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
-export type AppSettings = { companyName: string; companyLogo?: string | undefined };
+export type AppSettings = { companyName: string; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
@@ -485,6 +485,28 @@ ${s.customer ? `<p>Cliente: ${s.customer}</p>` : ""}${s.cpf ? `<p>CPF: ${s.cpf}<
 ${s.received && s.received > s.total ? `<tr><td>Recebido</td><td style="text-align:right">${brl(s.received)}</td></tr><tr><td>Troco</td><td style="text-align:right">${brl(s.received - s.total)}</td></tr>` : ""}</table>
 <hr/><p class="c">Obrigado pela preferência!</p><script>window.onload=()=>{window.print()}</script></body></html>`);
   w.document.close();
+}
+
+export function buildPixPayload(key: string, amount: number, merchantName = "MOBFLOW", city = "SAO PAULO") {
+  const clean = (value: string, max: number) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, max).toUpperCase();
+  const field = (id: string, value: string) => id + String(value.length).padStart(2, "0") + value;
+  const payloadWithoutCrc =
+    field("00", "01") +
+    field("26", field("00", "BR.GOV.BCB.PIX") + field("01", key.trim().slice(0, 99))) +
+    field("52", "0000") +
+    field("53", "986") +
+    field("54", Math.max(0, amount).toFixed(2)) +
+    field("58", "BR") +
+    field("59", clean(merchantName, 25) || "MOBFLOW") +
+    field("60", clean(city, 15) || "SAO PAULO") +
+    field("62", field("05", "***")) +
+    "6304";
+  let crc = 0xffff;
+  for (let i = 0; i < payloadWithoutCrc.length; i++) {
+    crc ^= payloadWithoutCrc.charCodeAt(i) << 8;
+    for (let bit = 0; bit < 8; bit++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+  }
+  return payloadWithoutCrc + crc.toString(16).toUpperCase().padStart(4, "0");
 }
 
 export const brl = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
