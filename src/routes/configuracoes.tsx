@@ -72,6 +72,16 @@ function Configuracoes() {
             <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm text-secondary-foreground hover:bg-accent">← Voltar</button>
           </div>
 
+          <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-heading">Usuários do PDV</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Crie e gerencie os usuários que terão acesso somente ao ponto de venda.</p>
+              </div>
+              <button onClick={() => navigate({ to: "/usuarios" })} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">Gerenciar</button>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-border/60 p-5">
             <h2 className="font-semibold text-heading">Identidade da empresa</h2>
             <div className="mt-5 grid md:grid-cols-[120px_1fr] gap-5 items-center">
