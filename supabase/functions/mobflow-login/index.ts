@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     const cleanUsername = String(username ?? "").trim().toUpperCase();
     const cleanPassword = String(password ?? "");
     const cleanCnpj = String(cnpj ?? "").replace(/\D/g, "");
-    if (!cleanUsername || cleanPassword.length < 6 || cleanCnpj.length !== 14) return json({ error: "Usuário, senha ou CNPJ inválido." }, 400);
+    if (!cleanUsername || cleanPassword.length < 6) return json({ error: "Usuário ou senha inválido." }, 400);
     const url = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -22,8 +22,10 @@ Deno.serve(async (req) => {
     const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name").eq("username", cleanUsername).maybeSingle();
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
     if (profile) {
-      if (profile.cnpj !== cleanCnpj || !profile.active) return json({ error: "Usuário, CNPJ ou acesso inválido." }, 401);
+      if (!profile.active) return json({ error: "Usuário ou acesso inválido." }, 401);
+      if (profile.role === "manager" && profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
     } else {
+      if (cleanCnpj.length !== 14) return json({ error: "Para acessar a gerência, informe o CNPJ da empresa." }, 400);
       const { data: allowed } = await admin.from("account_allowlist").select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
       if (!allowed) return json({ error: "Usuário não autorizado." }, 401);
       const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: cleanPassword, email_confirm: true, user_metadata: { username: cleanUsername, cnpj: cleanCnpj, role: "manager", display_name: cleanUsername } });
