@@ -4,6 +4,21 @@ import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
+
+async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ data: any; error: unknown }> {
+  try {
+    const { data, error } = await supabase.functions.invoke("mobflow-users", opts);
+    if (!error) return { data, error: null };
+    let body: any = null;
+    try { body = await (error as { context?: Response }).context?.json(); } catch { /* sem corpo */ }
+    const raw = String(body?.error ?? "");
+    const friendly = raw.includes("Database error") ? "O banco recusou a criação do usuário. Rode a correção do banco enviada no chat e tente de novo." : raw;
+    return { data: { error: friendly || undefined }, error: true };
+  } catch {
+    return { data: null, error: true };
+  }
+}
+
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({ meta: [{ title: "MobFlow — Configurações" }] }),
   component: Configuracoes,
@@ -34,7 +49,7 @@ function Configuracoes() {
     const load = async () => {
       setUsersLoading(true);
       setUserError("");
-      const { data, error } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+      const { data, error } = await callUsers({ body: { action: "list" } });
       if (cancelled) return;
       if (error || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
       else setPdvUsers(data.users);
@@ -52,7 +67,7 @@ function Configuracoes() {
   const loadPdvUsers = async () => {
     setUsersLoading(true);
     setUserError("");
-    const { data, error } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+    const { data, error } = await callUsers({ body: { action: "list" } });
     if (error || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
     else setPdvUsers(data.users);
     setUsersLoading(false);
@@ -61,7 +76,7 @@ function Configuracoes() {
   const createPdvUser = async () => {
     setUserError("");
     setUserMessage("");
-    const { data, error } = await supabase.functions.invoke("mobflow-users", {
+    const { data, error } = await callUsers({
       body: { action: "create", displayName: userName, username: userUsername, password: userPassword },
     });
     if (error || !data?.ok) {
@@ -77,7 +92,7 @@ function Configuracoes() {
 
   const togglePdvUser = async (user: (typeof pdvUsers)[number]) => {
     setUserError("");
-    const { data, error } = await supabase.functions.invoke("mobflow-users", {
+    const { data, error } = await callUsers({
       body: { action: "toggle", userId: user.id, active: !user.active },
     });
     if (error || !data?.ok) setUserError(data?.error || "Não foi possível alterar o acesso.");
@@ -88,7 +103,7 @@ function Configuracoes() {
     const next = window.prompt(`Nova senha para ${user.username} (mínimo 6 caracteres):`);
     if (!next) return;
     setUserError("");
-    const { data, error } = await supabase.functions.invoke("mobflow-users", {
+    const { data, error } = await callUsers({
       body: { action: "reset_password", userId: user.id, password: next },
     });
     if (error || !data?.ok) setUserError(data?.error || "Não foi possível trocar a senha.");
