@@ -39,6 +39,7 @@ function PDV() {
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
   const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
+  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -70,7 +71,14 @@ function PDV() {
       return digits;
     });
   };
+  useEffect(() => {
+    const sync = () => setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+    window.addEventListener("mobflow-pdv-auth-changed", sync);
+    return () => window.removeEventListener("mobflow-pdv-auth-changed", sync);
+  }, []);
+
   const requestAdd = (p: Product) => {
+    if (!pdvAuthorized) { setFlash("PDV bloqueado: clique em Usuário para liberar."); return; }
     if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
     actions.addToCart(p.id, 1);
     setFlash(`+1 ${p.name}`);
@@ -86,6 +94,7 @@ function PDV() {
     setWeightInput("");
   };
   const scanAdd = (code: string) => {
+    if (!pdvAuthorized) { setFlash("PDV bloqueado: clique em Usuário para liberar."); return false; }
     const normalized = code.trim();
     const now = Date.now();
     if (!normalized) return false;
@@ -143,7 +152,7 @@ function PDV() {
   useEffect(() => { search.current?.focus(); }, [done, editing]);
   useEffect(() => { setSel(0); }, [q]);
 
-  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {\n    if (!pdvAuthorized && e.key === "Enter") { e.preventDefault(); setFlash("PDV bloqueado: clique em Usuário para liberar."); return; }
     if (e.key === "Enter") {
       if (scanTimer.current) {
         clearTimeout(scanTimer.current);
@@ -183,7 +192,7 @@ function PDV() {
           {settings.companyName && <div className="font-display text-xl tracking-[.08em] text-heading truncate">{settings.companyName}</div>}
         </div>
       )}
-      <main className="grid lg:grid-cols-[1fr_380px] gap-4">
+      <main className="grid lg:grid-cols-[1fr_380px] gap-4">\n        {!pdvAuthorized && <div className="lg:col-span-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25">🔒 PDV bloqueado para vendas — clique em <b>Usuário</b> no canto superior direito para liberar.</div>}
         <section className="glass p-4">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-3 field px-4 py-3">
@@ -200,10 +209,10 @@ function PDV() {
                 {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
               </span>
             </div>
-            <button onClick={() => setCam(true)} className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera">📷</button>
+            <button disabled={!pdvAuthorized} onClick={() => setCam(true) className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera">📷</button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <button onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
               <span className={`h-3 w-6 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-2 w-2 rounded-full bg-background transition-all ${quick ? "left-3.5" : "left-0.5"}`} /></span>
               Bipe rápido {quick ? "ligado" : "desligado"}
             </button>
@@ -287,15 +296,15 @@ function PDV() {
           </div>
           <div className="pt-3 border-t border-border">
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
-              <input value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
+              <input disabled={!pdvAuthorized} value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
+              <input disabled={!pdvAuthorized} value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
             </div>
             <div className="flex items-center gap-2 mb-3">
               <div className="flex rounded-lg bg-secondary ring-1 ring-border p-1 shrink-0">
                 <button type="button" onClick={() => setDiscountType("R$")} className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-colors ${discountType === "R$" ? "bg-primary text-primary-foreground" : "text-secondary-foreground"}`}>R$</button>
                 <button type="button" onClick={() => setDiscountType("%")} className={`rounded-md px-3 py-1.5 text-[11px] font-bold transition-colors ${discountType === "%" ? "bg-primary text-primary-foreground" : "text-secondary-foreground"}`}>%</button>
               </div>
-              <input value={discountInput} onChange={(e) => setDiscountInput(e.target.value.replace(/[^0-9,\.]/g, ""))} inputMode="decimal" placeholder={discountType === "R$" ? "Desconto em R$" : "Desconto em %"} className="field flex-1 font-mono text-[13px] text-foreground" />
+              <input disabled={!pdvAuthorized} value={discountInput} onChange={(e) => setDiscountInput(e.target.value.replace(/[^0-9,\.]/g, ""))} inputMode="decimal" placeholder={discountType === "R$" ? "Desconto em R$" : "Desconto em %"} className="field flex-1 font-mono text-[13px] text-foreground" />
               {discount > 0 && <span className="font-mono text-[11px] text-destructive whitespace-nowrap">- R$ {brl(discount)}</span>}
             </div>
             <div className="flex justify-between items-baseline">
@@ -312,7 +321,7 @@ function PDV() {
             </div>
             {payment === "Dinheiro" && (
               <div className="mt-3 flex items-center gap-2">
-                <input value={received} onChange={(e) => setReceived(e.target.value)} inputMode="decimal" placeholder="Valor recebido"
+                <input disabled={!pdvAuthorized} value={received} onChange={(e) => setReceived(e.target.value)} inputMode="decimal" placeholder="Valor recebido"
                   className="field flex-1 font-mono text-sm text-foreground" onKeyDown={(e) => e.key === "Enter" && finish()} />
                 <div className="font-mono text-[12px] text-right">
                   <div className="label-mono">troco</div>
@@ -320,7 +329,7 @@ function PDV() {
                 </div>
               </div>
             )}
-            <button onClick={finish} disabled={!lines.length}
+            <button onClick={finish} disabled={!pdvAuthorized || !lines.length}
               className="mt-3 w-full rounded-xl bg-primary text-primary-foreground font-bold text-[15px] py-3.5 flex items-center justify-center gap-2 hover:bg-primary/85 disabled:opacity-40">
               Finalizar venda <kbd className="font-mono text-[11px] opacity-70">F9</kbd>
             </button>
