@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
     if (profile) {
       if (!profile.active) return json({ error: "Usuário ou acesso inválido." }, 401);
-      if (profile.role === "manager" && profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
+      if (profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
     } else {
       if (cleanCnpj.length !== 14) return json({ error: "Para acessar a gerência, informe o CNPJ da empresa." }, 400);
       const { data: allowed } = await admin.from("account_allowlist").select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
