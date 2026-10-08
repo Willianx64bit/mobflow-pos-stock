@@ -104,8 +104,7 @@ function Gerencia() {
         return;
       }
       sessionStorage.setItem("mobflow-management", "1");
-      sessionStorage.removeItem("mobflow-management-password");
-      setUnlocked(true);
+        setUnlocked(true);
       setCheckingManager(false);
     })();
   };
