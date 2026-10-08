@@ -119,8 +119,16 @@ function Gerencia() {
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl bg-white p-5 ring-1 ring-border"><div className="text-sm text-muted-foreground">Vendas de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div></div>
-          <div className="rounded-2xl bg-white p-5 ring-1 ring-border"><div className="text-sm text-muted-foreground">Lucro de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todayProfit)}</div></div>
+          <div className="relative overflow-hidden rounded-full bg-white p-7 ring-1 ring-border shadow-sm aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
+            <div className="absolute inset-2 rounded-full border border-primary/20 animate-[spin_18s_linear_infinite] pointer-events-none" />
+            <div className="absolute inset-5 rounded-full border border-dashed border-primary/15 animate-[spin_26s_linear_infinite_reverse] pointer-events-none" />
+            <div className="text-sm text-muted-foreground">Vendas de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div>
+          </div>
+          <div className="relative overflow-hidden rounded-full bg-white p-7 ring-1 ring-border shadow-sm aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
+            <div className="absolute inset-2 rounded-full border border-primary/20 animate-[spin_20s_linear_infinite] pointer-events-none" />
+            <div className="absolute inset-5 rounded-full border border-dashed border-primary/15 animate-[spin_28s_linear_infinite_reverse] pointer-events-none" />
+            <div className="text-sm text-muted-foreground">Lucro de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todayProfit)}</div>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {managementTabs.map((tab) => (
