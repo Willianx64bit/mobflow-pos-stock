@@ -34,13 +34,6 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
 
-  useEffect(() => {
-    const key = "mobflow-route-auto-retry";
-    if (sessionStorage.getItem(key) !== "1") {
-      sessionStorage.setItem(key, "1");
-      window.location.reload();
-    }
-  }, []);
   console.error(error);
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
@@ -100,8 +93,6 @@ function RootComponent() {
 
   useEffect(() => {
     let active = true;
-    const retryTimer = window.setTimeout(() => sessionStorage.removeItem("mobflow-route-auto-retry"), 5000);
-
     const bootstrap = async () => {
       try {
         const { data } = await supabase.auth.getSession();
@@ -166,7 +157,7 @@ function RootComponent() {
     };
 
     void bootstrap();
-    return () => { active = false; window.clearTimeout(retryTimer); };
+    return () => { active = false; };
   }, []);
 
   if (checkingSession) {
