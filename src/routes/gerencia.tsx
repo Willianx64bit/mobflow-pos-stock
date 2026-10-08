@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { verifyManagerPassword } from "@/lib/manager-auth";
 
 const managementTabs = [
   { to: "/estoque", label: "Estoque", icon: "▣" },
@@ -36,7 +37,10 @@ function Gerencia() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
-  const [unlocked, setUnlocked] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("mobflow-management") === "1");
+  const [unlocked, setUnlocked] = useState(false);
+  const [password, setPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [details, setDetails] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
@@ -89,24 +93,27 @@ function Gerencia() {
 
   const handleLogin = () => {
     setError("");
-    setCheckingManager(true);
-    void (async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) {
-        setError("Sessão da conta não encontrada. Entre novamente.");
-        setCheckingManager(false);
-        return;
-      }
-      const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", sessionData.session.user.id).maybeSingle();
-      if (profile?.role !== "manager" || profile.active === false) {
-        setError("Esta conta não possui acesso à gerência.");
-        setCheckingManager(false);
-        return;
-      }
-      sessionStorage.setItem("mobflow-management", "1");
-        setUnlocked(true);
-      setCheckingManager(false);
-    })();
+    setPasswordError("");
+    setPassword("");
+    setPasswordLoading(false);
+  };
+
+  const confirmManagerPassword = async () => {
+    setPasswordError("");
+    if (password.length < 6) {
+      setPasswordError("Informe a senha da gerência.");
+      return;
+    }
+    setPasswordLoading(true);
+    const result = await verifyManagerPassword(password);
+    setPasswordLoading(false);
+    if (!result.ok) {
+      setPasswordError(result.error || "Senha da gerência incorreta.");
+      return;
+    }
+    sessionStorage.setItem("mobflow-management", "1");
+    setUnlocked(true);
+    setPassword("");
   };
 
   if (checkingManager) {
@@ -121,9 +128,25 @@ function Gerencia() {
               <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">GERÊNCIA</div>
             </div>
             <div className="mt-7 space-y-4">
-              <div className="rounded-xl bg-secondary/60 p-4 text-center text-sm text-muted-foreground">Sua conta já está autenticada. Somente uma conta com perfil de gerente pode abrir esta área.</div>
+              <div className="rounded-xl bg-secondary/60 p-4 text-center text-sm text-muted-foreground">Sua conta está autenticada. Digite a senha da gerência para abrir esta área.</div>
               {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
               <button type="button" onClick={handleLogin} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Entrar na gerência</button>
+              <div className="mt-4 space-y-3">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") void confirmManagerPassword(); }}
+                  placeholder="Senha da gerência"
+                  autoComplete="current-password"
+                  className="field w-full text-foreground"
+                  autoFocus
+                />
+                {passwordError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{passwordError}</div>}
+                <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+                  {passwordLoading ? "Validando..." : "Confirmar senha"}
+                </button>
+              </div>
             </div>
           </div>
         </section>
