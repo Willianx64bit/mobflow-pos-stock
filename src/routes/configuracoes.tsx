@@ -7,11 +7,11 @@ import { supabase } from "@/lib/supabase";
 
 async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ data: any; error: unknown }> {
   try {
-    let session = (await supabase.auth.getSession()).data.session;
-    if (!session) {
-      session = (await supabase.auth.refreshSession()).data.session;
-    }
-    if (!session) {
+    const refreshed = await supabase.auth.refreshSession();
+    let session = refreshed.data.session;
+    if (!session) session = (await supabase.auth.getSession()).data.session;
+
+    if (!session?.access_token) {
       sessionStorage.removeItem("mobflow-management");
       return { data: { error: "Sessão da gerência expirada. Entre novamente na gerência." }, error: true };
     }
