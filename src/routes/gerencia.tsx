@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { LoginScreen } from "@/components/LoginScreen";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
@@ -45,7 +46,6 @@ function Gerencia() {
   const sales = useStore((s) => s.sales);
   const [unlocked, setUnlocked] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [from] = useState(firstDayOfMonth);
   const [to] = useState(isoToday);
@@ -69,35 +69,6 @@ function Gerencia() {
   const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
 
-  const enter = async () => {
-    setCheckingAccess(true);
-    setError("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError("Faça login na conta para acessar a gerência.");
-      setCheckingAccess(false);
-      return;
-    }
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-    if (profile?.role !== "manager") {
-      setError("Esta conta não tem acesso à gerência.");
-      setCheckingAccess(false);
-      return;
-    }
-    const data = new TextEncoder().encode(password);
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    const hash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    if (hash !== "70494370e745ad94dcc33a34500d86a562f2028ccca2cf77f5bcff0f3f549cbe") {
-      setError("Senha da gerência incorreta.");
-      setCheckingAccess(false);
-      return;
-    }
-    sessionStorage.setItem("mobflow-management", "1");
-    setUnlocked(true);
-    setPassword("");
-    setCheckingAccess(false);
-  };
-
   const lock = () => {
     sessionStorage.removeItem("mobflow-management");
     sessionStorage.removeItem("mobflow-management-pass-hash");
@@ -111,22 +82,8 @@ function Gerencia() {
       <main className="space-y-5">
         {!unlocked ? (
           <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
-            <div className="w-full max-w-sm glass p-6 text-center">
-              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center text-2xl">🔒</div>
-              <h1 className="font-display text-2xl tracking-[.12em] text-heading">ACESSO GERÊNCIA</h1>
-              <p className="mt-2 text-sm text-muted-foreground">Digite a senha para continuar.</p>
-              <input
-                autoFocus
-                type="password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                onKeyDown={(e) => { if (e.key === "Enter") void enter(); }}
-                placeholder="Senha da gerência"
-                className="field mt-4 w-full text-sm text-foreground"
-              />
-              {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-              <button onClick={() => void enter()} disabled={checkingAccess || !password} className="mt-5 w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">{checkingAccess ? "Verificando..." : "Entrar na gerência"}</button>
-              <button onClick={() => navigate({ to: "/" })} className="mt-2 w-full rounded-xl bg-secondary px-4 py-3 text-sm text-secondary-foreground hover:bg-accent">Voltar</button>
+            <div className="w-full max-w-md">
+              <LoginScreen mode="empresa" onLogin={() => void handleManagerLogin()} />
             </div>
           </section>
         ) : (
@@ -193,4 +150,42 @@ function Gerencia() {
       </main>
     </div>
   );
-}
+}  useEffect(() => {
+    let active = true;
+    const checkManager = async () => {
+      if (sessionStorage.getItem("mobflow-management") === "1") {
+        if (active) setUnlocked(true);
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
+      if (active && profile?.role === "manager" && profile.active !== false) {
+        sessionStorage.setItem("mobflow-management", "1");
+        setUnlocked(true);
+      }
+    };
+    void checkManager();
+    return () => { active = false; };
+  }, []);
+
+  const handleManagerLogin = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Não foi possível iniciar a sessão da gerência.");
+      return;
+    }
+    const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
+    if (profile?.role !== "manager" || profile.active === false) {
+      await supabase.auth.signOut();
+      localStorage.removeItem("mobflow-authenticated");
+      sessionStorage.removeItem("mobflow-role");
+      sessionStorage.removeItem("mobflow-username");
+      setError("Esse usuário não possui acesso à gerência.");
+      return;
+    }
+    sessionStorage.setItem("mobflow-management", "1");
+    await hydrateStore();
+    setUnlocked(true);
+    setError("");
+  };
