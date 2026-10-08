@@ -255,7 +255,7 @@ function Configuracoes() {
               <div className="mt-4 rounded-xl bg-well ring-1 ring-border p-4">
                 <div className="label-mono">CHAVE PIX CADASTRADA</div>
                 <div className="mt-1 font-mono text-sm text-foreground break-all">{pixKey || "Nenhuma chave cadastrada"}</div>
-                <div className="mt-1 text-xs text-muted-foreground">A alteração exige a senha da gerência toda vez.</div>
+                <div className="mt-1 text-xs text-muted-foreground">A alteração é liberada somente após nova validação do acesso de gerência.</div>
               </div>
             ) : (
               <>
