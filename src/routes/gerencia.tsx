@@ -53,7 +53,8 @@ function Gerencia() {
       setPassword("");
       return;
     }
-    sessionStorage.setItem("mobflow-management", "1");\n    sessionStorage.setItem("mobflow-management-password", "gerencia123");
+    sessionStorage.setItem("mobflow-management", "1");
+    sessionStorage.setItem("mobflow-management-password", "gerencia123");
     setUnlocked(true);
     setPassword("");
   };
