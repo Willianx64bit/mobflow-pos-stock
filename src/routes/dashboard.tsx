@@ -60,10 +60,10 @@ function Dashboard() {
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
 
   return (
-    <div className="mfb-in min-h-screen p-4 md:p-6">
+    <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
       <AppHeader />
       <main className="space-y-5">
-        <section className="glass p-5 md:p-6">
+        <section className="glass border-sky-100/80 bg-white/80 p-5 shadow-[0_12px_40px_rgba(56,189,248,0.08)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
             <div>
               <div className="flex items-center gap-2">
@@ -72,12 +72,12 @@ function Dashboard() {
               </div>
               <p className="text-sm text-muted-foreground mt-1">Consulte vendas, lucro e estoque por período.</p>
             </div>
-            <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-accent">
+            <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-sky-50 px-4 py-2.5 text-sm font-medium text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100">
               ← Voltar para gerência
             </button>
           </div>
 
-          <div className="rounded-2xl border border-border/60 p-4 md:p-5">
+          <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-4 md:p-5">
             <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
               <div>
                 <h2 className="font-semibold text-heading">Vendas por período</h2>
@@ -94,7 +94,7 @@ function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <div className="rounded-xl bg-secondary/60 p-4">
+              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100/80">
                 <div className="text-xs text-muted-foreground">Vendas no período</div>
                 <div className="mt-1 text-xl font-bold text-heading">R$ {brl(periodTotal)}</div>
                 <div className="text-xs text-muted-foreground">{periodSales.length} venda(s)</div>
@@ -127,7 +127,7 @@ function Dashboard() {
           </div>
         </section>
 
-        <section className="glass p-5 md:p-6">
+        <section className="glass border-sky-100/80 bg-white/80 p-5 shadow-[0_12px_40px_rgba(56,189,248,0.08)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
             <div>
               <div className="flex items-center gap-2">
