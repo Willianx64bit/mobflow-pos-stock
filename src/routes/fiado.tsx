@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/fiado")({
   head: () => ({ meta: [{ title: "MobFlow — Fiado" }] }),
@@ -17,7 +18,37 @@ function Fiado() {
   const navigate = useNavigate();
   const [paymentValue, setPaymentValue] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [authorizing, setAuthorizing] = useState(false);
   const formatMoneyInput = (value: string) => { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  const confirmFiadoChange = async (change: () => void) => {
+    if (authorizing) return;
+    const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+    if (!username) {
+      alert("Entre com um usuário do PDV para confirmar esta alteração.");
+      return;
+    }
+    const password = window.prompt(`Confirme com a senha do usuário ${username}:`);
+    if (password === null) return;
+    if (!password) {
+      alert("Informe a senha para confirmar.");
+      return;
+    }
+    setAuthorizing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mobflow-login", {
+        body: { username, password, cnpj: "" },
+      });
+      if (error || !data?.session || data?.profile?.role !== "pdv") {
+        alert("Senha incorreta ou usuário do PDV inválido.");
+        return;
+      }
+      change();
+    } catch {
+      alert("Não foi possível validar a senha. Tente novamente.");
+    } finally {
+      setAuthorizing(false);
+    }
+  };
 
   const fiado = useMemo(() => sales.filter((s) => s.payment === "Fiado"), [sales]);
   const customers = useMemo(() => {
@@ -89,7 +120,7 @@ function Fiado() {
                   const paidAmount=paidTotal(s), due=remaining(s), draft=paymentValue;
                   return <article key={s.id} className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
                     <div className="grid gap-4 md:grid-cols-[1fr_auto]"><div><div className="text-sm font-semibold text-heading">{new Date(s.date).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</div><div className="mt-2 text-sm text-muted-foreground">{s.items.map(i => `${i.qty}× ${i.name}`).join(", ")}</div></div><div className="text-left md:text-right"><div className="font-display text-2xl text-heading">R$ {brl(s.total)}</div><div className="mt-1 text-sm text-muted-foreground">Pago: <strong>R$ {brl(paidAmount)}</strong></div><div className={`text-sm font-bold ${due>0 ? "text-orange-600" : "text-green-600"}`}>Saldo: R$ {brl(due)}</div></div></div>
-                    {due>0 && <div className="mt-4 rounded-2xl border border-border/60 bg-background/60 p-4"><div className="grid gap-4 md:grid-cols-[auto_1fr] md:items-center"><div><div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Falta pagar</div><div className="mt-1 font-display text-4xl text-heading">R$ {brl(due)}</div></div><div className="flex flex-wrap items-center gap-2"><input inputMode="decimal" value={draft} onChange={e=>setPaymentValue(formatMoneyInput(e.target.value))} placeholder="0,00" className="w-40 rounded-xl border-2 border-border bg-background px-4 py-3 text-lg font-bold text-center outline-none focus:border-primary"/><button onClick={()=>{const value=Number(draft.replace(/\./g,"").replace(",","."));if(Number.isFinite(value)&&value>0){actions.addFiadoPayment(s.id,value);setPaymentValue("");}}} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Adicionar pagamento</button><button onClick={()=>{actions.addFiadoPayment(s.id,due);setPaymentValue("");}} className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600">Quitar tudo</button></div></div></div>}
+                    {due>0 && <div className="mt-4 rounded-2xl border border-border/60 bg-background/60 p-4"><div className="grid gap-4 md:grid-cols-[auto_1fr] md:items-center"><div><div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Falta pagar</div><div className="mt-1 font-display text-4xl text-heading">R$ {brl(due)}</div></div><div className="flex flex-wrap items-center gap-2"><input inputMode="decimal" value={draft} onChange={e=>setPaymentValue(formatMoneyInput(e.target.value))} placeholder="0,00" className="w-40 rounded-xl border-2 border-border bg-background px-4 py-3 text-lg font-bold text-center outline-none focus:border-primary"/><button onClick={()=>{const value=Number(draft.replace(/\./g,"").replace(",","."));if(Number.isFinite(value)&&value>0){void confirmFiadoChange(()=>{actions.addFiadoPayment(s.id,value);setPaymentValue("");});}}} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground">Adicionar pagamento</button><button onClick={()=>{void confirmFiadoChange(()=>{actions.addFiadoPayment(s.id,due);setPaymentValue("");});}} className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600">Quitar tudo</button></div></div></div>}
                     <div className="mt-4"><div className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">Pagamentos já feitos</div>{(s.payments??[]).length>0?<div className="max-w-xl space-y-2">{(s.payments??[]).map((p,i)=><div key={i} className="grid grid-cols-[1fr_auto] items-center rounded-xl bg-background/70 px-4 py-3"><span className="text-sm text-muted-foreground">{new Date(p.date).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}</span><span className="font-display text-xl font-bold text-green-600">R$ {brl(p.value)}</span></div>)}</div>:<div className="text-sm text-muted-foreground">Nenhum pagamento registrado ainda.</div>}</div>
                     <div className="mt-4 flex justify-end"><button onClick={()=>printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🧾 Imprimir compra</button></div>
                   </article>;
