@@ -174,7 +174,11 @@ function RootComponent() {
   }, [authenticated, role, pathname, router]);
 
   if (checkingAuth) {
-    return <div className="min-h-screen bg-background" />;
+    return (
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+      </QueryClientProvider>
+    );
   }
 
   if (authenticated && role === "pdv" && pathname !== "/") {
