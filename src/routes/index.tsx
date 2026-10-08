@@ -242,7 +242,7 @@ function PDV() {
                 </button>
               );
             })}
-            <button onClick={() => setEditing(null)} className="rounded-xl ring-1 ring-dashed ring-primary/40 p-3 grid place-items-center text-primary text-sm font-semibold hover:bg-primary/5 min-h-32">
+            <button disabled={!pdvAuthorized} onClick={() => setEditing(null)} className="rounded-xl ring-1 ring-dashed ring-primary/40 p-3 grid place-items-center text-primary text-sm font-semibold hover:bg-primary/5 min-h-32">
               + Novo produto
             </button>
           </div>
@@ -263,10 +263,10 @@ function PDV() {
                   <div className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? `${brl(p.price)}/kg × ${brl(qty)}kg` : `${brl(p.price)} × ${qty}`} = <span className="text-subtle">{brl(p.price * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
-                  <button type="button" onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
                   <input
                     value={qtyDrafts[p.id] ?? (p.unit === "kg" ? brl(qty) : String(qty))}
-                    onChange={(e) => setQtyDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/[^0-9,.]/g, "") }))}
+                    disabled={!pdvAuthorized} onChange={(e) => setQtyDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/[^0-9,.]/g, "") }))}
                     onFocus={(e) => {
                       e.currentTarget.select();
                       setQtyDrafts((d) => ({ ...d, [p.id]: p.unit === "kg" ? brl(qty) : String(qty) }));
@@ -288,9 +288,9 @@ function PDV() {
                     className="w-14 bg-transparent text-center font-mono text-[13px] text-foreground outline-none"
                   />
                   <span className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
-                  <button type="button" onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
                 </div>
-                <button onClick={() => actions.removeFromCart(p.id)} className="text-muted-foreground hover:text-destructive text-sm" aria-label="Remover">×</button>
+                <button disabled={!pdvAuthorized} onClick={() => actions.removeFromCart(p.id)} className="text-muted-foreground hover:text-destructive text-sm" aria-label="Remover">×</button>
               </div>
             ))}
           </div>
