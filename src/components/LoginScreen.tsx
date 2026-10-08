@@ -12,6 +12,8 @@ export async function logout() {
   localStorage.removeItem(AUTH_KEY);
   sessionStorage.removeItem("mobflow-role");
   sessionStorage.removeItem("mobflow-username");
+  sessionStorage.removeItem("mobflow-management");
+  sessionStorage.removeItem("mobflow-pdv-authorized");
   await supabase.auth.signOut();
 }
 
@@ -29,13 +31,21 @@ export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void
     e.preventDefault();
     setLoading(true);
     setError("");
-    if (mode === "pdv") setCnpj("");
     localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
     if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
 
     try {
+      // Troca de conta: evita manter uma sessão antiga de PDV ao entrar na gerência
+      // (ou vice-versa), que poderia fazer a API de usuários responder "Acesso de gerência necessário".
+      await supabase.auth.signOut();
+      sessionStorage.removeItem("mobflow-management");
+      sessionStorage.removeItem("mobflow-pdv-authorized");
+      sessionStorage.removeItem("mobflow-role");
+      sessionStorage.removeItem("mobflow-username");
+
+      const loginCnpj = mode === "pdv" ? "" : cnpj;
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj },
+        body: { username: username.trim(), password, cnpj: loginCnpj },
       });
 
       if (error || !data?.session) {
@@ -87,64 +97,34 @@ export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void
         <form onSubmit={submit} className="mt-5 space-y-4">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              placeholder="Nome de usuário"
-              className="field w-full text-foreground"
-              autoFocus
-            />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
           </div>
 
-          
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              autoComplete="current-password"
-              placeholder="Senha"
-              className="field w-full text-foreground"
-            />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="Senha" className="field w-full text-foreground" />
           </div>
 
-          {error && (
-            <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">
-              {error}
+          {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
+
+          {mode !== "pdv" && (
+            <div>
+              <label className="label-mono block mb-1.5">CNPJ</label>
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
             </div>
           )}
 
-          {mode !== "pdv" && (
-          <div>
-            <label className="label-mono block mb-1.5">CNPJ</label>
-            <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
-          </div>
-
-          )}
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={rememberLogin}
-              onChange={(e) => setRememberLogin(e.target.checked)}
-              className="h-4 w-4 accent-primary"
-            />
+            <input type="checkbox" checked={rememberLogin} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50"
-          >
+          <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
         </form>
 
-        <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">
-          Acesso restrito · informe as credenciais cadastradas
-        </p>
+        <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
       </div>
     </div>
   );
