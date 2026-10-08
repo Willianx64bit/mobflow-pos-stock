@@ -4,7 +4,6 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
-  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -15,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/lib/supabase";
 import { hydrateStore } from "@/lib/store";
+import { LoginScreen } from "@/components/LoginScreen";
 
 function NotFoundComponent() {
   return (
@@ -22,16 +22,9 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">The page you're looking for doesn't exist or has been moved.</p>
         <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Go home
-          </Link>
+          <Link to="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">Go home</Link>
         </div>
       </div>
     </div>
@@ -48,28 +41,11 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">This page didn't load</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Something went wrong on our end. You can try refreshing or head back home.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
+          <button onClick={() => { router.invalidate(); reset(); }} className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">Try again</button>
+          <a href="/" className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent">Go home</a>
         </div>
       </div>
     </div>
@@ -90,10 +66,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" },
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),
@@ -106,19 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
+      <head><HeadContent /></head>
+      <body>{children}<Scripts /></body>
     </html>
   );
 }
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -126,50 +96,85 @@ function RootComponent() {
     const bootstrap = async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        let session = data.session;
+        const session = data.session;
 
-        const hasLoginMarker = localStorage.getItem("mobflow-authenticated") === "1";
-        if (session && !hasLoginMarker) {
-          await supabase.auth.signOut();
+        if (!session) {
+          localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
           sessionStorage.removeItem("mobflow-username");
-          session = null;
+          sessionStorage.removeItem("mobflow-pdv-authorized");
+          if (active) {
+            setAuthenticated(false);
+            setCheckingSession(false);
+          }
+          return;
         }
 
-        if (session) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("role,username")
-            .eq("id", session.user.id)
-            .maybeSingle();
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role,username,active")
+          .eq("id", session.user.id)
+          .maybeSingle();
 
-          const nextRole = profile?.role === "manager" ? "manager" : "pdv";
-          sessionStorage.setItem("mobflow-role", nextRole);
-          if (profile?.username) {
-            sessionStorage.setItem("mobflow-username", profile.username);
-          }
-
-          try {
-            await hydrateStore();
-          } catch (error) {
-            console.error("MobFlow: falha ao carregar os dados da conta", error);
-          }
-        } else {
+        if (!profile || profile.active === false) {
+          await supabase.auth.signOut();
+          localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
           sessionStorage.removeItem("mobflow-username");
+          sessionStorage.removeItem("mobflow-pdv-authorized");
+          if (active) {
+            setAuthenticated(false);
+            setCheckingSession(false);
+          }
+          return;
+        }
+
+        sessionStorage.setItem("mobflow-role", profile.role === "manager" ? "manager" : "pdv");
+        sessionStorage.setItem("mobflow-username", profile.username);
+
+        if (profile.role === "pdv") {
+          sessionStorage.setItem("mobflow-pdv-authorized", "1");
+        }
+
+        localStorage.setItem("mobflow-authenticated", "1");
+        try {
+          await hydrateStore();
+        } catch (error) {
+          console.error("MobFlow: falha ao carregar os dados da conta", error);
+        }
+
+        if (active) {
+          setAuthenticated(true);
+          setCheckingSession(false);
         }
       } catch (error) {
         console.error("MobFlow: falha ao inicializar a sessão", error);
+        if (active) {
+          setAuthenticated(false);
+          setCheckingSession(false);
+        }
       }
-
-      if (!active) return;
     };
 
     void bootstrap();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
+
+  if (checkingSession) {
+    return <div className="min-h-screen bg-background grid place-items-center"><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;
+  }
+
+  if (!authenticated) {
+    return (
+      <LoginScreen
+        mode="empresa"
+        onLogin={async () => {
+          await hydrateStore();
+          setAuthenticated(true);
+        }}
+      />
+    );
+  }
 
   return (
     <QueryClientProvider client={queryClient}>
