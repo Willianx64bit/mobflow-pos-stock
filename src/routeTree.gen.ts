@@ -156,7 +156,6 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
-    | '/usuarios'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
