@@ -125,7 +125,7 @@ function Gerencia() {
             <div className="text-sm text-muted-foreground">Vendas de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div>
           </div>
           <div className="relative overflow-hidden rounded-full bg-white p-7 ring-1 ring-border shadow-sm aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
-            <div className="absolute -inset-3 rounded-full border-[8px] border-sky-200/20 blur-[6px] animate-[spin_24s_linear_infinite] pointer-events-none" />\n            <div className="absolute -inset-1 rounded-full border-[5px] border-sky-300/45 blur-[2px] shadow-[0_0_28px_rgba(56,189,248,0.42)] animate-[spin_18s_linear_infinite_reverse] pointer-events-none" />\n            <div className="absolute inset-4 rounded-full border border-dashed border-sky-300/35 animate-[spin_30s_linear_infinite] pointer-events-none" />\n            <div className="text-sm text-muted-foreground">Lucro de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todayProfit)}</div>
+            <div className="absolute -inset-3 rounded-full border-[9px] border-sky-200/20 blur-[7px] shadow-[0_0_32px_rgba(56,189,248,0.32)] pointer-events-none" />\n            <div className="absolute -inset-1 rounded-full border-[4px] border-sky-300/45 blur-[2px] shadow-[0_0_22px_rgba(56,189,248,0.38)] pointer-events-none" />\n            <div className="text-sm text-muted-foreground">Lucro de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todayProfit)}</div>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
