@@ -56,7 +56,49 @@ let cloudReady = false;
 let hydrating: Promise<void> | null = null;
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let realtimeOwnerId: string | null = null;
+let cloudAccountId: string | null = null;
+let lastCloudUpdatedAt: string | null = null;
+let lastSyncedState: State | null = null;
+let persistQueue = Promise.resolve();
 const listeners = new Set<() => void>();
+
+const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
+
+function mergeConcurrentState(base: State | null, local: State, remote: State): State {
+  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, suppliers: remote.suppliers };
+  const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
+    const map = new Map(right.map((x) => [x.id, x]));
+    for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
+    return Array.from(map.values());
+  };
+  const products = remote.products.map((rp) => {
+    const bp = base.products.find((p) => p.id === rp.id);
+    const lp = local.products.find((p) => p.id === rp.id);
+    if (!lp || !bp) return rp;
+    const localStockChanged = lp.stock !== bp.stock;
+    const remoteStockChanged = rp.stock !== bp.stock;
+    if (localStockChanged && remoteStockChanged) {
+      return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
+    }
+    if (localStockChanged && !remoteStockChanged) return lp;
+    return rp;
+  });
+  for (const lp of local.products) if (!remote.products.some((p) => p.id === lp.id)) products.push(lp);
+  return {
+    ...remote,
+    products,
+    sales: mergeById(local.sales, remote.sales),
+    conferences: mergeById(local.conferences, remote.conferences),
+    receiving: mergeById(local.receiving, remote.receiving),
+    suppliers: (() => {
+      const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
+      for (const s of local.suppliers) if (!map.has(s.name.toLowerCase())) map.set(s.name.toLowerCase(), s);
+      return Array.from(map.values());
+    })(),
+    cart: local.cart,
+    settings: local.settings,
+  };
+}
 
 function load() {
   if (loaded || typeof window === "undefined") return;
@@ -68,39 +110,73 @@ function load() {
     state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
   } catch {}
 }
-function startRealtime(userId: string) {
-  if (typeof window === "undefined" || realtimeOwnerId === userId) return;
+function startRealtime(accountId: string) {
+  if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
   if (realtimeChannel) {
     void supabase.removeChannel(realtimeChannel);
     realtimeChannel = null;
   }
-  realtimeOwnerId = userId;
+  realtimeOwnerId = accountId;
   realtimeChannel = supabase
-    .channel(`mobflow-state:${userId}`)
+    .channel(`mobflow-state:${accountId}`)
     .on("postgres_changes", {
       event: "UPDATE",
       schema: "public",
       table: "app_state",
-      filter: `owner_id=eq.${userId}`,
+      filter: `owner_id=eq.${accountId}`,
     }, (payload) => {
       const remoteState = (payload.new as Record<string, unknown> | undefined)?.["state"];
+      const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
       if (!remoteState || typeof remoteState !== "object") return;
-      state = { ...state, ...remoteState } as State;
+      const remote = remoteState as State;
+      state = mergeConcurrentState(lastSyncedState, state, remote);
+      lastSyncedState = cloneState(remote);
+      lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
     })
     .subscribe();
 }
 
-async function persistState() {
-  if (!cloudReady || typeof window === "undefined") return;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase.from("app_state").upsert({
-    owner_id: user.id,
-    state,
-    updated_at: new Date().toISOString(),
-  });
+function persistState() {
+  persistQueue = persistQueue.then(async () => {
+    if (!cloudReady || typeof window === "undefined" || !cloudAccountId) return;
+    const snapshot = cloneState(state);
+    const expected = lastCloudUpdatedAt;
+    let result;
+    if (expected) {
+      result = await supabase.from("app_state")
+        .update({ state: snapshot, updated_at: new Date().toISOString() })
+        .eq("owner_id", cloudAccountId)
+        .eq("updated_at", expected)
+        .select("updated_at")
+        .maybeSingle();
+    } else {
+      result = await supabase.from("app_state")
+        .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
+        .select("updated_at")
+        .maybeSingle();
+    }
+    if (result.error) return;
+    if (result.data?.updated_at) {
+      lastCloudUpdatedAt = result.data.updated_at;
+      lastSyncedState = cloneState(snapshot);
+      return;
+    }
+    const { data } = await supabase.from("app_state").select("state,updated_at").eq("owner_id", cloudAccountId).maybeSingle();
+    if (!data?.state) return;
+    state = mergeConcurrentState(lastSyncedState, state, data.state as State);
+    lastCloudUpdatedAt = data.updated_at ?? null;
+    lastSyncedState = cloneState(data.state as State);
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    const retry = cloneState(state);
+    const retryResult = await supabase.from("app_state").update({ state: retry, updated_at: new Date().toISOString() }).eq("owner_id", cloudAccountId).eq("updated_at", lastCloudUpdatedAt).select("updated_at").maybeSingle();
+    if (retryResult.data?.updated_at) {
+      lastCloudUpdatedAt = retryResult.data.updated_at;
+      lastSyncedState = cloneState(retry);
+    }
+  }).catch(() => {});
+  return persistQueue;
 }
 
 export async function hydrateStore() {
@@ -109,29 +185,32 @@ export async function hydrateStore() {
     load();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
+    const accountId = profile?.account_id ?? user.id;
+    cloudAccountId = accountId;
     const { data, error } = await supabase
       .from("app_state")
-      .select("state")
-      .eq("owner_id", user.id)
+      .select("state,updated_at")
+      .eq("owner_id", accountId)
       .maybeSingle();
 
     const localOwner = localStorage.getItem(OWNER_KEY);
     if (!error && data?.state) {
       state = { ...state, ...data.state };
+      lastCloudUpdatedAt = data.updated_at ?? null;
+      lastSyncedState = cloneState(data.state as State);
     } else if (!error && !localOwner) {
-      // First cloud login: migrate the legacy local data once.
       load();
     } else if (!error) {
-      // A different account must never inherit another account's browser data.
       state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
     }
 
     try {
-      localStorage.setItem(OWNER_KEY, user.id);
+      localStorage.setItem(OWNER_KEY, accountId);
       localStorage.setItem(KEY, JSON.stringify(state));
     } catch {}
     cloudReady = true;
-    startRealtime(user.id);
+    startRealtime(accountId);
     if (!data?.state && !error) await persistState();
     listeners.forEach((l) => l());
   })().finally(() => { hydrating = null; });
