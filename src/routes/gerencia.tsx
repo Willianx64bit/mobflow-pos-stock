@@ -119,13 +119,15 @@ function Gerencia() {
           </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="relative overflow-hidden rounded-full bg-white p-7 ring-1 ring-border shadow-[0_0_32px_rgba(56,189,248,0.22)] aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
-            <div className="absolute -inset-2 rounded-full border-[10px] border-sky-200/35 blur-[3px] animate-[spin_18s_linear_infinite] pointer-events-none" />
-            <div className="absolute inset-4 rounded-full border border-dashed border-sky-300/40 animate-[spin_26s_linear_infinite_reverse] pointer-events-none" />
-            <div className="text-sm text-muted-foreground">Vendas de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div>
+          <div className="relative overflow-visible rounded-full bg-sky-50 p-7 ring-1 ring-sky-300/70 shadow-[0_0_42px_rgba(56,189,248,0.28)] aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
+            <div className="absolute -inset-4 rounded-full border-[12px] border-sky-300/25 blur-[8px] shadow-[0_0_38px_rgba(56,189,248,0.28)] pointer-events-none" />
+            <div className="absolute -inset-1 rounded-full border-[4px] border-sky-400/45 shadow-[0_0_18px_rgba(56,189,248,0.34)] pointer-events-none" />
+            <div className="relative text-sm text-muted-foreground">Vendas de hoje</div><div className="relative mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div>
           </div>
-          <div className="relative overflow-hidden rounded-full bg-white p-7 ring-1 ring-border shadow-sm aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
-            <div className="absolute -inset-3 rounded-full border-[9px] border-sky-200/20 blur-[7px] shadow-[0_0_32px_rgba(56,189,248,0.32)] pointer-events-none" />\n            <div className="absolute -inset-1 rounded-full border-[4px] border-sky-300/45 blur-[2px] shadow-[0_0_22px_rgba(56,189,248,0.38)] pointer-events-none" />\n            <div className="text-sm text-muted-foreground">Lucro de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todayProfit)}</div>
+          <div className="relative overflow-visible rounded-full bg-sky-50 p-7 ring-1 ring-sky-300/70 shadow-[0_0_42px_rgba(56,189,248,0.28)] aspect-square max-w-[280px] mx-auto w-full flex flex-col items-center justify-center text-center">
+            <div className="absolute -inset-4 rounded-full border-[12px] border-sky-300/25 blur-[8px] shadow-[0_0_38px_rgba(56,189,248,0.28)] pointer-events-none" />
+            <div className="absolute -inset-1 rounded-full border-[4px] border-sky-400/45 shadow-[0_0_18px_rgba(56,189,248,0.34)] pointer-events-none" />
+            <div className="relative text-sm text-muted-foreground">Lucro de hoje</div><div className="relative mt-2 font-display text-4xl text-heading">{brl(todayProfit)}</div>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
