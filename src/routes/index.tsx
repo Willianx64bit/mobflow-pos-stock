@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
-import { actions, brl, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { actions, brl, buildPixPayload, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -46,6 +46,7 @@ function PDV() {
   const [cam, setCam] = useState(false);
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
+  const [pixPayload, setPixPayload] = useState("");
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
@@ -147,6 +148,16 @@ function PDV() {
     if (!lines.length) return;
     if (payment === "Fiado" && !customer.trim()) { setFlash("Informe o cliente para vender fiado"); return; }
     if (payment === "Dinheiro" && recv && recv < total) return;
+    if (payment === "Pix") {
+      const key = settings.pixKey?.trim();
+      if (!key) { setFlash("Cadastre a chave Pix em Gerência → Configurações"); return; }
+      setPixPayload(buildPixPayload(key, total, settings.companyName || "MOBFLOW"));
+      return;
+    }
+    completeSale();
+  };
+
+  const completeSale = () => {
     const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
     if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
   };
@@ -356,6 +367,29 @@ function PDV() {
           </div>
         </aside>
       </main>
+
+      {pixPayload && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 backdrop-blur-sm p-4" onClick={() => setPixPayload("")}>
+          <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-6 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="font-mono text-[11px] uppercase tracking-[.18em] text-primary">PAGAMENTO PIX</div>
+            <h2 className="mt-2 font-display text-3xl tracking-[.08em] text-heading">ESCANEIE PARA PAGAR</h2>
+            <p className="mt-2 font-display text-4xl text-primary">R$ {brl(total)}</p>
+            <div className="mx-auto mt-5 rounded-2xl bg-white p-4 w-fit ring-1 ring-border">
+              <img
+                src={`https://quickchart.io/qr?size=280&text=${encodeURIComponent(pixPayload)}`}
+                alt="QR Code Pix"
+                className="h-64 w-64"
+              />
+            </div>
+            <p className="mt-3 font-mono text-[10px] text-muted-foreground break-all">Chave: {settings.pixKey}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Depois que o cliente pagar, confirme manualmente para registrar a venda.</p>
+            <div className="mt-4 flex gap-2">
+              <button onClick={() => setPixPayload("")} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>
+              <button onClick={() => { setPixPayload(""); completeSale(); }} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">✓ Confirmar pagamento</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {done && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setDone(null)}>
