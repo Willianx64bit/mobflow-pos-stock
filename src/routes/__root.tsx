@@ -168,7 +168,7 @@ function RootComponent() {
   };
 
   useEffect(() => {
-    if (authenticated && role === "pdv" && pathname !== "/") {
+    if (!authenticated) {\n    return (\n      <QueryClientProvider client={queryClient}>\n        <LoginScreen onLogin={handleLogin} />\n      </QueryClientProvider>\n    );\n  }\n\n  if (authenticated && role === "pdv" && pathname !== "/") {
       void router.navigate({ to: "/" });
     }
   }, [authenticated, role, pathname, router]);
