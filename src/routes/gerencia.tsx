@@ -50,6 +50,11 @@ function Gerencia() {
   const [from] = useState(firstDayOfMonth);
   const [to] = useState(isoToday);
 
+  useEffect(() => {
+    setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
+  }, []);
+
+
   const today = isoToday();
   const todays = useMemo(() => sales.filter((s) => localDateKey(new Date(s.date)) === today), [sales, today]);
   const todaySales = todays.reduce((sum, s) => sum + s.total, 0);
