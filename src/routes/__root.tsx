@@ -134,7 +134,7 @@ function RootComponent() {
         await supabase.auth.signOut();
         sessionStorage.removeItem("mobflow-role");
         sessionStorage.removeItem("mobflow-username");
-        data.session = null;
+        (data as { session: unknown }).session = null;
       }
       if (data.session) {
         const { data: profile } = await supabase.from("profiles").select("role,username").eq("id", data.session.user.id).maybeSingle();
@@ -168,7 +168,7 @@ function RootComponent() {
   };
 
   useEffect(() => {
-    if (!authenticated) {\n    return (\n      <QueryClientProvider client={queryClient}>\n        <LoginScreen onLogin={handleLogin} />\n      </QueryClientProvider>\n    );\n  }\n\n  if (authenticated && role === "pdv" && pathname !== "/") {
+    if (authenticated && role === "pdv" && pathname !== "/") {
       void router.navigate({ to: "/" });
     }
   }, [authenticated, role, pathname, router]);
@@ -181,7 +181,15 @@ function RootComponent() {
     );
   }
 
-  if (authenticated && role === "pdv" && pathname !== "/") {
+  if (!authenticated) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <LoginScreen onLogin={handleLogin} />
+      </QueryClientProvider>
+    );
+  }
+
+  if (role === "pdv" && pathname !== "/") {
     return <div className="min-h-screen grid place-items-center bg-background"><div className="rounded-2xl bg-surface ring-1 ring-border px-6 py-5 text-center"><div className="font-semibold text-foreground">Acesso restrito ao PDV</div><div className="mt-1 text-sm text-muted-foreground">Esse usuário não possui acesso administrativo.</div></div></div>;
   }
 
