@@ -44,6 +44,8 @@ function Configuracoes() {
   const settings = useStore((s) => s.settings);
   const [name, setName] = useState(settings.companyName);
   const [logo, setLogo] = useState(settings.companyLogo ?? "");
+  const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
+  const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
   const [saved, setSaved] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetError, setResetError] = useState("");
@@ -81,6 +83,8 @@ function Configuracoes() {
   useEffect(() => {
     setName(settings.companyName);
     setLogo(settings.companyLogo ?? "");
+    setPixKey(settings.pixKey ?? "");
+    setPixKeyType(settings.pixKeyType ?? "aleatoria");
   }, [settings]);
 
   const loadPdvUsers = async () => {
@@ -142,7 +146,7 @@ function Configuracoes() {
   };
 
   const save = () => {
-    actions.updateSettings({ companyName: name.trim(), companyLogo: logo || undefined });
+    actions.updateSettings({ companyName: name.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -200,6 +204,30 @@ function Configuracoes() {
                   <button onClick={() => void togglePdvUser(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{user.active ? "Desativar" : "Ativar"}</button>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/60 p-5">
+            <h2 className="font-semibold text-heading">Pagamento Pix</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr]">
+              <label className="flex flex-col gap-1.5">
+                <span className="label-mono">Tipo da chave</span>
+                <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as NonNullable<typeof settings.pixKeyType>)} className="field text-sm text-foreground">
+                  <option value="telefone">Telefone</option>
+                  <option value="cpf">CPF</option>
+                  <option value="cnpj">CNPJ</option>
+                  <option value="email">E-mail</option>
+                  <option value="aleatoria">Aleatória</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="label-mono">Chave Pix</span>
+                <input value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="Ex.: 11999999999" className="field text-sm text-foreground" />
+              </label>
+            </div>
+            <div className="mt-3 rounded-xl bg-primary/5 ring-1 ring-primary/15 px-3 py-2 text-xs text-muted-foreground">
+              O QR Code será gerado no checkout com o valor exato da venda. O MobFlow não confirma o pagamento automaticamente nesta versão.
             </div>
           </div>
 
