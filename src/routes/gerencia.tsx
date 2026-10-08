@@ -43,7 +43,7 @@ function Gerencia() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
+  const [unlocked, setUnlocked] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
