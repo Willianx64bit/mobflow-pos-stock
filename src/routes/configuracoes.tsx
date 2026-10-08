@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { verifyManagerPassword } from "@/lib/manager-auth";
 
 
 async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ data: any; error: unknown }> {
@@ -75,7 +76,7 @@ function Configuracoes() {
           .eq("id", sessionData.session.user.id)
           .maybeSingle();
 
-        const allowed = !error && profile?.active !== false && profile?.role === "manager";
+        const allowed = !error && profile?.active !== false && profile?.role === "manager" && sessionStorage.getItem("mobflow-management") === "1";
         if (active && !allowed) {
           sessionStorage.removeItem("mobflow-management");
           navigate({ to: "/gerencia" });
@@ -91,6 +92,7 @@ function Configuracoes() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      if (sessionStorage.getItem("mobflow-management") !== "1") return;
       setUsersLoading(true);
       setUserError("");
       const { data, error } = await callUsers({ body: { action: "list" } });
@@ -176,11 +178,13 @@ function Configuracoes() {
 
   const unlockPixEditing = async () => {
     setPixError("");
+    const password = window.prompt("Digite a senha da gerência para alterar a chave Pix:");
+    if (password === null) return;
     setPixChecking(true);
-    const { data, error } = await callUsers({ body: { action: "list" } });
+    const result = await verifyManagerPassword(password);
     setPixChecking(false);
-    if (error || !data?.users) {
-      setPixError(data?.error || "Acesso de gerência necessário.");
+    if (!result.ok) {
+      setPixError(result.error || "Senha da gerência incorreta.");
       return;
     }
     setPixEditing(true);
@@ -265,8 +269,8 @@ function Configuracoes() {
                 <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
               </div>
               {!pixEditing && (
-                <button onClick={() => void unlockPixEditing()} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border" type="button">
-                  🔒 Alterar chave
+                <button onClick={() => void unlockPixEditing()} disabled={pixChecking} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border disabled:opacity-50" type="button">
+                  {pixChecking ? "Validando..." : "🔒 Alterar chave"}
                 </button>
               )}
             </div>
