@@ -72,8 +72,11 @@ export function AppHeader() {
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md">
             <LoginScreen
+              mode="pdv"
               onLogin={async () => {
                 await hydrateStore();
+                setPdvAuthorized(true);
+                window.dispatchEvent(new Event("mobflow-pdv-auth-changed"));
                 setShowLogin(false);
                 localStorage.setItem("mobflow-sidebar", "closed");
                 setOpen(false);
