@@ -40,7 +40,6 @@ function NotFoundComponent() {
 
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
-  const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
@@ -166,22 +165,12 @@ function RootComponent() {
     setAuthenticated(true);
   };
 
-  useEffect(() => {
-    if (authenticated && role === "pdv" && pathname !== "/") {
-      void router.navigate({ to: "/" });
-    }
-  }, [authenticated, role, pathname, router]);
-
   if (checkingAuth) {
     return (
       <QueryClientProvider client={queryClient}>
         <Outlet />
       </QueryClientProvider>
     );
-  }
-
-  if (role === "pdv" && pathname !== "/") {
-    return <div className="min-h-screen grid place-items-center bg-background"><div className="rounded-2xl bg-surface ring-1 ring-border px-6 py-5 text-center"><div className="font-semibold text-foreground">Acesso restrito ao PDV</div><div className="mt-1 text-sm text-muted-foreground">Esse usuário não possui acesso administrativo.</div></div></div>;
   }
 
   return (
