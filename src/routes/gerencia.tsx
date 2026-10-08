@@ -80,7 +80,7 @@ function Gerencia() {
         const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", sessionData.session.user.id).maybeSingle();
         const allowed = profile?.active !== false && profile?.role === "manager";
         if (active) {
-          setUnlocked(allowed && sessionStorage.getItem("mobflow-management") === "1");
+          setUnlocked(false);
           setCheckingManager(false);
         }
       } catch {
