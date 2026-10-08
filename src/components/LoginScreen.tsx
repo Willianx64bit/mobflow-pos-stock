@@ -18,9 +18,12 @@ export async function logout() {
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [cnpj, setCnpj] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
+
+  const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -31,7 +34,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
     try {
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj: "" },
+        body: { username: username.trim(), password, cnpj },
       });
 
       if (error || !data?.session) {
@@ -71,7 +74,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
         <div className="mt-8 text-center">
           <h1 className="font-display text-xl tracking-[.1em] text-heading">ACESSO AO PDV</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Informe o usuário cadastrado pela gerência.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Informe usuário, senha e CNPJ da empresa.</p>
         </div>
 
         <form onSubmit={submit} className="mt-5 space-y-4">
@@ -85,6 +88,11 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
               className="field w-full text-foreground"
               autoFocus
             />
+          </div>
+
+          <div>
+            <label className="label-mono block mb-1.5">CNPJ da empresa</label>
+            <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
           </div>
 
           <div>
