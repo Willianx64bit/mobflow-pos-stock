@@ -73,8 +73,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </div>
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">ACESSO AO PDV</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Informe usuário, senha e CNPJ da empresa.</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">LOGIN DA EMPRESA</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Informe os dados da empresa para entrar.</p>
         </div>
 
         <form onSubmit={submit} className="mt-5 space-y-4">
@@ -90,11 +90,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             />
           </div>
 
-          <div>
-            <label className="label-mono block mb-1.5">CNPJ da empresa</label>
-            <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
-          </div>
-
+          
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
             <input
@@ -113,6 +109,11 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             </div>
           )}
 
+          <div>
+            <label className="label-mono block mb-1.5">CNPJ</label>
+            <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
+          </div>
+
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
@@ -128,7 +129,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             disabled={loading}
             className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50"
           >
-            {loading ? "Validando..." : "Entrar no PDV"}
+            {loading ? "Validando..." : "Entrar"}
           </button>
         </form>
 
