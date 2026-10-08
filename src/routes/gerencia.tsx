@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 
@@ -35,8 +35,21 @@ function Gerencia() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
+    window.addEventListener("mobflow-management-changed", syncLock);
+    return () => window.removeEventListener("mobflow-management-changed", syncLock);
+  }, []);
+
+  const lockManagement = () => {
+    sessionStorage.removeItem("mobflow-management");
+    sessionStorage.removeItem("mobflow-management-password");
+    setUnlocked(false);
+    window.dispatchEvent(new Event("mobflow-management-changed"));
+  };
   const [error, setError] = useState("");
 
   const today = localDateKey();
@@ -85,9 +98,14 @@ function Gerencia() {
     <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
       <AppHeader />
       <main className="space-y-5">
-        <div>
-          <div className="font-mono text-xs uppercase tracking-[.16em] text-muted-foreground">GERÊNCIA</div>
-          <h1 className="mt-1 font-display text-4xl tracking-wide text-heading">Resumo rápido da operação de hoje.</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-xs uppercase tracking-[.16em] text-muted-foreground">GERÊNCIA</div>
+            <h1 className="mt-1 font-display text-4xl tracking-wide text-heading">Resumo rápido da operação de hoje.</h1>
+          </div>
+          <button onClick={lockManagement} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
+            🔒 Bloquear gerência
+          </button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-white p-5 ring-1 ring-border"><div className="text-sm text-muted-foreground">Vendas de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div></div>
