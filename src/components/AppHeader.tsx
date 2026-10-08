@@ -16,25 +16,39 @@ const tabs = [
 export function AppHeader() {
   const navigate = useNavigate();
   const [time, setTime] = useState("");
-  const [open, setOpen] = useState(() => {
-    const saved = localStorage.getItem("mobflow-sidebar");
-    if (saved === "open") return true;
-    if (saved === "closed") return false;
-    return window.innerWidth >= 768;
-  });
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
-  const [showLogin, setShowLogin] = useState(false);\n  const pathname = useRouterState({ select: (s) => s.location.pathname });\n  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+  const [mounted, setMounted] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [pdvAuthorized, setPdvAuthorized] = useState(false);
+  const [username, setUsername] = useState("Usuário");
   const settings = useStore((s) => s.settings);
-  const role = sessionStorage.getItem("mobflow-role") === "manager" ? "manager" : "pdv";
+
+  useEffect(() => {
+    setOpen(() => {
+      const saved = localStorage.getItem("mobflow-sidebar");
+      if (saved === "open") return true;
+      if (saved === "closed") return false;
+      return window.innerWidth >= 768;
+    });
+    setDarkMode(localStorage.getItem("mobflow-theme") === "dark");
+    setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+    setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
+    setMounted(true);
+  }, []);
+
 
   useEffect(() => {
     document.body.classList.toggle("mfb-side-open", open);
   }, [open]);
 
   useEffect(() => {
+    if (!mounted) return;
     document.documentElement.classList.toggle("dark", darkMode);
     localStorage.setItem("mobflow-theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+  }, [darkMode, mounted]);
+
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
@@ -55,7 +69,8 @@ export function AppHeader() {
     };
   }, [navigate]);
 
-  const selectTab = (to: (typeof tabs)[number]["to"]) => {\n    localStorage.setItem("mobflow-sidebar", "closed");
+  const selectTab = (to: (typeof tabs)[number]["to"]) => {
+    localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
   };
@@ -66,9 +81,17 @@ export function AppHeader() {
     return next;
   });
 
+  if (!mounted) return null;
+
   return createPortal(
     <>
-      {pathname === "/" && (\n        <button type="button" onClick={() => setShowLogin(true)} className="fixed right-4 top-4 z-[90] rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">\n          👤 {pdvAuthorized ? (sessionStorage.getItem("mobflow-username") || "Usuário") : "Usuário"}\n        </button>\n      )}\n      {showLogin && (
+      {pathname === "/" && (
+        <button type="button" onClick={() => setShowLogin(true)} className="fixed right-4 top-4 z-[90] rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
+          👤 {pdvAuthorized ? username : "Usuário"}
+        </button>
+      )}
+
+      {showLogin && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md">
             <LoginScreen

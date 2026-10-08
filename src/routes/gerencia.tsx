@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -43,12 +43,17 @@ function Gerencia() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
+  const [unlocked, setUnlocked] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [from] = useState(firstDayOfMonth);
   const [to] = useState(isoToday);
+
+  useEffect(() => {
+    setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
+  }, []);
+
 
   const today = isoToday();
   const todays = useMemo(() => sales.filter((s) => localDateKey(new Date(s.date)) === today), [sales, today]);
