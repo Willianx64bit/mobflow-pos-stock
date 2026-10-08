@@ -16,7 +16,7 @@ async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ dat
       return { data: { error: "Sessão da gerência expirada. Entre novamente na gerência." }, error: true };
     }
 
-    const requestBody = { ...opts.body, managementPassword: sessionStorage.getItem("mobflow-management-password") ?? "" };
+    const requestBody = { ...opts.body };
     const { data, error } = await supabase.functions.invoke("mobflow-users", { ...opts, body: requestBody });
     if (!error) return { data, error: null };
 
@@ -47,8 +47,7 @@ function Configuracoes() {
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
   const [pixEditing, setPixEditing] = useState(false);
-  const [pixPasswordOpen, setPixPasswordOpen] = useState(false);
-  const [pixPassword, setPixPassword] = useState("");
+  const [pixChecking, setPixChecking] = useState(false);
   const [pixError, setPixError] = useState("");
   const [saved, setSaved] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -155,23 +154,21 @@ function Configuracoes() {
     setTimeout(() => setSaved(false), 1800);
   };
 
-  const unlockPixEditing = () => {
+  const unlockPixEditing = async () => {
     setPixError("");
-    if (pixPassword !== "gerencia123") {
-      setPixError("Senha da gerência incorreta.");
-      setPixPassword("");
+    setPixChecking(true);
+    const { data, error } = await callUsers({ body: { action: "list" } });
+    setPixChecking(false);
+    if (error || !data?.users) {
+      setPixError(data?.error || "Acesso de gerência necessário.");
       return;
     }
     setPixEditing(true);
-    setPixPasswordOpen(false);
-    setPixPassword("");
     setPixError("");
   };
 
   const cancelPixEditing = () => {
     setPixEditing(false);
-    setPixPasswordOpen(false);
-    setPixPassword("");
     setPixError("");
     setPixKey(settings.pixKey ?? "");
     setPixKeyType(settings.pixKeyType ?? "aleatoria");
@@ -180,8 +177,6 @@ function Configuracoes() {
   const savePix = () => {
     actions.updateSettings({ pixKey: pixKey.trim() || undefined, pixKeyType });
     setPixEditing(false);
-    setPixPasswordOpen(false);
-    setPixPassword("");
     setPixError("");
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
@@ -250,7 +245,7 @@ function Configuracoes() {
                 <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
               </div>
               {!pixEditing && (
-                <button onClick={() => { setPixPasswordOpen(true); setPixPassword(""); setPixError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border" type="button">
+                <button onClick={() => void unlockPixEditing()} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border" type="button">
                   🔒 Alterar chave
                 </button>
               )}
@@ -291,24 +286,6 @@ function Configuracoes() {
               O QR Code será gerado no checkout com o valor exato da venda. O MobFlow não confirma o pagamento automaticamente nesta versão.
             </div>
 
-            {!pixEditing && pixPasswordOpen && (
-              <div className="mt-3 rounded-xl border border-border/60 p-4">
-                <label className="flex flex-col gap-1.5">
-                  <span className="label-mono">SENHA DA GERÊNCIA</span>
-                  <input
-                    autoFocus
-                    type="password"
-                    value={pixPassword}
-                    onChange={(e) => setPixPassword(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") unlockPixEditing(); }}
-                    className="field text-sm text-foreground"
-                    placeholder="Digite a senha"
-                  />
-                </label>
-                {pixError && <div className="mt-2 text-sm text-destructive">{pixError}</div>}
-                <button type="button" onClick={unlockPixEditing} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground">Desbloquear alteração</button>
-              </div>
-            )}
           </div>
 
           <div className="rounded-2xl border border-border/60 p-5">
