@@ -35,7 +35,7 @@ function Gerencia() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
-  const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
+  const [unlocked, setUnlocked] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("mobflow-management") === "1");
   const [password, setPassword] = useState("");
   const [details, setDetails] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
