@@ -46,14 +46,6 @@ export function AppHeader() {
 
       e.preventDefault();
 
-      if (tab.to === "/") {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) {
-          setShowLogin(true);
-          return;
-        }
-      }
-
       navigate({ to: tab.to });
     };
     window.addEventListener("keydown", onKey);
@@ -63,15 +55,7 @@ export function AppHeader() {
     };
   }, [navigate]);
 
-  const selectTab = async (to: (typeof tabs)[number]["to"]) => {
-    if (to === "/") {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        setShowLogin(true);
-        return;
-      }
-    }
-    localStorage.setItem("mobflow-sidebar", "closed");
+  const selectTab = (to: (typeof tabs)[number]["to"]) => {\n    localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
   };
