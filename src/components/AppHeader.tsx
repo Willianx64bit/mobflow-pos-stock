@@ -23,7 +23,9 @@ export function AppHeader() {
     return window.innerWidth >= 768;
   });
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
-  const [showLogin, setShowLogin] = useState(false);\n  const pathname = useRouterState({ select: (s) => s.location.pathname });\n  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+  const [showLogin, setShowLogin] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
   const settings = useStore((s) => s.settings);
   const role = sessionStorage.getItem("mobflow-role") === "manager" ? "manager" : "pdv";
 
@@ -55,7 +57,8 @@ export function AppHeader() {
     };
   }, [navigate]);
 
-  const selectTab = (to: (typeof tabs)[number]["to"]) => {\n    localStorage.setItem("mobflow-sidebar", "closed");
+  const selectTab = (to: (typeof tabs)[number]["to"]) => {
+    localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
   };
@@ -68,7 +71,12 @@ export function AppHeader() {
 
   return createPortal(
     <>
-      {pathname === "/" && (\n        <button type="button" onClick={() => setShowLogin(true)} className="fixed right-4 top-4 z-[90] rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">\n          👤 {pdvAuthorized ? (sessionStorage.getItem("mobflow-username") || "Usuário") : "Usuário"}\n        </button>\n      )}\n      {showLogin && (
+      {pathname === "/" && (
+        <button type="button" onClick={() => setShowLogin(true)} className="fixed right-4 top-4 z-[90] rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
+          👤 {pdvAuthorized ? (sessionStorage.getItem("mobflow-username") || "Usuário") : "Usuário"}
+        </button>
+      )}
+      {showLogin && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md">
             <LoginScreen

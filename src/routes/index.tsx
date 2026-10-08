@@ -152,7 +152,8 @@ function PDV() {
   useEffect(() => { search.current?.focus(); }, [done, editing]);
   useEffect(() => { setSel(0); }, [q]);
 
-  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {\n    if (!pdvAuthorized && e.key === "Enter") { e.preventDefault(); setFlash("PDV bloqueado: clique em Usuário para liberar."); return; }
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!pdvAuthorized && e.key === "Enter") { e.preventDefault(); setFlash("PDV bloqueado: clique em Usuário para liberar."); return; }
     if (e.key === "Enter") {
       if (scanTimer.current) {
         clearTimeout(scanTimer.current);
@@ -192,7 +193,8 @@ function PDV() {
           {settings.companyName && <div className="font-display text-xl tracking-[.08em] text-heading truncate">{settings.companyName}</div>}
         </div>
       )}
-      <main className="grid lg:grid-cols-[1fr_380px] gap-4">\n        {!pdvAuthorized && <div className="lg:col-span-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25">🔒 PDV bloqueado para vendas — clique em <b>Usuário</b> no canto superior direito para liberar.</div>}
+      <main className="grid lg:grid-cols-[1fr_380px] gap-4">
+        {!pdvAuthorized && <div className="lg:col-span-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25">🔒 PDV bloqueado para vendas — clique em <b>Usuário</b> no canto superior direito para liberar.</div>}
         <section className="glass p-4">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-3 field px-4 py-3">
@@ -209,7 +211,7 @@ function PDV() {
                 {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
               </span>
             </div>
-            <button disabled={!pdvAuthorized} onClick={() => setCam(true) className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera">📷</button>
+            <button disabled={!pdvAuthorized} onClick={() => setCam(true)} className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera">📷</button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
