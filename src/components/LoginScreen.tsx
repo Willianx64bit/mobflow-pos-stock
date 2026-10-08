@@ -15,7 +15,7 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-export function LoginScreen({ onLogin }: { onLogin: () => void }) {
+export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void; mode?: "empresa" | "pdv" }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -29,6 +29,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    if (mode === "pdv") setCnpj("");
     localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
     if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
 
@@ -39,6 +40,11 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
       if (error || !data?.session) {
         setError(data?.error || "Não foi possível entrar. Verifique o usuário e a senha.");
+        return;
+      }
+
+      if (mode === "pdv" && data.profile?.role !== "pdv") {
+        setError("Esse usuário não é um usuário do PDV.");
         return;
       }
 
@@ -53,6 +59,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
       }
 
       localStorage.setItem(AUTH_KEY, "1");
+      if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
       sessionStorage.setItem("mobflow-role", data.profile?.role === "manager" ? "manager" : "pdv");
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
       onLogin();
@@ -73,8 +80,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </div>
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">LOGIN DA EMPRESA</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Informe os dados da empresa para entrar.</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "USUÁRIO DO PDV" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe o usuário e a senha liberados pela gerência." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         <form onSubmit={submit} className="mt-5 space-y-4">
@@ -109,11 +116,13 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             </div>
           )}
 
+          {mode !== "pdv" && (
           <div>
             <label className="label-mono block mb-1.5">CNPJ</label>
             <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
           </div>
 
+          )}
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
