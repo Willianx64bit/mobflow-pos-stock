@@ -26,9 +26,9 @@ Deno.serve(async (req) => {
     } else {
       const { data: allowed } = await admin.from("account_allowlist").select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
       if (!allowed) return json({ error: "Usuário não autorizado." }, 401);
-      const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: cleanPassword, email_confirm: true });
-      if (createError || !created.user) return json({ error: createError?.message ?? "Não foi possível criar a conta." }, 400);
-      const { error: insertError } = await admin.from("profiles").insert({ id: created.user.id, username: cleanUsername, cnpj: cleanCnpj, account_id: created.user.id, role: "manager", active: true, display_name: cleanUsername });
+      const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: cleanPassword, email_confirm: true, user_metadata: { username: cleanUsername, cnpj: cleanCnpj, role: "manager", display_name: cleanUsername } });
+      if (createError || !created.user) { console.error("createUser failed", createError); return json({ error: createError?.message ?? "Não foi possível criar a conta." }, 400); }
+      const { error: insertError } = await admin.from("profiles").upsert({ id: created.user.id, username: cleanUsername, cnpj: cleanCnpj, account_id: created.user.id, role: "manager", active: true, display_name: cleanUsername }, { onConflict: "id" });
       if (insertError) { await admin.auth.admin.deleteUser(created.user.id); return json({ error: "Não foi possível preparar a conta." }, 500); }
     }
     const { data, error } = await client.auth.signInWithPassword({ email, password: cleanPassword });
