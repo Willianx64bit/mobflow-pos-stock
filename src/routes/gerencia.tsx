@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { LoginScreen } from "@/components/LoginScreen";
-import { brl, useStore } from "@/lib/store";
+import { brl, hydrateStore, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 
 const managementTabs = [
@@ -45,14 +45,49 @@ function Gerencia() {
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
   const [unlocked, setUnlocked] = useState(false);
-  const [checkingAccess, setCheckingAccess] = useState(false);
   const [error, setError] = useState("");
   const [from] = useState(firstDayOfMonth);
   const [to] = useState(isoToday);
 
   useEffect(() => {
-    setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
+    let active = true;
+    const checkManager = async () => {
+      if (sessionStorage.getItem("mobflow-management") === "1") {
+        if (active) setUnlocked(true);
+        return;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
+      if (active && profile?.role === "manager" && profile.active !== false) {
+        sessionStorage.setItem("mobflow-management", "1");
+        setUnlocked(true);
+      }
+    };
+    void checkManager();
+    return () => { active = false; };
   }, []);
+
+  const handleManagerLogin = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError("Não foi possível iniciar a sessão da gerência.");
+      return;
+    }
+    const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
+    if (profile?.role !== "manager" || profile.active === false) {
+      await supabase.auth.signOut();
+      localStorage.removeItem("mobflow-authenticated");
+      sessionStorage.removeItem("mobflow-role");
+      sessionStorage.removeItem("mobflow-username");
+      setError("Esse usuário não possui acesso à gerência.");
+      return;
+    }
+    sessionStorage.setItem("mobflow-management", "1");
+    await hydrateStore();
+    setUnlocked(true);
+    setError("");
+  };
 
 
   const today = isoToday();
