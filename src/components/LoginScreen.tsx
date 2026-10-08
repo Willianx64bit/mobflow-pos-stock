@@ -121,7 +121,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
               onChange={(e) => setRememberLogin(e.target.checked)}
               className="h-4 w-4 accent-primary"
             />
-            <span>Lembrar login</span>
+            <span>Salvar login</span>
           </label>
 
           <button
