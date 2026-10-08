@@ -101,7 +101,6 @@ export interface FileRoutesByTo {
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
-  '/usuarios': typeof UsuariosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,7 +115,6 @@ export interface FileRoutesById {
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
-  '/usuarios': typeof UsuariosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -145,7 +143,6 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
-    | '/usuarios'
   id:
     | '__root__'
     | '/'
