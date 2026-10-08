@@ -30,6 +30,15 @@ function PDV() {
   const [received, setReceived] = useState("");
   const [customer, setCustomer] = useState("");
   const customerSuggestions = useMemo(() => Array.from(new Set(sales.map((s) => (s.customer || "").trim().toUpperCase()).filter(Boolean))).sort((a, b) => a.localeCompare(b)), [sales]);
+  const customerCpfMap = useMemo(() => {
+    const map = new Map<string, string>();
+    [...sales].reverse().forEach((s) => {
+      const name = (s.customer || "").trim().toUpperCase();
+      const value = (s.cpf || "").trim();
+      if (name && value && !map.has(name)) map.set(name, value);
+    });
+    return map;
+  }, [sales]);
   const [cpf, setCpf] = useState("");
   const [discountType, setDiscountType] = useState<"R$" | "%">("R$");
   const [discountInput, setDiscountInput] = useState("");
@@ -302,7 +311,11 @@ function PDV() {
           </div>
           <div className="pt-3 border-t border-border">
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <input list={payment === "Fiado" ? "fiado-clientes" : undefined} disabled={!pdvAuthorized} value={customer} onChange={(e) => setCustomer(e.target.value.toUpperCase())} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
+              <input list={payment === "Fiado" ? "fiado-clientes" : undefined} disabled={!pdvAuthorized} value={customer} onChange={(e) => {
+                const name = e.target.value.toUpperCase();
+                setCustomer(name);
+                if (payment === "Fiado") setCpf(formatCpf(customerCpfMap.get(name) || ""));
+              }} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
               {payment === "Fiado" && <datalist id="fiado-clientes">{customerSuggestions.map((name) => <option key={name} value={name} />)}</datalist>}
               <input disabled={!pdvAuthorized} value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
             </div>
