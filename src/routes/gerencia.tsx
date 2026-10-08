@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 
@@ -37,6 +37,8 @@ function Gerencia() {
   const sales = useStore((s) => s.sales);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
   const [password, setPassword] = useState("");
+  const [details, setDetails] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
   useEffect(() => {
     const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
@@ -57,6 +59,10 @@ function Gerencia() {
   const todaySales = todays.reduce((sum, s) => sum + s.total, 0);
   const todayProfit = todays.reduce((sum, s) => sum + saleProfit(s, products), 0);
   const low = products.filter((p) => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock).slice(0, 6);
+  const periodSales = useMemo(() => sales.filter((s) => new Date(s.date).toISOString().slice(0, 7) === selectedMonth), [sales, selectedMonth]);
+  const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
+  const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
+  const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
@@ -103,9 +109,14 @@ function Gerencia() {
             <div className="font-mono text-xs uppercase tracking-[.16em] text-muted-foreground">GERÊNCIA</div>
             <h1 className="mt-1 font-display text-4xl tracking-wide text-heading">Resumo rápido da operação de hoje.</h1>
           </div>
-          <button onClick={lockManagement} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
-            🔒 Bloquear gerência
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setDetails((v) => !v)} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
+              {details ? "Fechar detalhes" : "Ver mais detalhes"}
+            </button>
+            <button onClick={lockManagement} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
+              🔒 Bloquear gerência
+            </button>
+          </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-white p-5 ring-1 ring-border"><div className="text-sm text-muted-foreground">Vendas de hoje</div><div className="mt-2 font-display text-4xl text-heading">{brl(todaySales)}</div></div>
@@ -118,6 +129,21 @@ function Gerencia() {
             </button>
           ))}
         </div>
+        {details && (
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div><div className="font-bold text-heading">Detalhes por mês</div><div className="mt-1 text-sm text-muted-foreground">Consulte vendas e lucro de qualquer mês.</div></div>
+              <label className="text-xs font-medium text-muted-foreground">Filtrar mês<input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" /></label>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Vendas</div><div className="mt-1 text-xl font-bold text-heading">{brl(periodTotal)}</div><div className="text-xs text-muted-foreground">{periodSales.length} venda(s)</div></div>
+              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Lucro</div><div className="mt-1 text-xl font-bold text-primary">{brl(periodProfit)}</div><div className="text-xs text-muted-foreground">somente lucro das vendas</div></div>
+              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Mês selecionado</div><div className="mt-1 text-xl font-bold capitalize text-heading">{monthLabel}</div><div className="text-xs text-muted-foreground">filtro aplicado</div></div>
+            </div>
+            {periodSales.length > 0 && <div className="mt-4 divide-y divide-border/50">{periodSales.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-right"><div className="text-sm font-semibold text-heading">{brl(s.total)}</div><div className="text-xs text-primary">Lucro {brl(saleProfit(s, products))}</div></div></div>)}</div>}
+            {periodSales.length === 0 && <div className="mt-4 rounded-xl bg-secondary/50 p-4 text-center text-sm text-muted-foreground">Nenhuma venda registrada em {monthLabel}.</div>}
+          </section>
+        )}
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
           <div className="font-bold text-heading">Estoque baixo</div>
           {low.length === 0 ? <div className="mt-3 text-sm text-muted-foreground">Nenhum produto com estoque baixo.</div> : (
