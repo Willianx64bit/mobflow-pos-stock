@@ -113,7 +113,7 @@ export function AppHeader() {
               </div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => role === "manager" || t.to === "/").map((t) => (
+              {tabs.map((t) => (
                 <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="w-6 text-center text-base">{t.icon}</span>
                   <span className="flex-1 text-left">{t.label}</span>
