@@ -22,6 +22,7 @@ export function AppHeader() {
   });
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
   const settings = useStore((s) => s.settings);
+  const role = sessionStorage.getItem("mobflow-role") === "manager" ? "manager" : "pdv";
 
   useEffect(() => {
     document.body.classList.toggle("mfb-side-open", open);
@@ -78,7 +79,7 @@ export function AppHeader() {
               </div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.map((t) => (
+              {tabs.filter((t) => role === "manager" || t.to === "/").map((t) => (
                 <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="w-6 text-center text-base">{t.icon}</span>
                   <span className="flex-1 text-left">{t.label}</span>
