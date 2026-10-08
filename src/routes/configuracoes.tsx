@@ -61,11 +61,31 @@ function Configuracoes() {
   const [userError, setUserError] = useState("");
 
   useEffect(() => {
-    // A senha informada na tela de Gerência libera todas as opções administrativas
-    // durante a sessão. Não pedir uma segunda senha ao entrar em Configurações.
-    if (sessionStorage.getItem("mobflow-management") !== "1") {
-      navigate({ to: "/gerencia" });
-    }
+    let active = true;
+    const verifyManager = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          if (active) navigate({ to: "/gerencia" });
+          return;
+        }
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role,active")
+          .eq("id", sessionData.session.user.id)
+          .maybeSingle();
+
+        const allowed = !error && profile?.active !== false && profile?.role === "manager";
+        if (active && !allowed) {
+          sessionStorage.removeItem("mobflow-management");
+          navigate({ to: "/gerencia" });
+        }
+      } catch {
+        if (active) navigate({ to: "/gerencia" });
+      }
+    };
+    void verifyManager();
+    return () => { active = false; };
   }, [navigate]);
 
   useEffect(() => {
