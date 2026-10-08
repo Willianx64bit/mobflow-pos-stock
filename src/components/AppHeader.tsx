@@ -126,7 +126,7 @@ export function AppHeader() {
               <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">
                 {darkMode ? "☀️" : "🌙"}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span>
               </button>
-              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); window.location.reload(); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
+              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); setShowLogin(true); navigate({ to: "/" }); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
                 ↪ Sair da conta
               </button>
               <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
