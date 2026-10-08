@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -121,11 +122,25 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [authenticated, setAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [role, setRole] = useState<"manager" | "pdv" | null>(() => sessionStorage.getItem("mobflow-role") as "manager" | "pdv" | null);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
 
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session) await hydrateStore();
+      if (data.session) {
+        const { data: profile } = await supabase.from("profiles").select("role,username").eq("id", data.session.user.id).maybeSingle();
+        const nextRole = profile?.role === "manager" ? "manager" : "pdv";
+        sessionStorage.setItem("mobflow-role", nextRole);
+        if (profile?.username) sessionStorage.setItem("mobflow-username", profile.username);
+        setRole(nextRole);
+        await hydrateStore();
+      } else {
+        sessionStorage.removeItem("mobflow-role");
+        sessionStorage.removeItem("mobflow-username");
+        setRole(null);
+      }
       if (active) {
         setAuthenticated(Boolean(data.session));
         setCheckingAuth(false);
@@ -135,6 +150,12 @@ function RootComponent() {
   }, []);
 
   const handleLogin = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = user ? await supabase.from("profiles").select("role,username").eq("id", user.id).maybeSingle() : { data: null };
+    const nextRole = profile?.role === "manager" ? "manager" : "pdv";
+    sessionStorage.setItem("mobflow-role", nextRole);
+    if (profile?.username) sessionStorage.setItem("mobflow-username", profile.username);
+    setRole(nextRole);
     await hydrateStore();
     setAuthenticated(true);
   };
@@ -143,8 +164,18 @@ function RootComponent() {
     return <div className="min-h-screen bg-background" />;
   }
 
+  useEffect(() => {
+    if (authenticated && role === "pdv" && pathname !== "/") {
+      void router.navigate({ to: "/" });
+    }
+  }, [authenticated, role, pathname, router]);
+
   if (!authenticated) {
     return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  if (role === "pdv" && pathname !== "/") {
+    return <div className="min-h-screen grid place-items-center bg-background"><div className="rounded-2xl bg-surface ring-1 ring-border px-6 py-5 text-center"><div className="font-semibold text-foreground">Acesso restrito ao PDV</div><div className="mt-1 text-sm text-muted-foreground">Esse usuário não possui acesso administrativo.</div></div></div>;
   }
 
   return (
