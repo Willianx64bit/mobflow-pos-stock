@@ -46,6 +46,9 @@ function Configuracoes() {
   const [logo, setLogo] = useState(settings.companyLogo ?? "");
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
+  const [pixEditing, setPixEditing] = useState(false);
+  const [pixPassword, setPixPassword] = useState("");
+  const [pixError, setPixError] = useState("");
   const [saved, setSaved] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetError, setResetError] = useState("");
@@ -151,6 +154,35 @@ function Configuracoes() {
     setTimeout(() => setSaved(false), 1800);
   };
 
+  const unlockPixEditing = () => {
+    setPixError("");
+    if (pixPassword !== "gerencia123") {
+      setPixError("Senha da gerência incorreta.");
+      setPixPassword("");
+      return;
+    }
+    setPixEditing(true);
+    setPixPassword("");
+    setPixError("");
+  };
+
+  const cancelPixEditing = () => {
+    setPixEditing(false);
+    setPixPassword("");
+    setPixError("");
+    setPixKey(settings.pixKey ?? "");
+    setPixKeyType(settings.pixKeyType ?? "aleatoria");
+  };
+
+  const savePix = () => {
+    actions.updateSettings({ pixKey: pixKey.trim() || undefined, pixKeyType });
+    setPixEditing(false);
+    setPixPassword("");
+    setPixError("");
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1800);
+  };
+
   const openReset = () => {
     setResetError("");
     setResetOpen(true);
@@ -208,27 +240,71 @@ function Configuracoes() {
           </div>
 
           <div className="rounded-2xl border border-border/60 p-5">
-            <h2 className="font-semibold text-heading">Pagamento Pix</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
-            <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr]">
-              <label className="flex flex-col gap-1.5">
-                <span className="label-mono">Tipo da chave</span>
-                <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as NonNullable<typeof settings.pixKeyType>)} className="field text-sm text-foreground">
-                  <option value="telefone">Telefone</option>
-                  <option value="cpf">CPF</option>
-                  <option value="cnpj">CNPJ</option>
-                  <option value="email">E-mail</option>
-                  <option value="aleatoria">Aleatória</option>
-                </select>
-              </label>
-              <label className="flex flex-col gap-1.5">
-                <span className="label-mono">Chave Pix</span>
-                <input value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="Ex.: 11999999999" className="field text-sm text-foreground" />
-              </label>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-heading">Pagamento Pix</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
+              </div>
+              {!pixEditing && (
+                <button onClick={() => { setPixPassword(" "); setPixError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border" type="button">
+                  🔒 Alterar chave
+                </button>
+              )}
             </div>
+
+            {!pixEditing ? (
+              <div className="mt-4 rounded-xl bg-well ring-1 ring-border p-4">
+                <div className="label-mono">CHAVE PIX CADASTRADA</div>
+                <div className="mt-1 font-mono text-sm text-foreground break-all">{pixKey || "Nenhuma chave cadastrada"}</div>
+                <div className="mt-1 text-xs text-muted-foreground">A alteração exige a senha da gerência toda vez.</div>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr]">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="label-mono">Tipo da chave</span>
+                    <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as NonNullable<typeof settings.pixKeyType>)} className="field text-sm text-foreground">
+                      <option value="telefone">Telefone</option>
+                      <option value="cpf">CPF</option>
+                      <option value="cnpj">CNPJ</option>
+                      <option value="email">E-mail</option>
+                      <option value="aleatoria">Aleatória</option>
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className="label-mono">Chave Pix</span>
+                    <input value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="Ex.: 11999999999" className="field text-sm text-foreground" />
+                  </label>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button type="button" onClick={cancelPixEditing} className="flex-1 rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border">Cancelar</button>
+                  <button type="button" onClick={savePix} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Salvar chave Pix</button>
+                </div>
+              </>
+            )}
+
             <div className="mt-3 rounded-xl bg-primary/5 ring-1 ring-primary/15 px-3 py-2 text-xs text-muted-foreground">
               O QR Code será gerado no checkout com o valor exato da venda. O MobFlow não confirma o pagamento automaticamente nesta versão.
             </div>
+
+            {!pixEditing && pixPassword !== "" && (
+              <div className="mt-3 rounded-xl border border-border/60 p-4">
+                <label className="flex flex-col gap-1.5">
+                  <span className="label-mono">SENHA DA GERÊNCIA</span>
+                  <input
+                    autoFocus
+                    type="password"
+                    value={pixPassword}
+                    onChange={(e) => setPixPassword(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") unlockPixEditing(); }}
+                    className="field text-sm text-foreground"
+                    placeholder="Digite a senha"
+                  />
+                </label>
+                {pixError && <div className="mt-2 text-sm text-destructive">{pixError}</div>}
+                <button type="button" onClick={unlockPixEditing} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground">Desbloquear alteração</button>
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-border/60 p-5">
