@@ -415,9 +415,14 @@ export const actions = {
       conferences: state.conferences.map((c) => c.id === id ? { ...c, status: "finalizada", adjusted: !divergent } : c),
     });
   },
-  acceptReceiving(id: string) {
+  async acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
-    if (!note || (note.status !== "divergente" && note.status !== "conferido") || note.stockReleased) return;
+    if (!note || (note.status !== "divergente" && note.status !== "conferido") || note.stockReleased) return false;
+    const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
+    if (error || data !== true) {
+      await hydrateStore();
+      return false;
+    }
     const products = state.products.map((p) => {
       const item = note.items.find((i) => i.productId === p.id);
       return item ? { ...p, stock: p.stock + (item.received ?? 0) } : p;
@@ -426,6 +431,7 @@ export const actions = {
       products,
       receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "aceito", stockReleased: true } : n),
     });
+    return true;
   },
   rejectReceiving(id: string) {
     set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "rejeitado", stockReleased: false } : n) });
