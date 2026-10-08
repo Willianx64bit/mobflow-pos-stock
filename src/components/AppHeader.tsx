@@ -40,12 +40,21 @@ export function AppHeader() {
     const tick = () => setTime(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     tick();
     const t = setInterval(tick, 15000);
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = async (e: KeyboardEvent) => {
       const tab = tabs.find((item) => item.key && item.key === e.key);
-      if (tab) {
-        e.preventDefault();
-        navigate({ to: tab.to });
+      if (!tab) return;
+
+      e.preventDefault();
+
+      if (tab.to === "/") {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          setShowLogin(true);
+          return;
+        }
       }
+
+      navigate({ to: tab.to });
     };
     window.addEventListener("keydown", onKey);
     return () => {
@@ -117,7 +126,7 @@ export function AppHeader() {
               <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">
                 {darkMode ? "☀️" : "🌙"}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span>
               </button>
-              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); window.location.reload(); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
+              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); window.location.reload(); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
                 ↪ Sair da conta
               </button>
               <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
