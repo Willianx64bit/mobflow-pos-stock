@@ -134,7 +134,7 @@ function RootComponent() {
         await supabase.auth.signOut();
         sessionStorage.removeItem("mobflow-role");
         sessionStorage.removeItem("mobflow-username");
-        data.session = null;
+        (data as { session: unknown }).session = null;
       }
       if (data.session) {
         const { data: profile } = await supabase.from("profiles").select("role,username").eq("id", data.session.user.id).maybeSingle();
