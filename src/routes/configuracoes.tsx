@@ -30,7 +30,18 @@ function Configuracoes() {
   }, [navigate]);
 
   useEffect(() => {
-    void loadPdvUsers();
+    let cancelled = false;
+    const load = async () => {
+      setUsersLoading(true);
+      setUserError("");
+      const { data, error } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+      if (cancelled) return;
+      if (error || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
+      else setPdvUsers(data.users);
+      setUsersLoading(false);
+    };
+    void load();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
