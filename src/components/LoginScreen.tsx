@@ -52,6 +52,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         return;
       }
       localStorage.setItem(AUTH_KEY, "1");
+      sessionStorage.setItem("mobflow-role", data.profile?.role === "manager" ? "manager" : "pdv");
+      sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
       onLogin();
     } catch {
       setError("Não foi possível conectar ao servidor.");
