@@ -9,7 +9,6 @@ const managementTabs = [
   { to: "/vendas", label: "Vendas", icon: "▤" },
   { to: "/recebimento", label: "Recebimento", icon: "⇩" },
   { to: "/configuracoes", label: "Configurações", icon: "⚙" },
-  { to: "/usuarios", label: "Usuários do PDV", icon: "👥" },
 ] as const;
 
 const localDateKey = (d = new Date()) => {
