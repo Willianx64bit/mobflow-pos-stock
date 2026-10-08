@@ -1,6 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { hydrateStore } from "@/lib/store";
+import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -21,6 +23,7 @@ export function AppHeader() {
     return window.innerWidth >= 768;
   });
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
+  const [showLogin, setShowLogin] = useState(false);
   const settings = useStore((s) => s.settings);
   const role = sessionStorage.getItem("mobflow-role") === "manager" ? "manager" : "pdv";
 
@@ -51,7 +54,14 @@ export function AppHeader() {
     };
   }, [navigate]);
 
-  const selectTab = (to: (typeof tabs)[number]["to"]) => {
+  const selectTab = async (to: (typeof tabs)[number]["to"]) => {
+    if (to === "/") {
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        setShowLogin(true);
+        return;
+      }
+    }
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
@@ -65,6 +75,21 @@ export function AppHeader() {
 
   return createPortal(
     <>
+      {showLogin && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md">
+            <LoginScreen
+              onLogin={async () => {
+                await hydrateStore();
+                setShowLogin(false);
+                localStorage.setItem("mobflow-sidebar", "closed");
+                setOpen(false);
+                navigate({ to: "/" });
+              }}
+            />
+          </div>
+        </div>
+      )}
       {open ? (
         <aside className="fixed left-0 top-0 z-50 h-screen w-64 transition-transform duration-200">
           <div className="h-full bg-popover/95 backdrop-blur-xl ring-r-1 ring-border flex flex-col">
