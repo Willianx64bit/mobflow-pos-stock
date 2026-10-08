@@ -74,29 +74,26 @@ function Gerencia() {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) {
-          if (active) { setCheckingManager(false); setUnlocked(false); }
+          if (active) navigate({ to: "/" });
           return;
         }
         const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", sessionData.session.user.id).maybeSingle();
         const allowed = profile?.active !== false && profile?.role === "manager";
+        if (!allowed) {
+          if (active) navigate({ to: "/" });
+          return;
+        }
         if (active) {
           setUnlocked(false);
           setCheckingManager(false);
         }
       } catch {
-        if (active) { setUnlocked(false); setCheckingManager(false); }
+        if (active) navigate({ to: "/" });
       }
     };
     void checkManager();
     return () => { active = false; };
   }, []);
-
-  const handleLogin = () => {
-    setError("");
-    setPasswordError("");
-    setPassword("");
-    setPasswordLoading(false);
-  };
 
   const confirmManagerPassword = async () => {
     setPasswordError("");
@@ -116,7 +113,7 @@ function Gerencia() {
     setPassword("");
   };
 
-  if (checkingManager) {
+  if (checkingManager || !unlocked) {
     return (
       <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
         <AppHeader />
@@ -130,7 +127,6 @@ function Gerencia() {
             <div className="mt-7 space-y-4">
               <div className="rounded-xl bg-secondary/60 p-4 text-center text-sm text-muted-foreground">Sua conta está autenticada. Digite a senha da gerência para abrir esta área.</div>
               {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
-              <button type="button" onClick={handleLogin} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Entrar na gerência</button>
               <div className="mt-4 space-y-3">
                 <input
                   type="password"
