@@ -16,7 +16,8 @@ async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ dat
       return { data: { error: "Sessão da gerência expirada. Entre novamente na gerência." }, error: true };
     }
 
-    const body = { ...opts.body, managementPassword: sessionStorage.getItem("mobflow-management-password") ?? "" };\n    const { data, error } = await supabase.functions.invoke("mobflow-users", { ...opts, body });
+    const body = { ...opts.body, managementPassword: sessionStorage.getItem("mobflow-management-password") ?? "" };
+    const { data, error } = await supabase.functions.invoke("mobflow-users", { ...opts, body });
     if (!error) return { data, error: null };
 
     let body: any = null;
