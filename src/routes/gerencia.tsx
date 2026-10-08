@@ -45,89 +45,32 @@ function Gerencia() {
   const sales = useStore((s) => s.sales);
   const [unlocked, setUnlocked] = useState(false);
   const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const [from] = useState(firstDayOfMonth);
   const [to] = useState(isoToday);
 
   useEffect(() => {
-    let active = true;
-    const checkManager = async () => {
-      if (sessionStorage.getItem("mobflow-management") === "1") {
-        if (active) setUnlocked(true);
-        return;
-      }
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", user.id).maybeSingle();
-      if (active && profile?.role === "manager" && profile.active !== false) {
-        sessionStorage.setItem("mobflow-management", "1");
-        setUnlocked(true);
-      }
-    };
-    void checkManager();
-    return () => { active = false; };
+    setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
   }, []);
-
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [cnpj, setCnpj] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const formatCnpj = (value: string) =>
-    value.replace(/\D/g, "").slice(0, 14)
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/\.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
 
   const handleManagerLogin = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
-    try {
-      await supabase.auth.signOut();
-      sessionStorage.removeItem("mobflow-management");
-      sessionStorage.removeItem("mobflow-pdv-authorized");
-      sessionStorage.removeItem("mobflow-role");
-      sessionStorage.removeItem("mobflow-username");
-
-      const { data, error: loginError } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj },
-      });
-
-      if (loginError || !data?.session) {
-        setError(data?.error || "Usuário, senha ou CNPJ inválidos.");
-        return;
-      }
-
-      if (data.profile?.role !== "manager") {
-        setError("Esse usuário não possui acesso à gerência.");
-        return;
-      }
-
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      });
-
-      if (sessionError) {
-        setError("Não foi possível iniciar a sessão.");
-        return;
-      }
-
-      localStorage.setItem("mobflow-authenticated", "1");
-      sessionStorage.setItem("mobflow-management", "1");
-      sessionStorage.setItem("mobflow-role", "manager");
-      sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
-      await hydrateStore();
-      setUnlocked(true);
-    } catch {
-      setError("Não foi possível conectar ao servidor.");
-    } finally {
+    if (password !== "gerencia123") {
+      setError("Senha da gerência incorreta.");
+      setPassword("");
       setLoading(false);
+      return;
     }
-  };
 
+    sessionStorage.setItem("mobflow-management", "1");
+    setUnlocked(true);
+    setPassword("");
+    setLoading(false);
+  };
 
   const today = isoToday();
   const todays = useMemo(() => sales.filter((s) => localDateKey(new Date(s.date)) === today), [sales, today]);
@@ -164,79 +107,10 @@ function Gerencia() {
                   <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">GERÊNCIA</div>
                 </div>
                 <form onSubmit={handleManagerLogin} className="mt-7 space-y-4">
-                  <input value={username} onChange={(e) => setUsername(e.target.value)} autoFocus placeholder="Usuário da empresa" className="field w-full text-foreground" />
-                  <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Senha" className="field w-full text-foreground" />
-                  <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" placeholder="00.000.000/0000-00" className="field w-full text-foreground" />
+                  <input value={password} onChange={(e) => setPassword(e.target.value)} autoFocus type="password" placeholder="Senha da gerência" className="field w-full text-foreground" />
                   {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
                   <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
                     {loading ? "Validando..." : "Entrar na gerência"}
                   </button>
                 </form>
-              </div>
-            </div>
-          </section>
-        ) : (
-          <>
-            <section className="glass border-sky-100/80 bg-white/85 p-5 shadow-[0_12px_40px_rgba(56,189,248,0.08)] md:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Resumo rápido da operação de hoje.</p>
-                </div>
-                <button onClick={() => navigate({ to: "/dashboard" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-accent">
-                  Ver mais detalhes
-                </button>
-              </div>
 
-              <div className="grid grid-cols-2 gap-5 max-w-xl mx-auto">
-                <div className="relative aspect-square rounded-full bg-white p-3 shadow-[0_12px_35px_rgba(56,189,248,0.10)] ring-1 ring-sky-100">
-                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-sky-300 border-r-sky-200 animate-[spin_7s_linear_infinite]" />
-                  <div className="absolute inset-2 rounded-full border border-sky-100" />
-                  <div className="relative h-full rounded-full bg-sky-50/70 flex flex-col items-center justify-center text-center">
-                    <div className="text-[11px] uppercase tracking-[.14em] text-sky-600">Vendas de hoje</div>
-                    <div className="mt-2 text-2xl font-bold text-slate-800">R$ {brl(todaySales)}</div>
-                    <div className="mt-1 text-xs text-slate-500">{todays.length} venda(s)</div>
-                  </div>
-                </div>
-                <div className="relative aspect-square rounded-full bg-white p-3 shadow-[0_12px_35px_rgba(56,189,248,0.10)] ring-1 ring-sky-100">
-                  <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-sky-300 border-r-sky-200 animate-[spin_7s_linear_infinite_reverse]" />
-                  <div className="absolute inset-2 rounded-full border border-sky-100" />
-                  <div className="relative h-full rounded-full bg-sky-50/70 flex flex-col items-center justify-center text-center">
-                    <div className="text-[11px] uppercase tracking-[.14em] text-sky-600">Lucro de hoje</div>
-                    <div className="mt-2 text-2xl font-bold text-sky-700">R$ {brl(todayProfit)}</div>
-                    <div className="mt-1 text-xs text-slate-500">somente lucro das vendas</div>
-                  </div>
-                </div>
-                <div className="col-span-2 mx-auto mt-1 w-full max-w-[260px] rounded-2xl bg-sky-50 p-4 ring-1 ring-sky-100 text-center shadow-sm">
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Estoque baixo</div>
-                  <div className="mt-2 text-2xl font-bold text-destructive">{low.length}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">{low.length ? "produto(s) precisam de reposição" : "nenhum alerta no momento"}</div>
-                </div>
-              </div>
-
-              <div className="mt-5 grid lg:grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-sky-100 bg-sky-50/20 p-4">
-                  <div className="mb-3"><h2 className="font-semibold text-heading">Últimas vendas</h2><p className="text-xs text-muted-foreground mt-0.5">Máximo de 5 movimentações</p></div>
-                  {recent.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Nenhuma venda registrada.</div> : <button onClick={() => navigate({ to: "/vendas" })} className="w-full text-left"><div className="divide-y divide-border/50">{recent.map((s) => <div key={s.id} className="py-2.5 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-sm font-semibold">R$ {brl(s.total)}</div></div>)}</div></button>}
-                </div>
-                <div className="rounded-2xl border border-border/60 p-4">
-                  <div className="mb-3"><h2 className="font-semibold text-heading">⚠️ Estoque baixo</h2><p className="text-xs text-muted-foreground mt-0.5">Produtos no mínimo ou abaixo dele</p></div>
-                  {low.length === 0 ? <div className="py-5 text-sm text-muted-foreground">Estoque em dia.</div> : <button onClick={() => navigate({ to: "/estoque" })} className="w-full text-left"><div className="divide-y divide-border/50">{low.slice(0, 5).map((p) => <div key={p.id} className="py-2.5 flex items-center justify-between gap-3"><span className="text-sm truncate">{p.name}</span><span className="text-sm font-semibold text-destructive">{p.unit === "kg" ? brl(p.stock) + " kg" : p.stock} <span className="text-xs font-normal text-muted-foreground">/ mín. {p.unit === "kg" ? brl(p.minStock) + " kg" : p.minStock}</span></span></div>)}</div></button>}
-                  {low.length > 5 && <div className="mt-3 text-xs text-muted-foreground">+ {low.length - 5} produto(s) com estoque baixo</div>}
-                </div>
-              </div>
-
-            </section>
-
-            <section className="glass p-5 md:p-6">
-              <div className="mb-4"><h2 className="font-display text-xl tracking-[.08em] text-heading">GERÊNCIA</h2><p className="text-sm text-muted-foreground mt-1">Acesse as outras áreas administrativas.</p></div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {managementTabs.map((tab) => <button key={tab.to} onClick={() => navigate({ to: tab.to })} className="group rounded-2xl bg-sky-50/80 ring-1 ring-sky-100 p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100/80 hover:shadow-md"><div className="grid h-11 w-11 place-items-center rounded-xl bg-sky-100 text-xl text-sky-600 transition-transform duration-200 group-hover:scale-105">{tab.icon}</div><div className="mt-3 font-semibold text-heading">{tab.label}</div><div className="mt-1 text-xs text-muted-foreground">Acessar</div></button>)}
-              </div>
-              <button onClick={lock} className="mt-4 rounded-xl bg-secondary px-4 py-2.5 text-sm text-secondary-foreground hover:bg-accent">🔒 Bloquear gerência</button>
-            </section>
-          </>
-        )}
-      </main>
-    </div>
-  );
-}
