@@ -36,6 +36,7 @@ function Cell({ value, onSave, money, danger, weight }: { value: number; onSave:
 }
 
 function Estoque() {
+  const navigate = useNavigate();
   const products = useStore((s) => s.products);
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
