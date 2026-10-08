@@ -129,8 +129,7 @@ function Gerencia() {
             <section className="glass border-sky-100/80 bg-white/85 p-5 shadow-[0_12px_40px_rgba(56,189,248,0.08)] md:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
                 <div>
-                  <div className="flex items-center gap-2"><span className="text-xl">📊</span><h1 className="font-display text-2xl tracking-[.1em] text-heading">DASHBOARD</h1></div>
-                  <p className="text-sm text-muted-foreground mt-1">Resumo rápido da operação de hoje.</p>
+                  <p className="text-sm font-medium text-slate-600">Resumo rápido da operação de hoje.</p>
                 </div>
                 <button onClick={() => navigate({ to: "/dashboard" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground hover:bg-accent">
                   Ver mais detalhes
