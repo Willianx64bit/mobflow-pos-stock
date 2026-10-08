@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -37,7 +37,6 @@ function Gerencia() {
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
   const [unlocked, setUnlocked] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("mobflow-management") === "1");
-  const [password, setPassword] = useState("");
   const [details, setDetails] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
@@ -49,7 +48,6 @@ function Gerencia() {
 
   const lockManagement = () => {
     sessionStorage.removeItem("mobflow-management");
-    sessionStorage.removeItem("mobflow-management-password");
     setUnlocked(false);
     window.dispatchEvent(new Event("mobflow-management-changed"));
   };
@@ -89,8 +87,7 @@ function Gerencia() {
     return () => { active = false; };
   }, []);
 
-  const handleLogin = (e: FormEvent) => {
-    e.preventDefault();
+  const handleLogin = () => {
     setError("");
     setCheckingManager(true);
     void (async () => {
@@ -109,7 +106,6 @@ function Gerencia() {
       sessionStorage.setItem("mobflow-management", "1");
       sessionStorage.removeItem("mobflow-management-password");
       setUnlocked(true);
-      setPassword("");
       setCheckingManager(false);
     })();
   };
@@ -125,11 +121,11 @@ function Gerencia() {
               <div className="mt-4 font-display tracking-[.18em] text-3xl text-heading">MOBFLOW</div>
               <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">GERÊNCIA</div>
             </div>
-            <form onSubmit={handleLogin} className="mt-7 space-y-4">
-              <input value={password} onChange={(e) => setPassword(e.target.value)} autoFocus type="password" placeholder="Senha da gerência" className="field w-full text-foreground" />
+            <div className="mt-7 space-y-4">
+              <div className="rounded-xl bg-secondary/60 p-4 text-center text-sm text-muted-foreground">Sua conta já está autenticada. Somente uma conta com perfil de gerente pode abrir esta área.</div>
               {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
-              <button type="submit" className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Entrar na gerência</button>
-            </form>
+              <button type="button" onClick={handleLogin} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Entrar na gerência</button>
+            </div>
           </div>
         </section>
       </div>
