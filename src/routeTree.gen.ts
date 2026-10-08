@@ -15,11 +15,11 @@ import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FiadoRouteImport } from './routes/fiado'
-import { Route as FiadoClienteRouteImport } from './routes/fiado.cliente'
-import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as VendasRouteImport } from './routes/vendas'
+import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
+import { Route as FiadoClienteRouteImport } from './routes/fiado.cliente'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,16 +46,6 @@ const EstoqueRoute = EstoqueRouteImport.update({
   path: '/estoque',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
-  id: '/fiado/$customer',
-  path: '/fiado/$customer',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FiadoClienteRoute = FiadoClienteRouteImport.update({
-  id: '/fiado/cliente',
-  path: '/fiado/cliente',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const FiadoRoute = FiadoRouteImport.update({
   id: '/fiado',
   path: '/fiado',
@@ -76,18 +66,29 @@ const VendasRoute = VendasRouteImport.update({
   path: '/vendas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
+  id: '/$customer',
+  path: '/$customer',
+  getParentRoute: () => FiadoRoute,
+} as any)
+const FiadoClienteRoute = FiadoClienteRouteImport.update({
+  id: '/cliente',
+  path: '/cliente',
+  getParentRoute: () => FiadoRoute,
+} as any)
+
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
-  '/fiado/$customer': typeof FiadoCustomerRoute
-  '/fiado/cliente': typeof FiadoClienteRoute
-  '/fiado': typeof FiadoRoute
+  '/fiado': typeof FiadoRouteWithChildren
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -95,12 +96,12 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
-  '/fiado/$customer': typeof FiadoCustomerRoute
-  '/fiado/cliente': typeof FiadoClienteRoute
-  '/fiado': typeof FiadoRoute
+  '/fiado': typeof FiadoRouteWithChildren
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -109,12 +110,12 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
-  '/fiado/$customer': typeof FiadoCustomerRoute
-  '/fiado/cliente': typeof FiadoClienteRoute
-  '/fiado': typeof FiadoRoute
+  '/fiado': typeof FiadoRouteWithChildren
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/fiado/$customer': typeof FiadoCustomerRoute
+  '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -124,12 +125,12 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
-    | '/fiado/$customer'
-    | '/fiado/cliente'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
+    | '/fiado/$customer'
+    | '/fiado/cliente'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -137,12 +138,12 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
-    | '/fiado/$customer'
-    | '/fiado/cliente'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
+    | '/fiado/$customer'
+    | '/fiado/cliente'
   id:
     | '__root__'
     | '/'
@@ -150,12 +151,12 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/estoque'
-    | '/fiado/$customer'
-    | '/fiado/cliente'
     | '/fiado'
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
+    | '/fiado/$customer'
+    | '/fiado/cliente'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -164,9 +165,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   DashboardRoute: typeof DashboardRoute
   EstoqueRoute: typeof EstoqueRoute
-  FiadoCustomerRoute: typeof FiadoCustomerRoute
-  FiadoClienteRoute: typeof FiadoClienteRoute
-  FiadoRoute: typeof FiadoRoute
+  FiadoRoute: typeof FiadoRouteWithChildren
   GerenciaRoute: typeof GerenciaRoute
   RecebimentoRoute: typeof RecebimentoRoute
   VendasRoute: typeof VendasRoute
@@ -209,20 +208,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EstoqueRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/fiado/$customer': {
-      id: '/fiado/$customer'
-      path: '/fiado/$customer'
-      fullPath: '/fiado/$customer'
-      preLoaderRoute: typeof FiadoCustomerRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fiado/cliente': {
-      id: '/fiado/cliente'
-      path: '/fiado/cliente'
-      fullPath: '/fiado/cliente'
-      preLoaderRoute: typeof FiadoClienteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/fiado': {
       id: '/fiado'
       path: '/fiado'
@@ -251,8 +236,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fiado/$customer': {
+      id: '/fiado/$customer'
+      path: '/$customer'
+      fullPath: '/fiado/$customer'
+      preLoaderRoute: typeof FiadoCustomerRouteImport
+      parentRoute: typeof FiadoRoute
+    }
+    '/fiado/cliente': {
+      id: '/fiado/cliente'
+      path: '/cliente'
+      fullPath: '/fiado/cliente'
+      preLoaderRoute: typeof FiadoClienteRouteImport
+      parentRoute: typeof FiadoRoute
+    }
   }
 }
+
+interface FiadoRouteChildren {
+  FiadoCustomerRoute: typeof FiadoCustomerRoute
+  FiadoClienteRoute: typeof FiadoClienteRoute
+}
+
+const FiadoRouteChildren: FiadoRouteChildren = {
+  FiadoCustomerRoute: FiadoCustomerRoute,
+  FiadoClienteRoute: FiadoClienteRoute,
+}
+
+const FiadoRouteWithChildren = FiadoRoute._addFileChildren(FiadoRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -260,9 +271,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   DashboardRoute: DashboardRoute,
   EstoqueRoute: EstoqueRoute,
-  FiadoCustomerRoute: FiadoCustomerRoute,
-  FiadoClienteRoute: FiadoClienteRoute,
-  FiadoRoute: FiadoRoute,
+  FiadoRoute: FiadoRouteWithChildren,
   GerenciaRoute: GerenciaRoute,
   RecebimentoRoute: RecebimentoRoute,
   VendasRoute: VendasRoute,
