@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, printReceipt, useStore } from "@/lib/store";
 
@@ -17,6 +18,9 @@ export const Route = createFileRoute("/vendas")({
 function Vendas() {
   const sales = useStore((s) => s.sales);
   const navigate = useNavigate();
+  useEffect(() => {
+    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
+  }, [navigate]);
   const today = new Date().toDateString();
   const todays = sales.filter((s) => new Date(s.date).toDateString() === today);
   const sum = (arr: typeof sales) => arr.reduce((t, s) => t + s.total, 0);
