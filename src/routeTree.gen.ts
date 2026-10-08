@@ -255,12 +255,7 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendasRouteImport
       parentRoute: typeof rootRouteImport
     }
-
-    '/usuarios': {
-      id: '/usuarios'
-      path: '/usuarios'
-      fullPath: '/usuarios'
-    }  }
+  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
