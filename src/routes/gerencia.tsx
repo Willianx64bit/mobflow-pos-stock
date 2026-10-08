@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 
 const managementTabs = [
   { to: "/estoque", label: "Estoque", icon: "▣" },
@@ -53,6 +54,7 @@ function Gerencia() {
     window.dispatchEvent(new Event("mobflow-management-changed"));
   };
   const [error, setError] = useState("");
+  const [checkingManager, setCheckingManager] = useState(true);
 
   const today = localDateKey();
   const todays = sales.filter((s) => localDateKey(new Date(s.date)) === today);
@@ -64,21 +66,55 @@ function Gerencia() {
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
   const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
+  useEffect(() => {
+    let active = true;
+    const checkManager = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          if (active) { setCheckingManager(false); setUnlocked(false); }
+          return;
+        }
+        const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", sessionData.session.user.id).maybeSingle();
+        const allowed = profile?.active !== false && profile?.role === "manager";
+        if (active) {
+          setUnlocked(allowed && sessionStorage.getItem("mobflow-management") === "1");
+          setCheckingManager(false);
+        }
+      } catch {
+        if (active) { setUnlocked(false); setCheckingManager(false); }
+      }
+    };
+    void checkManager();
+    return () => { active = false; };
+  }, []);
+
   const handleLogin = (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    if (password !== "gerencia123") {
-      setError("Senha da gerência incorreta.");
+    setCheckingManager(true);
+    void (async () => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        setError("Sessão da conta não encontrada. Entre novamente.");
+        setCheckingManager(false);
+        return;
+      }
+      const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", sessionData.session.user.id).maybeSingle();
+      if (profile?.role !== "manager" || profile.active === false) {
+        setError("Esta conta não possui acesso à gerência.");
+        setCheckingManager(false);
+        return;
+      }
+      sessionStorage.setItem("mobflow-management", "1");
+      sessionStorage.removeItem("mobflow-management-password");
+      setUnlocked(true);
       setPassword("");
-      return;
-    }
-    sessionStorage.setItem("mobflow-management", "1");
-    sessionStorage.setItem("mobflow-management-password", "gerencia123");
-    setUnlocked(true);
-    setPassword("");
+      setCheckingManager(false);
+    })();
   };
 
-  if (!unlocked) {
+  if (checkingManager) {
     return (
       <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
         <AppHeader />
