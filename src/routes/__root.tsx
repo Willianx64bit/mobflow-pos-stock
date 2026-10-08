@@ -92,6 +92,12 @@ function RootComponent() {
   const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
+    const onAuthChanged = () => setAuthenticated(false);
+    window.addEventListener("mobflow-auth-changed", onAuthChanged);
+    return () => window.removeEventListener("mobflow-auth-changed", onAuthChanged);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const bootstrap = async () => {
       try {
