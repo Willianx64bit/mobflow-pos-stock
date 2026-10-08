@@ -20,6 +20,7 @@ import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as VendasRouteImport } from './routes/vendas'
+import { Route as UsuariosRouteImport } from './routes/usuarios'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +77,11 @@ const VendasRoute = VendasRouteImport.update({
   path: '/vendas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsuariosRoute = UsuariosRouteImport.update({
+  id: '/usuarios',
+  path: '/usuarios',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/gerencia': typeof GerenciaRoute
   '/recebimento': typeof RecebimentoRoute
   '/vendas': typeof VendasRoute
+  '/usuarios': typeof UsuariosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -131,6 +138,7 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
+    | '/usuarios'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +152,7 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
+    | '/usuarios'
   id:
     | '__root__'
     | '/'
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/recebimento'
     | '/vendas'
+    | '/usuarios'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +181,7 @@ export interface RootRouteChildren {
   GerenciaRoute: typeof GerenciaRoute
   RecebimentoRoute: typeof RecebimentoRoute
   VendasRoute: typeof VendasRoute
+  UsuariosRoute: typeof UsuariosRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,7 +263,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VendasRouteImport
       parentRoute: typeof rootRouteImport
     }
-  }
+
+    '/usuarios': {
+      id: '/usuarios'
+      path: '/usuarios'
+      fullPath: '/usuarios'
+      preLoaderRoute: typeof UsuariosRouteImport
+      parentRoute: typeof rootRouteImport
+    }  }
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -267,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   GerenciaRoute: GerenciaRoute,
   RecebimentoRoute: RecebimentoRoute,
   VendasRoute: VendasRoute,
+  UsuariosRoute: UsuariosRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
