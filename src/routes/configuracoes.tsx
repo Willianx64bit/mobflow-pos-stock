@@ -55,7 +55,11 @@ function Configuracoes() {
   const [userError, setUserError] = useState("");
 
   useEffect(() => {
-    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
+    // A senha informada na tela de Gerência libera todas as opções administrativas
+    // durante a sessão. Não pedir uma segunda senha ao entrar em Configurações.
+    if (sessionStorage.getItem("mobflow-management") !== "1") {
+      navigate({ to: "/gerencia" });
+    }
   }, [navigate]);
 
   useEffect(() => {
