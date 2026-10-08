@@ -16,18 +16,28 @@ const tabs = [
 export function AppHeader() {
   const navigate = useNavigate();
   const [time, setTime] = useState("");
-  const [open, setOpen] = useState(() => {
-    const saved = localStorage.getItem("mobflow-sidebar");
-    if (saved === "open") return true;
-    if (saved === "closed") return false;
-    return window.innerWidth >= 768;
-  });
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
+  const [mounted, setMounted] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+  const [pdvAuthorized, setPdvAuthorized] = useState(false);
+  const [username, setUsername] = useState("Usuário");
   const settings = useStore((s) => s.settings);
-  const role = sessionStorage.getItem("mobflow-role") === "manager" ? "manager" : "pdv";
+
+  useEffect(() => {
+    setOpen(() => {
+      const saved = localStorage.getItem("mobflow-sidebar");
+      if (saved === "open") return true;
+      if (saved === "closed") return false;
+      return window.innerWidth >= 768;
+    });
+    setDarkMode(localStorage.getItem("mobflow-theme") === "dark");
+    setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+    setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
+    setMounted(true);
+  }, []);
+
 
   useEffect(() => {
     document.body.classList.toggle("mfb-side-open", open);
