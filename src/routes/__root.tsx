@@ -119,60 +119,57 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const [authenticated, setAuthenticated] = useState(false);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [role, setRole] = useState<"manager" | "pdv" | null>(null);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const router = useRouter();
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      const hasLoginMarker = localStorage.getItem("mobflow-authenticated") === "1";
-      if (data.session && !hasLoginMarker) {
-        await supabase.auth.signOut();
-        sessionStorage.removeItem("mobflow-role");
-        sessionStorage.removeItem("mobflow-username");
-        (data as { session: unknown }).session = null;
+
+    const bootstrap = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        let session = data.session;
+
+        const hasLoginMarker = localStorage.getItem("mobflow-authenticated") === "1";
+        if (session && !hasLoginMarker) {
+          await supabase.auth.signOut();
+          sessionStorage.removeItem("mobflow-role");
+          sessionStorage.removeItem("mobflow-username");
+          session = null;
+        }
+
+        if (session) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role,username")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+          const nextRole = profile?.role === "manager" ? "manager" : "pdv";
+          sessionStorage.setItem("mobflow-role", nextRole);
+          if (profile?.username) {
+            sessionStorage.setItem("mobflow-username", profile.username);
+          }
+
+          try {
+            await hydrateStore();
+          } catch (error) {
+            console.error("MobFlow: falha ao carregar os dados da conta", error);
+          }
+        } else {
+          sessionStorage.removeItem("mobflow-role");
+          sessionStorage.removeItem("mobflow-username");
+        }
+      } catch (error) {
+        console.error("MobFlow: falha ao inicializar a sessão", error);
       }
-      if (data.session) {
-        const { data: profile } = await supabase.from("profiles").select("role,username").eq("id", data.session.user.id).maybeSingle();
-        const nextRole = profile?.role === "manager" ? "manager" : "pdv";
-        sessionStorage.setItem("mobflow-role", nextRole);
-        if (profile?.username) sessionStorage.setItem("mobflow-username", profile.username);
-        setRole(nextRole);
-        await hydrateStore();
-      } else {
-        sessionStorage.removeItem("mobflow-role");
-        sessionStorage.removeItem("mobflow-username");
-        setRole(null);
-      }
-      if (active) {
-        setAuthenticated(Boolean(data.session));
-        setCheckingAuth(false);
-      }
-    });
-    return () => { active = false; };
+
+      if (!active) return;
+    };
+
+    void bootstrap();
+    return () => {
+      active = false;
+    };
   }, []);
-
-  const handleLogin = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: profile } = user ? await supabase.from("profiles").select("role,username").eq("id", user.id).maybeSingle() : { data: null };
-    const nextRole = profile?.role === "manager" ? "manager" : "pdv";
-    sessionStorage.setItem("mobflow-role", nextRole);
-    if (profile?.username) sessionStorage.setItem("mobflow-username", profile.username);
-    setRole(nextRole);
-    await hydrateStore();
-    setAuthenticated(true);
-  };
-
-  if (checkingAuth) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <Outlet />
-      </QueryClientProvider>
-    );
-  }
 
   return (
     <QueryClientProvider client={queryClient}>
