@@ -108,7 +108,7 @@
 @keyframes mfb-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes mfb-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-.mfb-in { animation: mfb-in 0.45s cubic-bezier(0.32, 0.72, 0, 1) both; }
+.mfb-in { animation: none; }
 .mfb-bar { animation: mfb-bar 0.6s cubic-bezier(0.32, 0.72, 0, 1) both; transform-origin: left; }
 .mfb-blink { animation: mfb-blink 1.15s steps(1) infinite; }
 
