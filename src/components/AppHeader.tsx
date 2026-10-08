@@ -81,13 +81,16 @@ export function AppHeader() {
     return next;
   });
 
+  if (!mounted) return null;
+
   return createPortal(
     <>
       {pathname === "/" && (
         <button type="button" onClick={() => setShowLogin(true)} className="fixed right-4 top-4 z-[90] rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
-          👤 {pdvAuthorized ? (sessionStorage.getItem("mobflow-username") || "Usuário") : "Usuário"}
+          👤 {pdvAuthorized ? username : "Usuário"}
         </button>
       )}
+
       {showLogin && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md">
