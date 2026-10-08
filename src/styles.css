@@ -143,6 +143,17 @@ body.mfb-side-open { padding-left: 16rem; transition: padding-left 0.2s ease; }
 }
 
 
+/* Ajuste fino do tema escuro: mantém componentes claros coerentes com a paleta azul/noturna. */
+.dark .bg-white { background-color: var(--surface); }
+.dark .bg-sky-50 { background-color: oklch(0.20 0.035 225); }
+.dark .bg-sky-50\\/35 { background-color: oklch(0.16 0.025 225 / 35%); }
+.dark .ring-sky-100 { --tw-ring-color: oklch(0.38 0.06 225); }
+.dark .border-sky-200\\/35 { border-color: oklch(0.58 0.13 220 / 35%); }
+.dark .border-sky-300\\/40 { border-color: oklch(0.64 0.14 220 / 40%); }
+.dark .shadow-sm { box-shadow: 0 8px 28px oklch(0.04 0.02 240 / 35%); }
+.dark .ring-border { --tw-ring-color: var(--border); }
+
+
 /* Mantém o modal de quantidade visível quando o teclado do celular abre. */
 .mfb-product-modal > div {
   max-height: calc(100dvh - 1rem);
