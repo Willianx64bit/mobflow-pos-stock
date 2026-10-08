@@ -47,6 +47,7 @@ function Configuracoes() {
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
   const [pixEditing, setPixEditing] = useState(false);
+  const [pixPasswordOpen, setPixPasswordOpen] = useState(false);
   const [pixPassword, setPixPassword] = useState("");
   const [pixError, setPixError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -162,12 +163,14 @@ function Configuracoes() {
       return;
     }
     setPixEditing(true);
+    setPixPasswordOpen(false);
     setPixPassword("");
     setPixError("");
   };
 
   const cancelPixEditing = () => {
     setPixEditing(false);
+    setPixPasswordOpen(false);
     setPixPassword("");
     setPixError("");
     setPixKey(settings.pixKey ?? "");
@@ -177,6 +180,7 @@ function Configuracoes() {
   const savePix = () => {
     actions.updateSettings({ pixKey: pixKey.trim() || undefined, pixKeyType });
     setPixEditing(false);
+    setPixPasswordOpen(false);
     setPixPassword("");
     setPixError("");
     setSaved(true);
@@ -246,7 +250,7 @@ function Configuracoes() {
                 <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
               </div>
               {!pixEditing && (
-                <button onClick={() => { setPixPassword(" "); setPixError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border" type="button">
+                <button onClick={() => { setPixPasswordOpen(true); setPixPassword(""); setPixError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border" type="button">
                   🔒 Alterar chave
                 </button>
               )}
@@ -287,7 +291,7 @@ function Configuracoes() {
               O QR Code será gerado no checkout com o valor exato da venda. O MobFlow não confirma o pagamento automaticamente nesta versão.
             </div>
 
-            {!pixEditing && pixPassword !== "" && (
+            {!pixEditing && pixPasswordOpen && (
               <div className="mt-3 rounded-xl border border-border/60 p-4">
                 <label className="flex flex-col gap-1.5">
                   <span className="label-mono">SENHA DA GERÊNCIA</span>
