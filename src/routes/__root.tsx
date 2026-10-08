@@ -13,7 +13,6 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { LoginScreen } from "../components/LoginScreen";
 import { supabase } from "@/lib/supabase";
 import { hydrateStore } from "@/lib/store";
 
@@ -177,14 +176,6 @@ function RootComponent() {
     return (
       <QueryClientProvider client={queryClient}>
         <Outlet />
-      </QueryClientProvider>
-    );
-  }
-
-  if (!authenticated) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <LoginScreen onLogin={handleLogin} />
       </QueryClientProvider>
     );
   }
