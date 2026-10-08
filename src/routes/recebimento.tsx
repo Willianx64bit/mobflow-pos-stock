@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, type ReceivingNote } from "@/lib/store";
 
@@ -13,6 +13,9 @@ function Recebimento() {
   const notes = useStore((s) => s.receiving ?? []);
   const suppliers = useStore((s) => s.suppliers ?? []);
   const navigate = useNavigate();
+  useEffect(() => {
+    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
+  }, [navigate]);
   const search = useSearch({ from: "/recebimento" }) as { nota?: string };
   const [number, setNumber] = useState("");
   const [supplier, setSupplier] = useState("");
