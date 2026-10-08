@@ -39,15 +39,17 @@ function PDV() {
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
   const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
-  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
+  const [pdvAuthorized, setPdvAuthorized] = useState(false);
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const search = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setQuick(localStorage.getItem("mobflow:quick") === "1");
+    setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
     return () => { if (scanTimer.current) clearTimeout(scanTimer.current); };
   }, []);
+
   const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
 
   const parseWeight = (value: string) => {
