@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({ meta: [{ title: "MobFlow — Configurações" }] }),
@@ -16,15 +17,72 @@ function Configuracoes() {
   const [saved, setSaved] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetError, setResetError] = useState("");
+  const [pdvUsers, setPdvUsers] = useState<Array<{ id: string; username: string; display_name?: string | null; active: boolean }>>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userName, setUserName] = useState("");
+  const [userUsername, setUserUsername] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userMessage, setUserMessage] = useState("");
+  const [userError, setUserError] = useState("");
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
 
   useEffect(() => {
+    void loadPdvUsers();
+  }, []);
+
+  useEffect(() => {
     setName(settings.companyName);
     setLogo(settings.companyLogo ?? "");
   }, [settings]);
+
+  const loadPdvUsers = async () => {
+    setUsersLoading(true);
+    setUserError("");
+    const { data, error } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+    if (error || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
+    else setPdvUsers(data.users);
+    setUsersLoading(false);
+  };
+
+  const createPdvUser = async () => {
+    setUserError("");
+    setUserMessage("");
+    const { data, error } = await supabase.functions.invoke("mobflow-users", {
+      body: { action: "create", displayName: userName, username: userUsername, password: userPassword },
+    });
+    if (error || !data?.ok) {
+      setUserError(data?.error || "Não foi possível criar o usuário.");
+      return;
+    }
+    setUserName("");
+    setUserUsername("");
+    setUserPassword("");
+    setUserMessage("Usuário do PDV criado com sucesso.");
+    await loadPdvUsers();
+  };
+
+  const togglePdvUser = async (user: (typeof pdvUsers)[number]) => {
+    setUserError("");
+    const { data, error } = await supabase.functions.invoke("mobflow-users", {
+      body: { action: "toggle", userId: user.id, active: !user.active },
+    });
+    if (error || !data?.ok) setUserError(data?.error || "Não foi possível alterar o acesso.");
+    else await loadPdvUsers();
+  };
+
+  const resetPdvPassword = async (user: (typeof pdvUsers)[number]) => {
+    const next = window.prompt(`Nova senha para ${user.username} (mínimo 6 caracteres):`);
+    if (!next) return;
+    setUserError("");
+    const { data, error } = await supabase.functions.invoke("mobflow-users", {
+      body: { action: "reset_password", userId: user.id, password: next },
+    });
+    if (error || !data?.ok) setUserError(data?.error || "Não foi possível trocar a senha.");
+    else setUserMessage("Senha alterada.");
+  };
 
   const chooseLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -78,7 +136,25 @@ function Configuracoes() {
                 <h2 className="font-semibold text-heading">Usuários do PDV</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Crie e gerencie os usuários que terão acesso somente ao ponto de venda.</p>
               </div>
-              <button onClick={() => navigate({ to: "/usuarios" })} className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90">Gerenciar</button>
+              <button onClick={() => void loadPdvUsers()} className="rounded-xl bg-secondary px-3 py-2 text-sm text-secondary-foreground">Atualizar</button>
+            </div>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input value={userName} onChange={e => setUserName(e.target.value)} placeholder="Nome do operador" className="field text-sm text-foreground" />
+              <input value={userUsername} onChange={e => setUserUsername(e.target.value.toUpperCase())} placeholder="Usuário" className="field text-sm text-foreground" />
+              <input value={userPassword} onChange={e => setUserPassword(e.target.value)} type="password" placeholder="Senha (mín. 6)" className="field text-sm text-foreground" />
+            </div>
+            {userError && <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{userError}</div>}
+            {userMessage && <div className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">{userMessage}</div>}
+            <button onClick={() => void createPdvUser()} disabled={userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">Criar usuário do PDV</button>
+            <div className="mt-5 border-t border-border/50 pt-4">
+              {usersLoading ? <div className="py-4 text-center text-sm text-muted-foreground">Carregando usuários...</div> : pdvUsers.length === 0 ? <div className="py-4 text-center text-sm text-muted-foreground">Nenhum usuário de PDV cadastrado.</div> : pdvUsers.map(user => (
+                <div key={user.id} className="flex flex-wrap items-center gap-2 border-b border-border/40 py-3 last:border-0">
+                  <div className="flex-1 min-w-40"><div className="font-semibold text-foreground">{user.display_name || user.username}</div><div className="font-mono text-[11px] text-muted-foreground">@{user.username}</div></div>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold">{user.active ? "Ativo" : "Desativado"}</span>
+                  <button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
+                  <button onClick={() => void togglePdvUser(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{user.active ? "Desativar" : "Ativar"}</button>
+                </div>
+              ))}
             </div>
           </div>
 
