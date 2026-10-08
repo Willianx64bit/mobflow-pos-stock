@@ -122,7 +122,7 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [authenticated, setAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [role, setRole] = useState<"manager" | "pdv" | null>(() => sessionStorage.getItem("mobflow-role") as "manager" | "pdv" | null);
+  const [role, setRole] = useState<"manager" | "pdv" | null>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
 
@@ -160,15 +160,15 @@ function RootComponent() {
     setAuthenticated(true);
   };
 
-  if (checkingAuth) {
-    return <div className="min-h-screen bg-background" />;
-  }
-
   useEffect(() => {
     if (authenticated && role === "pdv" && pathname !== "/") {
       void router.navigate({ to: "/" });
     }
   }, [authenticated, role, pathname, router]);
+
+  if (checkingAuth) {
+    return <div className="min-h-screen bg-background" />;
+  }
 
   if (!authenticated) {
     return <LoginScreen onLogin={handleLogin} />;
