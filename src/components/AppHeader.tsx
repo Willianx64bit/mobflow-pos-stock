@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { hydrateStore } from "@/lib/store";
@@ -23,7 +23,7 @@ export function AppHeader() {
     return window.innerWidth >= 768;
   });
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mobflow-theme") === "dark");
-  const [showLogin, setShowLogin] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);\n  const pathname = useRouterState({ select: (s) => s.location.pathname });\n  const [pdvAuthorized, setPdvAuthorized] = useState(() => sessionStorage.getItem("mobflow-pdv-authorized") === "1");
   const settings = useStore((s) => s.settings);
   const role = sessionStorage.getItem("mobflow-role") === "manager" ? "manager" : "pdv";
 
@@ -84,7 +84,7 @@ export function AppHeader() {
 
   return createPortal(
     <>
-      {showLogin && (
+      {pathname === "/" && (\n        <button type="button" onClick={() => setShowLogin(true)} className="fixed right-4 top-4 z-[90] rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">\n          👤 {pdvAuthorized ? (sessionStorage.getItem("mobflow-username") || "Usuário") : "Usuário"}\n        </button>\n      )}\n      {showLogin && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md">
             <LoginScreen
@@ -126,7 +126,7 @@ export function AppHeader() {
               <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">
                 {darkMode ? "☀️" : "🌙"}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span>
               </button>
-              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); setShowLogin(true); navigate({ to: "/" }); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
+              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); sessionStorage.removeItem("mobflow-pdv-authorized"); setPdvAuthorized(false); window.dispatchEvent(new Event("mobflow-pdv-auth-changed")); navigate({ to: "/" }); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
                 ↪ Sair da conta
               </button>
               <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">
