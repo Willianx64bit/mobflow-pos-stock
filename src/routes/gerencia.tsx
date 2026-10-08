@@ -112,7 +112,11 @@ function Gerencia() {
     setPassword("");
   };
 
-  if (checkingManager || !unlocked) {
+  if (checkingManager) {
+    return <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6"><AppHeader /><section className="min-h-[calc(100vh-7rem)] grid place-items-center"><div className="text-sm text-muted-foreground">Carregando gerência...</div></section></div>;
+  }
+
+  if (!unlocked) {
     return (
       <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
         <AppHeader />
