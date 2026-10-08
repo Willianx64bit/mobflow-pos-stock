@@ -16,13 +16,13 @@ async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ dat
       return { data: { error: "Sessão da gerência expirada. Entre novamente na gerência." }, error: true };
     }
 
-    const body = { ...opts.body, managementPassword: sessionStorage.getItem("mobflow-management-password") ?? "" };
-    const { data, error } = await supabase.functions.invoke("mobflow-users", { ...opts, body });
+    const requestBody = { ...opts.body, managementPassword: sessionStorage.getItem("mobflow-management-password") ?? "" };
+    const { data, error } = await supabase.functions.invoke("mobflow-users", { ...opts, body: requestBody });
     if (!error) return { data, error: null };
 
-    let body: any = null;
-    try { body = await (error as { context?: Response }).context?.json(); } catch {}
-    const raw = String(body?.error ?? "");
+    let errorBody: any = null;
+    try { errorBody = await (error as { context?: Response }).context?.json(); } catch {}
+    const raw = String(errorBody?.error ?? "");
     const friendly = raw.includes("Sessão inválida") || raw.includes("Sessão não encontrada")
       ? "Sessão da gerência expirada. Entre novamente na gerência."
       : raw.includes("Database error")
