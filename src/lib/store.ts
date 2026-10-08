@@ -107,9 +107,21 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) state = { ...state, ...JSON.parse(raw) };
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
-    state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
+    normalizeState();
   } catch {}
 }
+function normalizeState() {
+  state.products = Array.isArray(state.products) ? state.products : [];
+  state.cart = Array.isArray(state.cart) ? state.cart : [];
+  state.sales = Array.isArray(state.sales) ? state.sales : [];
+  state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
+  state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
+  state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
+  state.settings = state.settings && typeof state.settings === "object"
+    ? state.settings
+    : { companyName: "" };
+}
+
 function startRealtime(accountId: string) {
   if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
   if (realtimeChannel) {
