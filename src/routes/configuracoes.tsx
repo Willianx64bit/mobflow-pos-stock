@@ -7,12 +7,26 @@ import { supabase } from "@/lib/supabase";
 
 async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ data: any; error: unknown }> {
   try {
+    let session = (await supabase.auth.getSession()).data.session;
+    if (!session) {
+      session = (await supabase.auth.refreshSession()).data.session;
+    }
+    if (!session) {
+      sessionStorage.removeItem("mobflow-management");
+      return { data: { error: "Sessão da gerência expirada. Entre novamente na gerência." }, error: true };
+    }
+
     const { data, error } = await supabase.functions.invoke("mobflow-users", opts);
     if (!error) return { data, error: null };
+
     let body: any = null;
-    try { body = await (error as { context?: Response }).context?.json(); } catch { /* sem corpo */ }
+    try { body = await (error as { context?: Response }).context?.json(); } catch {}
     const raw = String(body?.error ?? "");
-    const friendly = raw.includes("Database error") ? "O banco recusou a criação do usuário. Rode a correção do banco enviada no chat e tente de novo." : raw;
+    const friendly = raw.includes("Sessão inválida") || raw.includes("Sessão não encontrada")
+      ? "Sessão da gerência expirada. Entre novamente na gerência."
+      : raw.includes("Database error")
+        ? "O banco recusou a criação do usuário. Verifique a configuração do banco e tente de novo."
+        : raw;
     return { data: { error: friendly || undefined }, error: true };
   } catch {
     return { data: null, error: true };
