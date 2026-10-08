@@ -60,7 +60,6 @@ export function AppHeader() {
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      clearInterval(t);
       window.removeEventListener("keydown", onKey);
     };
   }, [navigate]);
