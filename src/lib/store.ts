@@ -8,12 +8,12 @@ export type AppSettings = { companyName: string; companyLogo?: string | undefine
 export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
-export type Supplier = { name: string; cnpj?: string };
+export type Supplier = { name: string; cnpj?: string | undefined };
 export type ReceivingNote = {
   id: string;
   number: string;
   supplier: string;
-  supplierCnpj?: string;
+  supplierCnpj?: string | undefined;
   date: string;
   items: ReceivingItem[];
   status: "pendente" | "conferido" | "divergente" | "aceito" | "rejeitado";
