@@ -57,6 +57,7 @@ function Gerencia() {
   };
   const [error, setError] = useState("");
   const [checkingManager, setCheckingManager] = useState(true);
+  const [accessIssue, setAccessIssue] = useState("");
 
   const today = localDateKey();
   const todays = sales.filter((s) => localDateKey(new Date(s.date)) === today);
@@ -74,20 +75,34 @@ function Gerencia() {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         if (!sessionData.session) {
-          if (active) navigate({ to: "/" });
+          if (active) {
+            setAccessIssue("Sua sessão não está ativa. Entre novamente com a conta da empresa para acessar a Gerência.");
+            setCheckingManager(false);
+          }
           return;
         }
-        const { data: profile } = await supabase.from("profiles").select("role,active").eq("id", sessionData.session.user.id).maybeSingle();
-        const allowed = profile?.active !== false && profile?.role === "manager";
-        if (!allowed) {
-          if (active) navigate({ to: "/" });
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("role,active")
+          .eq("id", sessionData.session.user.id)
+          .maybeSingle();
+        if (profileError) throw profileError;
+        if (!profile || profile.active === false || profile.role !== "manager") {
+          if (active) {
+            setAccessIssue("A conta atualmente conectada não tem permissão de Gerência. Saia do usuário do PDV e entre novamente com o login da empresa. A senha da Gerência não substitui a permissão da conta.");
+            setCheckingManager(false);
+          }
           return;
         }
         if (active) {
+          setAccessIssue("");
           setCheckingManager(false);
         }
       } catch {
-        if (active) navigate({ to: "/" });
+        if (active) {
+          setAccessIssue("Não foi possível confirmar a permissão da sua conta. Verifique a conexão e tente novamente.");
+          setCheckingManager(false);
+        }
       }
     };
     void checkManager();
@@ -114,6 +129,34 @@ function Gerencia() {
 
   if (checkingManager) {
     return <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6"><AppHeader /><section className="min-h-[calc(100vh-7rem)] grid place-items-center"><div className="text-sm text-muted-foreground">Carregando gerência...</div></section></div>;
+  }
+
+  if (accessIssue) {
+    return (
+      <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
+        <AppHeader />
+        <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 ring-1 ring-border sm:p-8">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/15 text-2xl ring-1 ring-amber-500/30">🔒</div>
+            <h1 className="mt-4 text-center font-display text-2xl text-heading">Acesso à Gerência</h1>
+            <p className="mt-3 text-center text-sm leading-6 text-muted-foreground">{accessIssue}</p>
+            <div className="mt-6 grid gap-2">
+              <button type="button" onClick={() => navigate({ to: "/" })} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border">Voltar ao PDV</button>
+              <button type="button" onClick={async () => {
+                await supabase.auth.signOut();
+                localStorage.removeItem("mobflow-authenticated");
+                sessionStorage.removeItem("mobflow-role");
+                sessionStorage.removeItem("mobflow-username");
+                sessionStorage.removeItem("mobflow-pdv-authorized");
+                sessionStorage.removeItem("mobflow-management");
+                window.dispatchEvent(new Event("mobflow-auth-changed"));
+                navigate({ to: "/" });
+              }} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground">Sair e entrar com a conta da empresa</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
   }
 
   if (!unlocked) {
