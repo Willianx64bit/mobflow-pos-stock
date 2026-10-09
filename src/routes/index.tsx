@@ -164,10 +164,16 @@ function PDV() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (editing !== undefined || cam) return;
-      if (e.key === "F9") { e.preventDefault(); finish(); }
-      else if (e.key === "F8") { e.preventDefault(); actions.clearCart(); }
-      else if (e.key === "F6") { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3] ?? "Pix"); }
+      if (editing !== undefined || cam || pendingWeight || done || pixPayload) return;
+      const target = e.target as HTMLElement | null;
+      const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
+      if (e.key === "F2") { e.preventDefault(); setPayment("Dinheiro"); }
+      else if (e.key === "F3") { e.preventDefault(); setPayment("Pix"); }
+      else if (e.key === "F4") { e.preventDefault(); setPayment("Cartão"); }
+      else if (e.key === "F5") { e.preventDefault(); setPayment("Fiado"); }
+      else if (e.key === "F9" && !typing) { e.preventDefault(); finish(); }
+      else if (e.key === "F8" && !typing) { e.preventDefault(); actions.clearCart(); }
+      else if (e.key === "F6" && !typing) { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3] ?? "Pix"); }
       else if (e.key === "Escape") { setDone(null); setQ(""); search.current?.focus(); }
     };
     window.addEventListener("keydown", onKey);
@@ -343,12 +349,16 @@ function PDV() {
               <span className="font-display text-[40px] leading-none text-heading">R$ {brl(total)}</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
-              {PAYMENTS.map((m) => (
-                <button key={m} onClick={() => setPayment(m)}
-                  className={`rounded-lg py-2.5 text-[12px] font-semibold ring-1 transition-colors ${payment === m ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground hover:text-foreground"}`}>
-                  {m}
-                </button>
-              ))}
+              {PAYMENTS.map((m) => {
+                const shortcut: Record<Payment, string> = { Dinheiro: "F2", Pix: "F3", Cartão: "F4", Fiado: "F5" };
+                return (
+                  <button key={m} onClick={() => setPayment(m)}
+                    className={`rounded-lg py-2 px-1 text-[12px] font-semibold ring-1 transition-colors ${payment === m ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground hover:text-foreground"}`}>
+                    <span className="block">{m}</span>
+                    <kbd className="mt-0.5 block text-[9px] leading-none opacity-60 font-mono">{shortcut[m]}</kbd>
+                  </button>
+                );
+              })}
             </div>
             {payment === "Dinheiro" && (
               <div className="mt-3 flex items-center gap-2">
