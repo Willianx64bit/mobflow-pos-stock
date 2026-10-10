@@ -87,9 +87,9 @@ function Gerencia() {
           .eq("id", sessionData.session.user.id)
           .maybeSingle();
         if (profileError) throw profileError;
-        if (!profile || profile.active === false) {
+        if (!profile || profile.active === false || profile.role !== "manager") {
           if (active) {
-            setAccessIssue("A conta conectada não está ativa ou não tem permissão para acessar o sistema. Entre com uma conta ativa e tente novamente.");
+            setAccessIssue("A conta atualmente conectada não tem permissão de Gerência. Saia do usuário do PDV e entre novamente com o login da empresa. A senha da Gerência não substitui a permissão da conta.");
             setCheckingManager(false);
           }
           return;
