@@ -38,8 +38,8 @@ Deno.serve(async (req) => {
       .eq("id", authData.user.id)
       .maybeSingle();
 
-    if (managerError || !manager || !manager.active || manager.role !== "manager") {
-      return json({ error: "Acesso de gerência necessário." }, 403);
+    if (managerError || !manager || !manager.active || !["manager", "pdv"].includes(manager.role)) {
+      return json({ error: "Conta ativa necessária para acessar a gerência." }, 403);
     }
 
     const { data: security, error: securityError } = await admin
