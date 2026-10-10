@@ -173,7 +173,10 @@ function RootComponent() {
     return () => { active = false; };
   }, []);
 
-  if (checkingSession) {\n    const savedDarkTheme = typeof window !== "undefined" && localStorage.getItem("mobflow-theme") === "dark";\n    return <div className={`${savedDarkTheme ? "dark " : ""}min-h-screen bg-background grid place-items-center`}><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;\n  }
+  if (checkingSession) {
+    const savedDarkTheme = typeof window !== "undefined" && localStorage.getItem("mobflow-theme") === "dark";
+    return <div className={`${savedDarkTheme ? "dark " : ""}min-h-screen bg-background grid place-items-center`}><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;
+  }
 
   if (!authenticated) {
     return (
