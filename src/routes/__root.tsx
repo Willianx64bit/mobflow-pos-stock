@@ -79,7 +79,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-     <html lang="pt-BR">\n      <head>\n        <HeadContent />\n        <style>{`html { scrollbar-color: var(--border) var(--background); }\n          ::-webkit-scrollbar { width: 10px; height: 10px; }\n          ::-webkit-scrollbar-track { background: var(--background); }\n          ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--background); border-radius: 999px; }\n          .dark input[type="range"] { color-scheme: dark; }`}</style>\n      </head>\n      <body>{children}<Scripts /></body>\n    </html>
+    <html lang="pt-BR">
+      <head>
+        <HeadContent />
+        <style>{`html { scrollbar-color: var(--border) var(--background); }
+          ::-webkit-scrollbar { width: 10px; height: 10px; }
+          ::-webkit-scrollbar-track { background: var(--background); }
+          ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--background); border-radius: 999px; }
+          .dark input[type="range"] { color-scheme: dark; }`}</style>
+      </head>
+      <body>{children}<Scripts /></body>
+    </html>
   );
 }
 
