@@ -26,6 +26,8 @@ async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ dat
     const raw = String(errorBody?.error ?? "");
     const friendly = raw.includes("Sessão inválida") || raw.includes("Sessão não encontrada")
       ? "Sessão da gerência expirada. Entre novamente na gerência."
+      : raw.includes("Acesso de gerência")
+        ? "Só a conta da gerência pode cadastrar usuários do PDV. Entre com o login da empresa."
       : raw.includes("Database error")
         ? "O banco recusou a criação do usuário. Verifique a configuração do banco e tente de novo."
         : raw;
