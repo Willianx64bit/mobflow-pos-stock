@@ -171,10 +171,10 @@ function PDV() {
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (e.key === "F2") { e.preventDefault(); setPayment("Dinheiro"); setPaymentShortcutArmed(true); window.setTimeout(() => receivedInput.current?.focus(), 0); }
-      else if (e.key === "F3") { e.preventDefault(); setPayment("Pix"); setPaymentShortcutArmed(true); window.setTimeout(() => finishButton.current?.focus(), 0); }
-      else if (e.key === "F4") { e.preventDefault(); setPayment("Cartão"); setPaymentShortcutArmed(true); window.setTimeout(() => finishButton.current?.focus(), 0); }
-      else if (e.key === "F5") { e.preventDefault(); setPayment("Fiado"); setPaymentShortcutArmed(true); window.setTimeout(() => finishButton.current?.focus(), 0); }
-      else if (e.key === "Enter" && paymentShortcutArmed && (!typing || target === receivedInput.current)) { e.preventDefault(); setPaymentShortcutArmed(false); finish(); }
+      else if (e.key === "F3") { e.preventDefault(); setPayment("Pix"); setPaymentShortcutArmed(true); }
+      else if (e.key === "F4") { e.preventDefault(); setPayment("Cartão"); setPaymentShortcutArmed(true); }
+      else if (e.key === "F5") { e.preventDefault(); setPayment("Fiado"); setPaymentShortcutArmed(true); }
+      else if (e.key === "Enter" && paymentShortcutArmed && (!typing || target === receivedInput.current || target === search.current)) { e.preventDefault(); setPaymentShortcutArmed(false); finish(); }
       else if (e.key === "F9" && !typing) { e.preventDefault(); finish(); }
       else if (e.key === "F8" && !typing) { e.preventDefault(); actions.clearCart(); }
       else if (e.key === "F6" && !typing) { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3] ?? "Pix"); }
@@ -187,6 +187,7 @@ function PDV() {
   useEffect(() => { setSel(0); }, [q]);
 
   const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && paymentShortcutArmed) { e.preventDefault(); return; }
     if (!pdvAuthorized && e.key === "Enter") { e.preventDefault(); setFlash("PDV bloqueado: clique em Usuário para liberar."); return; }
     if (e.key === "Enter") {
       if (scanTimer.current) {
