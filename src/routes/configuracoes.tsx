@@ -77,10 +77,20 @@ function Configuracoes() {
           .maybeSingle();
 
         const allowed = !error && profile?.active !== false && profile?.role === "manager" && sessionStorage.getItem("mobflow-management") === "1";
-        if (active && !allowed) {
+        if (!active) return;
+        if (!allowed) {
           sessionStorage.removeItem("mobflow-management");
           navigate({ to: "/gerencia" });
+          return;
         }
+        // Só busca usuários depois de confirmar que a conta é da gerência
+        setUsersLoading(true);
+        setUserError("");
+        const { data, error: usersError } = await callUsers({ body: { action: "list" } });
+        if (!active) return;
+        if (usersError || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
+        else setPdvUsers(data.users);
+        setUsersLoading(false);
       } catch {
         if (active) navigate({ to: "/gerencia" });
       }
@@ -88,22 +98,6 @@ function Configuracoes() {
     void verifyManager();
     return () => { active = false; };
   }, [navigate]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (sessionStorage.getItem("mobflow-management") !== "1") return;
-      setUsersLoading(true);
-      setUserError("");
-      const { data, error } = await callUsers({ body: { action: "list" } });
-      if (cancelled) return;
-      if (error || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
-      else setPdvUsers(data.users);
-      setUsersLoading(false);
-    };
-    void load();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     setName(settings.companyName);
