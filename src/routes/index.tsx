@@ -258,7 +258,6 @@ function PDV() {
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  onContextMenu={(e) => { e.preventDefault(); setEditing(p); }}
                   className={`text-left rounded-xl bg-muted ring-1 p-3 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
                   <div className="aspect-[4/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
@@ -278,7 +277,7 @@ function PDV() {
               + Novo produto
             </button>
           </div>
-          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · botão direito edita · F6 pagamento · F8 limpar · F9 finalizar</p>
+          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · F6 pagamento · F8 limpar · F9 finalizar</p>
         </section>
 
         <aside className="glass p-4 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
