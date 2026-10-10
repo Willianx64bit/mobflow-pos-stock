@@ -174,6 +174,12 @@ function PDV() {
         else if (cam) setCam(false);
         return;
       }
+      if (pixPayload && e.key === "Enter") {
+        e.preventDefault();
+        setPixPayload("");
+        completeSale();
+        return;
+      }
       if (editing !== undefined || cam || pendingWeight || done || pixPayload) return;
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
@@ -402,7 +408,7 @@ function PDV() {
             <p className="mt-2 text-xs text-muted-foreground">Depois que o cliente pagar, confirme manualmente para registrar a venda.</p>
             <div className="mt-4 flex gap-2">
               <button onClick={() => setPixPayload("")} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>
-              <button onClick={() => { setPixPayload(""); completeSale(); }} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">✓ Confirmar pagamento</button>
+              <button onClick={() => { setPixPayload(""); completeSale(); }} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">✓ Confirmar pagamento <kbd className="ml-1 font-mono text-[10px] opacity-75">Enter</kbd></button>
             </div>
           </div>
         </div>
