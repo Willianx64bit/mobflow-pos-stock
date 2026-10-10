@@ -167,6 +167,13 @@ function PDV() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (done) { setDone(null); setQ(""); search.current?.focus(); }
+        else if (pixPayload) setPixPayload("");
+        else if (pendingWeight) setPendingWeight(null);
+        else if (cam) setCam(false);
+        return;
+      }
       if (editing !== undefined || cam || pendingWeight || done || pixPayload) return;
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
@@ -178,7 +185,6 @@ function PDV() {
       else if (e.key === "F9" && !typing) { e.preventDefault(); finish(); }
       else if (e.key === "F8" && !typing) { e.preventDefault(); actions.clearCart(); }
       else if (e.key === "F6" && !typing) { e.preventDefault(); setPayment((p) => PAYMENTS[(PAYMENTS.indexOf(p) + 1) % 3] ?? "Pix"); }
-      else if (e.key === "Escape") { setDone(null); setQ(""); search.current?.focus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -282,7 +288,7 @@ function PDV() {
               + Novo produto
             </button>
           </div>
-          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · F6 pagamento · F8 limpar · F9 finalizar</p>
+          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · F6 pagamento · F8 limpar · Enter finalizar após atalho</p>
         </section>
 
         <aside className="glass p-4 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
@@ -376,7 +382,7 @@ function PDV() {
             )}
             <button ref={finishButton} onClick={() => { setPaymentShortcutArmed(false); finish(); }} disabled={!pdvAuthorized || !lines.length}
               className="mt-3 w-full rounded-xl bg-primary text-primary-foreground font-bold text-[15px] py-3.5 flex items-center justify-center gap-2 hover:bg-primary/85 disabled:opacity-40">
-              Finalizar venda <kbd className="font-mono text-[11px] opacity-70">F9</kbd>
+              Finalizar venda <kbd className="font-mono text-[11px] opacity-70">Enter</kbd>
             </button>
           </div>
         </aside>
