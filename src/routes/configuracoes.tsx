@@ -195,7 +195,7 @@ function Configuracoes() {
   };
 
   const savePix = () => {
-    actions.updateSettings({ pixKey: pixKey.trim() || undefined, pixKeyType });
+    actions.updateSettings({ ...settings, pixKey: pixKey.trim() || undefined, pixKeyType });
     setPixEditing(false);
     setPixError("");
     setSaved(true);
