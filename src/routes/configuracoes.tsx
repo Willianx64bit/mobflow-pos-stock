@@ -26,6 +26,8 @@ async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ dat
     const raw = String(errorBody?.error ?? "");
     const friendly = raw.includes("Sessão inválida") || raw.includes("Sessão não encontrada")
       ? "Sessão da gerência expirada. Entre novamente na gerência."
+      : raw.includes("Acesso de gerência")
+        ? "Só a conta da gerência pode cadastrar usuários do PDV. Entre com o login da empresa."
       : raw.includes("Database error")
         ? "O banco recusou a criação do usuário. Verifique a configuração do banco e tente de novo."
         : raw;
@@ -77,10 +79,20 @@ function Configuracoes() {
           .maybeSingle();
 
         const allowed = !error && profile?.active !== false && profile?.role === "manager" && sessionStorage.getItem("mobflow-management") === "1";
-        if (active && !allowed) {
+        if (!active) return;
+        if (!allowed) {
           sessionStorage.removeItem("mobflow-management");
           navigate({ to: "/gerencia" });
+          return;
         }
+        // Só busca usuários depois de confirmar que a conta é da gerência
+        setUsersLoading(true);
+        setUserError("");
+        const { data, error: usersError } = await callUsers({ body: { action: "list" } });
+        if (!active) return;
+        if (usersError || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
+        else setPdvUsers(data.users);
+        setUsersLoading(false);
       } catch {
         if (active) navigate({ to: "/gerencia" });
       }
@@ -88,22 +100,6 @@ function Configuracoes() {
     void verifyManager();
     return () => { active = false; };
   }, [navigate]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      if (sessionStorage.getItem("mobflow-management") !== "1") return;
-      setUsersLoading(true);
-      setUserError("");
-      const { data, error } = await callUsers({ body: { action: "list" } });
-      if (cancelled) return;
-      if (error || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
-      else setPdvUsers(data.users);
-      setUsersLoading(false);
-    };
-    void load();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     setName(settings.companyName);
@@ -199,7 +195,7 @@ function Configuracoes() {
   };
 
   const savePix = () => {
-    actions.updateSettings({ pixKey: pixKey.trim() || undefined, pixKeyType });
+    actions.updateSettings({ ...settings, pixKey: pixKey.trim() || undefined, pixKeyType });
     setPixEditing(false);
     setPixError("");
     setSaved(true);

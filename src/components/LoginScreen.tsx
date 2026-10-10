@@ -49,7 +49,9 @@ export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void
       });
 
       if (error || !data?.session) {
-        setError(data?.error || "Não foi possível entrar. Verifique o usuário e a senha.");
+        let msg = data?.error as string | undefined;
+        try { msg = msg || (await (error as { context?: Response })?.context?.json())?.error; } catch {}
+        setError(msg || "Não foi possível entrar. Verifique o usuário e a senha.");
         return;
       }
 

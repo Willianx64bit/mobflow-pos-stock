@@ -19,7 +19,7 @@ const localDateKey = (d = new Date()) => {
   return y + "-" + m + "-" + day;
 };
 
-function saleProfit(s: { total: number; profit?: number; items: { name: string; cost?: number; qty: number }[] }, products: { name: string; cost?: number }[]) {
+function saleProfit(s: { total: number; profit?: number | undefined; items: { name: string; cost?: number | undefined; qty: number }[] }, products: { name: string; cost?: number | undefined }[]) {
   if (typeof s.profit === "number") return s.profit;
   const costTotal = s.items.reduce((sum, item) => {
     const product = products.find((p) => p.name === item.name);
