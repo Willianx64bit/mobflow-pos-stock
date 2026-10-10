@@ -284,9 +284,6 @@ function PDV() {
                 </button>
               );
             })}
-            <button disabled={!pdvAuthorized} onClick={() => setEditing(null)} className="rounded-xl ring-1 ring-dashed ring-primary/40 p-3 grid place-items-center text-primary text-sm font-semibold hover:bg-primary/5 min-h-32">
-              + Novo produto
-            </button>
           </div>
           <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · F6 pagamento · F8 limpar · Enter finalizar após atalho</p>
         </section>
