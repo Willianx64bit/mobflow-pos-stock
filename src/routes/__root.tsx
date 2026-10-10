@@ -79,10 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <head><HeadContent /></head>
-      <body>{children}<Scripts /></body>
-    </html>
+     <html lang="pt-BR">\n      <head>\n        <HeadContent />\n        <style>{`html { scrollbar-color: var(--border) var(--background); }\n          ::-webkit-scrollbar { width: 10px; height: 10px; }\n          ::-webkit-scrollbar-track { background: var(--background); }\n          ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--background); border-radius: 999px; }\n          .dark input[type="range"] { color-scheme: dark; }`}</style>\n      </head>\n      <body>{children}<Scripts /></body>\n    </html>
   );
 }
 
@@ -166,9 +163,7 @@ function RootComponent() {
     return () => { active = false; };
   }, []);
 
-  if (checkingSession) {
-    return <div className="min-h-screen bg-background grid place-items-center"><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;
-  }
+  if (checkingSession) {\n    const savedDarkTheme = typeof window !== "undefined" && localStorage.getItem("mobflow-theme") === "dark";\n    return <div className={`${savedDarkTheme ? "dark " : ""}min-h-screen bg-background grid place-items-center`}><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;\n  }
 
   if (!authenticated) {
     return (
