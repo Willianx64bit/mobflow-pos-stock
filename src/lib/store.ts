@@ -32,7 +32,8 @@ export type Conference = {
   expiries?: Record<string, string>;
 };
 
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; suppliers: Supplier[]; settings: AppSettings };
+type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
+type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -52,7 +53,7 @@ const seed: Product[] = [
   id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
 }));
 
-let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], suppliers: [], settings: { companyName: "" } };
+let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], suppliers: [], settings: { companyName: "" } };
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
@@ -67,7 +68,7 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, suppliers: remote.suppliers };
+  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], suppliers: remote.suppliers };
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
@@ -92,6 +93,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     sales: mergeById(local.sales, remote.sales),
     conferences: mergeById(local.conferences, remote.conferences),
     receiving: mergeById(local.receiving, remote.receiving),
+    manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
     suppliers: (() => {
       const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
       for (const s of local.suppliers) if (!map.has(s.name.toLowerCase())) map.set(s.name.toLowerCase(), s);
@@ -118,6 +120,13 @@ function normalizeState() {
   state.sales = Array.isArray(state.sales) ? state.sales : [];
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
   state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
+  state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
+  const legacyManual = state.receiving.filter((n) => n.source === "manual");
+  if (legacyManual.length) {
+    const knownIds = new Set(state.manualExpiries.map((e) => e.id));
+    state.manualExpiries = [...state.manualExpiries, ...legacyManual.filter((n) => !knownIds.has(n.id)).flatMap((n) => n.items.filter((i) => !!i.expiry).map((i) => ({ id: n.id, productId: i.productId, name: i.name, quantity: i.received ?? i.expected, expiry: i.expiry!, unit: i.unit })))];
+    state.receiving = state.receiving.filter((n) => n.source !== "manual");
+  }
   state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
   state.settings = state.settings && typeof state.settings === "object"
     ? state.settings
@@ -216,7 +225,7 @@ export async function hydrateStore() {
     } else if (!error && !localOwner) {
       load();
     } else if (!error) {
-      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
+      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
     }
 
     try {
@@ -313,7 +322,7 @@ export const actions = {
   },
   updateSettings(settings: AppSettings) { set({ settings }); },
   resetAppData() {
-    set({ products: [], cart: [], sales: [], conferences: [], receiving: [], settings: state.settings });
+    set({ products: [], cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], settings: state.settings });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
@@ -374,37 +383,28 @@ export const actions = {
     const formattedExpiry = year && month && day
       ? `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
       : expiry;
-    const note: ReceivingNote = {
-      id: uid(),
-      number: "Cadastro manual",
-      supplier: "",
-      date: new Date().toISOString(),
-      items: [{ productId: product.id, name: product.name, expected: quantity, received: quantity, expiry: formattedExpiry, unit: product.unit }],
-      status: "aceito",
-      stockReleased: true,
-      source: "manual",
-    };
-    set({ receiving: [note, ...(state.receiving ?? [])] });
+    const allocated = (state.manualExpiries ?? []).filter((e) => e.productId === productId).reduce((sum, e) => sum + e.quantity, 0);
+    if (quantity > product.stock - allocated) return false;
+    const entry: ManualExpiry = { id: uid(), productId: product.id, name: product.name, quantity, expiry: formattedExpiry, unit: product.unit };
+    set({ manualExpiries: [entry, ...(state.manualExpiries ?? [])] });
     return true;
   },
   updateManualExpiry(noteId: string, productId: string, expiry: string, quantity: number) {
     const product = state.products.find((p) => p.id === productId);
-    const note = (state.receiving ?? []).find((n) => n.id === noteId && n.source === "manual");
-    if (!product || !note || !expiry || !Number.isFinite(quantity) || quantity <= 0) return false;
+    const existing = (state.manualExpiries ?? []).find((e) => e.id === noteId);
+    if (!product || !existing || !expiry || !Number.isFinite(quantity) || quantity <= 0) return false;
     const [year, month, day] = expiry.split("-").map(Number);
     const formattedExpiry = year && month && day
       ? `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
       : expiry;
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === noteId ? {
-      ...n,
-      items: [{ productId: product.id, name: product.name, expected: quantity, received: quantity, expiry: formattedExpiry, unit: product.unit }],
-    } : n) });
+    const allocatedElsewhere = (state.manualExpiries ?? []).filter((e) => e.productId === productId && e.id !== noteId).reduce((sum, e) => sum + e.quantity, 0);
+    if (quantity > product.stock - allocatedElsewhere) return false;
+    set({ manualExpiries: (state.manualExpiries ?? []).map((e) => e.id === noteId ? { ...e, productId: product.id, name: product.name, quantity, expiry: formattedExpiry, unit: product.unit } : e) });
     return true;
   },
   deleteManualExpiry(noteId: string) {
-    const note = (state.receiving ?? []).find((n) => n.id === noteId && n.source === "manual");
-    if (!note) return false;
-    set({ receiving: (state.receiving ?? []).filter((n) => n.id !== noteId) });
+    if (!(state.manualExpiries ?? []).some((e) => e.id === noteId)) return false;
+    set({ manualExpiries: (state.manualExpiries ?? []).filter((e) => e.id !== noteId) });
     return true;
   },
   createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
