@@ -14,6 +14,8 @@ function ValidadeProdutos() {
   const [order, setOrder] = useState<"shortest" | "longest">("shortest");
   const [showAdd, setShowAdd] = useState(false);
   const [productId, setProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [expiryDate, setExpiryDate] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [formError, setFormError] = useState("");
@@ -74,18 +76,58 @@ function ValidadeProdutos() {
             if (result) {
               setShowAdd(false);
               setProductId("");
+              setProductSearch("");
+              setProductPickerOpen(false);
               setExpiryDate("");
               setQuantity("1");
             } else {
               setFormError("Não foi possível cadastrar essa validade.");
             }
           }}>
-            <label className="block text-sm font-medium">Produto
-              <select required value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground">
-                <option value="">Selecione um produto</option>
-                {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.code})</option>)}
-              </select>
-            </label>
+            <div className="relative">
+              <label className="block text-sm font-medium" htmlFor="expiry-product-search">Produto</label>
+              <input
+                id="expiry-product-search"
+                required
+                autoComplete="off"
+                value={productSearch}
+                onFocus={() => setProductPickerOpen(true)}
+                onChange={(e) => {
+                  setProductSearch(e.target.value);
+                  setProductId("");
+                  setProductPickerOpen(true);
+                }}
+                placeholder="Pesquisar por código ou descrição..."
+                className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground"
+              />
+              {productPickerOpen && (
+                <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+                  {products.filter((p) => {
+                    const query = productSearch.trim().toLocaleLowerCase("pt-BR");
+                    return !query || p.name.toLocaleLowerCase("pt-BR").includes(query) || p.code.toLocaleLowerCase("pt-BR").includes(query);
+                  }).slice(0, 50).map((p) => (
+                    <button
+                      type="button"
+                      key={p.id}
+                      onClick={() => {
+                        setProductId(p.id);
+                        setProductSearch(`${p.name} (${p.code})`);
+                        setProductPickerOpen(false);
+                      }}
+                      className={`block w-full border-b border-border/60 px-3 py-3 text-left text-sm last:border-0 hover:bg-accent ${productId === p.id ? "bg-accent" : ""}`}
+                    >
+                      <span className="block font-medium text-foreground">{p.name}</span>
+                      <span className="block font-mono text-xs text-muted-foreground">{p.code}</span>
+                    </button>
+                  ))}
+                  {products.filter((p) => {
+                    const query = productSearch.trim().toLocaleLowerCase("pt-BR");
+                    return !query || p.name.toLocaleLowerCase("pt-BR").includes(query) || p.code.toLocaleLowerCase("pt-BR").includes(query);
+                  }).length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum produto encontrado.</p>}
+                </div>
+              )}
+              {productId && <p className="mt-1 text-xs text-muted-foreground">Produto selecionado.</p>}
+            </div>
             <label className="block text-sm font-medium">Data de validade
               <input required type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
             </label>
