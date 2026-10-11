@@ -153,6 +153,27 @@ function Gerencia() {
     setPassword("");
   };
 
+  const confirmPromotionPassword = async () => {
+    setPasswordError("");
+    if (password.length < 6) {
+      setPasswordError("Informe a senha da gerência.");
+      return;
+    }
+    setPasswordLoading(true);
+    const result = await verifyManagerPassword(password);
+    setPasswordLoading(false);
+    if (!result.ok) {
+      setPasswordError(result.error || "Senha da gerência incorreta.");
+      return;
+    }
+    setPassword("");
+    setPasswordError("");
+    setPromotionPasswordOpen(false);
+    navigate({ to: "/promocoes" });
+  };
+
+  const [promotionPasswordOpen, setPromotionPasswordOpen] = useState(false);
+
   if (checkingManager) {
     return <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6"><AppHeader /><section className="min-h-[calc(100vh-7rem)] grid place-items-center"><div className="text-sm text-muted-foreground">Carregando gerência...</div></section></div>;
   }
@@ -252,7 +273,15 @@ function Gerencia() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {managementTabs.map((tab) => (
-            <button key={tab.to} onClick={() => navigate({ to: tab.to })} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:ring-primary/50">
+            <button key={tab.to} onClick={() => {
+              if (tab.to === "/promocoes") {
+                setPassword("");
+                setPasswordError("");
+                setPromotionPasswordOpen(true);
+              } else {
+                navigate({ to: tab.to });
+              }
+            }} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:ring-primary/50">
               <div className="text-2xl text-primary">{tab.icon}</div><div className="mt-3 font-bold text-heading">{tab.label}</div>
             </button>
           ))}
@@ -286,6 +315,23 @@ function Gerencia() {
           )}
         </section>
       </main>
+      {promotionPasswordOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="promotion-password-title">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl ring-1 ring-border">
+            <div className="text-center">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-primary/15 text-2xl text-primary">🔒</div>
+              <h2 id="promotion-password-title" className="mt-3 font-display text-2xl text-heading">Confirmar senha da gerência</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Digite novamente a senha para acessar Promoções.</p>
+            </div>
+            <form className="mt-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void confirmPromotionPassword(); }}>
+              <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }} placeholder="Senha da gerência" autoComplete="current-password" autoFocus className="field w-full text-foreground" />
+              {passwordError && <div className="rounded-lg bg-destructive/10 p-3 text-center text-sm text-destructive">{passwordError}</div>}
+              <button type="submit" disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Validando..." : "Confirmar e abrir Promoções"}</button>
+              <button type="button" onClick={() => { setPromotionPasswordOpen(false); setPassword(""); setPasswordError(""); }} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Cancelar</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
