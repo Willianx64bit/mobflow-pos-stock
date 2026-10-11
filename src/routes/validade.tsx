@@ -20,15 +20,34 @@ function ValidadeProdutos() {
   const [expiryDate, setExpiryDate] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [formError, setFormError] = useState("");
-  const entries = useMemo(() => notes.flatMap((note) =>
-    note.items.filter((item) => !!item.expiry).map((item) => ({
-      ...item,
-      noteNumber: note.number,
-      supplier: note.supplier,
-      source: note.source,
-      noteId: note.id,
-    }))
-  ), [notes]);
+  const entries = useMemo(() => [
+    ...notes.filter((note) => note.source !== "manual").flatMap((note) =>
+      note.items.filter((item) => !!item.expiry).map((item) => ({
+        ...item,
+        noteNumber: note.number,
+        supplier: note.supplier,
+        source: note.source,
+        noteId: note.id,
+      }))
+    ),
+    ...manualExpiries.map((item) => ({
+      productId: item.productId,
+      name: item.name,
+      expected: item.quantity,
+      received: item.quantity,
+      expiry: item.expiry,
+      unit: item.unit,
+      noteNumber: "Cadastro manual",
+      supplier: "",
+      source: "manual" as const,
+      noteId: item.id,
+    })),
+  ], [notes, manualExpiries]);
+
+  const selectedProduct = products.find((p) => p.id === productId);
+  const availableQuantity = selectedProduct
+    ? Math.max(0, selectedProduct.stock - manualExpiries.filter((e) => e.productId === productId && e.id !== editingNoteId).reduce((sum, e) => sum + e.quantity, 0))
+    : 0;
 
   const parseExpiry = (value: string) => {
     const [day, month, year] = value.split("/").map(Number);
@@ -80,8 +99,8 @@ function ValidadeProdutos() {
             e.preventDefault();
             setFormError("");
             const qty = Number(quantity.replace(",", "."));
-            if (!productId || !expiryDate || !Number.isFinite(qty) || qty <= 0) {
-              setFormError("Selecione o produto, informe a validade e uma quantidade maior que zero.");
+            if (!productId || !expiryDate || !Number.isFinite(qty) || qty <= 0 || qty > availableQuantity) {
+              setFormError("Selecione o produto, informe a validade e uma quantidade dentro do estoque disponível.");
               return;
             }
             const result = editingNoteId
@@ -147,8 +166,9 @@ function ValidadeProdutos() {
             <label className="block text-sm font-medium">Data de validade
               <input required type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
             </label>
-            <label className="block text-sm font-medium">Quantidade
-              <input required type="number" min="0.001" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
+            <label className="block text-sm font-medium">Quantidade com esta validade
+              {selectedProduct && <span className="ml-2 text-xs font-normal text-muted-foreground">Disponível para distribuir: {availableQuantity} {selectedProduct.unit === "kg" ? "kg" : "un."} · Estoque total: {selectedProduct.stock} {selectedProduct.unit === "kg" ? "kg" : "un."}</span>}
+              <input required type="number" min="0.001" max={selectedProduct ? availableQuantity : undefined} step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
             </label>
             {formError && <p className="text-sm text-destructive">{formError}</p>}
             <div className="flex gap-2">
