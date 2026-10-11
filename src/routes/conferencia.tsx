@@ -44,6 +44,8 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const [reopenCamera, setReopenCamera] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
+  const [productExpiry, setProductExpiry] = useState("");
+  const [expiries, setExpiries] = useState<Record<string, string>>({});
 
   if (!note) return null;
 
@@ -55,6 +57,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const openProduct = (product: typeof products[number]) => {
     setSelectedProduct(product);
     setProductQty("");
+    setProductExpiry(expiries[product.id] ?? "");
   };
 
   const saveProductQty = () => {
@@ -62,8 +65,10 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     const n = Number(productQty.replace(",", "."));
     if (!Number.isFinite(n) || n <= 0) return;
     setCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
+    if (productExpiry) setExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
     setSelectedProduct(null);
     setProductQty("");
+    setProductExpiry("");
     if (reopenCamera) setCameraOpen(true);
   };
 
@@ -71,6 +76,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     const cid = actions.startReceivingConference(note.id);
     if (!cid) return;
     for (const i of note.items) actions.setCount(cid, i.productId, counts[i.productId] ?? 0);
+    for (const i of note.items) if (expiries[i.productId]) actions.setExpiry(cid, i.productId, expiries[i.productId]);
     actions.finishReceivingConference(cid);
     onBack();
   };
@@ -138,6 +144,9 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
         </div>
         <div className="label-mono mb-2">Quantidade desta coleta</div>
         <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="Ex.: 20" />
+        <div className="label-mono mt-4 mb-2">Validade (opcional)</div>
+        <input type="text" inputMode="numeric" maxLength={10} value={productExpiry} onChange={e => { const d = e.target.value.replace(/\D/g, "").slice(0, 8); setProductExpiry(d.replace(/^(\d{2})(\d)/, "$1/$2").replace(/^(\d{2}\/\d{2})(\d)/, "$1/$2")); }} className="field w-full text-foreground text-lg font-mono" placeholder="DD/MM/AAAA" />
+        <div className="mt-1 text-[10px] text-muted-foreground">Digite 10102026 para preencher 10/10/2026. Não é obrigatório.</div>
         <button onClick={saveProductQty} disabled={!productQty} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">+ Somar quantidade</button>
       </div>
     </div>}
