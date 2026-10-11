@@ -7,7 +7,7 @@ export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined };
-export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; unit: "un" | "kg" };
+export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type ReceivingNote = {
   id: string;
@@ -28,6 +28,7 @@ export type Conference = {
   unknown: string[];
   adjusted?: boolean;
   receivingId?: string;
+  expiries?: Record<string, string>;
 };
 
 type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; suppliers: Supplier[]; settings: AppSettings };
@@ -356,6 +357,9 @@ export const actions = {
   setCount(confId: string, productId: string, n: number) {
     actions.patchConference(confId, (c) => ({ ...c, counts: { ...c.counts, [productId]: Math.max(0, n) } }));
   },
+  setExpiry(confId: string, productId: string, expiry: string) {
+    actions.patchConference(confId, (c) => ({ ...c, expiries: { ...(c.expiries ?? {}), [productId]: expiry } }));
+  },
   finishConference(id: string, adjust: boolean) {
     const conf = state.conferences.find((c) => c.id === id);
     if (!conf) return;
@@ -420,7 +424,7 @@ export const actions = {
     set({
       receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
         ...n,
-        items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0 })),
+        items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0, expiry: conf.expiries?.[i.productId] || undefined })),
         status: divergent ? "divergente" : "conferido",
         stockReleased: false,
       } : n),
