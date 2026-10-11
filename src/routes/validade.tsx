@@ -11,6 +11,7 @@ export const Route = createFileRoute("/validade")({
 function ValidadeProdutos() {
   const notes = useStore((s) => s.receiving ?? []);
   const products = useStore((s) => s.products);
+  const manualExpiries = useStore((s) => s.manualExpiries ?? []);
   const [order, setOrder] = useState<"shortest" | "longest">("shortest");
   const [showAdd, setShowAdd] = useState(false);
   const [productId, setProductId] = useState("");
