@@ -41,11 +41,6 @@ function Gerencia() {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [details, setDetails] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(() => localDateKey().slice(0, 7));
-  const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
-  const [rangeStart, setRangeStart] = useState(() => localDateKey());
-  const [rangeEnd, setRangeEnd] = useState(() => localDateKey());
 
   useEffect(() => {
     const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
@@ -67,15 +62,7 @@ function Gerencia() {
   const todaySales = todays.reduce((sum, s) => sum + s.total, 0);
   const todayProfit = todays.reduce((sum, s) => sum + saleProfit(s, products), 0);
   const low = products.filter((p) => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock).slice(0, 6);
-  const periodSales = useMemo(() => sales.filter((s) => {
-    const saleDate = localDateKey(new Date(s.date));
-    if (dateFilterMode === "month") return saleDate.slice(0, 7) === selectedMonth;
-    return saleDate >= rangeStart && saleDate <= rangeEnd && rangeStart <= rangeEnd;
-  }), [sales, dateFilterMode, selectedMonth, rangeStart, rangeEnd]);
-  const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
-  const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
-  const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
-  const periodLabel = dateFilterMode === "month" ? monthLabel : `${new Date(rangeStart + "T12:00:00").toLocaleDateString("pt-BR")} a ${new Date(rangeEnd + "T12:00:00").toLocaleDateString("pt-BR")}`;
+
 
   useEffect(() => {
     let active = true;
@@ -214,9 +201,6 @@ function Gerencia() {
             <h1 className="mt-1 font-display text-4xl tracking-wide text-heading">Resumo rápido da operação de hoje.</h1>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setDetails((v) => !v)} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
-              {details ? "Fechar detalhes" : "Ver mais detalhes"}
-            </button>
             <button onClick={lockManagement} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
               🔒 Bloquear gerência
             </button>
@@ -241,8 +225,7 @@ function Gerencia() {
             </button>
           ))}
         </div>
-        {details && (
-          <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
+        <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div><div className="font-bold text-heading">Detalhes por mês</div><div className="mt-1 text-sm text-muted-foreground">Consulte vendas e lucro de qualquer mês.</div></div>
               <div className="flex flex-wrap items-end gap-3">
