@@ -225,29 +225,6 @@ function Gerencia() {
             </button>
           ))}
         </div>
-        <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div><div className="font-bold text-heading">Detalhes por mês</div><div className="mt-1 text-sm text-muted-foreground">Consulte vendas e lucro de qualquer mês.</div></div>
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="text-xs font-medium text-muted-foreground">Filtrar por
-                  <select value={dateFilterMode} onChange={(e) => setDateFilterMode(e.target.value as "month" | "range")} className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
-                    <option value="month">Mês</option><option value="range">Período personalizado</option>
-                  </select>
-                </label>
-                {dateFilterMode === "month" ? (
-                  <label className="text-xs font-medium text-muted-foreground">Selecionar mês
-                    <input type="month" aria-label="Selecionar mês" value={selectedMonth} onChange={(e) => e.target.value && setSelectedMonth(e.target.value)} className="mt-1 block cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
-                  </label>
-                ) : (
-                  <>
-                    <label className="text-xs font-medium text-muted-foreground">Data inicial
-                      <input type="date" aria-label="Data inicial" value={rangeStart} max={rangeEnd} onChange={(e) => e.target.value && setRangeStart(e.target.value)} className="mt-1 block cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
-                    </label>
-                    <label className="text-xs font-medium text-muted-foreground">Data final
-                      <input type="date" aria-label="Data final" value={rangeEnd} min={rangeStart} onChange={(e) => e.target.value && setRangeEnd(e.target.value)} className="mt-1 block cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
-                    </label>
-                  </>
-                )}
               </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
