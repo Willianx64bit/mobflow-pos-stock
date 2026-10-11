@@ -37,6 +37,8 @@ function Gerencia() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
+  const receiving = useStore((s) => s.receiving ?? []);
+  const manualExpiries = useStore((s) => s.manualExpiries ?? []);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -62,6 +64,34 @@ function Gerencia() {
   const todaySales = todays.reduce((sum, s) => sum + s.total, 0);
   const todayProfit = todays.reduce((sum, s) => sum + saleProfit(s, products), 0);
   const low = products.filter((p) => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock).slice(0, 6);
+
+  const expiryItems = useMemo(() => {
+    const fromNotes = receiving
+      .filter((note) => note.source !== "manual")
+      .flatMap((note) => note.items
+        .filter((item) => !!item.expiry)
+        .map((item) => ({
+          id: note.id + "-" + item.productId + "-" + item.expiry,
+          name: item.name,
+          quantity: item.received ?? item.expected ?? 0,
+          expiry: item.expiry!,
+          unit: item.unit,
+        })));
+    const manual = manualExpiries.map((item) => ({
+      id: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      expiry: item.expiry,
+      unit: item.unit,
+    }));
+    const parseExpiry = (value: string) => {
+      const [day, month, year] = value.split("/").map(Number);
+      return new Date(year, month - 1, day).getTime();
+    };
+    return [...fromNotes, ...manual]
+      .sort((a, b) => parseExpiry(a.expiry) - parseExpiry(b.expiry))
+      .slice(0, 5);
+  }, [receiving, manualExpiries]);
 
 
   useEffect(() => {
@@ -231,6 +261,26 @@ function Gerencia() {
           {low.length === 0 ? <div className="mt-3 text-sm text-muted-foreground">Nenhum produto com estoque baixo.</div> : (
             <div className="mt-3 divide-y divide-border">{low.map((p) => (
               <div key={p.id} className="flex items-center justify-between py-3 text-sm"><span className="font-medium text-heading">{p.name}</span><span className="font-mono text-muted-foreground">{p.stock} / mín. {p.minStock}</span></div>
+            ))}</div>
+          )}
+        </section>
+        <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="font-bold text-heading">Validade dos produtos</div>
+            <button onClick={() => navigate({ to: "/validade" })} className="rounded-xl bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground hover:bg-accent">Ver todas</button>
+          </div>
+          {expiryItems.length === 0 ? <div className="mt-3 text-sm text-muted-foreground">Nenhuma validade cadastrada.</div> : (
+            <div className="mt-3 divide-y divide-border">{expiryItems.map((item) => (
+              <div key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-heading">{item.name}</div>
+                  <div className="text-xs text-muted-foreground">Validade: {item.expiry}</div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="font-mono text-muted-foreground">{item.quantity} {item.unit === "kg" ? "kg" : "un."}</div>
+                  <div className="text-[10px] text-muted-foreground">a vencer</div>
+                </div>
+              </div>
             ))}</div>
           )}
         </section>
