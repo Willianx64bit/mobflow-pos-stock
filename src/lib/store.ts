@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 
 export type Product = { id: string; code: string; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
+export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
@@ -33,7 +34,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; suppliers: Supplier[]; settings: AppSettings };
+type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -53,7 +54,7 @@ const seed: Product[] = [
   id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
 }));
 
-let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], suppliers: [], settings: { companyName: "" } };
+let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], promotions: [], suppliers: [], settings: { companyName: "" } };
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
@@ -68,7 +69,7 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], suppliers: remote.suppliers };
+  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], promotions: local.promotions ?? remote.promotions ?? [], suppliers: remote.suppliers };
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
@@ -94,6 +95,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     conferences: mergeById(local.conferences, remote.conferences),
     receiving: mergeById(local.receiving, remote.receiving),
     manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
+    promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
     suppliers: (() => {
       const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
       for (const s of local.suppliers) if (!map.has(s.name.toLowerCase())) map.set(s.name.toLowerCase(), s);
@@ -121,6 +123,7 @@ function normalizeState() {
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
   state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
   state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
+  state.promotions = Array.isArray(state.promotions) ? state.promotions : [];
   const legacyManual = state.receiving.filter((n) => n.source === "manual");
   if (legacyManual.length) {
     const knownIds = new Set(state.manualExpiries.map((e) => e.id));
@@ -225,7 +228,7 @@ export async function hydrateStore() {
     } else if (!error && !localOwner) {
       load();
     } else if (!error) {
-      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
+      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], promotions: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
     }
     normalizeState();
 
@@ -257,6 +260,13 @@ export function useStore<T>(sel: (s: State) => T): T {
   );
 }
 
+export function effectivePrice(product: Product, at = new Date()): number {
+  const promotion = (state.promotions ?? [])
+    .filter((promo) => promo.productId === product.id && new Date(promo.startsAt).getTime() <= at.getTime() && new Date(promo.endsAt).getTime() >= at.getTime())
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())[0];
+  return promotion ? promotion.promoPrice : product.price;
+}
+
 export const actions = {
   addToCart(productId: string, qty = 1) {
     const p = state.products.find((x) => x.id === productId);
@@ -285,7 +295,7 @@ export const actions = {
     if (!state.cart.length) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
-      return { name: p.name, price: p.price, cost: p.cost, qty: c.qty, unit: p.unit };
+      return { name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
@@ -322,6 +332,14 @@ export const actions = {
     actions.addFiadoPayment(id, sale.total);
   },
   updateSettings(settings: AppSettings) { set({ settings }); },
+  savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
+    const product = state.products.find((p) => p.id === promotion.productId);
+    if (!product || !Number.isFinite(promotion.promoPrice) || promotion.promoPrice < 0 || !promotion.startsAt || !promotion.endsAt || new Date(promotion.endsAt) <= new Date(promotion.startsAt)) return false;
+    const item: Promotion = { ...promotion, id: promotion.id ?? uid(), productName: product.name, originalPrice: product.price };
+    set({ promotions: promotion.id ? state.promotions.map((p) => p.id === promotion.id ? item : p) : [item, ...state.promotions] });
+    return true;
+  },
+  deletePromotion(id: string) { set({ promotions: state.promotions.filter((p) => p.id !== id) }); },
   resetAppData() {
     set({ products: [], cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], settings: state.settings });
   },
