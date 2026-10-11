@@ -63,6 +63,8 @@ function Configuracoes() {
   const [userMessage, setUserMessage] = useState("");
   const [userError, setUserError] = useState("");
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [usersDetailsOpen, setUsersDetailsOpen] = useState(false);
+  const [addUserOpen, setAddUserOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -248,32 +250,75 @@ function Configuracoes() {
           </div>
 
           <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-5">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-heading">Usuários do PDV</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Crie e gerencie os usuários que terão acesso somente ao ponto de venda.</p>
               </div>
-              <button onClick={() => void loadPdvUsers()} className="rounded-xl bg-secondary px-3 py-2 text-sm text-secondary-foreground">Atualizar</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const opening = !usersDetailsOpen;
+                  setUsersDetailsOpen(opening);
+                  if (opening) void loadPdvUsers();
+                  else setAddUserOpen(false);
+                }}
+                className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"
+              >
+                {usersDetailsOpen ? "Ocultar detalhes" : "Ver detalhes"}
+              </button>
             </div>
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-              <input value={userName} onChange={e => setUserName(e.target.value)} placeholder="Nome do operador" className="field text-sm text-foreground" />
-              <input value={userUsername} onChange={e => setUserUsername(e.target.value.toUpperCase())} placeholder="Usuário" className="field text-sm text-foreground" />
-              <input value={userPassword} onChange={e => setUserPassword(e.target.value)} type="password" placeholder="Senha (mín. 6)" className="field text-sm text-foreground" />
-            </div>
-            {userError && <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{userError}</div>}
-            {userMessage && <div className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">{userMessage}</div>}
-            <button onClick={() => void createPdvUser()} disabled={userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">Criar usuário do PDV</button>
-            <div className="mt-5 border-t border-border/50 pt-4">
-              {usersLoading ? <div className="py-4 text-center text-sm text-muted-foreground">Carregando usuários...</div> : pdvUsers.length === 0 ? <div className="py-4 text-center text-sm text-muted-foreground">Nenhum usuário de PDV cadastrado.</div> : pdvUsers.map(user => (
-                <div key={user.id} className="flex flex-wrap items-center gap-2 border-b border-border/40 py-3 last:border-0">
-                  <div className="flex-1 min-w-40"><div className="font-semibold text-foreground">{user.display_name || user.username}</div><div className="font-mono text-[11px] text-muted-foreground">@{user.username}</div></div>
-                  <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold">{user.active ? "Ativo" : "Desativado"}</span>
-                  <button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
-                  <button onClick={() => void togglePdvUser(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{user.active ? "Desativar" : "Ativar"}</button>
-                  <button onClick={() => void deletePdvUser(user)} disabled={deletingUserId === user.id} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">{deletingUserId === user.id ? "Excluindo..." : "Excluir"}</button>
+
+            {usersDetailsOpen && (
+              <div className="mt-4 border-t border-border/50 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-muted-foreground">
+                    {pdvUsers.length} {pdvUsers.length === 1 ? "usuário cadastrado" : "usuários cadastrados"}
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => void loadPdvUsers()} className="rounded-xl bg-secondary px-3 py-2 text-sm text-secondary-foreground">Atualizar</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddUserOpen((open) => !open);
+                        setUserError("");
+                        setUserMessage("");
+                      }}
+                      className="rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground"
+                    >
+                      {addUserOpen ? "Cancelar cadastro" : "+ Adicionar usuário"}
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
+
+                {addUserOpen && (
+                  <div className="mt-4 rounded-xl border border-border/60 bg-white p-4">
+                    <h3 className="mb-3 font-semibold text-heading">Novo usuário do PDV</h3>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                      <input value={userName} onChange={e => setUserName(e.target.value)} placeholder="Nome do operador" className="field text-sm text-foreground" />
+                      <input value={userUsername} onChange={e => setUserUsername(e.target.value.toUpperCase())} placeholder="Usuário" className="field text-sm text-foreground" />
+                      <input value={userPassword} onChange={e => setUserPassword(e.target.value)} type="password" placeholder="Senha (mín. 6)" className="field text-sm text-foreground" />
+                    </div>
+                    <button type="button" onClick={() => void createPdvUser()} disabled={userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">Criar usuário do PDV</button>
+                  </div>
+                )}
+
+                {userError && <div className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{userError}</div>}
+                {userMessage && <div className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">{userMessage}</div>}
+
+                <div className="mt-4">
+                  {usersLoading ? <div className="py-4 text-center text-sm text-muted-foreground">Carregando usuários...</div> : pdvUsers.length === 0 ? <div className="py-4 text-center text-sm text-muted-foreground">Nenhum usuário de PDV cadastrado.</div> : pdvUsers.map(user => (
+                    <div key={user.id} className="flex flex-wrap items-center gap-2 border-b border-border/40 py-3 last:border-0">
+                      <div className="min-w-40 flex-1"><div className="font-semibold text-foreground">{user.display_name || user.username}</div><div className="font-mono text-[11px] text-muted-foreground">@{user.username}</div></div>
+                      <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold">{user.active ? "Ativo" : "Desativado"}</span>
+                      <button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
+                      <button onClick={() => void togglePdvUser(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{user.active ? "Desativar" : "Ativar"}</button>
+                      <button onClick={() => void deletePdvUser(user)} disabled={deletingUserId === user.id} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">{deletingUserId === user.id ? "Excluindo..." : "Excluir"}</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-2xl border border-border/60 p-5">
