@@ -7,7 +7,7 @@ export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
-export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined };
+export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type ReceivingNote = {
@@ -324,6 +324,14 @@ export const actions = {
     const costTotal = sale.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = isPaid ? sale.total - costTotal : 0;
     set({ sales: state.sales.map((s) => s.id === id ? { ...s, payments: nextPayments, paid: isPaid, paidAt: isPaid ? new Date().toISOString() : undefined, profit } : s) });
+    return true;
+  },
+  hideFiadoCustomer(customer: string) {
+    const normalized = customer.trim().toLocaleLowerCase();
+    if (!normalized) return false;
+    const matching = state.sales.filter((s) => s.payment === "Fiado" && (s.customer || "Cliente não informado").trim().toLocaleLowerCase() === normalized);
+    if (!matching.length) return false;
+    set({ sales: state.sales.map((s) => matching.some((item) => item.id === s.id) ? { ...s, hiddenFromFiado: true } : s) });
     return true;
   },
   markFiadoPaid(id: string) {
