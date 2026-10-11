@@ -89,7 +89,7 @@ function Promotions() {
         </section>
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="font-bold text-heading">{editingId ? "Editar promoção" : "Nova promoção"}</h2>
+            <h2 className="font-bold text-heading">{editingId ? "Editar promoção" : formOpen ? "Cadastro de promoção" : "Promoções cadastradas"}</h2>
             {!formOpen && <button type="button" onClick={() => { resetForm(); setFormOpen(true); }} className="rounded-xl bg-primary px-4 py-2.5 font-bold text-primary-foreground">+ Nova promoção</button>}
             {formOpen && <button type="button" onClick={resetForm} className="rounded-xl bg-secondary px-4 py-2.5 font-medium text-secondary-foreground">Cancelar</button>}
           </div>
