@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, effectivePrice, norm, useStore, type Promotion } from "@/lib/store";
+import { actions, brl, norm, useStore, type Promotion } from "@/lib/store";
 
 export const Route = createFileRoute("/promocoes")({
   head: () => ({ meta: [{ title: "MobFlow — Promoções" }] }),
