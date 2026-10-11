@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { useStore } from "@/lib/store";
+import { actions, useStore } from "@/lib/store";
 import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/validade")({
@@ -12,11 +12,17 @@ function ValidadeProdutos() {
   const notes = useStore((s) => s.receiving ?? []);
   const products = useStore((s) => s.products);
   const [order, setOrder] = useState<"shortest" | "longest">("shortest");
+  const [showAdd, setShowAdd] = useState(false);
+  const [productId, setProductId] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [formError, setFormError] = useState("");
   const entries = useMemo(() => notes.flatMap((note) =>
     note.items.filter((item) => !!item.expiry).map((item) => ({
       ...item,
       noteNumber: note.number,
       supplier: note.supplier,
+      source: note.source,
     }))
   ), [notes]);
 
@@ -49,7 +55,50 @@ function ValidadeProdutos() {
       <AppHeader />
       <section className="glass p-4">
         <div className="font-display text-2xl tracking-[.12em] text-heading mb-1">VALIDADE DOS PRODUTOS</div>
-        <div className="label-mono mb-4">Produtos com validade informada durante a conferência</div>
+        <div className="label-mono mb-4">Produtos com validade cadastrada</div>
+
+        <button type="button" onClick={() => { setShowAdd((v) => !v); setFormError(""); }} className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">
+          <span className="text-xl leading-none">+</span> Adicionar validade manualmente
+        </button>
+
+        {showAdd && (
+          <form className="mb-5 space-y-3 rounded-xl border border-border p-4" onSubmit={(e) => {
+            e.preventDefault();
+            setFormError("");
+            const qty = Number(quantity.replace(",", "."));
+            if (!productId || !expiryDate || !Number.isFinite(qty) || qty <= 0) {
+              setFormError("Selecione o produto, informe a validade e uma quantidade maior que zero.");
+              return;
+            }
+            const result = actions.addManualExpiry(productId, expiryDate, qty);
+            if (result) {
+              setShowAdd(false);
+              setProductId("");
+              setExpiryDate("");
+              setQuantity("1");
+            } else {
+              setFormError("Não foi possível cadastrar essa validade.");
+            }
+          }}>
+            <label className="block text-sm font-medium">Produto
+              <select required value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground">
+                <option value="">Selecione um produto</option>
+                {products.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.code})</option>)}
+              </select>
+            </label>
+            <label className="block text-sm font-medium">Data de validade
+              <input required type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
+            </label>
+            <label className="block text-sm font-medium">Quantidade
+              <input required type="number" min="0.001" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
+            </label>
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 rounded-xl border border-border px-3 py-2.5">Cancelar</button>
+              <button type="submit" className="flex-1 rounded-xl bg-primary px-3 py-2.5 font-semibold text-primary-foreground">Salvar validade</button>
+            </div>
+          </form>
+        )}
 
         <div className="mb-4">
           <label className="label-mono block mb-2">Ordenar validade</label>
@@ -81,7 +130,7 @@ function ValidadeProdutos() {
                     <div className="font-semibold text-foreground">{item.name}</div>
                     <div className="font-mono text-[11px] text-muted-foreground">{product?.code || item.productId}</div>
                     <div className="mt-2 text-sm">Validade: <b>{item.expiry}</b></div>
-                    <div className="text-xs text-muted-foreground">NF {item.noteNumber} · {item.supplier}</div>
+                    <div className="text-xs text-muted-foreground">{item.source === "manual" ? "Cadastro manual" : <>NF {item.noteNumber} · {item.supplier}</>}</div>
                   </div>
                   <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
                 </div>
