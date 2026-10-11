@@ -4,13 +4,14 @@ import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { verifyManagerPassword } from "@/lib/manager-auth";
+import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent } from "lucide-react";
 
 const managementTabs = [
-  { to: "/estoque", label: "Estoque", icon: "▣" },
-  { to: "/vendas", label: "Vendas", icon: "▤" },
-  { to: "/recebimento", label: "Recebimento", icon: "⇩" },
-  { to: "/configuracoes", label: "Configurações", icon: "⚙" },
-  { to: "/promocoes", label: "Promoções", icon: "%" },
+  { to: "/estoque", label: "Estoque", icon: "stock" },
+  { to: "/vendas", label: "Vendas", icon: "sales" },
+  { to: "/recebimento", label: "Recebimento", icon: "receiving" },
+  { to: "/configuracoes", label: "Configurações", icon: "settings" },
+  { to: "/promocoes", label: "Promoções", icon: "promotions" },
 ] as const;
 
 const localDateKey = (d = new Date()) => {
@@ -184,7 +185,7 @@ function Gerencia() {
         <AppHeader />
         <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
           <div className="w-full max-w-md rounded-2xl bg-surface p-6 ring-1 ring-border sm:p-8">
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/15 text-2xl ring-1 ring-amber-500/30">🔒</div>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-600 ring-1 ring-green-600/20"><LockKeyhole className="h-6 w-6" /></div>
             <h1 className="mt-4 text-center font-display text-2xl text-heading">Acesso à Gerência</h1>
             <p className="mt-3 text-center text-sm leading-6 text-muted-foreground">{accessIssue}</p>
             <div className="mt-6 grid gap-2">
@@ -255,7 +256,7 @@ function Gerencia() {
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate({ to: "/vendas" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">Ver mais detalhes</button>
             <button onClick={lockManagement} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
-              🔒 Bloquear gerência
+              <LockKeyhole className="mr-2 inline h-4 w-4 text-green-600" />Bloquear gerência
             </button>
           </div>
         </div>
@@ -282,7 +283,7 @@ function Gerencia() {
                 navigate({ to: tab.to });
               }
             }} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:ring-primary/50">
-              <div className="text-2xl text-primary">{tab.icon}</div><div className="mt-3 font-bold text-heading">{tab.label}</div>
+              <div className="text-2xl text-green-600">{tab.icon === "settings" ? <Settings className="h-6 w-6" /> : tab.icon === "stock" ? <Package className="h-6 w-6" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-6 w-6" /> : tab.icon === "receiving" ? <Truck className="h-6 w-6" /> : tab.icon === "promotions" ? <Percent className="h-6 w-6" /> : null}</div><div className="mt-3 font-bold text-heading">{tab.label}</div>
             </button>
           ))}
         </div>
@@ -319,7 +320,7 @@ function Gerencia() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="promotion-password-title">
           <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl ring-1 ring-border">
             <div className="text-center">
-              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-primary/15 text-2xl text-primary">🔒</div>
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-600"><LockKeyhole className="h-5 w-5" /></div>
               <h2 id="promotion-password-title" className="mt-3 font-display text-2xl text-heading">Confirmar senha da gerência</h2>
               <p className="mt-2 text-sm text-muted-foreground">Digite novamente a senha para acessar Promoções.</p>
             </div>
