@@ -227,6 +227,7 @@ export async function hydrateStore() {
     } else if (!error) {
       state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
     }
+    normalizeState();
 
     try {
       localStorage.setItem(OWNER_KEY, accountId);
