@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
-import { actions, brl, buildPixPayload, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -24,6 +24,9 @@ function PDV() {
   const sales = useStore((s) => s.sales);
   const settings = useStore((s) => s.settings);
   const cart = useStore((s) => s.cart);
+  const promotions = useStore((s) => s.promotions ?? []);
+  const [, setPriceClock] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setPriceClock((v) => v + 1), 15000); return () => clearInterval(timer); }, []);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const [payment, setPayment] = useState<Payment>("Pix");
@@ -140,7 +143,7 @@ function PDV() {
   }, [q, products]);
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
-  const subtotal = lines.reduce((s, l) => s + l.p.price * l.qty, 0);
+  const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
   const discountNumber = Number(discountInput.replace(",", ".")) || 0;
   const discount = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discountNumber)) / 100 : Math.min(subtotal, Math.max(0, discountNumber));
   const total = Math.max(0, subtotal - discount);
@@ -282,7 +285,7 @@ function PDV() {
                   </div>
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
                   <div className="mt-auto pt-2 text-center">
-                    <div className="text-xl font-bold leading-none text-heading">{p.unit === "kg" ? `R$ ${brl(p.price)} kg` : `R$ ${brl(p.price)}`}</div>
+                    <div className="text-xl font-bold leading-none text-heading">{p.unit === "kg" ? `R$ ${brl(effectivePrice(p))} kg` : `R$ ${brl(effectivePrice(p))}`}</div>
                     <div className={`mt-1 font-mono text-[11px] ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
                     </div>
@@ -305,7 +308,7 @@ function PDV() {
               <div key={p.id} className="py-3 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] font-semibold text-foreground truncate">{p.name}</div>
-                  <div className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? `${brl(p.price)}/kg × ${brl(qty)}kg` : `${brl(p.price)} × ${qty}`} = <span className="text-subtle">{brl(p.price * qty)}</span></div>
+                  <div className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
                   <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
