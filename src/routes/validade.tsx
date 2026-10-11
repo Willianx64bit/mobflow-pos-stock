@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 import { useMemo, useState } from "react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/validade")({
   head: () => ({ meta: [{ title: "MobFlow — Validade dos produtos" }, { name: "description", content: "Produtos recebidos com validade cadastrada." }] }),
@@ -92,7 +93,7 @@ function ValidadeProdutos() {
           setShowAdd((v) => !v);
           setFormError("");
         }} className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">
-          <span className="text-xl leading-none">+</span> Adicionar validade manualmente
+          <Plus className="h-4 w-4 text-green-600" /> Adicionar validade manualmente
         </button>
 
         {showAdd && (
@@ -226,13 +227,13 @@ function ValidadeProdutos() {
                       setFormError("");
                       setShowAdd(true);
                       setProductPickerOpen(false);
-                    }} className="grid h-10 w-10 place-items-center rounded-lg border border-border text-foreground hover:bg-accent">
-                      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+                    }} className="grid h-10 w-10 place-items-center rounded-lg border border-green-600/30 text-green-600 hover:bg-green-600/10">
+                      <Pencil className="h-[18px] w-[18px]" aria-hidden="true" />
                     </button>
                     <button type="button" aria-label="Excluir validade" title="Excluir validade" onClick={() => {
                       if (window.confirm("Deseja excluir este cadastro de validade?")) actions.deleteManualExpiry(item.noteId);
                     }} className="grid h-10 w-10 place-items-center rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/10">
-                      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
+                      <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
                     </button>
                   </div>
                 )}
