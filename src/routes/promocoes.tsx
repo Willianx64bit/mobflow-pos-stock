@@ -29,6 +29,7 @@ function Promotions() {
   const [endsAt, setEndsAt] = useState("");
   const [editingId, setEditingId] = useState<string | undefined>();
   const [error, setError] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -45,9 +46,10 @@ function Promotions() {
   }, [products, search]);
 
   const resetForm = () => {
-    setEditingId(undefined); setProductId(""); setSearch(""); setPromoPrice(""); setStartsAt(""); setEndsAt(""); setError("");
+    setEditingId(undefined); setProductId(""); setSearch(""); setPromoPrice(""); setStartsAt(""); setEndsAt(""); setError(""); setFormOpen(false);
   };
   const edit = (promo: Promotion) => {
+    setFormOpen(true);
     setEditingId(promo.id);
     setProductId(promo.productId);
     const product = products.find((p) => p.id === promo.productId);
@@ -86,7 +88,12 @@ function Promotions() {
           </div>
         </section>
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
-          <h2 className="font-bold text-heading">{editingId ? "Editar promoção" : "Criar promoção"}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-bold text-heading">{editingId ? "Editar promoção" : "Nova promoção"}</h2>
+            {!formOpen && <button type="button" onClick={() => { resetForm(); setFormOpen(true); }} className="rounded-xl bg-primary px-4 py-2.5 font-bold text-primary-foreground">+ Nova promoção</button>}
+            {formOpen && <button type="button" onClick={resetForm} className="rounded-xl bg-secondary px-4 py-2.5 font-medium text-secondary-foreground">Cancelar</button>}
+          </div>
+          {formOpen && (
           <div className="mt-4 space-y-4">
             <div>
               <label className="text-sm font-medium text-heading">Pesquisar produto por código ou descrição</label>
@@ -102,6 +109,8 @@ function Promotions() {
             {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
             <div className="flex gap-2"><button onClick={save} className="rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">{editingId ? "Salvar alterações" : "Criar promoção"}</button>{editingId && <button onClick={resetForm} className="rounded-xl bg-secondary px-5 py-3 font-medium text-secondary-foreground">Cancelar</button>}</div>
           </div>
+
+          )}
         </section>
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
           <h2 className="font-bold text-heading">Promoções cadastradas</h2>
