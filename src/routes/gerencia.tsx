@@ -42,7 +42,10 @@ function Gerencia() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [details, setDetails] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(() => localDateKey().slice(0, 7));
+  const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
+  const [rangeStart, setRangeStart] = useState(() => localDateKey());
+  const [rangeEnd, setRangeEnd] = useState(() => localDateKey());
 
   useEffect(() => {
     const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
@@ -64,10 +67,15 @@ function Gerencia() {
   const todaySales = todays.reduce((sum, s) => sum + s.total, 0);
   const todayProfit = todays.reduce((sum, s) => sum + saleProfit(s, products), 0);
   const low = products.filter((p) => p.stock <= p.minStock).sort((a, b) => a.stock - b.stock).slice(0, 6);
-  const periodSales = useMemo(() => sales.filter((s) => new Date(s.date).toISOString().slice(0, 7) === selectedMonth), [sales, selectedMonth]);
+  const periodSales = useMemo(() => sales.filter((s) => {
+    const saleDate = localDateKey(new Date(s.date));
+    if (dateFilterMode === "month") return saleDate.slice(0, 7) === selectedMonth;
+    return saleDate >= rangeStart && saleDate <= rangeEnd && rangeStart <= rangeEnd;
+  }), [sales, dateFilterMode, selectedMonth, rangeStart, rangeEnd]);
   const periodTotal = periodSales.reduce((sum, s) => sum + s.total, 0);
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
   const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  const periodLabel = dateFilterMode === "month" ? monthLabel : `${new Date(rangeStart + "T12:00:00").toLocaleDateString("pt-BR")} a ${new Date(rangeEnd + "T12:00:00").toLocaleDateString("pt-BR")}`;
 
   useEffect(() => {
     let active = true;
@@ -237,15 +245,35 @@ function Gerencia() {
           <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div><div className="font-bold text-heading">Detalhes por mês</div><div className="mt-1 text-sm text-muted-foreground">Consulte vendas e lucro de qualquer mês.</div></div>
-              <label className="text-xs font-medium text-muted-foreground">Filtrar mês<input type="month" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" /></label>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-xs font-medium text-muted-foreground">Filtrar por
+                  <select value={dateFilterMode} onChange={(e) => setDateFilterMode(e.target.value as "month" | "range")} className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground">
+                    <option value="month">Mês</option><option value="range">Período personalizado</option>
+                  </select>
+                </label>
+                {dateFilterMode === "month" ? (
+                  <label className="text-xs font-medium text-muted-foreground">Selecionar mês
+                    <input type="month" aria-label="Selecionar mês" value={selectedMonth} onChange={(e) => e.target.value && setSelectedMonth(e.target.value)} className="mt-1 block cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
+                  </label>
+                ) : (
+                  <>
+                    <label className="text-xs font-medium text-muted-foreground">Data inicial
+                      <input type="date" aria-label="Data inicial" value={rangeStart} max={rangeEnd} onChange={(e) => e.target.value && setRangeStart(e.target.value)} className="mt-1 block cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
+                    </label>
+                    <label className="text-xs font-medium text-muted-foreground">Data final
+                      <input type="date" aria-label="Data final" value={rangeEnd} min={rangeStart} onChange={(e) => e.target.value && setRangeEnd(e.target.value)} className="mt-1 block cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
+                    </label>
+                  </>
+                )}
+              </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Vendas</div><div className="mt-1 text-xl font-bold text-heading">{brl(periodTotal)}</div><div className="text-xs text-muted-foreground">{periodSales.length} venda(s)</div></div>
               <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Lucro</div><div className="mt-1 text-xl font-bold text-primary">{brl(periodProfit)}</div><div className="text-xs text-muted-foreground">somente lucro das vendas</div></div>
-              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Mês selecionado</div><div className="mt-1 text-xl font-bold capitalize text-heading">{monthLabel}</div><div className="text-xs text-muted-foreground">filtro aplicado</div></div>
+              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Mês selecionado</div><div className="mt-1 text-xl font-bold capitalize text-heading">{periodLabel}</div><div className="text-xs text-muted-foreground">filtro aplicado</div></div>
             </div>
             {periodSales.length > 0 && <div className="mt-4 divide-y divide-border/50">{periodSales.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-right"><div className="text-sm font-semibold text-heading">{brl(s.total)}</div><div className="text-xs text-primary">Lucro {brl(saleProfit(s, products))}</div></div></div>)}</div>}
-            {periodSales.length === 0 && <div className="mt-4 rounded-xl bg-secondary/50 p-4 text-center text-sm text-muted-foreground">Nenhuma venda registrada em {monthLabel}.</div>}
+            {periodSales.length === 0 && <div className="mt-4 rounded-xl bg-secondary/50 p-4 text-center text-sm text-muted-foreground">Nenhuma venda registrada em {periodLabel}.</div>}
           </section>
         )}
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
