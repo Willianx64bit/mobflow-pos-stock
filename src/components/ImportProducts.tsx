@@ -7,8 +7,6 @@ type Row = { code: string; name: string; qty: number; price?: number | undefined
 export function downloadTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
     ["Código", "Descrição", "Quantidade", "Preço (opcional)"],
-    ["7891000100103", "Café 500g", 10, 18.9],
-    ["7894900011517", "Refrigerante 2L", 24, ""],
   ]);
   ws["!cols"] = [{ wch: 18 }, { wch: 32 }, { wch: 12 }, { wch: 16 }];
   const wb = XLSX.utils.book_new();
