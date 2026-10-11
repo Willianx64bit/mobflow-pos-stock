@@ -18,6 +18,7 @@ export type ReceivingNote = {
   items: ReceivingItem[];
   status: "pendente" | "conferido" | "divergente" | "aceito" | "rejeitado";
   stockReleased?: boolean;
+  source?: "manual";
 };
 export type Conference = {
   id: string;
@@ -365,6 +366,26 @@ export const actions = {
     if (!conf) return;
     const products = adjust ? state.products.map((p) => (p.id in conf.counts ? { ...p, stock: conf.counts[p.id]! } : p)) : state.products;
     set({ products, conferences: state.conferences.map((c) => (c.id === id ? { ...c, status: "finalizada", adjusted: adjust } : c)) });
+  },
+  addManualExpiry(productId: string, expiry: string, quantity: number) {
+    const product = state.products.find((p) => p.id === productId);
+    if (!product || !expiry || !Number.isFinite(quantity) || quantity <= 0) return false;
+    const [year, month, day] = expiry.split("-").map(Number);
+    const formattedExpiry = year && month && day
+      ? `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+      : expiry;
+    const note: ReceivingNote = {
+      id: uid(),
+      number: "Cadastro manual",
+      supplier: "",
+      date: new Date().toISOString(),
+      items: [{ productId: product.id, name: product.name, expected: quantity, received: quantity, expiry: formattedExpiry, unit: product.unit }],
+      status: "aceito",
+      stockReleased: true,
+      source: "manual",
+    };
+    set({ receiving: [note, ...(state.receiving ?? [])] });
+    return true;
   },
   createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
     const receiving: ReceivingNote = {
