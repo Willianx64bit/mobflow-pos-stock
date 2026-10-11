@@ -225,17 +225,6 @@ function Gerencia() {
             </button>
           ))}
         </div>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Vendas</div><div className="mt-1 text-xl font-bold text-heading">{brl(periodTotal)}</div><div className="text-xs text-muted-foreground">{periodSales.length} venda(s)</div></div>
-              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Lucro</div><div className="mt-1 text-xl font-bold text-primary">{brl(periodProfit)}</div><div className="text-xs text-muted-foreground">somente lucro das vendas</div></div>
-              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100"><div className="text-xs uppercase tracking-wider text-muted-foreground">Mês selecionado</div><div className="mt-1 text-xl font-bold capitalize text-heading">{periodLabel}</div><div className="text-xs text-muted-foreground">filtro aplicado</div></div>
-            </div>
-            {periodSales.length > 0 && <div className="mt-4 divide-y divide-border/50">{periodSales.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{s.customer || s.items.map((i) => i.name).join(", ")}</div><div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div></div><div className="text-right"><div className="text-sm font-semibold text-heading">{brl(s.total)}</div><div className="text-xs text-primary">Lucro {brl(saleProfit(s, products))}</div></div></div>)}</div>}
-            {periodSales.length === 0 && <div className="mt-4 rounded-xl bg-secondary/50 p-4 text-center text-sm text-muted-foreground">Nenhuma venda registrada em {periodLabel}.</div>}
-          </section>
-        )}
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
           <div className="font-bold text-heading">Estoque baixo</div>
           {low.length === 0 ? <div className="mt-3 text-sm text-muted-foreground">Nenhum produto com estoque baixo.</div> : (
