@@ -387,6 +387,26 @@ export const actions = {
     set({ receiving: [note, ...(state.receiving ?? [])] });
     return true;
   },
+  updateManualExpiry(noteId: string, productId: string, expiry: string, quantity: number) {
+    const product = state.products.find((p) => p.id === productId);
+    const note = (state.receiving ?? []).find((n) => n.id === noteId && n.source === "manual");
+    if (!product || !note || !expiry || !Number.isFinite(quantity) || quantity <= 0) return false;
+    const [year, month, day] = expiry.split("-").map(Number);
+    const formattedExpiry = year && month && day
+      ? `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+      : expiry;
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === noteId ? {
+      ...n,
+      items: [{ productId: product.id, name: product.name, expected: quantity, received: quantity, expiry: formattedExpiry, unit: product.unit }],
+    } : n) });
+    return true;
+  },
+  deleteManualExpiry(noteId: string) {
+    const note = (state.receiving ?? []).find((n) => n.id === noteId && n.source === "manual");
+    if (!note) return false;
+    set({ receiving: (state.receiving ?? []).filter((n) => n.id !== noteId) });
+    return true;
+  },
   createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
     const receiving: ReceivingNote = {
       id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado", supplierCnpj: supplierCnpj?.trim() || undefined,
