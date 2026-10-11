@@ -5,13 +5,14 @@ import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 
 const tabs = [
-  { to: "/", label: "PDV", key: "F2", icon: "▣" },
-  { to: "/conferencia", label: "Conferência", key: "F7", icon: "✓" },
-  { to: "/validade", label: "Validade dos produtos", key: "", icon: "📅" },
-  { to: "/fiado", label: "Fiado", key: "", icon: "💳" },
-  { to: "/gerencia", label: "Acesso Gerência", key: "", icon: "🔒" },
+  { to: "/", label: "PDV", key: "F2", icon: "pdv" },
+  { to: "/conferencia", label: "Conferência", key: "F7", icon: "conference" },
+  { to: "/validade", label: "Validade dos produtos", key: "", icon: "expiry" },
+  { to: "/fiado", label: "Fiado", key: "", icon: "credit" },
+  { to: "/gerencia", label: "Acesso Gerência", key: "", icon: "management" },
 ] as const;
 
 export function AppHeader() {
@@ -105,11 +106,11 @@ export function AppHeader() {
       {pathname === "/" && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           <button type="button" onClick={() => setShowLogin(true)} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
-            👤 {pdvAuthorized ? username : "Usuário"}
+            <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
           </button>
           {pdvAuthorized && (
             <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair do usuário do PDV" title="Sair">
-              ⏻
+              <LogOut className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -135,7 +136,7 @@ export function AppHeader() {
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-[110] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-red-500/15 text-2xl text-red-600 ring-1 ring-red-500/30">⏻</div>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-red-500/15 text-2xl text-red-600 ring-1 ring-red-500/30"><LogOut className="h-6 w-6" /></div>
             <h2 className="mt-3 font-display text-2xl tracking-[.08em] text-heading">SAIR DO PDV?</h2>
             <p className="mt-2 text-sm text-muted-foreground">O usuário será desconectado das vendas. O PDV continuará disponível apenas para pesquisa.</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
@@ -154,18 +155,18 @@ export function AppHeader() {
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="w-6 text-center text-base">{t.icon}</span><span className="flex-1 text-left">{t.label}</span>{t.key && <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>}</button>)}
+              {tabs.map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "conference" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span>{t.key && <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>}</button>)}
             </nav>
             <div className="p-2 border-t border-border space-y-1">
               <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>
-              <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">{darkMode ? "☀️" : "🌙"}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span></button>
-              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); sessionStorage.removeItem("mobflow-pdv-authorized"); sessionStorage.removeItem("mobflow-management"); setPdvAuthorized(false); setUsername("Usuário"); window.dispatchEvent(new Event("mobflow-pdv-auth-changed")); window.dispatchEvent(new Event("mobflow-auth-changed")); navigate({ to: "/" }); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">↪ Sair da conta</button>
-              <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left">‹ Fechar menu</button>
+              <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">{darkMode ? <Sun className="inline h-4 w-4 text-green-600" /> : <Moon className="inline h-4 w-4 text-green-600" />}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span></button>
+              <button type="button" onClick={async () => { await supabase.auth.signOut(); localStorage.removeItem("mobflow-authenticated"); sessionStorage.removeItem("mobflow-role"); sessionStorage.removeItem("mobflow-username"); sessionStorage.removeItem("mobflow-pdv-authorized"); sessionStorage.removeItem("mobflow-management"); setPdvAuthorized(false); setUsername("Usuário"); window.dispatchEvent(new Event("mobflow-pdv-auth-changed")); window.dispatchEvent(new Event("mobflow-auth-changed")); navigate({ to: "/" }); }} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left"><LogOut className="mr-2 inline h-4 w-4 text-green-600" />Sair da conta</button>
+              <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left"><ChevronLeft className="mr-2 inline h-4 w-4 text-green-600" />Fechar menu</button>
             </div>
           </div>
         </aside>
       ) : (
-        <button type="button" onClick={toggleSidebar} className="fixed left-0 top-1/2 z-50 -translate-y-1/2 h-10 w-5 rounded-r-lg bg-popover/95 ring-1 ring-border text-foreground shadow-sm flex items-center justify-center hover:bg-accent transition-colors" aria-label="Abrir menu lateral" title="Abrir menu">›</button>
+        <button type="button" onClick={toggleSidebar} className="fixed left-0 top-1/2 z-50 -translate-y-1/2 h-10 w-5 rounded-r-lg bg-popover/95 ring-1 ring-border text-foreground shadow-sm flex items-center justify-center hover:bg-accent transition-colors" aria-label="Abrir menu lateral" title="Abrir menu"><ChevronRight className="h-4 w-4 text-green-600" /></button>
       )}
     </>,
     document.body,
