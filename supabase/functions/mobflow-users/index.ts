@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
 
     const { data: target } = await admin
       .from("profiles")
-      .select("id,account_id,role")
+      .select("id,username,cnpj,account_id,role")
       .eq("id", userId)
       .maybeSingle();
 
@@ -143,6 +143,22 @@ Deno.serve(async (req) => {
       if (password.length < 6) return json({ error: "A senha precisa ter pelo menos 6 caracteres." }, 400);
       const { error } = await admin.auth.admin.updateUserById(userId, { password });
       if (error) return json({ error: "Não foi possível trocar a senha." }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "delete") {
+      const { error: allowlistError } = await admin
+        .from("account_allowlist")
+        .update({ active: false })
+        .eq("username", target.username)
+        .eq("cnpj", manager.cnpj);
+      if (allowlistError) return json({ error: "Não foi possível remover a autorização do usuário. Nada foi excluído." }, 500);
+
+      const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+      if (deleteError) {
+        await admin.from("account_allowlist").update({ active: true }).eq("username", target.username).eq("cnpj", manager.cnpj);
+        return json({ error: "Não foi possível excluir o usuário. A autorização foi restaurada." }, 500);
+      }
       return json({ ok: true });
     }
 
