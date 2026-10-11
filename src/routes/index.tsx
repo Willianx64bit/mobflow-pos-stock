@@ -24,7 +24,7 @@ function PDV() {
   const sales = useStore((s) => s.sales);
   const settings = useStore((s) => s.settings);
   const cart = useStore((s) => s.cart);
-  const promotions = useStore((s) => s.promotions ?? []);
+  useStore((s) => s.promotions ?? []);
   const [, setPriceClock] = useState(0);
   useEffect(() => { const timer = setInterval(() => setPriceClock((v) => v + 1), 15000); return () => clearInterval(timer); }, []);
   const [q, setQ] = useState("");
@@ -457,7 +457,7 @@ function PDV() {
                 className="mt-3 w-full rounded-lg bg-background px-3 py-2 text-center font-mono text-sm text-foreground outline-none ring-1 ring-border focus:ring-primary"
               />
               <div className="mt-1 font-mono text-[11px] text-muted-foreground">Digite os gramas no teclado ou use os números abaixo</div>
-              <div className="mt-1 font-mono text-[12px] text-muted-foreground">R$ {brl(pendingWeight.price)}/kg · estoque {brl(pendingWeight.stock)} kg</div>
+              <div className="mt-1 font-mono text-[12px] text-muted-foreground">R$ {brl(effectivePrice(pendingWeight))}/kg · estoque {brl(pendingWeight.stock)} kg</div>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-4">
               {["1","2","3","4","5","6","7","8","9"].map((digit) => (
