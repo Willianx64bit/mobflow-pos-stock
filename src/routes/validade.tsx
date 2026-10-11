@@ -176,7 +176,7 @@ function ValidadeProdutos() {
                   </div>
                   <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
                 </div>
-                <div className="mt-3 text-xs text-muted-foreground">Quantidade recebida: {item.received ?? 0} {item.unit === "kg" ? "kg" : "un."}</div>
+                <div className="mt-3 text-xs text-muted-foreground">{item.source === "manual" ? "Quantidade contada" : "Quantidade recebida"}: {item.received ?? 0} {item.unit === "kg" ? "kg" : "un."}</div>
               </div>
             );
           })}
