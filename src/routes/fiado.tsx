@@ -50,7 +50,7 @@ function Fiado() {
     }
   };
 
-  const fiado = useMemo(() => sales.filter((s) => s.payment === "Fiado"), [sales]);
+  const fiado = useMemo(() => sales.filter((s) => s.payment === "Fiado" && !s.hiddenFromFiado), [sales]);
   const customers = useMemo(() => {
     const map = new Map<string, Sale[]>();
     fiado.forEach((s) => {
@@ -60,7 +60,7 @@ function Fiado() {
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [fiado]);
   const paidTotal = (s: Sale) => (s.payments ?? (s.paid ? [{ value: s.total, date: s.paidAt ?? s.date }] : [])).reduce((sum, p) => sum + p.value, 0);
-  const remaining = (s: Sale) => Math.max(0, s.total - paidTotal(s));
+  const remaining = (s: Sale) => { const balance = Math.round((s.total - paidTotal(s)) * 100) / 100; return balance <= 0.005 ? 0 : Math.max(0, balance); };
   const visibleCustomers = useMemo(() => customers.filter(([customer, customerSales]) => { const matchesSearch = customer.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()); const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0); const matchesFilter = filter === "todos" || (filter === "pendentes" ? balance > 0 : balance <= 0); return matchesSearch && matchesFilter; }), [customers, search, filter]);
   const open = fiado.filter((s) => remaining(s) > 0);
   const totalOpen = open.reduce((sum, s) => sum + remaining(s), 0);
@@ -98,6 +98,7 @@ function Fiado() {
                       <div className="text-right"><div className="font-display text-2xl text-destructive">R$ {brl(total)}</div><div className="text-[11px] text-muted-foreground">saldo restante</div></div>
                       <button onClick={() => setSelectedCustomer(customer)} className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20">👤 Ver cliente</button>
                       <button onClick={() => printFiadoBalance(customer, customerSales)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🖨 Imprimir saldo</button>
+                      <button onClick={() => { if (window.confirm(`Remover ${customer} da aba Fiado? As vendas e os lucros continuarão registrados em Vendas.`)) void confirmFiadoChange(() => { actions.hideFiadoCustomer(customer); if (selectedCustomer === customer) setSelectedCustomer(null); }); }} disabled={authorizing} className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 disabled:opacity-50">🗑 Excluir do Fiado</button>
                     </div>
                   </div>
                 );
