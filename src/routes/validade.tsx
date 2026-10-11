@@ -215,8 +215,8 @@ function ValidadeProdutos() {
                 </div>
                 <div className="mt-3 text-xs text-muted-foreground">{item.source === "manual" ? "Quantidade contada" : "Quantidade recebida"}: {item.received ?? 0} {item.unit === "kg" ? "kg" : "un."}</div>
                 {item.source === "manual" && (
-                  <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={() => {
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button type="button" aria-label="Editar validade" title="Editar validade" onClick={() => {
                       const [day, month, year] = (item.expiry ?? "").split("/");
                       setEditingNoteId(item.noteId);
                       setProductId(item.productId);
@@ -226,10 +226,14 @@ function ValidadeProdutos() {
                       setFormError("");
                       setShowAdd(true);
                       setProductPickerOpen(false);
-                    }} className="flex-1 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-accent">Editar</button>
-                    <button type="button" onClick={() => {
+                    }} className="grid h-10 w-10 place-items-center rounded-lg border border-border text-foreground hover:bg-accent">
+                      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/></svg>
+                    </button>
+                    <button type="button" aria-label="Excluir validade" title="Excluir validade" onClick={() => {
                       if (window.confirm("Deseja excluir este cadastro de validade?")) actions.deleteManualExpiry(item.noteId);
-                    }} className="flex-1 rounded-lg border border-destructive/40 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10">Excluir</button>
+                    }} className="grid h-10 w-10 place-items-center rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/10">
+                      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>
+                    </button>
                   </div>
                 )}
               </div>
