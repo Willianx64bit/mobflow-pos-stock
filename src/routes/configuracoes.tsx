@@ -62,6 +62,7 @@ function Configuracoes() {
   const [userPassword, setUserPassword] = useState("");
   const [userMessage, setUserMessage] = useState("");
   const [userError, setUserError] = useState("");
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -152,6 +153,22 @@ function Configuracoes() {
     });
     if (error || !data?.ok) setUserError(data?.error || "Não foi possível trocar a senha.");
     else setUserMessage("Senha alterada.");
+  };
+
+  const deletePdvUser = async (user: (typeof pdvUsers)[number]) => {
+    const confirmed = window.confirm(`Tem certeza que deseja excluir o usuário "${user.username}"? Ele perderá o acesso ao PDV. Esta ação não pode ser desfeita.`);
+    if (!confirmed) return;
+    setUserError("");
+    setUserMessage("");
+    setDeletingUserId(user.id);
+    const { data, error } = await callUsers({ body: { action: "delete", userId: user.id } });
+    setDeletingUserId(null);
+    if (error || !data?.ok) {
+      setUserError(data?.error || "Não foi possível excluir o usuário.");
+      return;
+    }
+    setUserMessage(`Usuário ${user.username} excluído com sucesso.`);
+    await loadPdvUsers();
   };
 
   const chooseLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -253,6 +270,7 @@ function Configuracoes() {
                   <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold">{user.active ? "Ativo" : "Desativado"}</span>
                   <button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
                   <button onClick={() => void togglePdvUser(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{user.active ? "Desativar" : "Ativar"}</button>
+                  <button onClick={() => void deletePdvUser(user)} disabled={deletingUserId === user.id} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">{deletingUserId === user.id ? "Excluindo..." : "Excluir"}</button>
                 </div>
               ))}
             </div>
