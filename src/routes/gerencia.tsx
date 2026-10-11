@@ -201,6 +201,7 @@ function Gerencia() {
             <h1 className="mt-1 font-display text-4xl tracking-wide text-heading">Resumo rápido da operação de hoje.</h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate({ to: "/vendas" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">Ver mais detalhes</button>
             <button onClick={lockManagement} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
               🔒 Bloquear gerência
             </button>
