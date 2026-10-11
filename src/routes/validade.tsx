@@ -14,6 +14,7 @@ function ValidadeProdutos() {
   const [order, setOrder] = useState<"shortest" | "longest">("shortest");
   const [showAdd, setShowAdd] = useState(false);
   const [productId, setProductId] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState("");
   const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [expiryDate, setExpiryDate] = useState("");
@@ -25,6 +26,7 @@ function ValidadeProdutos() {
       noteNumber: note.number,
       supplier: note.supplier,
       source: note.source,
+      noteId: note.id,
     }))
   ), [notes]);
 
@@ -59,7 +61,17 @@ function ValidadeProdutos() {
         <div className="font-display text-2xl tracking-[.12em] text-heading mb-1">VALIDADE DOS PRODUTOS</div>
         <div className="label-mono mb-4">Produtos com validade cadastrada</div>
 
-        <button type="button" onClick={() => { setShowAdd((v) => !v); setFormError(""); }} className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">
+        <button type="button" onClick={() => {
+          if (showAdd && editingNoteId) {
+            setEditingNoteId(null);
+            setProductId("");
+            setProductSearch("");
+            setExpiryDate("");
+            setQuantity("1");
+          }
+          setShowAdd((v) => !v);
+          setFormError("");
+        }} className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">
           <span className="text-xl leading-none">+</span> Adicionar validade manualmente
         </button>
 
@@ -72,9 +84,12 @@ function ValidadeProdutos() {
               setFormError("Selecione o produto, informe a validade e uma quantidade maior que zero.");
               return;
             }
-            const result = actions.addManualExpiry(productId, expiryDate, qty);
+            const result = editingNoteId
+              ? actions.updateManualExpiry(editingNoteId, productId, expiryDate, qty)
+              : actions.addManualExpiry(productId, expiryDate, qty);
             if (result) {
               setShowAdd(false);
+              setEditingNoteId(null);
               setProductId("");
               setProductSearch("");
               setProductPickerOpen(false);
@@ -85,6 +100,7 @@ function ValidadeProdutos() {
             }
           }}>
             <div className="relative">
+              <div className="font-semibold text-foreground">{editingNoteId ? "Editar validade manual" : "Nova validade manual"}</div>
               <label className="block text-sm font-medium" htmlFor="expiry-product-search">Produto</label>
               <input
                 id="expiry-product-search"
@@ -136,8 +152,8 @@ function ValidadeProdutos() {
             </label>
             {formError && <p className="text-sm text-destructive">{formError}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 rounded-xl border border-border px-3 py-2.5">Cancelar</button>
-              <button type="submit" className="flex-1 rounded-xl bg-primary px-3 py-2.5 font-semibold text-primary-foreground">Salvar validade</button>
+              <button type="button" onClick={() => { setShowAdd(false); setEditingNoteId(null); setProductId(""); setProductSearch(""); setExpiryDate(""); setQuantity("1"); }} className="flex-1 rounded-xl border border-border px-3 py-2.5">Cancelar</button>
+              <button type="submit" className="flex-1 rounded-xl bg-primary px-3 py-2.5 font-semibold text-primary-foreground">{editingNoteId ? "Salvar alterações" : "Salvar validade"}</button>
             </div>
           </form>
         )}
@@ -177,6 +193,24 @@ function ValidadeProdutos() {
                   <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${status.cls}`}>{status.label}</span>
                 </div>
                 <div className="mt-3 text-xs text-muted-foreground">{item.source === "manual" ? "Quantidade contada" : "Quantidade recebida"}: {item.received ?? 0} {item.unit === "kg" ? "kg" : "un."}</div>
+                {item.source === "manual" && (
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={() => {
+                      const [day, month, year] = (item.expiry ?? "").split("/");
+                      setEditingNoteId(item.noteId);
+                      setProductId(item.productId);
+                      setProductSearch(`${item.name} (${products.find((p) => p.id === item.productId)?.code ?? ""})`);
+                      setExpiryDate(year && month && day ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` : "");
+                      setQuantity(String(item.received ?? item.expected ?? 1));
+                      setFormError("");
+                      setShowAdd(true);
+                      setProductPickerOpen(false);
+                    }} className="flex-1 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-accent">Editar</button>
+                    <button type="button" onClick={() => {
+                      if (window.confirm("Deseja excluir este cadastro de validade?")) actions.deleteManualExpiry(item.noteId);
+                    }} className="flex-1 rounded-lg border border-destructive/40 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10">Excluir</button>
+                  </div>
+                )}
               </div>
             );
           })}
