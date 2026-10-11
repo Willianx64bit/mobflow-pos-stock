@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Camera, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
@@ -98,7 +99,7 @@ function PDV() {
   }, []);
 
   const requestAdd = (p: Product) => {
-    if (!pdvAuthorized) { setFlash("PDV bloqueado: clique em Usuário para liberar."); return; }
+    if (!pdvAuthorized) { setFlash("PDV bloqueado"); return; }
     if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
     actions.addToCart(p.id, 1);
     setFlash(`+1 ${p.name}`);
@@ -244,7 +245,7 @@ function PDV() {
         </div>
       )}
       <main className="grid lg:grid-cols-[1fr_380px] gap-4">
-        {!pdvAuthorized && <div className="lg:col-span-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25">🔒 PDV bloqueado para vendas — clique em <b>Usuário</b> no canto superior direito para liberar.</div>}
+        {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-3 field px-4 py-3">
@@ -261,7 +262,7 @@ function PDV() {
                 {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
               </span>
             </div>
-            <button disabled={!pdvAuthorized} onClick={() => setCam(true)} className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera">📷</button>
+            <button disabled={!pdvAuthorized} onClick={() => setCam(true)} className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera"><Camera className="h-5 w-5" /></button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
@@ -281,7 +282,7 @@ function PDV() {
                   className={`text-left rounded-xl bg-muted ring-1 p-3 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
                   <div className="aspect-[4/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
-                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : p.name.split(" ")[0]}
+                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
                   <div className="mt-auto pt-2 text-center">
@@ -302,7 +303,7 @@ function PDV() {
               );
             })}
           </div>
-          <p className="mt-3 font-mono text-[10px] text-muted-foreground">↑↓ navegar · 3*código multiplica · F6 pagamento · F8 limpar · Enter finalizar após atalho</p>
+          
         </section>
 
         <aside className="glass p-4 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
@@ -311,7 +312,7 @@ function PDV() {
             <span className="font-mono text-[11px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
-            {lines.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">carrinho vazio — busque ou clique num produto</p>}
+            {lines.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-white">carrinho vazio — busque ou clique num produto</p>}
             {lines.map(({ p, qty }) => (
               <div key={p.id} className="py-3 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
@@ -436,7 +437,7 @@ function PDV() {
               <p className="mt-2 font-mono text-sm text-foreground">Troco: R$ {brl(done.received - done.total)}</p>
             )}
             <button onClick={() => printReceipt(done)} className="mt-5 w-full rounded-xl bg-secondary ring-1 ring-border text-secondary-foreground font-semibold py-3 hover:text-foreground">
-              🧾 Gerar comprovante
+              <ReceiptText className="inline h-4 w-4 mr-2" />Gerar comprovante
             </button>
             <button autoFocus onClick={() => setDone(null)} className="mt-2 w-full rounded-xl bg-primary text-primary-foreground font-bold py-3">
               Nova venda <kbd className="font-mono text-[11px] opacity-70">ESC</kbd>
