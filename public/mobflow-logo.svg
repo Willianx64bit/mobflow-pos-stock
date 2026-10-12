@@ -1,22 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 390" role="img" aria-label="MobFlow — PDV e estoque">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" role="img" aria-label="MobFlow — PDV + Estoque">
   <defs>
-    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#22c55e"/>
-      <stop offset="1" stop-color="#005744"/>
+    <linearGradient id="flow-green" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#078653"/>
+      <stop offset="100%" stop-color="#20c55a"/>
     </linearGradient>
   </defs>
-  <g fill="none" stroke="url(#green)" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M72 126h42" stroke-width="14"/>
-    <path d="M52 157h60" stroke-width="14"/>
-    <path d="M92 188h27" stroke-width="14"/>
-    <g stroke-width="17">
-      <path d="M135 65h38q15 0 19 15l27 105q4 14 19 14h103q14 0 18-14l22-75"/>
-      <path d="M219 95l17 57 28-37 29 27 66-49" stroke-width="16"/>
-      <path d="M353 93l30-8-5 30" stroke-width="15"/>
-    </g>
-    <circle cx="239" cy="220" r="12" fill="#172630" stroke="none"/>
-    <circle cx="321" cy="220" r="12" fill="#172630" stroke="none"/>
-  </g>
-  <text x="260" y="292" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="800" letter-spacing="-3" fill="#172630">Mob<tspan fill="#078653">Flow</tspan></text>
-  <text x="260" y="335" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" letter-spacing="4" fill="#64748b">PDV <tspan fill="#078653">+</tspan> ESTOQUE</text>
+  <rect width="640" height="180" fill="#ffffff" fill-opacity="0"/>
+  <text x="320" y="91" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="88" font-weight="800" letter-spacing="-4">
+    <tspan fill="#172630">Mob</tspan><tspan fill="url(#flow-green)">Flow</tspan>
+  </text>
+  <text x="320" y="137" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="22" font-weight="600" letter-spacing="7" fill="#64748b">PDV <tspan fill="#078653">+</tspan> ESTOQUE</text>
 </svg>
