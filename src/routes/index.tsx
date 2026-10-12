@@ -287,13 +287,12 @@ function PDV() {
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
                   <div className="mt-auto pt-2 text-center">
                     {effectivePrice(p) < p.price ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700"><span aria-hidden="true">%</span> PROMOÇÃO</span>
+                      <div className="flex flex-col items-center gap-1">
                         <span className="text-sm text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
-                        <span className="text-xl font-bold leading-none text-red-600">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
+                        <span className="text-xl font-bold leading-none text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className="text-xl font-bold leading-none text-heading">{p.unit === "kg" ? `R$ ${brl(effectivePrice(p))} kg` : `R$ ${brl(effectivePrice(p))}`}</div>
+                      <div className="text-xl font-bold leading-none text-heading">{p.unit === "kg" ? `R$ {brl(effectivePrice(p))} kg` : `R$ {brl(effectivePrice(p))}`}</div>
                     )}
                     <div className={`mt-1 font-mono text-[11px] ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
