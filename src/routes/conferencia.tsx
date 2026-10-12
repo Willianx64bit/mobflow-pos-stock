@@ -40,12 +40,14 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const note = useStore(s => s.receiving.find(n => n.id === noteId));
   const products = useStore(s => s.products);
   const [counts, setCounts] = useState<Record<string, number>>({});
+  const [extraCounts, setExtraCounts] = useState<Record<string, number>>({});
   const [cameraOpen, setCameraOpen] = useState(false);
   const [reopenCamera, setReopenCamera] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
   const [productExpiry, setProductExpiry] = useState("");
   const [expiries, setExpiries] = useState<Record<string, string>>({});
+  const [extraExpiries, setExtraExpiries] = useState<Record<string, string>>({});
 
   if (!note) return null;
 
@@ -57,15 +59,22 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const openProduct = (product: typeof products[number]) => {
     setSelectedProduct(product);
     setProductQty("");
-    setProductExpiry(expiries[product.id] ?? "");
+    const isExtra = !note.items.some(i => i.productId === product.id);
+    setProductExpiry((isExtra ? extraExpiries : expiries)[product.id] ?? "");
   };
 
   const saveProductQty = () => {
     if (!selectedProduct) return;
     const n = Number(productQty.replace(",", "."));
     if (!Number.isFinite(n) || n <= 0) return;
-    setCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
-    if (productExpiry) setExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
+    const isExtra = !note.items.some(i => i.productId === selectedProduct.id);
+    if (isExtra) {
+      setExtraCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
+      if (productExpiry) setExtraExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
+    } else {
+      setCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
+      if (productExpiry) setExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
+    }
     setSelectedProduct(null);
     setProductQty("");
     setProductExpiry("");
@@ -77,6 +86,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     if (!cid) return;
     for (const i of note.items) actions.setCount(cid, i.productId, counts[i.productId] ?? 0);
     for (const i of note.items) if (expiries[i.productId]) actions.setExpiry(cid, i.productId, expiries[i.productId]);
+    actions.patchConference(cid, c => ({ ...c, extraCounts, extraExpiries }));
     actions.finishReceivingConference(cid);
     onBack();
   };
@@ -98,7 +108,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     </div>
 
     <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4 text-[12px] text-secondary-foreground">
-      Use a câmera para ler o código de barras. O produto será aberto para você informar a quantidade recebida e salvar.
+      Leia o código de barras para informar a quantidade. Produtos fora da nota podem ser registrados e serão sinalizados como extras.
     </div>
 
     <div className="overflow-x-auto">
@@ -121,14 +131,16 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
               <td className="text-right"><button type="button" onClick={() => product && openProduct(product)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Abrir</button></td>
             </tr>;
           })}
+          {products.filter(p => (extraCounts[p.id] ?? 0) > 0 && !note.items.some(i => i.productId === p.id)).map(p => <tr key={"extra-" + p.id} className="bg-amber-500/5"><td className="py-3"><div className="text-foreground font-medium">{p.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p.code}</div><span className="inline-flex mt-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Produto não está na nota</span></td><td className="text-right font-mono">—</td><td className="text-right font-mono font-semibold">{extraCounts[p.id]} {p.unit === "kg" ? "kg" : "un."}</td><td className="text-right"><button type="button" onClick={() => openProduct(p)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Adicionar</button></td></tr>)}
         </tbody>
       </table>
     </div>
 
+    {Object.values(extraCounts).some(q => q > 0) && <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800"><b>Produtos extras registrados:</b> eles serão enviados para Recebimento para avaliação do responsável.</div>}
     <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver diferença. Quando houver divergência, o estoque ficará aguardando sua aprovação em <b>Recebimento</b>.</div>
     <button onClick={() => confirm("Finalizar esta conferência?") && finish()} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Finalizar conferência</button>
 
-    {cameraOpen && <BarcodeScanner products={products} allowedIds={new Set(note.items.map(i => i.productId))} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
+    {cameraOpen && <BarcodeScanner products={products} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
 
     {selectedProduct && <div className="mfb-product-modal fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-border p-5 shadow-xl">
@@ -137,10 +149,11 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
           <div className="flex-1"><div className="font-bold text-lg text-foreground">{selectedProduct.name}</div><div className="font-mono text-[11px] text-muted-foreground">Código: {selectedProduct.code}</div></div>
           <button onClick={() => setSelectedProduct(null)} className="text-xl text-muted-foreground">×</button>
         </div>
+        {!note.items.some(i => i.productId === selectedProduct.id) && <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800"><b>Produto não está na nota.</b> Será registrado como produto extra para aprovação.</div>}
         <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4">
           <div className="text-[11px] text-muted-foreground">Já coletado</div>
-          <div className="text-2xl font-bold text-foreground">{counts[selectedProduct.id] ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">Esperado nesta nota: {note.items.find(i => i.productId === selectedProduct.id)?.expected ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
+          <div className="text-2xl font-bold text-foreground">{(note.items.some(i => i.productId === selectedProduct.id) ? counts[selectedProduct.id] : extraCounts[selectedProduct.id]) ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
+          <div className="text-[11px] text-muted-foreground mt-1">Esperado nesta nota: {note.items.find(i => i.productId === selectedProduct.id)?.expected ?? "não consta"} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
         </div>
         <div className="label-mono mb-2">Quantidade desta coleta</div>
         <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="Ex.: 20" />
@@ -153,9 +166,8 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   </section>;
 }
 
-function BarcodeScanner({ products, allowedIds, onProduct, onClose }: {
+function BarcodeScanner({ products, onProduct, onClose }: {
   products: { code: string; name: string; id: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg"; ref?: string | undefined; cost?: number | undefined; photo?: string | undefined }[];
-  allowedIds: Set<string>;
   onProduct: (product: (typeof products)[number]) => void;
   onClose: () => void;
 }) {
@@ -185,8 +197,8 @@ function BarcodeScanner({ products, allowedIds, onProduct, onClose }: {
             const value = codes?.[0]?.rawValue?.trim();
             if (value) {
               const p = products.find(x => x.code === value);
-              if (p && allowedIds.has(p.id)) { onProduct(p); return; }
-              setError(`Código ${value} não pertence aos produtos desta nota.`);
+              if (p) { onProduct(p); return; }
+              setError(`Código ${value} não encontrado no cadastro de produtos.`);
             }
           } catch {}
           timer = window.setTimeout(scan, 350);
@@ -203,8 +215,8 @@ function BarcodeScanner({ products, allowedIds, onProduct, onClose }: {
   const findManual = () => {
     const code = manualCode.trim();
     const p = products.find(x => x.code === code);
-    if (p && allowedIds.has(p.id)) onProduct(p);
-    else setError("Produto não encontrado ou não pertence aos produtos desta nota.");
+    if (p) onProduct(p);
+    else setError("Produto não encontrado no cadastro de produtos.");
   };
 
   return <div className="fixed inset-0 z-50 bg-black/80 p-4 flex items-center justify-center">
