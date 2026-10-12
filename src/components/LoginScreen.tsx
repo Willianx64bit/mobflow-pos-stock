@@ -86,9 +86,17 @@ export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
       <div className="mfb-in w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
         <div className="text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-3xl text-primary">M</div>
-          <div className="mt-4 font-display tracking-[.18em] text-3xl text-heading">MOBFLOW</div>
-          <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">PDV + ESTOQUE</div>
+          <div className="mx-auto flex h-24 w-24 items-center justify-center">
+            <svg viewBox="0 0 100 100" role="img" aria-label="Logo MobFlow" className="h-full w-full">
+              <defs><linearGradient id="mobflow-logo-green" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#22c55e" /><stop offset="100%" stopColor="#047857" /></linearGradient></defs>
+              <path d="M14 22h10l10 43q2 7 9 7h30q7 0 9-7l7-27" fill="none" stroke="url(#mobflow-logo-green)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M34 38l8 20 13-17 13 17 8-20" fill="none" stroke="url(#mobflow-logo-green)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M75 27l14-3-3 14" fill="none" stroke="#16a34a" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="44" cy="83" r="4.5" fill="#047857" /><circle cx="75" cy="83" r="4.5" fill="#047857" />
+            </svg>
+          </div>
+          <div className="mt-2 text-3xl font-bold tracking-tight text-heading">Mob<span className="text-primary">Flow</span></div>
+          <div className="mt-1 text-xs font-medium tracking-[.16em] text-muted-foreground">PDV + ESTOQUE</div>
         </div>
 
         <div className="mt-8 text-center">
