@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 390" role="img" aria-label="MobFlow — PDV e estoque">
+  <defs>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22b76b"/>
+      <stop offset="1" stop-color="#005744"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(105 10)" fill="none" stroke="url(#green)" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 22h40q15 0 19 15l28 104q4 14 19 14h105q14 0 18-14l19-73"/>
+    <path d="M60 70h42M42 99h66M74 128h42" stroke-width="13"/>
+    <path d="M85 55l17 59 28-38 29 28 64-47" stroke-width="16"/>
+    <path d="M208 57l30-8-5 30" stroke-width="15"/>
+    <circle cx="105" cy="178" r="12" fill="#005744" stroke="none"/>
+    <circle cx="186" cy="178" r="12" fill="#005744" stroke="none"/>
+  </g>
+  <text x="260" y="292" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="800" letter-spacing="-3" fill="#172630">Mob<tspan fill="#078653">Flow</tspan></text>
+  <text x="260" y="335" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="600" letter-spacing="4" fill="#64748b">PDV + ESTOQUE</text>
+</svg>
