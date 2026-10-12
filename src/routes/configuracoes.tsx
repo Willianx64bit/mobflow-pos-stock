@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, LockKeyhole } from "lucide-react";
+import { ChevronDown, ChevronRight, LockKeyhole, Trash2, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -57,6 +57,7 @@ function Configuracoes() {
   const [pixError, setPixError] = useState("");
   const [saved, setSaved] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
+  const [resetSectionOpen, setResetSectionOpen] = useState(false);
   const [resetError, setResetError] = useState("");
   const [pdvUsers, setPdvUsers] = useState<Array<{ id: string; username: string; display_name?: string | null; active: boolean }>>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -409,13 +410,18 @@ function Configuracoes() {
         </section>
 
         <section className="glass p-5 md:p-6 ring-1 ring-destructive/30">
-          <h2 className="font-display text-xl tracking-[.08em] text-heading">ZERAR APLICAÇÃO</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Apaga produtos, vendas, estoque, conferências e recebimentos. Login, conta e configurações da empresa ficam preservados.</p>
-          <button onClick={openReset} className="mt-4 rounded-xl bg-destructive px-5 py-3 font-semibold text-destructive-foreground hover:opacity-90">🗑️ Zerar tudo e começar do zero</button>
+          <button type="button" onClick={() => setResetSectionOpen(open => !open)} aria-expanded={resetSectionOpen} className="flex w-full items-center justify-between gap-3 text-left">
+            <h2 className="font-display text-xl tracking-[.08em] text-heading">ZERAR APLICAÇÃO</h2>
+            {resetSectionOpen ? <ChevronDown className="h-5 w-5 shrink-0 text-green-600" /> : <ChevronRight className="h-5 w-5 shrink-0 text-green-600" />}
+          </button>
+          {resetSectionOpen && <>
+            <p className="mt-2 text-sm text-muted-foreground">Apaga produtos, vendas, estoque, conferências e recebimentos. Login, conta e configurações da empresa ficam preservados.</p>
+            <button onClick={openReset} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-destructive px-5 py-3 font-semibold text-destructive-foreground hover:opacity-90"><Trash2 className="h-4 w-4" />Zerar tudo e começar do zero</button>
+          </>}
           {resetOpen && (
             <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
               <div className="w-full max-w-md glass p-6 shadow-2xl">
-                <div className="text-2xl">⚠️</div>
+                <AlertTriangle className="h-6 w-6 text-destructive" />
                 <h3 className="mt-2 font-display text-xl tracking-[.08em] text-heading">CONFIRMAÇÃO DE GERÊNCIA</h3>
                 <p className="mt-2 text-sm text-muted-foreground">Acesso autorizado pela conta de gerência. Confirme abaixo para apagar os dados.</p>
                 {resetError && <p className="mt-2 text-sm text-destructive">{resetError}</p>}
