@@ -515,7 +515,9 @@ export const actions = {
     }
     const products = state.products.map((p) => {
       const item = note.items.find((i) => i.productId === p.id);
-      return item ? { ...p, stock: p.stock + (item.received ?? 0) } : p;
+      const extra = (note.extras ?? []).find((i) => i.productId === p.id);
+      const received = item?.received ?? extra?.received;
+      return received !== undefined ? { ...p, stock: p.stock + received } : p;
     });
     set({
       products,
