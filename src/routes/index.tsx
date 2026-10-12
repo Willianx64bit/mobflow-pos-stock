@@ -311,7 +311,7 @@ function PDV() {
             <span className="font-mono text-[11px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
-            {lines.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-white">carrinho vazio — busque ou clique num produto</p>}
+
             {lines.map(({ p, qty }) => (
               <div key={p.id} className="py-3 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
