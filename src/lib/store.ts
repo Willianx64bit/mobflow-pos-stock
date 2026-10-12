@@ -10,6 +10,7 @@ export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
+export type ReceivingExtra = { productId: string; name: string; received: number; expiry?: string; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
   number: string;
@@ -17,6 +18,7 @@ export type ReceivingNote = {
   supplierCnpj?: string | undefined;
   date: string;
   items: ReceivingItem[];
+  extras?: ReceivingExtra[];
   status: "pendente" | "conferido" | "divergente" | "aceito" | "rejeitado";
   stockReleased?: boolean;
   source?: "manual";
@@ -31,6 +33,8 @@ export type Conference = {
   adjusted?: boolean;
   receivingId?: string;
   expiries?: Record<string, string>;
+  extraCounts?: Record<string, number>;
+  extraExpiries?: Record<string, string>;
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
@@ -478,7 +482,7 @@ export const actions = {
     if (existing) return existing.id;
     const c: Conference = {
       id: uid(), name: `Nota ${n.number} · ${n.supplier}`, date: new Date().toISOString(),
-      status: "aberta", counts: {}, unknown: [], receivingId,
+      status: "aberta", counts: {}, unknown: [], extraCounts: {}, extraExpiries: {}, receivingId,
     };
     set({ conferences: [c, ...(state.conferences ?? [])] });
     return c.id;
@@ -488,11 +492,13 @@ export const actions = {
     if (!conf?.receivingId) return;
     const note = (state.receiving ?? []).find((n) => n.id === conf.receivingId);
     if (!note) return;
-    const divergent = note.items.some((i) => (conf.counts[i.productId] ?? 0) !== i.expected);
+    const extras = Object.entries(conf.extraCounts ?? {}).filter(([, received]) => received > 0).map(([productId, received]) => { const p = state.products.find((x) => x.id === productId); return p ? { productId, name: p.name, received, expiry: conf.extraExpiries?.[productId] || undefined, unit: p.unit } : null; }).filter(Boolean) as ReceivingExtra[];
+    const divergent = extras.length > 0 || note.items.some((i) => (conf.counts[i.productId] ?? 0) !== i.expected);
     set({
       receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
         ...n,
         items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0, expiry: conf.expiries?.[i.productId] || undefined })),
+        extras,
         status: divergent ? "divergente" : "conferido",
         stockReleased: false,
       } : n),
