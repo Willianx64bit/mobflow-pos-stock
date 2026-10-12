@@ -6,9 +6,9 @@
     </linearGradient>
   </defs>
   <g fill="none" stroke="url(#green)" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M72 126h63" stroke-width="14"/>
-    <path d="M52 157h91" stroke-width="14"/>
-    <path d="M92 188h57" stroke-width="14"/>
+    <path d="M72 126h42" stroke-width="14"/>
+    <path d="M52 157h60" stroke-width="14"/>
+    <path d="M92 188h27" stroke-width="14"/>
     <g stroke-width="17">
       <path d="M135 65h38q15 0 19 15l27 105q4 14 19 14h103q14 0 18-14l22-75"/>
       <path d="M219 95l17 57 28-37 29 27 66-49" stroke-width="16"/>
