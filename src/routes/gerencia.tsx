@@ -214,9 +214,8 @@ function Gerencia() {
         <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
           <div className="w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
             <div className="text-center">
-              <div className="mx-auto h-14 w-14 rounded-2xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-3xl text-primary">M</div>
-              <div className="mt-4 font-display tracking-[.18em] text-3xl text-heading">MOBFLOW</div>
-              <div className="mt-1 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">GERÊNCIA</div>
+              <img src="/mobflow-logo.svg" alt="MobFlow — PDV + Estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">GERÊNCIA</div>
             </div>
             <div className="mt-7 space-y-4">
               <div className="rounded-xl bg-secondary/60 p-4 text-center text-sm text-muted-foreground">Sua conta está autenticada. Digite a senha da gerência para abrir esta área.</div>
