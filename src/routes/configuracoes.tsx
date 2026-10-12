@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, LockKeyhole } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -50,6 +51,8 @@ function Configuracoes() {
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
   const [pixEditing, setPixEditing] = useState(false);
+  const [pixSectionOpen, setPixSectionOpen] = useState(false);
+  const [companyIdentityOpen, setCompanyIdentityOpen] = useState(false);
   const [pixChecking, setPixChecking] = useState(false);
   const [pixError, setPixError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -322,75 +325,86 @@ function Configuracoes() {
           </div>
 
           <div className="rounded-2xl border border-border/60 p-5">
-            <div className="flex items-center justify-between gap-3">
+            <button type="button" onClick={() => setPixSectionOpen(open => !open)} aria-expanded={pixSectionOpen} className="flex w-full items-center justify-between gap-3 text-left">
               <div>
                 <h2 className="font-semibold text-heading">Pagamento Pix</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Cadastre a chave Pix que será usada para gerar QR Codes com o valor automático no PDV.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Configure a chave Pix usada para gerar QR Codes no PDV.</p>
               </div>
-              {!pixEditing && (
-                <button onClick={() => void unlockPixEditing()} disabled={pixChecking} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border disabled:opacity-50" type="button">
-                  {pixChecking ? "Validando..." : "🔒 Alterar chave"}
-                </button>
-              )}
-            </div>
-
-            {!pixEditing ? (
-              <div className="mt-4 rounded-xl bg-well ring-1 ring-border p-4">
-                <div className="label-mono">CHAVE PIX CADASTRADA</div>
-                <div className="mt-1 font-mono text-sm text-foreground break-all">{pixKey || "Nenhuma chave cadastrada"}</div>
-                <div className="mt-1 text-xs text-muted-foreground">A alteração é liberada somente após nova validação do acesso de gerência.</div>
+              {pixSectionOpen ? <ChevronDown className="h-5 w-5 shrink-0 text-green-600" /> : <ChevronRight className="h-5 w-5 shrink-0 text-green-600" />}
+            </button>
+            {pixSectionOpen && (
+              <div className="mt-4 border-t border-border/50 pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <span className="text-sm text-muted-foreground">Chave Pix e segurança de alteração</span>
+                  {!pixEditing && (
+                    <button onClick={() => void unlockPixEditing()} disabled={pixChecking} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border disabled:opacity-50" type="button">
+                      <LockKeyhole className="h-4 w-4 text-green-600" />{pixChecking ? "Validando..." : "Alterar chave"}
+                    </button>
+                  )}
+                </div>
+                {!pixEditing ? (
+                  <div className="mt-4 rounded-xl bg-well ring-1 ring-border p-4">
+                    <div className="label-mono">CHAVE PIX CADASTRADA</div>
+                    <div className="mt-1 font-mono text-sm text-foreground break-all">{pixKey || "Nenhuma chave cadastrada"}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">A alteração é liberada somente após nova validação do acesso de gerência.</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr]">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="label-mono">Tipo da chave</span>
+                        <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as NonNullable<typeof settings.pixKeyType>)} className="field text-sm text-foreground">
+                          <option value="telefone">Telefone</option><option value="cpf">CPF</option><option value="cnpj">CNPJ</option><option value="email">E-mail</option><option value="aleatoria">Aleatória</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="label-mono">Chave Pix</span>
+                        <input value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="Ex.: 11999999999" className="field text-sm text-foreground" />
+                      </label>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button type="button" onClick={cancelPixEditing} className="flex-1 rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border">Cancelar</button>
+                      <button type="button" onClick={savePix} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Salvar chave Pix</button>
+                    </div>
+                  </>
+                )}
+                <div className="mt-3 rounded-xl bg-primary/5 ring-1 ring-primary/15 px-3 py-2 text-xs text-muted-foreground">
+                  O QR Code será gerado no checkout com o valor exato da venda. O MobFlow não confirma o pagamento automaticamente nesta versão.
+                </div>
               </div>
-            ) : (
-              <>
-                <div className="mt-4 grid gap-3 md:grid-cols-[180px_1fr]">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="label-mono">Tipo da chave</span>
-                    <select value={pixKeyType} onChange={(e) => setPixKeyType(e.target.value as NonNullable<typeof settings.pixKeyType>)} className="field text-sm text-foreground">
-                      <option value="telefone">Telefone</option>
-                      <option value="cpf">CPF</option>
-                      <option value="cnpj">CNPJ</option>
-                      <option value="email">E-mail</option>
-                      <option value="aleatoria">Aleatória</option>
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="label-mono">Chave Pix</span>
-                    <input value={pixKey} onChange={(e) => setPixKey(e.target.value)} placeholder="Ex.: 11999999999" className="field text-sm text-foreground" />
-                  </label>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={cancelPixEditing} className="flex-1 rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border">Cancelar</button>
-                  <button type="button" onClick={savePix} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">Salvar chave Pix</button>
-                </div>
-              </>
             )}
-
-            <div className="mt-3 rounded-xl bg-primary/5 ring-1 ring-primary/15 px-3 py-2 text-xs text-muted-foreground">
-              O QR Code será gerado no checkout com o valor exato da venda. O MobFlow não confirma o pagamento automaticamente nesta versão.
-            </div>
-
           </div>
 
           <div className="rounded-2xl border border-border/60 p-5">
-            <h2 className="font-semibold text-heading">Identidade da empresa</h2>
-            <div className="mt-5 grid md:grid-cols-[120px_1fr] gap-5 items-center">
-              <div className="h-28 w-28 rounded-2xl bg-secondary ring-1 ring-border overflow-hidden grid place-items-center">
-                {logo ? <img src={logo} alt="Logo da empresa" className="h-full w-full object-contain" /> : <span className="text-3xl text-muted-foreground">🏪</span>}
+            <button type="button" onClick={() => setCompanyIdentityOpen(open => !open)} aria-expanded={companyIdentityOpen} className="flex w-full items-center justify-between gap-3 text-left">
+              <div>
+                <h2 className="font-semibold text-heading">Identidade da empresa</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Nome e logo exibidos no sistema.</p>
               </div>
-              <div className="space-y-3">
-                <label className="flex flex-col gap-1.5">
-                  <span className="label-mono">Nome da empresa</span>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" className="field text-sm text-foreground" />
-                </label>
-                <label className="block cursor-pointer">
-                  <span className="label-mono">Logo da empresa</span>
-                  <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(até 5 MB)</span></div>
-                  <input type="file" accept="image/*" onChange={chooseLogo} className="hidden" />
-                </label>
-                {logo && <button type="button" onClick={() => setLogo("")} className="text-xs text-destructive hover:underline">Remover logo</button>}
+              {companyIdentityOpen ? <ChevronDown className="h-5 w-5 shrink-0 text-green-600" /> : <ChevronRight className="h-5 w-5 shrink-0 text-green-600" />}
+            </button>
+            {companyIdentityOpen && (
+              <div className="mt-4 border-t border-border/50 pt-4">
+                <div className="grid items-center gap-5 md:grid-cols-[120px_1fr]">
+                  <div className="grid h-28 w-28 place-items-center overflow-hidden rounded-2xl bg-secondary ring-1 ring-border">
+                    {logo ? <img src={logo} alt="Logo da empresa" className="h-full w-full object-contain" /> : <span className="text-3xl text-muted-foreground">🏪</span>}
+                  </div>
+                  <div className="space-y-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className="label-mono">Nome da empresa</span>
+                      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" className="field text-sm text-foreground" />
+                    </label>
+                    <label className="block cursor-pointer">
+                      <span className="label-mono">Logo da empresa</span>
+                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(até 5 MB)</span></div>
+                      <input type="file" accept="image/*" onChange={chooseLogo} className="hidden" />
+                    </label>
+                    {logo && <button type="button" onClick={() => setLogo("")} className="text-xs text-destructive hover:underline">Remover logo</button>}
+                  </div>
+                </div>
+                <button onClick={save} className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90">{saved ? "✓ Salvo" : "Salvar configurações"}</button>
               </div>
-            </div>
-            <button onClick={save} className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90">{saved ? "✓ Salvo" : "Salvar configurações"}</button>
+            )}
           </div>
         </section>
 
