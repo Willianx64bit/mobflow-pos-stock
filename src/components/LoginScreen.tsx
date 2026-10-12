@@ -17,7 +17,7 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void; mode?: "empresa" | "pdv" }) {
+export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -84,7 +84,8 @@ export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void
 
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
-      <div className="mfb-in w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+      <div className="mfb-in relative w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+        {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
         <div className="mx-auto w-full max-w-[320px] text-center">
           <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
         </div>
