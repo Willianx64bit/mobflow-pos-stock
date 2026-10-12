@@ -119,7 +119,7 @@ export function AppHeader() {
       {showLogin && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md">
-            <LoginScreen mode="pdv" onLogin={async () => {
+            <LoginScreen mode="pdv" onClose={() => setShowLogin(false)} onLogin={async () => {
               await hydrateStore();
               setPdvAuthorized(true);
               setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
