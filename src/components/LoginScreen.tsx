@@ -85,18 +85,31 @@ export function LoginScreen({ onLogin, mode = "empresa" }: { onLogin: () => void
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
       <div className="mfb-in w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
-        <div className="text-center">
-          <div className="mx-auto flex h-24 w-24 items-center justify-center">
-            <svg viewBox="0 0 100 100" role="img" aria-label="Logo MobFlow" className="h-full w-full">
-              <defs><linearGradient id="mobflow-logo-green" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#22c55e" /><stop offset="100%" stopColor="#047857" /></linearGradient></defs>
-              <path d="M14 22h10l10 43q2 7 9 7h30q7 0 9-7l7-27" fill="none" stroke="url(#mobflow-logo-green)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M34 38l8 20 13-17 13 17 8-20" fill="none" stroke="url(#mobflow-logo-green)" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M75 27l14-3-3 14" fill="none" stroke="#16a34a" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="44" cy="83" r="4.5" fill="#047857" /><circle cx="75" cy="83" r="4.5" fill="#047857" />
-            </svg>
-          </div>
-          <div className="mt-2 text-3xl font-bold tracking-tight text-heading">Mob<span className="text-primary">Flow</span></div>
-          <div className="mt-1 text-xs font-medium tracking-[.16em] text-muted-foreground">PDV + ESTOQUE</div>
+        <div className="mx-auto w-full max-w-[340px] text-center">
+          <svg viewBox="0 0 520 300" role="img" aria-label="MobFlow — PDV e estoque" className="mx-auto h-auto w-full max-w-[320px]">
+            <defs>
+              <linearGradient id="mobflow-mark" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#22b76b" />
+                <stop offset="100%" stopColor="#005744" />
+              </linearGradient>
+              <linearGradient id="mobflow-word" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#172630" />
+                <stop offset="48%" stopColor="#172630" />
+                <stop offset="49%" stopColor="#078653" />
+                <stop offset="100%" stopColor="#078653" />
+              </linearGradient>
+            </defs>
+            <g transform="translate(98 12) scale(1.05)" fill="none" stroke="url(#mobflow-mark)" strokeWidth="17" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 22h40q15 0 19 15l28 104q4 14 19 14h105q14 0 18-14l19-73" />
+              <path d="M85 70h43M67 99h66M99 128h42" strokeWidth="13" />
+              <path d="M110 55l17 59 28-38 29 28 64-47" strokeWidth="16" />
+              <path d="M233 57l30-8-5 30" strokeWidth="15" />
+              <circle cx="130" cy="178" r="12" fill="#005744" stroke="none" />
+              <circle cx="211" cy="178" r="12" fill="#005744" stroke="none" />
+            </g>
+            <text x="260" y="267" textAnchor="middle" fontFamily="Inter, Arial, sans-serif" fontSize="66" fontWeight="800" letterSpacing="-3" fill="url(#mobflow-word)">MobFlow</text>
+          </svg>
+          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[.24em] text-muted-foreground">PDV + ESTOQUE</div>
         </div>
 
         <div className="mt-8 text-center">
