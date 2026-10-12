@@ -292,7 +292,7 @@ function PDV() {
                         <span className="text-xl font-bold leading-none text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className="text-xl font-bold leading-none text-heading">{p.unit === "kg" ? `R$ {brl(effectivePrice(p))} kg` : `R$ {brl(effectivePrice(p))}`}</div>
+                      <div className="text-xl font-bold leading-none text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
                     <div className={`mt-1 font-mono text-[11px] ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
