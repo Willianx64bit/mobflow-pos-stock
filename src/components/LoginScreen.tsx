@@ -73,14 +73,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       });
 
       if (error || !data?.session) {
-        let msg = data?.error as string | undefined;
-        try { msg = msg || (await (error as { context?: Response })?.context?.json())?.error; } catch {}
-        setError(msg || "Não foi possível entrar. Verifique o usuário e a senha.");
+        // Nunca revelar se o usuário existe ou se pertence a outra empresa.
+        setError("Usuário ou senha inválido.");
         return;
       }
 
       if (mode === "pdv" && data.profile?.role !== "pdv") {
-        setError("Esse usuário não é um usuário do PDV.");
+        setError("Usuário ou senha inválido.");
         return;
       }
 
