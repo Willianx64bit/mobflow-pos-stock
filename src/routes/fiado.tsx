@@ -34,10 +34,15 @@ function Fiado() {
       alert("Informe a senha para confirmar.");
       return;
     }
+    const cnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
+    if (cnpj.length !== 14) {
+      alert("Não foi possível identificar o CNPJ desta empresa. Entre novamente na gerência e tente de novo.");
+      return;
+    }
     setAuthorizing(true);
     try {
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username, password, cnpj: "" },
+        body: { username, password, cnpj, expectedRole: "pdv" },
       });
       if (error || !data?.session || data?.profile?.role !== "pdv") {
         alert("Senha incorreta ou usuário do PDV inválido.");
