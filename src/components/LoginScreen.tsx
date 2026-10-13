@@ -35,28 +35,26 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
 
     try {
-      // No PDV, reutiliza o CNPJ do perfil que já está autenticado (gerência ou PDV).
-      // Assim o operador não precisa digitar o CNPJ e continua limitado à empresa atual.
+      // Reutiliza o CNPJ da empresa atual sem pedir que o operador o digite.
+      // O login da gerência o salva; se existir sessão ativa, confirmamos pelo perfil.
       let loginCnpj = cnpj.replace(/\D/g, "");
       if (mode === "pdv") {
+        loginCnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
         const { data: sessionData } = await supabase.auth.getSession();
         const currentUser = sessionData.session?.user;
-        if (!currentUser) {
-          setError("Não foi possível identificar a empresa. Entre novamente na gerência.");
-          return;
+        if (currentUser) {
+          const { data: currentProfile, error: profileError } = await supabase
+            .from("profiles")
+            .select("cnpj, role")
+            .eq("id", currentUser.id)
+            .maybeSingle();
+          if (!profileError && currentProfile?.cnpj && ["manager", "pdv"].includes(currentProfile.role)) {
+            loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
+            localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+          }
         }
-        const { data: currentProfile, error: profileError } = await supabase
-          .from("profiles")
-          .select("cnpj, role")
-          .eq("id", currentUser.id)
-          .maybeSingle();
-        if (profileError || !currentProfile?.cnpj || !["manager", "pdv"].includes(currentProfile.role)) {
-          setError("Não foi possível identificar a empresa desta sessão. Entre novamente na gerência.");
-          return;
-        }
-        loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
         if (loginCnpj.length !== 14) {
-          setError("O CNPJ cadastrado para esta empresa está inválido.");
+          setError("Não foi possível identificar a empresa. Entre novamente na gerência.");
           return;
         }
       }
@@ -94,6 +92,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       }
 
       localStorage.setItem(AUTH_KEY, "1");
+      if (mode !== "pdv") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
       if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
       sessionStorage.setItem("mobflow-role", data.profile?.role === "manager" ? "manager" : "pdv");
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
