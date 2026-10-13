@@ -16,12 +16,12 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const token = authHeader.replace(/^Bearer\\s+/i, "").trim();
     if (!token) return json({ error: "Sessão não encontrada." }, 401);
 
     const { password } = await req.json().catch(() => ({}));
     const cleanPassword = String(password ?? "");
-    if (cleanPassword.length < 1) return json({ error: "Senha inválida." }, 401);
+    if (!cleanPassword) return json({ error: "Senha inválida." }, 401);
 
     const url = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -34,22 +34,25 @@ Deno.serve(async (req) => {
 
     const { data: manager, error: managerError } = await admin
       .from("profiles")
-      .select("id,username,role,active")
+      .select("id,username,role,active,account_id")
       .eq("id", authData.user.id)
       .maybeSingle();
 
     if (managerError || !manager || !manager.active || !["manager", "pdv"].includes(manager.role)) {
       return json({ error: "Conta ativa necessária para acessar a gerência." }, 403);
     }
+    if (!manager.account_id) {
+      return json({ error: "Não foi possível identificar a empresa desta conta." }, 403);
+    }
 
     const { data: security, error: securityError } = await admin
-      .from("manager_security")
+      .from("manager_security_by_account")
       .select("password_hash")
-      .eq("id", true)
+      .eq("account_id", manager.account_id)
       .maybeSingle();
 
     if (securityError || !security?.password_hash) {
-      return json({ error: "Configuração de segurança da gerência indisponível." }, 500);
+      return json({ error: "Senha da gerência não configurada para esta empresa." }, 403);
     }
 
     const suppliedHash = await sha256(cleanPassword);
