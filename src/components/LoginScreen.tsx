@@ -45,7 +45,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
       const loginCnpj = mode === "pdv" ? "" : cnpj;
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj: loginCnpj },
+        body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
       });
 
       if (error || !data?.session) {
