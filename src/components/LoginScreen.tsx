@@ -35,15 +35,39 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
 
     try {
-      // Troca de conta: evita manter uma sessão antiga de PDV ao entrar na gerência
-      // (ou vice-versa), que poderia fazer a API de usuários responder "Acesso de gerência necessário".
+      // No PDV, reutiliza o CNPJ do perfil que já está autenticado (gerência ou PDV).
+      // Assim o operador não precisa digitar o CNPJ e continua limitado à empresa atual.
+      let loginCnpj = cnpj.replace(/\D/g, "");
+      if (mode === "pdv") {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const currentUser = sessionData.session?.user;
+        if (!currentUser) {
+          setError("Não foi possível identificar a empresa. Entre novamente na gerência.");
+          return;
+        }
+        const { data: currentProfile, error: profileError } = await supabase
+          .from("profiles")
+          .select("cnpj, role")
+          .eq("id", currentUser.id)
+          .maybeSingle();
+        if (profileError || !currentProfile?.cnpj || !["manager", "pdv"].includes(currentProfile.role)) {
+          setError("Não foi possível identificar a empresa desta sessão. Entre novamente na gerência.");
+          return;
+        }
+        loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
+        if (loginCnpj.length !== 14) {
+          setError("O CNPJ cadastrado para esta empresa está inválido.");
+          return;
+        }
+      }
+
+      // Limpa a sessão anterior somente depois de obter o CNPJ da empresa atual.
       await supabase.auth.signOut();
       sessionStorage.removeItem("mobflow-management");
       sessionStorage.removeItem("mobflow-pdv-authorized");
       sessionStorage.removeItem("mobflow-role");
       sessionStorage.removeItem("mobflow-username");
 
-      const loginCnpj = cnpj;
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
         body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
       });
@@ -108,10 +132,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
 
-          <div>
-              <label className="label-mono block mb-1.5">CNPJ da empresa</label>
+          {mode !== "pdv" && (
+            <div>
+              <label className="label-mono block mb-1.5">CNPJ</label>
               <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
             </div>
+          )}
 
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
             <input type="checkbox" checked={rememberLogin} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
