@@ -44,21 +44,19 @@ const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-const seed: Product[] = [
-  ["7891000100", "Café Torrado 500g", 18.9, 24, "Mercearia"],
-  ["7891000200", "Arroz Branco 5kg", 27.9, 12, "Mercearia"],
-  ["7891000300", "Óleo de Soja 900ml", 9.5, 2, "Mercearia"],
-  ["7891000400", "Açúcar Cristal 1kg", 6.2, 30, "Mercearia"],
-  ["7891000500", "Feijão Carioca 1kg", 8.9, 1, "Mercearia"],
-  ["7891000600", "Detergente Neutro", 3.4, 60, "Limpeza"],
-  ["7891000700", "Leite Integral 1L", 6.8, 42, "Laticínios"],
-  ["7891000800", "Refrigerante 2L", 8.9, 30, "Bebidas"],
-  ["7891000900", "Água Mineral 1,5L", 4.5, 120, "Bebidas"],
-].map(([code, name, price, stock, category]) => ({
-  id: uid(), code: code as string, name: name as string, price: price as number, stock: stock as number, minStock: 5, category: category as string, unit: "un", ref: undefined, cost: undefined,
-}));
+const emptyState = (): State => ({
+  products: [],
+  cart: [],
+  sales: [],
+  conferences: [],
+  receiving: [],
+  manualExpiries: [],
+  promotions: [],
+  suppliers: [],
+  settings: { companyName: "" },
+});
 
-let state: State = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], promotions: [], suppliers: [], settings: { companyName: "" } };
+let state: State = emptyState();
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
@@ -230,13 +228,16 @@ export async function hydrateStore() {
 
     const localOwner = localStorage.getItem(OWNER_KEY);
     if (!error && data?.state) {
-      state = { ...state, ...data.state };
+      state = { ...emptyState(), ...data.state };
+      state.settings = { ...emptyState().settings, ...(data.state as State).settings };
       lastCloudUpdatedAt = data.updated_at ?? null;
       lastSyncedState = cloneState(data.state as State);
-    } else if (!error && !localOwner) {
-      load();
     } else if (!error) {
-      state = { products: seed, cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], promotions: [], suppliers: [], settings: state.settings ?? { companyName: "" } };
+      // Conta sem dados na nuvem é uma empresa nova: não reutilizar dados
+      // de demonstração nem o armazenamento local de outra conta.
+      state = emptyState();
+      lastCloudUpdatedAt = null;
+      lastSyncedState = null;
     }
     normalizeState();
 
