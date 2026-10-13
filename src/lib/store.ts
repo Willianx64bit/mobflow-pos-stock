@@ -86,6 +86,10 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     const localStockChanged = lp.stock !== bp.stock;
     const remoteStockChanged = rp.stock !== bp.stock;
     if (localStockChanged && remoteStockChanged) {
+      // The same stock update can arrive through both local state and Realtime.
+      // If both sides already have the same value, use the server value instead
+      // of applying the identical delta twice.
+      if (lp.stock === rp.stock) return rp;
       return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
     }
     if (localStockChanged && !remoteStockChanged) return lp;
@@ -513,16 +517,10 @@ export const actions = {
       await hydrateStore();
       return false;
     }
-    const products = state.products.map((p) => {
-      const item = note.items.find((i) => i.productId === p.id);
-      const extra = (note.extras ?? []).find((i) => i.productId === p.id);
-      const received = item?.received ?? extra?.received;
-      return received !== undefined ? { ...p, stock: p.stock + received } : p;
-    });
-    set({
-      products,
-      receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "aceito", stockReleased: true } : n),
-    });
+    // The RPC is the authoritative stock update in the database. Do not add
+    // the received quantities again in client state; reload the committed state
+    // so Realtime and local state cannot apply the same receipt twice.
+    await hydrateStore();
     return true;
   },
   rejectReceiving(id: string) {
