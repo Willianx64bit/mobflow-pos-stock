@@ -226,7 +226,6 @@ export async function hydrateStore() {
       .eq("owner_id", accountId)
       .maybeSingle();
 
-    const localOwner = localStorage.getItem(OWNER_KEY);
     if (!error && data?.state) {
       state = { ...emptyState(), ...data.state };
       state.settings = { ...emptyState().settings, ...(data.state as State).settings };
