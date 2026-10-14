@@ -19,7 +19,7 @@ export const Route = createFileRoute("/vendas")({
 function Vendas() {
   const sales = useStore((s) => s.sales);
   const companyName = useStore((s) => s.settings.companyName);
-  const savedCompanyName = companyName || (() => { try { const raw = localStorage.getItem("mobflow-pos-stock"); if (!raw) return ""; const parsed = JSON.parse(raw); return parsed?.settings?.companyName || ""; } catch { return ""; } })();
+  const savedCompanyName = companyName || (() => { try { const raw = localStorage.getItem("mobflow:v1"); if (!raw) return ""; const parsed = JSON.parse(raw); return parsed?.settings?.companyName || ""; } catch { return ""; } })();
   const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
   const todayKey = new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0") + "-" + String(new Date().getDate()).padStart(2, "0");
   const [selectedMonth, setSelectedMonth] = useState(todayKey.slice(0, 7));
