@@ -382,7 +382,18 @@ export const actions = {
   },
   deletePromotion(id: string) { set({ promotions: state.promotions.filter((p) => p.id !== id) }); },
   resetAppData() {
-    set({ products: [], cart: [], sales: [], conferences: [], receiving: [], manualExpiries: [], settings: state.settings });
+    // Zera os dados operacionais e a identidade da empresa, preservando o login.
+    set({
+      products: [],
+      cart: [],
+      sales: [],
+      conferences: [],
+      receiving: [],
+      manualExpiries: [],
+      promotions: [],
+      suppliers: [],
+      settings: { companyName: "" },
+    });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
