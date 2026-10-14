@@ -112,15 +112,20 @@ function expiryInfo(expiry?: string) {
   if (!expiry) return null;
   const value = expiry.trim();
   let year = 0, month = 0, day = 0;
-  const br = value.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/);
-  const iso = value.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+  const br = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (br) [, day, month, year] = br.map(Number) as [number, number, number, number];
   else if (iso) [, year, month, day] = iso.map(Number) as [number, number, number, number];
   else return { label: value, className: "text-foreground bg-secondary" };
-  const expiryTime = Date.UTC(year, month - 1, day);
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) {
+    return { label: value + " · data inválida", className: "bg-red-600/15 text-red-700 ring-1 ring-red-600/30" };
+  }
+
   const now = new Date();
   const todayTime = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const days = Math.floor((expiryTime - todayTime) / 86400000);
+  const days = Math.floor((parsed.getTime() - todayTime) / 86400000);
   if (days < 30) return { label: `${value} · ${days < 0 ? "vencido" : `${days} dias`}`, className: "bg-red-600/15 text-red-700 ring-1 ring-red-600/30" };
   if (days <= 60) return { label: `${value} · ${days} dias`, className: "bg-orange-500/15 text-orange-700 ring-1 ring-orange-500/30" };
   return { label: value, className: "bg-emerald-600/10 text-emerald-700" };
