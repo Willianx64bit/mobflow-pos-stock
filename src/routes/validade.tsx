@@ -13,7 +13,7 @@ function ValidadeProdutos() {
   const notes = useStore((s) => s.receiving ?? []);
   const products = useStore((s) => s.products);
   const manualExpiries = useStore((s) => s.manualExpiries ?? []);
-  const [order, setOrder] = useState<"shortest" | "longest">("shortest");
+  const [order, setOrder] = useState<"shortest" | "longest" | "expired">("shortest");
   const [showAdd, setShowAdd] = useState(false);
   const [productId, setProductId] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -56,14 +56,21 @@ function ValidadeProdutos() {
     return new Date(year, month - 1, day).getTime();
   };
 
-  const sortedEntries = [...entries].sort((a, b) =>
-    order === "shortest"
-      ? parseExpiry(a.expiry!) - parseExpiry(b.expiry!)
-      : parseExpiry(b.expiry!) - parseExpiry(a.expiry!)
-  );
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  const sortedEntries = [...entries]
+    .filter((item) => {
+      if (order !== "expired") return true;
+      const expiryDate = new Date(parseExpiry(item.expiry!));
+      expiryDate.setHours(0, 0, 0, 0);
+      return expiryDate.getTime() < today.getTime();
+    })
+    .sort((a, b) =>
+      order === "longest"
+        ? parseExpiry(b.expiry!) - parseExpiry(a.expiry!)
+        : parseExpiry(a.expiry!) - parseExpiry(b.expiry!)
+    );
   const getStatus = (expiry: string) => {
     const date = new Date(parseExpiry(expiry));
     date.setHours(0, 0, 0, 0);
@@ -182,20 +189,27 @@ function ValidadeProdutos() {
 
         <div className="mb-4">
           <label className="label-mono block mb-2">Ordenar validade</label>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setOrder("shortest")} aria-pressed={order === "shortest"} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${order === "shortest" ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
+          <div className="grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => setOrder("shortest")} aria-pressed={order === "shortest"} className={`rounded-xl border px-2 py-2.5 text-sm font-semibold transition-colors ${order === "shortest" ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
               Mais próxima
             </button>
-            <button type="button" onClick={() => setOrder("longest")} aria-pressed={order === "longest"} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${order === "longest" ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
+            <button type="button" onClick={() => setOrder("longest")} aria-pressed={order === "longest"} className={`rounded-xl border px-2 py-2.5 text-sm font-semibold transition-colors ${order === "longest" ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
               Mais distante
+            </button>
+            <button type="button" onClick={() => setOrder("expired")} aria-pressed={order === "expired"} className={`rounded-xl border px-2 py-2.5 text-sm font-semibold transition-colors ${order === "expired" ? "border-destructive bg-destructive/10 text-destructive" : "border-border text-foreground"}`}>
+              Vencidos
             </button>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {order === "shortest" ? "Mostrando primeiro os produtos que vencem antes." : "Mostrando primeiro os produtos com validade mais longa."}
+            {order === "shortest"
+              ? "Mostrando primeiro os produtos que vencem antes."
+              : order === "longest"
+                ? "Mostrando primeiro os produtos com validade mais longa."
+                : "Mostrando somente produtos com a validade já vencida."}
           </p>
         </div>
 
-        {!sortedEntries.length && <p className="py-10 text-center text-sm text-muted-foreground">Nenhum produto com validade cadastrada ainda.</p>}
+        {!sortedEntries.length && <p className="py-10 text-center text-sm text-muted-foreground">{order === "expired" ? "Nenhum produto vencido encontrado." : "Nenhum produto com validade cadastrada ainda."}</p>}
         <div className="space-y-3">
           {sortedEntries.map((item, index) => {
             const product = products.find((p) => p.id === item.productId);
