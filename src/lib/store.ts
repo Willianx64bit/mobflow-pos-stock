@@ -646,12 +646,12 @@ export function printFiadoBalance(customer: string, sales: Sale[]) {
   w.document.close();
 }
 
-export function printReceipt(s: Sale) {
+export function printReceipt(s: Sale, companyName = "") {
   const w = window.open("", "_blank", "width=380,height=640");
   if (!w) return;
   const rows = s.items.map((i) => { const qty = i.unit === "kg" ? `${brl(i.qty)} kg` : `${i.qty}×`; return `<tr><td>${qty} ${i.name}</td><td style="text-align:right">${brl(i.price * i.qty)}</td></tr>`; }).join("");
   w.document.write(`<html><head><title>Comprovante ${s.id}</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:12px auto}h1{text-align:center;font-size:18px;margin:0}hr{border:0;border-top:1px dashed #000}table{width:100%}p{margin:2px 0}.c{text-align:center}</style></head><body>
-<h1>MOBFLOW</h1><p class="c">COMPROVANTE DE COMPRA</p><p class="c">Não é documento fiscal</p><hr/>
+<h1>${companyName.trim() || "COMPROVANTE DE COMPRA"}</h1><p class="c">COMPROVANTE DE COMPRA</p><hr/>
 <p>Data: ${new Date(s.date).toLocaleString("pt-BR")}</p><p>Nº: ${s.id.toUpperCase()}</p>
 ${s.customer ? `<p>Cliente: ${s.customer}</p>` : ""}${s.cpf ? `<p>CPF: ${s.cpf}</p>` : ""}<hr/>
 <table>${rows}</table><hr/>
