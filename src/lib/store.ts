@@ -541,28 +541,37 @@ export const actions = {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || note.status !== "analisando" || note.stockReleased) return false;
     const keys = [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)];
-    if (!keys.length || keys.some(key => !note.decisions?.[key])) return false;
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: true } : n) });
-    // Never leave the UI spinning forever if cloud persistence stalls.
-    const persisted = await Promise.race([
-      persistQueue.then(() => true),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000)),
-    ]);
-    if (!persisted) {
-      set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) });
-      return false;
-    }
+    const decisions = note.decisions ?? {};
+    if (!keys.length || keys.some(key => !["aceitar", "devolver"].includes(decisions[key]))) return false;
+
+    // Send the current decisions directly. The database validates them and
+    // releases accepted quantities in one transaction, avoiding a race where
+    // decisionCompleted is not yet persisted when the RPC runs.
     const rpcResult = await Promise.race([
-      supabase.rpc("accept_receiving", { p_receiving_id: id }).then(({ data, error }) => ({ data, error })),
-      new Promise<{ data: null; error: { message: string } }>((resolve) => setTimeout(() => resolve({ data: null, error: { message: "Tempo limite ao atualizar o estoque." } }), 15000)),
+      supabase.rpc("finalize_receiving_decisions", {
+        p_receiving_id: id,
+        p_decisions: decisions,
+      }).then(({ data, error }) => ({ data, error })),
+      new Promise<{ data: null; error: { message: string } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: "Tempo limite ao atualizar o estoque." } }), 20000)
+      ),
     ]);
+
     if (rpcResult.error || rpcResult.data !== true) {
-      set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) });
       void hydrateStore();
       return false;
     }
-    // Update the visible note immediately. The RPC has already committed stock exactly once.
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "aceito", stockReleased: true } : n) });
+
+    // Do not call set() here: it persists the whole local state and could
+    // overwrite the stock just committed by the RPC with an older snapshot.
+    state = {
+      ...state,
+      receiving: (state.receiving ?? []).map((n) => n.id === id
+        ? { ...n, decisions, decisionCompleted: true, status: "aceito", stockReleased: true }
+        : n),
+    };
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    listeners.forEach((l) => l());
     void hydrateStore();
     return true;
   },
