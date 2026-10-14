@@ -19,7 +19,9 @@ export type ReceivingNote = {
   date: string;
   items: ReceivingItem[];
   extras?: ReceivingExtra[];
-  status: "pendente" | "conferido" | "divergente" | "aceito" | "rejeitado";
+  status: "pendente" | "analisando" | "conferido" | "divergente" | "aceito" | "rejeitado";
+  decisions?: Record<string, "aceitar" | "devolver">;
+  decisionCompleted?: boolean;
   stockReleased?: boolean;
   source?: "manual";
 };
@@ -503,7 +505,9 @@ export const actions = {
         ...n,
         items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0, expiry: conf.expiries?.[i.productId] || undefined })),
         extras,
-        status: divergent ? "divergente" : "conferido",
+        status: "analisando",
+        decisions: {},
+        decisionCompleted: false,
         stockReleased: false,
       } : n),
       conferences: state.conferences.map((c) => c.id === id ? { ...c, status: "finalizada", adjusted: !divergent } : c),
@@ -511,7 +515,7 @@ export const actions = {
   },
   async acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
-    if (!note || (note.status !== "divergente" && note.status !== "conferido") || note.stockReleased) return false;
+    if (!note || (note.status !== "analisando" && note.status !== "divergente" && note.status !== "conferido") || note.stockReleased || !note.decisionCompleted) return false;
     const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
     if (error || data !== true) {
       await hydrateStore();
@@ -520,6 +524,20 @@ export const actions = {
     // The RPC is the authoritative stock update in the database. Do not add
     // the received quantities again in client state; reload the committed state
     // so Realtime and local state cannot apply the same receipt twice.
+    await hydrateStore();
+    return true;
+  },
+  setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n) });
+  },
+  async completeReceivingDecision(id: string) {
+    const note = (state.receiving ?? []).find((n) => n.id === id);
+    if (!note || note.status === "aceito" || note.stockReleased) return false;
+    const keys = [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)];
+    if (!keys.length || keys.some(key => !note.decisions?.[key])) return false;
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: true } : n) });
+    const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
+    if (error || data !== true) { set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) }); await hydrateStore(); return false; }
     await hydrateStore();
     return true;
   },
