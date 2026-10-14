@@ -120,13 +120,9 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   };
 
   const finish = () => {
-    const cid = actions.startReceivingConference(note.id);
-    if (!cid) return;
-    for (const i of note.items) actions.setCount(cid, i.productId, counts[i.productId] ?? 0);
-    for (const i of note.items) if (expiries[i.productId]) actions.setExpiry(cid, i.productId, expiries[i.productId]);
-    actions.patchConference(cid, c => ({ ...c, extraCounts, extraExpiries }));
-    actions.finishReceivingConference(cid);
-    onBack();
+    const saved = actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
+    if (saved) onBack();
+    else alert("Não foi possível salvar a conferência. Os dados continuam nesta tela; tente novamente.");
   };
 
   return <section className="glass p-4">
