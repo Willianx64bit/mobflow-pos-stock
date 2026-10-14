@@ -2,7 +2,7 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type ReceivingNote } from "@/lib/store";
+import { actions, useStore, type Product, type ReceivingNote } from "@/lib/store";
 
 export const Route = createFileRoute("/conferencia")({
   head: () => ({ meta: [{ title: "MobFlow — Conferência" }, { name: "description", content: "Conferência das notas aguardando recebimento." }] }),
@@ -53,7 +53,7 @@ function Conferencia() {
   </div>;
 }
 
-function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; products: ReturnType<typeof useStore>["products"]; onBack: () => void }) {
+function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; products: Product[]; onBack: () => void }) {
   const conference = useStore(s => s.conferences.find(c => c.receivingId === note.id));
   const receivedFor = (productId: string, fallback = 0) => {
     const line = note.items.find(i => i.productId === productId);
