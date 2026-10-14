@@ -68,7 +68,9 @@ let realtimeOwnerId: string | null = null;
 let cloudAccountId: string | null = null;
 let lastCloudUpdatedAt: string | null = null;
 let lastSyncedState: State | null = null;
-let persistQueue = Promise.resolve();
+let persistQueue: Promise<void> = Promise.resolve();
+let persistRequested = false;
+let persistWorker: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -174,43 +176,63 @@ function startRealtime(accountId: string) {
 }
 
 function persistState() {
-  persistQueue = persistQueue.then(async () => {
-    if (!cloudReady || typeof window === "undefined" || !cloudAccountId) return;
-    const snapshot = cloneState(state);
-    const expected = lastCloudUpdatedAt;
-    let result;
-    if (expected) {
-      result = await supabase.from("app_state")
-        .update({ state: snapshot, updated_at: new Date().toISOString() })
+  // Coalesce bursts of local changes into at most one follow-up write. The app
+  // state can contain product photos, so sending a multi-megabyte JSON snapshot
+  // for every scanned item or decision causes timeouts and stale writes.
+  persistRequested = true;
+  if (persistWorker) return persistQueue;
+
+  persistWorker = (async () => {
+    while (persistRequested) {
+      persistRequested = false;
+      if (!cloudReady || typeof window === "undefined" || !cloudAccountId) break;
+
+      const snapshot = cloneState(state);
+      const expected = lastCloudUpdatedAt;
+      let result;
+      if (expected) {
+        result = await supabase.from("app_state")
+          .update({ state: snapshot, updated_at: new Date().toISOString() })
+          .eq("owner_id", cloudAccountId)
+          .eq("updated_at", expected)
+          .select("updated_at")
+          .maybeSingle();
+      } else {
+        result = await supabase.from("app_state")
+          .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
+          .select("updated_at")
+          .maybeSingle();
+      }
+      if (result.error) continue;
+      if (result.data?.updated_at) {
+        lastCloudUpdatedAt = result.data.updated_at;
+        lastSyncedState = cloneState(snapshot);
+        continue;
+      }
+
+      const { data } = await supabase.from("app_state").select("state,updated_at").eq("owner_id", cloudAccountId).maybeSingle();
+      if (!data?.state) continue;
+      state = mergeConcurrentState(lastSyncedState, state, data.state as State);
+      lastCloudUpdatedAt = data.updated_at ?? null;
+      lastSyncedState = cloneState(data.state as State);
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      const retry = cloneState(state);
+      const retryResult = await supabase.from("app_state")
+        .update({ state: retry, updated_at: new Date().toISOString() })
         .eq("owner_id", cloudAccountId)
-        .eq("updated_at", expected)
+        .eq("updated_at", lastCloudUpdatedAt)
         .select("updated_at")
         .maybeSingle();
-    } else {
-      result = await supabase.from("app_state")
-        .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
-        .select("updated_at")
-        .maybeSingle();
+      if (retryResult.data?.updated_at) {
+        lastCloudUpdatedAt = retryResult.data.updated_at;
+        lastSyncedState = cloneState(retry);
+      }
     }
-    if (result.error) return;
-    if (result.data?.updated_at) {
-      lastCloudUpdatedAt = result.data.updated_at;
-      lastSyncedState = cloneState(snapshot);
-      return;
-    }
-    const { data } = await supabase.from("app_state").select("state,updated_at").eq("owner_id", cloudAccountId).maybeSingle();
-    if (!data?.state) return;
-    state = mergeConcurrentState(lastSyncedState, state, data.state as State);
-    lastCloudUpdatedAt = data.updated_at ?? null;
-    lastSyncedState = cloneState(data.state as State);
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-    const retry = cloneState(state);
-    const retryResult = await supabase.from("app_state").update({ state: retry, updated_at: new Date().toISOString() }).eq("owner_id", cloudAccountId).eq("updated_at", lastCloudUpdatedAt).select("updated_at").maybeSingle();
-    if (retryResult.data?.updated_at) {
-      lastCloudUpdatedAt = retryResult.data.updated_at;
-      lastSyncedState = cloneState(retry);
-    }
-  }).catch(() => {});
+  })().catch(() => {}).finally(() => {
+    persistWorker = null;
+    if (persistRequested) void persistState();
+  });
+  persistQueue = persistWorker;
   return persistQueue;
 }
 
