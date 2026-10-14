@@ -235,9 +235,15 @@ function Configuracoes() {
     if (!ok) return;
 
     actions.resetAppData();
+    setName("");
+    setLogo("");
+    setPixKey("");
+    setPixKeyType("aleatoria");
+    setPixEditing(false);
+    setSaved(false);
     setResetOpen(false);
     setResetError("");
-    alert("Dados zerados. A conta e as configurações da empresa foram mantidas.");
+    alert("Aplicação zerada. Produtos, vendas, promoções, chave Pix e identidade da empresa foram apagados. O login e a conta foram mantidos.");
   };
 
   return (
@@ -409,21 +415,21 @@ function Configuracoes() {
           </div>
         </section>
 
-        <section className="glass p-5 md:p-6 ring-1 ring-destructive/30">
+        <section className="glass p-5 md:p-6">
           <button type="button" onClick={() => setResetSectionOpen(open => !open)} aria-expanded={resetSectionOpen} className="flex w-full items-center justify-between gap-3 text-left">
-            <h2 className="font-display text-xl tracking-[.08em] text-heading">ZERAR APLICAÇÃO</h2>
+            <h2 className="font-semibold text-heading">Zerar aplicação</h2>
             {resetSectionOpen ? <ChevronDown className="h-5 w-5 shrink-0 text-green-600" /> : <ChevronRight className="h-5 w-5 shrink-0 text-green-600" />}
           </button>
           {resetSectionOpen && <>
-            <p className="mt-2 text-sm text-muted-foreground">Apaga produtos, vendas, estoque, conferências e recebimentos. Login, conta e configurações da empresa ficam preservados.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Apaga os dados da empresa para começar do zero: produtos e fotos, vendas, estoque, conferências, recebimentos, fornecedores, promoções, chave Pix, nome e logo. O login e a conta permanecem.</p>
             <button onClick={openReset} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-destructive px-5 py-3 font-semibold text-destructive-foreground hover:opacity-90"><Trash2 className="h-4 w-4" />Zerar tudo e começar do zero</button>
           </>}
           {resetOpen && (
             <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
               <div className="w-full max-w-md glass p-6 shadow-2xl">
                 <AlertTriangle className="h-6 w-6 text-destructive" />
-                <h3 className="mt-2 font-display text-xl tracking-[.08em] text-heading">CONFIRMAÇÃO DE GERÊNCIA</h3>
-                <p className="mt-2 text-sm text-muted-foreground">Acesso autorizado pela conta de gerência. Confirme abaixo para apagar os dados.</p>
+                <h3 className="mt-2 text-lg font-semibold text-heading">Confirmar zerar aplicação</h3>
+                <p className="mt-2 text-sm text-muted-foreground">Esta ação não pode ser desfeita. Todos os dados e as configurações da empresa serão apagados; o login continuará ativo.</p>
                 {resetError && <p className="mt-2 text-sm text-destructive">{resetError}</p>}
                 <div className="mt-5 flex gap-2">
                   <button onClick={() => setResetOpen(false)} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">Cancelar</button>
