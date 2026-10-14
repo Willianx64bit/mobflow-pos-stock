@@ -22,6 +22,7 @@ export type ReceivingNote = {
   status: "pendente" | "analisando" | "conferido" | "divergente" | "aceito" | "rejeitado";
   decisions?: Record<string, "aceitar" | "devolver">;
   decisionCompleted?: boolean;
+  actionCompleted?: boolean;
   stockReleased?: boolean;
   source?: "manual";
 };
@@ -525,6 +526,12 @@ export const actions = {
     // the received quantities again in client state; reload the committed state
     // so Realtime and local state cannot apply the same receipt twice.
     await hydrateStore();
+    return true;
+  },
+  finishReceivingAction(id: string) {
+    const note = (state.receiving ?? []).find((n) => n.id === id);
+    if (!note || !note.stockReleased || !Object.values(note.decisions ?? {}).includes("devolver")) return false;
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n) });
     return true;
   },
   setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
