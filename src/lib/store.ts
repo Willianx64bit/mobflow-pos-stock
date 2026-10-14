@@ -532,10 +532,11 @@ export const actions = {
   },
   async completeReceivingDecision(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
-    if (!note || note.status === "aceito" || note.stockReleased) return false;
+    if (!note || note.status !== "analisando" || note.stockReleased) return false;
     const keys = [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)];
     if (!keys.length || keys.some(key => !note.decisions?.[key])) return false;
     set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: true } : n) });
+    await persistState();
     const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
     if (error || data !== true) { set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) }); await hydrateStore(); return false; }
     await hydrateStore();
