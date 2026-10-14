@@ -1,4 +1,4 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -10,6 +10,7 @@ export const Route = createFileRoute("/conferencia")({
 });
 
 function Conferencia() {
+  const navigate = useNavigate();
   const notes = useStore((s) => s.receiving ?? []);
   const products = useStore((s) => s.products);
   const search = useSearch({ from: "/conferencia" }) as { nota?: string };
@@ -46,7 +47,7 @@ function Conferencia() {
         return <div key={n.id} className="w-full py-4 flex flex-wrap items-center gap-3 px-2">
           <div className="flex-1 min-w-48"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier} · {n.items.length + (n.extras?.length ?? 0)} produtos</div></div>
           <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${label==="Liberado"?"bg-emerald-500/15 text-emerald-700":label==="Ação necessária"?"bg-amber-500/15 text-amber-700":"bg-secondary text-secondary-foreground"}`}>{label==="Liberado"?<CheckCircle2 className="h-4 w-4"/>:label==="Ação necessária"?<AlertTriangle className="h-4 w-4"/>:<Clock3 className="h-4 w-4"/>}{label}</span>
-          <button onClick={() => setOpen(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
+          <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
         </div>;
       })}</div>
     </section>
