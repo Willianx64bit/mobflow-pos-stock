@@ -131,11 +131,7 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
     <div className="flex flex-wrap items-center gap-3 mb-4">
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
       <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}{note.supplierCnpj ? ` · CNPJ ${note.supplierCnpj}` : ""}</div></div>
-      <span className="font-mono text-[11px] rounded-md px-2 py-1 bg-secondary text-secondary-foreground">{note.status}</span>
-      {(note.status === "divergente" || note.status === "conferido") && <div className="flex flex-wrap gap-2 ml-auto">
-        <button onClick={() => actions.acceptReceiving(note.id)} disabled={!!note.stockReleased} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold disabled:opacity-50">{note.stockReleased ? "Estoque já liberado" : "✓ Aceitar e liberar estoque"}</button>
-        {!note.stockReleased && <button onClick={() => actions.rejectReceiving(note.id)} className="rounded-xl bg-secondary ring-1 ring-border px-4 py-2 font-semibold text-secondary-foreground">Rejeitar</button>}
-      </div>}
+      <span className="font-mono text-[11px] rounded-md px-2 py-1 bg-secondary text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span>
     </div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
       <div className="rounded-xl bg-secondary/60 p-3"><div className="label-mono">Produtos</div><div className="text-lg font-bold text-foreground">{note.items.length}</div></div>
