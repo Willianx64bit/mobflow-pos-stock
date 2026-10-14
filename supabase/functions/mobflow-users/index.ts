@@ -34,6 +34,38 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "list");
 
+    if (action === "delete_all_pdv") {
+      const { data: users, error: listError } = await admin
+        .from("profiles")
+        .select("id,username")
+        .eq("account_id", manager.account_id)
+        .eq("role", "pdv");
+      if (listError) return json({ error: "Não foi possível localizar os usuários do PDV desta empresa." }, 500);
+
+      let deleted = 0;
+      for (const user of users ?? []) {
+        const { error: allowlistError } = await admin
+          .from("account_allowlist")
+          .update({ active: false })
+          .eq("username", user.username)
+          .eq("cnpj", manager.cnpj);
+        if (allowlistError) {
+          return json({ error: `Não foi possível remover a autorização de ${user.username}. Foram excluídos ${deleted} usuários; tente novamente.`, deleted }, 500);
+        }
+
+        const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
+        if (deleteError) {
+          await admin.from("account_allowlist")
+            .update({ active: true })
+            .eq("username", user.username)
+            .eq("cnpj", manager.cnpj);
+          return json({ error: `Não foi possível excluir ${user.username}. Foram excluídos ${deleted} usuários; tente novamente.`, deleted }, 500);
+        }
+        deleted++;
+      }
+      return json({ ok: true, deleted });
+    }
+
     if (action === "list") {
       const { data, error } = await admin
         .from("profiles")
