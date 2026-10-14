@@ -231,10 +231,25 @@ function Configuracoes() {
   };
 
   const reset = async () => {
-    const ok = confirm("Esta ação apagará os dados da empresa e excluirá todos os usuários do PDV vinculados a esta empresa. O login da gerência e as outras empresas não serão afetados. Deseja continuar?");
+    setResetError("");
+    const managerPassword = window.prompt("Digite somente a senha da gerência para confirmar e zerar a aplicação:");
+    if (managerPassword === null) return;
+    if (!managerPassword.trim()) {
+      setResetError("Informe a senha da gerência para continuar.");
+      return;
+    }
+
+    setPixChecking(true);
+    const passwordCheck = await verifyManagerPassword(managerPassword);
+    setPixChecking(false);
+    if (!passwordCheck.ok) {
+      setResetError(passwordCheck.error || "Senha da gerência incorreta.");
+      return;
+    }
+
+    const ok = confirm("Senha confirmada. Esta ação apagará os dados desta empresa e excluirá todos os usuários do PDV vinculados a ela. O login da gerência e as outras empresas não serão afetados. Deseja continuar?");
     if (!ok) return;
 
-    setResetError("");
     const { data, error } = await callUsers({ body: { action: "delete_all_pdv" } });
     if (error || !data?.ok) {
       setResetError(data?.error || "Não foi possível excluir os usuários do PDV. Os dados da aplicação não foram zerados.");
