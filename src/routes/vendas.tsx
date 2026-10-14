@@ -19,6 +19,7 @@ export const Route = createFileRoute("/vendas")({
 function Vendas() {
   const sales = useStore((s) => s.sales);
   const companyName = useStore((s) => s.settings.companyName);
+  const savedCompanyName = companyName || (() => { try { const raw = localStorage.getItem("mobflow-pos-stock"); if (!raw) return ""; const parsed = JSON.parse(raw); return parsed?.settings?.companyName || ""; } catch { return ""; } })();
   const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
   const todayKey = new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0") + "-" + String(new Date().getDate()).padStart(2, "0");
   const [selectedMonth, setSelectedMonth] = useState(todayKey.slice(0, 7));
@@ -105,7 +106,7 @@ function Vendas() {
               <span className="flex-1 min-w-48 text-foreground truncate">{s.customer ? `${s.customer} — ` : ""}{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</span>
               <span className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground">{s.payment}</span>
               <span className="font-mono text-heading w-28 text-right">R$ {brl(s.total)}</span>
-              <button onClick={() => printReceipt(s, companyName)} className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground hover:text-foreground">🧾 comprovante</button>
+              <button onClick={() => printReceipt(s, savedCompanyName)} className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground hover:text-foreground">🧾 comprovante</button>
             </div>
           ))}
         </div>
