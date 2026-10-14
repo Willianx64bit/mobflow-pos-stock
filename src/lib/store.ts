@@ -576,9 +576,11 @@ export const actions = {
     // Send the current decisions directly. The database validates them and
     // releases accepted quantities in one transaction, avoiding a race where
     // decisionCompleted is not yet persisted when the RPC runs.
-    // Make sure the latest conference quantities/status have reached the cloud
-    // before the database validates and releases stock.
-    await persistQueue;
+    // The conference itself was saved before this decision screen. Do not wait
+    // for the full app_state snapshot queue here: it can include large product
+    // photos and needlessly delay release. Conditional updated_at writes and
+    // the RPC's row lock prevent a stale queued snapshot from overwriting the
+    // committed stock update.
     const rpcResult = await Promise.race([
       supabase.rpc("finalize_receiving_decisions", {
         p_receiving_id: id,
