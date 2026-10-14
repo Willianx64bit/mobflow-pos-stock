@@ -1,8 +1,8 @@
-import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore } from "@/lib/store";
+import { actions, useStore, type ReceivingNote } from "@/lib/store";
 
 export const Route = createFileRoute("/conferencia")({
   head: () => ({ meta: [{ title: "MobFlow — Conferência" }, { name: "description", content: "Conferência das notas aguardando recebimento." }] }),
@@ -10,7 +10,6 @@ export const Route = createFileRoute("/conferencia")({
 });
 
 function Conferencia() {
-  const navigate = useNavigate();
   const notes = useStore((s) => s.receiving ?? []);
   const products = useStore((s) => s.products);
   const search = useSearch({ from: "/conferencia" }) as { nota?: string };
@@ -21,7 +20,7 @@ function Conferencia() {
 
   useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);
 
-  if (note) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><Session noteId={note.id} onBack={() => setOpen(null)} /></div>;
+  if (note) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />{note.status === "pendente" ? <Session noteId={note.id} onBack={() => setOpen(null)} /> : <ConferenceMirror note={note} products={products} onBack={() => setOpen(null)} />}</div>;
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
     <section className="glass p-4">
@@ -47,11 +46,30 @@ function Conferencia() {
         return <div key={n.id} className="w-full py-4 flex flex-wrap items-center gap-3 px-2">
           <div className="flex-1 min-w-48"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier} · {n.items.length + (n.extras?.length ?? 0)} produtos</div></div>
           <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${label==="Liberado"?"bg-emerald-500/15 text-emerald-700":label==="Ação necessária"?"bg-amber-500/15 text-amber-700":"bg-secondary text-secondary-foreground"}`}>{label==="Liberado"?<CheckCircle2 className="h-4 w-4"/>:label==="Ação necessária"?<AlertTriangle className="h-4 w-4"/>:<Clock3 className="h-4 w-4"/>}{label}</span>
-          <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
+          <button onClick={() => setOpen(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
         </div>;
       })}</div>
     </section>
   </div>;
+}
+
+function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; products: ReturnType<typeof useStore>["products"]; onBack: () => void }) {
+  const conference = useStore(s => s.conferences.find(c => c.receivingId === note.id));
+  const receivedFor = (productId: string, fallback = 0) => {
+    const line = note.items.find(i => i.productId === productId);
+    const extra = note.extras?.find(i => i.productId === productId);
+    return Number(line?.received ?? conference?.counts?.[productId] ?? extra?.received ?? fallback);
+  };
+  const decisionLabel = (id: string) => note.decisions?.[id] === "aceitar" ? "Aceito" : note.decisions?.[id] === "devolver" ? "Devolver" : "Sem decisão";
+  return <section className="glass p-4">
+    <div className="flex flex-wrap items-center gap-3 mb-4"><button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button><div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier} · Visualização da conferência</div></div><span className="rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span></div>
+    <p className="mb-3 rounded-lg bg-secondary/50 p-3 text-sm text-muted-foreground">Esta é uma tela somente para consulta. Para cada produto, veja a quantidade conferida e a decisão registrada no Recebimento. Nenhuma ação pode ser alterada por aqui.</p>
+    <div className="overflow-x-auto"><table className="w-full text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Esperado</th><th className="text-right">Recebido</th><th className="text-right">Decisão</th></tr></thead><tbody className="divide-y divide-border/50">
+      {note.items.map(i => <tr key={i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === i.productId)?.code}</div></td><td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
+      {(note.extras ?? []).map(i => <tr key={"extra-" + i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name} <span className="text-[10px] text-amber-700">Extra</span></div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === i.productId)?.code || "Sem código"}</div></td><td className="text-right font-mono">0 {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId, i.received)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
+    </tbody></table></div>
+    {note.stockReleased && <div className="mt-4 rounded-xl bg-secondary/60 p-3 text-sm">Estoque liberado somente para os produtos aceitos. {Object.values(note.decisions ?? {}).includes("devolver") ? "Há produtos registrados para devolução." : "Não há produtos marcados para devolução."}</div>}
+  </section>;
 }
 
 function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
