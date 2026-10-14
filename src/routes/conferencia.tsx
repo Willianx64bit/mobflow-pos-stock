@@ -1,6 +1,6 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Camera } from "lucide-react";
+import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 
@@ -15,6 +15,7 @@ function Conferencia() {
   const search = useSearch({ from: "/conferencia" }) as { nota?: string };
   const [open, setOpen] = useState<string | null>(search.nota ?? null);
   const pending = notes.filter(n => n.status === "pendente");
+  const history = notes.filter(n => n.status !== "pendente");
   const note = notes.find(n => n.id === open);
 
   useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);
@@ -33,6 +34,21 @@ function Conferencia() {
           <span className="text-primary font-semibold">Abrir →</span>
         </button>)}
       </div>
+    </section>
+    <section className="glass p-4 mt-4">
+      <div className="font-display text-xl tracking-[.1em] text-heading mb-1">HISTÓRICO DE CONFERÊNCIAS</div>
+      <div className="label-mono mb-3">Andamento das notas já conferidas</div>
+      {!history.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">nenhuma conferência finalizada</p>}
+      <div className="divide-y divide-border/50">{history.map(n => {
+        const needsAction = !!n.stockReleased && Object.values(n.decisions ?? {}).includes("devolver");
+        const released = !!n.stockReleased && !needsAction;
+        const label = n.status === "analisando" ? "Analisando" : needsAction || n.status === "rejeitado" ? "Ação necessária" : released ? "Liberado" : "Ação necessária";
+        return <div key={n.id} className="w-full py-4 flex flex-wrap items-center gap-3 px-2">
+          <div className="flex-1 min-w-48"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier} · {n.items.length + (n.extras?.length ?? 0)} produtos</div></div>
+          <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${label==="Liberado"?"bg-emerald-500/15 text-emerald-700":label==="Ação necessária"?"bg-amber-500/15 text-amber-700":"bg-secondary text-secondary-foreground"}`}>{label==="Liberado"?<CheckCircle2 className="h-4 w-4"/>:label==="Ação necessária"?<AlertTriangle className="h-4 w-4"/>:<Clock3 className="h-4 w-4"/>}{label}</span>
+          <button onClick={() => setOpen(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
+        </div>;
+      })}</div>
     </section>
   </div>;
 }
