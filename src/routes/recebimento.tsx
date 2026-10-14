@@ -180,6 +180,10 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
       <div className="mt-2 text-[11px] text-muted-foreground">Pode incluir produtos depois de salvar, enquanto a conferência ainda não foi finalizada.</div>
     </div>}
     
+    {note.status === "analisando" && <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <p className="text-sm text-muted-foreground">Nota grande? Marque todos os produtos como aceitos de uma vez.</p>
+      <button type="button" onClick={() => { if (confirm("Marcar todos os produtos e extras desta nota como ACEITAR? Você ainda poderá alterar decisões individuais antes de finalizar.")) { [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)].forEach(key => actions.setReceivingDecision(note.id, key, "aceitar")); } }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700">✓ ACEITAR TUDO</button>
+    </div>}
     <div className="overflow-x-auto">
       <table className="w-full text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Esperado</th><th className="text-right">Recebido</th><th className="text-right">Diferença</th><th>Validade</th><th className="text-right">Decisão</th></tr></thead>
       <tbody className="divide-y divide-border/50">
