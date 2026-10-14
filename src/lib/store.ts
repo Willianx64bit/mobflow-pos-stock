@@ -494,25 +494,32 @@ export const actions = {
     set({ conferences: [c, ...(state.conferences ?? [])] });
     return c.id;
   },
-  finishReceivingConference(id: string) {
-    const conf = state.conferences.find((c) => c.id === id);
-    if (!conf?.receivingId) return;
-    const note = (state.receiving ?? []).find((n) => n.id === conf.receivingId);
-    if (!note) return;
-    const extras = Object.entries(conf.extraCounts ?? {}).filter(([, received]) => received > 0).map(([productId, received]) => { const p = state.products.find((x) => x.id === productId); return p ? { productId, name: p.name, received, expiry: conf.extraExpiries?.[productId] || undefined, unit: p.unit } : null; }).filter(Boolean) as ReceivingExtra[];
-    const divergent = extras.length > 0 || note.items.some((i) => (conf.counts[i.productId] ?? 0) !== i.expected);
+  saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
+    const note = (state.receiving ?? []).find((n) => n.id === receivingId);
+    if (!note || note.status !== "pendente") return false;
+    const extras = Object.entries(extraCounts).filter(([, received]) => received > 0).map(([productId, received]) => {
+      const p = state.products.find((x) => x.id === productId);
+      return p ? { productId, name: p.name, received, expiry: extraExpiries[productId] || undefined, unit: p.unit } : null;
+    }).filter(Boolean) as ReceivingExtra[];
+    const conference: Conference = {
+      id: uid(), name: `Nota ${note.number} · ${note.supplier}`, date: new Date().toISOString(),
+      status: "finalizada", counts: { ...counts }, unknown: [], receivingId,
+      expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries },
+    };
+    const divergent = extras.length > 0 || note.items.some((i) => (counts[i.productId] ?? 0) !== i.expected);
     set({
       receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
         ...n,
-        items: n.items.map((i) => ({ ...i, received: conf.counts[i.productId] ?? 0, expiry: conf.expiries?.[i.productId] || undefined })),
+        items: n.items.map((i) => ({ ...i, received: counts[i.productId] ?? 0, expiry: expiries[i.productId] || undefined })),
         extras,
         status: "analisando",
         decisions: {},
         decisionCompleted: false,
         stockReleased: false,
       } : n),
-      conferences: state.conferences.map((c) => c.id === id ? { ...c, status: "finalizada", adjusted: !divergent } : c),
+      conferences: [conference, ...(state.conferences ?? []).filter((item) => item.receivingId !== receivingId || item.status !== "aberta")],
     });
+    return true;
   },
   async acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
@@ -547,6 +554,9 @@ export const actions = {
     // Send the current decisions directly. The database validates them and
     // releases accepted quantities in one transaction, avoiding a race where
     // decisionCompleted is not yet persisted when the RPC runs.
+    // Make sure the latest conference quantities/status have reached the cloud
+    // before the database validates and releases stock.
+    await persistQueue;
     const rpcResult = await Promise.race([
       supabase.rpc("finalize_receiving_decisions", {
         p_receiving_id: id,
@@ -558,7 +568,9 @@ export const actions = {
     ]);
 
     if (rpcResult.error || rpcResult.data !== true) {
-      void hydrateStore();
+      // Keep the local conference and decisions on screen. Hydrating here can
+      // replace a just-finished local conference with an older cloud snapshot,
+      // forcing the user to count the delivery again.
       return false;
     }
 
