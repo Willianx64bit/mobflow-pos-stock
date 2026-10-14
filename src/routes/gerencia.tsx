@@ -60,6 +60,10 @@ function Gerencia() {
   const [error, setError] = useState("");
   const [checkingManager, setCheckingManager] = useState(true);
   const [accessIssue, setAccessIssue] = useState("");
+  const [managerPasswordConfigured, setManagerPasswordConfigured] = useState(true);
+  const [setupPassword, setSetupPassword] = useState("");
+  const [setupPasswordConfirm, setSetupPasswordConfirm] = useState("");
+  const [setupPasswordError, setSetupPasswordError] = useState("");
 
   const today = localDateKey();
   const todays = sales.filter((s) => localDateKey(new Date(s.date)) === today);
@@ -121,7 +125,12 @@ function Gerencia() {
           }
           return;
         }
+        const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
+        if (securityStatusError || typeof securityStatus?.configured !== "boolean") {
+          throw new Error("Não foi possível verificar a senha da gerência.");
+        }
         if (active) {
+          setManagerPasswordConfigured(securityStatus.configured);
           setAccessIssue("");
           setCheckingManager(false);
         }
@@ -135,6 +144,36 @@ function Gerencia() {
     void checkManager();
     return () => { active = false; };
   }, []);
+
+  const createManagerPassword = async () => {
+    setSetupPasswordError("");
+    if (setupPassword.length < 8) {
+      setSetupPasswordError("A senha precisa ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (setupPassword !== setupPasswordConfirm) {
+      setSetupPasswordError("As senhas não conferem.");
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-reauth-manager", {
+        body: { action: "set_password", password: setupPassword },
+      });
+      if (invokeError || !data?.ok) {
+        setSetupPasswordError(data?.error || "Não foi possível salvar a senha. Tente novamente.");
+        return;
+      }
+      setManagerPasswordConfigured(true);
+      setSetupPassword("");
+      setSetupPasswordConfirm("");
+      setPasswordError("");
+    } catch {
+      setSetupPasswordError("Não foi possível conectar ao servidor.");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const confirmManagerPassword = async () => {
     setPasswordError("");
@@ -201,6 +240,31 @@ function Gerencia() {
                 navigate({ to: "/" });
               }} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground">Sair e entrar com a conta da empresa</button>
             </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (!managerPasswordConfigured) {
+    return (
+      <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
+        <AppHeader />
+        <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
+          <div className="w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+            <div className="text-center">
+              <img src="/mobflow-logo.svg" alt="MobFlow — PDV + Estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">PRIMEIRO ACESSO · GERÊNCIA</div>
+              <h1 className="mt-4 font-display text-2xl text-heading">Crie a senha da Gerência</h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Defina uma senha exclusiva para proteger a Gerência desta empresa. Ela será diferente da senha usada no login da empresa.</p>
+            </div>
+            <form className="mt-6 space-y-3" onSubmit={(e) => { e.preventDefault(); void createManagerPassword(); }}>
+              <input type="password" value={setupPassword} onChange={(e) => { setSetupPassword(e.target.value); setSetupPasswordError(""); }} placeholder="Nova senha (mínimo 8 caracteres)" autoComplete="new-password" className="field w-full text-foreground" autoFocus />
+              <input type="password" value={setupPasswordConfirm} onChange={(e) => { setSetupPasswordConfirm(e.target.value); setSetupPasswordError(""); }} placeholder="Confirme a senha" autoComplete="new-password" className="field w-full text-foreground" />
+              {setupPasswordError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{setupPasswordError}</div>}
+              <button type="submit" disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Salvando..." : "Salvar senha da Gerência"}</button>
+              <p className="text-center text-xs text-muted-foreground">A senha é vinculada somente a esta empresa e não pode ser redefinida por esta tela após o cadastro.</p>
+            </form>
           </div>
         </section>
       </div>
