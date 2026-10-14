@@ -543,10 +543,27 @@ export const actions = {
     const keys = [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)];
     if (!keys.length || keys.some(key => !note.decisions?.[key])) return false;
     set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: true } : n) });
-    await persistQueue;
-    const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
-    if (error || data !== true) { set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) }); await hydrateStore(); return false; }
-    await hydrateStore();
+    // Never leave the UI spinning forever if cloud persistence stalls.
+    const persisted = await Promise.race([
+      persistQueue.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 10000)),
+    ]);
+    if (!persisted) {
+      set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) });
+      return false;
+    }
+    const rpcResult = await Promise.race([
+      supabase.rpc("accept_receiving", { p_receiving_id: id }).then(({ data, error }) => ({ data, error })),
+      new Promise<{ data: null; error: { message: string } }>((resolve) => setTimeout(() => resolve({ data: null, error: { message: "Tempo limite ao atualizar o estoque." } }), 15000)),
+    ]);
+    if (rpcResult.error || rpcResult.data !== true) {
+      set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisionCompleted: false } : n) });
+      void hydrateStore();
+      return false;
+    }
+    // Update the visible note immediately. The RPC has already committed stock exactly once.
+    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "aceito", stockReleased: true } : n) });
+    void hydrateStore();
     return true;
   },
   rejectReceiving(id: string) {
