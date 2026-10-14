@@ -105,7 +105,7 @@ function Vendas() {
               <span className="flex-1 min-w-48 text-foreground truncate">{s.customer ? `${s.customer} — ` : ""}{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</span>
               <span className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground">{s.payment}</span>
               <span className="font-mono text-heading w-28 text-right">R$ {brl(s.total)}</span>
-              <button onClick={() => printReceipt(s, companyName) className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground hover:text-foreground">🧾 comprovante</button>
+              <button onClick={() => printReceipt(s, companyName)} className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground hover:text-foreground">🧾 comprovante</button>
             </div>
           ))}
         </div>
