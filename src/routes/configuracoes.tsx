@@ -230,9 +230,16 @@ function Configuracoes() {
     setResetOpen(true);
   };
 
-  const reset = () => {
-    const ok = confirm("Esta alteração não pode ser desfeita, você tem certeza?");
+  const reset = async () => {
+    const ok = confirm("Esta ação apagará os dados da empresa e excluirá todos os usuários do PDV vinculados a esta empresa. O login da gerência e as outras empresas não serão afetados. Deseja continuar?");
     if (!ok) return;
+
+    setResetError("");
+    const { data, error } = await callUsers({ body: { action: "delete_all_pdv" } });
+    if (error || !data?.ok) {
+      setResetError(data?.error || "Não foi possível excluir os usuários do PDV. Os dados da aplicação não foram zerados.");
+      return;
+    }
 
     actions.resetAppData();
     setName("");
@@ -241,9 +248,10 @@ function Configuracoes() {
     setPixKeyType("aleatoria");
     setPixEditing(false);
     setSaved(false);
+    setPdvUsers([]);
     setResetOpen(false);
     setResetError("");
-    alert("Aplicação zerada. Produtos, vendas, promoções, chave Pix e identidade da empresa foram apagados. O login e a conta foram mantidos.");
+    alert(`Aplicação zerada. Dados da empresa apagados e ${data.deleted ?? 0} usuário(s) do PDV excluído(s). O login da gerência foi mantido.`);
   };
 
   return (
