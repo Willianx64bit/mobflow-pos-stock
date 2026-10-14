@@ -1,5 +1,6 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Camera } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 
@@ -95,7 +96,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     <div className="flex flex-wrap items-center gap-3 mb-4">
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
       <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}</div></div>
-      <button onClick={() => setCameraOpen(true)} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold">📷 Câmera</button>
+      <button onClick={() => setCameraOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold"><Camera className="h-4 w-4" /> Câmera</button>
       <label className="flex items-center gap-2 rounded-xl bg-secondary ring-1 ring-border px-3 py-2 text-sm text-secondary-foreground cursor-pointer select-none">
         <input
           type="checkbox"
@@ -105,10 +106,6 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
         />
         Reabrir câmera após salvar
       </label>
-    </div>
-
-    <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4 text-[12px] text-secondary-foreground">
-      Leia o código de barras para informar a quantidade. Produtos fora da nota podem ser registrados e serão sinalizados como extras.
     </div>
 
     <div className="overflow-x-auto">
@@ -137,7 +134,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     </div>
 
     {Object.values(extraCounts).some(q => q > 0) && <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800"><b>Produtos extras registrados:</b> eles serão enviados para Recebimento para avaliação do responsável.</div>}
-    <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver diferença. Quando houver divergência, o estoque ficará aguardando sua aprovação em <b>Recebimento</b>.</div>
+    <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver divergência.</div>
     <button onClick={() => confirm("Finalizar esta conferência?") && finish()} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Finalizar conferência</button>
 
     {cameraOpen && <BarcodeScanner products={products} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
