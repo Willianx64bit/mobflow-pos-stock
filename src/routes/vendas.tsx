@@ -52,10 +52,10 @@ function Vendas() {
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
-      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-        <div className="glass p-4"><div className="label-mono">Faturamento do período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
+        <div className="glass p-4"><div className="label-mono">Total de vendas no período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
         <div className="glass p-4"><div className="label-mono text-sm md:text-base">Vendas</div><div className="font-display text-4xl mt-1 text-heading">{filteredSales.length}</div></div>
-        {(["Dinheiro", "Cartão", "Pix"] as const).map((m) => (
+        {(["Dinheiro", "Cartão", "Pix", "Fiado"] as const).map((m) => (
           <div key={m} className="glass p-4"><div className="label-mono text-sm md:text-base">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
         ))}
       </div>
@@ -75,7 +75,7 @@ function Vendas() {
             <select value={productFilter} onChange={e => setProductFilter(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="">Todos os produtos</option>{productOptions.map(name => <option key={name} value={name}>{name}</option>)}</select>
           </label>
           <label className="text-xs font-medium text-muted-foreground">Forma de pagamento
-            <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="todos">Todas</option><option value="Dinheiro">Dinheiro</option><option value="Cartão">Cartão</option><option value="Pix">Pix</option></select>
+            <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="todos">Todas</option><option value="Dinheiro">Dinheiro</option><option value="Cartão">Cartão</option><option value="Pix">Pix</option><option value="Fiado">Fiado</option></select>
           </label>
           <label className="text-xs font-medium text-muted-foreground">Filtrar por data
             <select value={dateFilterMode} onChange={e => setDateFilterMode(e.target.value as "month" | "range")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="month">Mês</option><option value="range">Período personalizado</option></select>
