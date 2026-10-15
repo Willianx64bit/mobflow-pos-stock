@@ -106,7 +106,6 @@ function Vendas() {
                   <span className="font-mono text-[11px] text-muted-foreground sm:w-36">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
                   <div className="min-w-0 flex-1">
                     {s.customer && <div className="truncate font-medium text-foreground">{s.customer}</div>}
-                    <div className="text-xs text-muted-foreground">{s.items.length} produto(s)</div>
                   </div>
                   <span className="font-mono text-[11px] rounded-md bg-secondary px-2 py-1 text-secondary-foreground">{s.payment}</span>
                   <span className="w-24 text-right font-mono font-semibold text-heading">R$ {brl(s.total)}</span>
@@ -119,7 +118,6 @@ function Vendas() {
                     {isExpanded ? "Fechar" : "Produtos"}
                     <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                   </button>
-                  <button onClick={() => printReceipt(s, savedCompanyName)} className="rounded-lg bg-secondary px-2.5 py-2 font-mono text-[11px] text-secondary-foreground hover:text-foreground">🧾 Comprovante</button>
                 </div>
                 {isExpanded && (
                   <div className="mt-3 space-y-2 rounded-xl border border-border/60 bg-secondary/20 p-3">
@@ -132,6 +130,9 @@ function Vendas() {
                         <div className="text-sm font-semibold text-heading">Total: R$ {brl(item.price * item.qty)}</div>
                       </div>
                     ))}
+                    <div className="flex justify-end border-t border-border/50 pt-3">
+                      <button onClick={() => printReceipt(s, savedCompanyName)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent hover:text-foreground">🧾 Comprovante</button>
+                    </div>
                   </div>
                 )}
               </div>
