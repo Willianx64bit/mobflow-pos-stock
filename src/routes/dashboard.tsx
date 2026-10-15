@@ -95,7 +95,7 @@ function Dashboard() {
     <div className="mfb-in min-h-screen bg-emerald-50/35 p-4 md:p-6">
       <AppHeader />
       <main className="space-y-5">
-        <section className="glass border-sky-100/80 bg-white/80 p-5 shadow-[0_12px_40px_rgba(56,189,248,0.08)] md:p-6">
+        <section className="glass border-emerald-100/90 bg-white/90 p-5 shadow-[0_12px_40px_rgba(74,222,128,0.10)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
             <div>
               <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ function Dashboard() {
             </button>
           </div>
 
-          <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-4 md:p-5">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/35 p-4 md:p-5">
             <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
               <div>
                 <h2 className="font-semibold text-heading">Vendas por período</h2>
