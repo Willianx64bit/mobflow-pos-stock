@@ -96,18 +96,18 @@ function Vendas() {
           <span className="text-muted-foreground">Período: <strong className="capitalize text-foreground">{periodLabel}</strong></span>
           <span className="font-semibold text-foreground">{filteredSales.length} venda(s) · R$ {brl(sum(filteredSales))}</span>
         </div>
+        <div className="mb-2 hidden grid-cols-4 gap-3 px-3 text-xs font-semibold text-muted-foreground md:grid"><span>Data / hora</span><span>Comprador</span><span>Vendedor</span><span className="text-right">Total</span></div>
         <div className="divide-y divide-border/50">
           {filteredSales.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">Nenhuma venda encontrada nesse período.</p>}
           {filteredSales.map((s) => {
             const isExpanded = expandedSales.includes(s.id);
             return (
               <div key={s.id} className="border-b border-border/50 py-3 last:border-b-0">
-                <div className="flex flex-wrap items-center gap-3 text-[13px]">
-                  <span className="font-mono text-[11px] text-muted-foreground sm:w-36">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
-                  <div className="min-w-0 flex-1">
-                    {s.customer && <div className="truncate font-medium text-foreground">{s.customer}</div>}
-                  </div>
-                  <span className="w-24 text-right font-mono font-semibold text-heading">R$ {brl(s.total)}</span>
+                <div className="grid grid-cols-2 gap-3 text-[13px] md:grid-cols-4 md:items-center">
+                  <div><span className="block text-[10px] text-muted-foreground md:hidden">Data / hora</span><span className="font-mono text-[11px] text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span></div>
+                  <div className="min-w-0"><span className="block text-[10px] text-muted-foreground md:hidden">Comprador</span><div className="truncate font-medium text-foreground">{s.customer || "Não informado"}</div></div>
+                  <div className="min-w-0"><span className="block text-[10px] text-muted-foreground md:hidden">Vendedor</span><div className="truncate font-medium text-foreground">{s.seller || "Não registrado"}</div></div>
+                  <div className="text-right font-mono font-semibold text-heading"><span className="block text-[10px] text-muted-foreground md:hidden">Total</span>R$ {brl(s.total)}</div>
                   <button
                     type="button"
                     onClick={() => setExpandedSales((current) => isExpanded ? current.filter((id) => id !== s.id) : [...current, s.id])}
