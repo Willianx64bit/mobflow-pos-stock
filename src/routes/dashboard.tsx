@@ -92,7 +92,7 @@ function Dashboard() {
   const periodProfit = periodSales.reduce((sum, s) => sum + saleProfit(s, products), 0);
 
   return (
-    <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
+    <div className="mfb-in min-h-screen bg-emerald-50/35 p-4 md:p-6">
       <AppHeader />
       <main className="space-y-5">
         <section className="glass border-sky-100/80 bg-white/80 p-5 shadow-[0_12px_40px_rgba(56,189,248,0.08)] md:p-6">
@@ -125,16 +125,16 @@ function Dashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-              <div className="rounded-xl bg-sky-50 p-4 ring-1 ring-sky-100/80">
-                <div className="text-xs text-muted-foreground">Vendas no período</div>
-                <div className="mt-1 text-xl font-bold text-heading">R$ {brl(periodTotal)}</div>
-                <div className="text-xs text-muted-foreground">{periodSales.length} venda(s)</div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="rounded-xl border border-emerald-200/80 bg-white p-3 sm:p-4 shadow-[0_0_0_1px_rgba(134,239,172,0.22),0_0_18px_rgba(74,222,128,0.20)]">
+                <div className="text-sm sm:text-base font-semibold leading-snug text-emerald-900">Vendas no período</div>
+                <div className="mt-2 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800">R$ {brl(periodTotal)}</div>
+                <div className="mt-1 text-xs sm:text-sm text-muted-foreground">{periodSales.length} venda(s)</div>
               </div>
-              <div className="rounded-xl bg-secondary/60 p-4">
-                <div className="text-xs text-muted-foreground">Lucro no período</div>
-                <div className="mt-1 text-xl font-bold text-primary">R$ {brl(periodProfit)}</div>
-                <div className="text-xs text-muted-foreground">somente lucro dos produtos</div>
+              <div className="rounded-xl border border-emerald-200/80 bg-white p-3 sm:p-4 shadow-[0_0_0_1px_rgba(134,239,172,0.22),0_0_18px_rgba(74,222,128,0.20)]">
+                <div className="text-sm sm:text-base font-semibold leading-snug text-emerald-900">Lucro no período</div>
+                <div className="mt-2 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800">R$ {brl(periodProfit)}</div>
+                <div className="mt-1 text-xs sm:text-sm text-muted-foreground">somente lucro dos produtos</div>
               </div>
             </div>
 
