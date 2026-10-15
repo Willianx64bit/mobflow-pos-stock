@@ -54,9 +54,9 @@ function Vendas() {
       <AppHeader />
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
         <div className="glass p-4"><div className="label-mono">Faturamento do período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
-        <div className="glass p-4"><div className="label-mono">Vendas no período</div><div className="font-display text-4xl mt-1 text-heading">{filteredSales.length}</div></div>
+        <div className="glass p-4"><div className="label-mono text-sm md:text-base">Vendas</div><div className="font-display text-4xl mt-1 text-heading">{filteredSales.length}</div></div>
         {(["Dinheiro", "Cartão", "Pix"] as const).map((m) => (
-          <div key={m} className="glass p-4"><div className="label-mono">{m} no período</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
+          <div key={m} className="glass p-4"><div className="label-mono text-sm md:text-base">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
         ))}
       </div>
       <section className="glass p-4">
