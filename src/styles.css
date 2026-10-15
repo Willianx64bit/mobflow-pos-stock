@@ -172,3 +172,12 @@ body.mfb-side-open { padding-left: 16rem; transition: padding-left 0.2s ease; }
     margin-top: 0;
   }
 }
+
+/* Oculta o selo visual da Lovable, quando ele é injetado no DOM da aplicação. */
+#lovable-badge,
+[data-lovable-badge],
+a[href*="lovable.dev"]#lovable-badge {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
