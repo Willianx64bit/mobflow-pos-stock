@@ -29,6 +29,7 @@ function Vendas() {
   const [searchText, setSearchText] = useState("");
   const [productFilter, setProductFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("todos");
+  const [expandedSales, setExpandedSales] = useState<string[]>([]);
   const navigate = useNavigate();
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -97,15 +98,45 @@ function Vendas() {
         </div>
         <div className="divide-y divide-border/50">
           {filteredSales.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">Nenhuma venda encontrada nesse período.</p>}
-          {filteredSales.map((s) => (
-            <div key={s.id} className="py-3 flex flex-wrap items-center gap-4 text-[13px]">
-              <span className="font-mono text-[11px] text-muted-foreground w-36">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
-              <span className="flex-1 min-w-48 text-foreground truncate">{s.customer ? `${s.customer} — ` : ""}{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</span>
-              <span className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground">{s.payment}</span>
-              <span className="font-mono text-heading w-28 text-right">R$ {brl(s.total)}</span>
-              <button onClick={() => printReceipt(s, savedCompanyName)} className="font-mono text-[11px] rounded-md bg-secondary px-2 py-0.5 text-secondary-foreground hover:text-foreground">🧾 comprovante</button>
-            </div>
-          ))}
+          {filteredSales.map((s) => {
+            const isExpanded = expandedSales.includes(s.id);
+            return (
+              <div key={s.id} className="border-b border-border/50 py-3 last:border-b-0">
+                <div className="flex flex-wrap items-center gap-3 text-[13px]">
+                  <span className="font-mono text-[11px] text-muted-foreground sm:w-36">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+                  <div className="min-w-0 flex-1">
+                    {s.customer && <div className="truncate font-medium text-foreground">{s.customer}</div>}
+                    <div className="text-xs text-muted-foreground">{s.items.length} produto(s)</div>
+                  </div>
+                  <span className="font-mono text-[11px] rounded-md bg-secondary px-2 py-1 text-secondary-foreground">{s.payment}</span>
+                  <span className="w-24 text-right font-mono font-semibold text-heading">R$ {brl(s.total)}</span>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedSales((current) => isExpanded ? current.filter((id) => id !== s.id) : [...current, s.id])}
+                    aria-expanded={isExpanded}
+                    className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent"
+                  >
+                    {isExpanded ? "Fechar" : "Produtos"}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                  </button>
+                  <button onClick={() => printReceipt(s, savedCompanyName)} className="rounded-lg bg-secondary px-2.5 py-2 font-mono text-[11px] text-secondary-foreground hover:text-foreground">🧾 Comprovante</button>
+                </div>
+                {isExpanded && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-border/60 bg-secondary/20 p-3">
+                    {s.items.map((item, index) => (
+                      <div key={`${s.id}-${item.name}-${index}`} className="flex flex-col gap-1 border-b border-border/40 pb-2 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="font-medium text-foreground">{item.name}</div>
+                          <div className="text-xs text-muted-foreground">Quantidade: {item.qty}{item.unit === "kg" ? " kg" : " un."}</div>
+                        </div>
+                        <div className="text-sm font-semibold text-heading">Total: R$ {brl(item.price * item.qty)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
     </div>
