@@ -324,13 +324,17 @@ function Gerencia() {
           </div>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex min-h-36 w-full flex-col justify-center rounded-lg border-2 border-emerald-200 bg-emerald-50 p-5 shadow-[0_8px_30px_rgba(74,222,128,0.18)] sm:p-6">
-            <div className="text-base font-semibold text-emerald-900">Vendas de hoje</div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-emerald-800 sm:text-4xl">R$ {brl(todaySales)}</div>
+          <div className="financial-gradient-card">
+            <div className="financial-gradient-card__content">
+              <div className="text-base font-semibold text-emerald-900">Vendas de hoje</div>
+              <div className="mt-2 text-3xl font-bold tracking-tight text-emerald-800 sm:text-4xl">R$ {brl(todaySales)}</div>
+            </div>
           </div>
-          <div className="flex min-h-36 w-full flex-col justify-center rounded-lg border-2 border-emerald-200 bg-emerald-50 p-5 shadow-[0_8px_30px_rgba(74,222,128,0.18)] sm:p-6">
-            <div className="text-base font-semibold text-emerald-900">Lucro de hoje</div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-emerald-800 sm:text-4xl">R$ {brl(todayProfit)}</div>
+          <div className="financial-gradient-card">
+            <div className="financial-gradient-card__content">
+              <div className="text-base font-semibold text-emerald-900">Lucro de hoje</div>
+              <div className="mt-2 text-3xl font-bold tracking-tight text-emerald-800 sm:text-4xl">R$ {brl(todayProfit)}</div>
+            </div>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
