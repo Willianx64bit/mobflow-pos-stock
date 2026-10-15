@@ -33,10 +33,7 @@ function Vendas() {
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
-  const today = new Date().toDateString();
-  const todays = sales.filter((s) => new Date(s.date).toDateString() === today);
   const sum = (arr: typeof sales) => arr.reduce((t, s) => t + s.total, 0);
-  const byPay = (["Dinheiro", "Cartão", "Pix"] as const).map((m) => [m, sum(todays.filter((s) => s.payment === m))] as const);
   const productOptions = useMemo(() => Array.from(new Set(sales.flatMap(s => s.items.map(i => i.name))).values()).sort((a, b) => a.localeCompare(b, "pt-BR")), [sales]);
   const filteredSales = useMemo(() => sales.filter((s) => {
     const d = new Date(s.date);
@@ -55,10 +52,10 @@ function Vendas() {
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
-        <div className="glass p-4"><div className="label-mono">Faturamento hoje</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(todays))}</div></div>
-        <div className="glass p-4"><div className="label-mono">Vendas hoje</div><div className="font-display text-4xl mt-1 text-heading">{todays.length}</div></div>
-        {byPay.map(([m, v]) => (
-          <div key={m} className="glass p-4"><div className="label-mono">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(v)}</div></div>
+        <div className="glass p-4"><div className="label-mono">Faturamento do período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
+        <div className="glass p-4"><div className="label-mono">Vendas no período</div><div className="font-display text-4xl mt-1 text-heading">{filteredSales.length}</div></div>
+        {(["Dinheiro", "Cartão", "Pix"] as const).map((m) => (
+          <div key={m} className="glass p-4"><div className="label-mono">{m} no período</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
         ))}
       </div>
       <section className="glass p-4">
