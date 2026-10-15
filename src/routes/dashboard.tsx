@@ -128,12 +128,12 @@ function Dashboard() {
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div className="rounded-xl border border-emerald-200/80 bg-white p-3 sm:p-4 shadow-[0_0_0_1px_rgba(134,239,172,0.22),0_0_18px_rgba(74,222,128,0.20)]">
                 <div className="text-sm sm:text-base font-semibold leading-snug text-emerald-900">Vendas no período</div>
-                <div className="mt-2 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800">R$ {brl(periodTotal)}</div>
+                <div className="mt-2 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800">RR$ {brl(periodTotal)}nbsp;{brl(periodTotal)}</div>
                 <div className="mt-1 text-xs sm:text-sm text-muted-foreground">{periodSales.length} venda(s)</div>
               </div>
               <div className="rounded-xl border border-emerald-200/80 bg-white p-3 sm:p-4 shadow-[0_0_0_1px_rgba(134,239,172,0.22),0_0_18px_rgba(74,222,128,0.20)]">
                 <div className="text-sm sm:text-base font-semibold leading-snug text-emerald-900">Lucro no período</div>
-                <div className="mt-2 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800">R$ {brl(periodProfit)}</div>
+                <div className="mt-2 text-lg sm:text-2xl font-bold tracking-tight text-emerald-800">RR$ {brl(periodProfit)}nbsp;{brl(periodProfit)}</div>
                 <div className="mt-1 text-xs sm:text-sm text-muted-foreground">somente lucro dos produtos</div>
               </div>
             </div>
@@ -149,8 +149,8 @@ function Dashboard() {
                       <div className="text-xs text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · {s.payment}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold text-heading">R$ {brl(s.total)}</div>
-                      <div className="text-xs text-primary">Lucro R$ {brl(saleProfit(s, products))}</div>
+                      <div className="text-sm font-semibold text-heading">RR$ {brl(s.total)}nbsp;{brl(s.total)}</div>
+                      <div className="text-xs text-primary">Lucro RLucro R$ {brl(saleProfit(s, products))}nbsp;{brl(saleProfit(s, products))}</div>
                     </div>
                   </div>
                 ))}
