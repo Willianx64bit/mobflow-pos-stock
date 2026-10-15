@@ -94,7 +94,7 @@ function Vendas() {
         </div>}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">Período: <strong className="capitalize text-foreground">{periodLabel}</strong></span>
-          <span className="font-semibold text-foreground">{filteredSales.length} venda(s) · R$ {brl(sum(filteredSales))}</span>
+          
         </div>
         <div className="overflow-x-auto">
           <div className="min-w-[760px]">
@@ -109,7 +109,7 @@ function Vendas() {
               <div key={s.id} className="py-3">
                 <div className="grid grid-cols-[1.2fr_1.2fr_1.2fr_0.8fr_100px] items-center gap-3 px-3 text-[13px]">
                   <div className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
-                  <div className="min-w-0 truncate font-medium text-foreground">{s.customer || "Não informado"}</div>
+                  <div className="min-w-0 truncate font-medium text-foreground">{s.customer || ""}</div>
                   <div className="min-w-0 truncate font-medium text-foreground">{s.seller || "Não registrado"}</div>
                   <div className="whitespace-nowrap text-right font-mono font-semibold text-heading">R$ {brl(s.total)}</div>
                   <button
