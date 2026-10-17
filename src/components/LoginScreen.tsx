@@ -30,6 +30,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [email, setEmail] = useState("");
   const [signupSuccess, setSignupSuccess] = useState("");
   const [signupComplete, setSignupComplete] = useState(false);
+  const [managerSetupToken, setManagerSetupToken] = useState("");
+  const [managerSetupUsername, setManagerSetupUsername] = useState("");
+  const [managerSetupPassword, setManagerSetupPassword] = useState("");
+  const [managerSetupDone, setManagerSetupDone] = useState(false);
   const [signupAmount, setSignupAmount] = useState(79.90);
   const [signupPayment, setSignupPayment] = useState<{ pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; amount: number; requestToken: string } | null>(null);
   const [pixCopied, setPixCopied] = useState(false);
@@ -88,7 +92,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         setError(data?.error || (signupError ? "O servidor recusou o cadastro. Confira se a chave Pix já foi configurada na Administração e se o CNPJ, e-mail e usuário ainda não estão cadastrados." : "Não foi possível criar a conta. Confira os dados e tente novamente."));
         return;
       }
-      setSignupSuccess(data.message || "Cadastro recebido. O pagamento via Pix aguarda confirmação manual.");
+      setManagerSetupToken(String(data.setupToken || ""));
+      setManagerSetupDone(false);
+      setManagerSetupUsername("");
+      setManagerSetupPassword("");
+      setSignupSuccess(data.message || "Cadastro recebido. Configure o gerente e aguarde a confirmação manual do pagamento.");
       setSignupPayment(data.pixCopyPaste && data.pixQrCode ? {
         pixCopyPaste: data.pixCopyPaste,
         pixQrCode: data.pixQrCode,
@@ -107,6 +115,40 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       setEmail("");
     } catch {
       setError("Não foi possível conectar ao servidor para criar a conta.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const submitManagerSetup = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!managerSetupToken) {
+      setError("Token de primeiro acesso não encontrado. Refaça o cadastro ou entre em contato com o administrador.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const { data, error: setupError } = await supabase.functions.invoke("mobflow-signup", {
+        body: {
+          action: "complete_manager_setup",
+          setupToken: managerSetupToken,
+          cnpj: cnpj.replace(/\\D/g, ""),
+          username: managerSetupUsername.trim(),
+          password: managerSetupPassword,
+        },
+      });
+      if (setupError || !data?.ok) {
+        setError(data?.error || "Não foi possível configurar o gerente. Confira os dados e tente novamente.");
+        return;
+      }
+      setManagerSetupDone(true);
+      setManagerSetupToken("");
+      setManagerSetupPassword("");
+      setSignupSuccess(data.message || "Acesso do gerente configurado. Aguarde a aprovação manual do pagamento.");
+    } catch {
+      setError("Não foi possível conectar ao servidor para configurar o gerente.");
     } finally {
       setLoading(false);
     }
@@ -314,6 +356,23 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
         {signupComplete && mode === "empresa" && (
           <div className="mt-5 space-y-4">
+            {!managerSetupDone && (
+              <form onSubmit={submitManagerSetup} className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+                <h2 className="text-lg font-bold text-foreground">Configure o primeiro acesso do gerente</h2>
+                <p className="text-sm text-muted-foreground">Crie o usuário e a senha que serão usados para entrar na gerência. Guarde essas credenciais.</p>
+                <label className="block">
+                  <span className="label-mono mb-1.5 block">Usuário do gerente</span>
+                  <input value={managerSetupUsername} onChange={(e) => setManagerSetupUsername(e.target.value.toUpperCase())} autoComplete="username" placeholder="Crie seu usuário" className="field w-full text-foreground" required minLength={3} maxLength={40} />
+                </label>
+                <label className="block">
+                  <span className="label-mono mb-1.5 block">Senha do gerente</span>
+                  <input value={managerSetupPassword} onChange={(e) => setManagerSetupPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="Pelo menos 8 caracteres" className="field w-full text-foreground" required minLength={8} maxLength={128} />
+                </label>
+                {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+                <button type="submit" disabled={loading || !managerSetupToken} className="w-full rounded-lg bg-primary px-3 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">{loading ? "Configurando..." : "Salvar acesso do gerente"}</button>
+              </form>
+            )}
+            {managerSetupDone && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Acesso do gerente configurado. A liberação do sistema ainda depende da aprovação manual do pagamento.</div>}
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
               <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600">
                 <span className="text-2xl" aria-hidden="true">✓</span>
@@ -372,15 +431,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <div>
               <label className="label-mono block mb-1.5">Nome da empresa</label>
               <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization" placeholder="Ex.: Mercado do João" className="field w-full text-foreground" required maxLength={120} />
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">Nome de usuário</label>
-              <input value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} autoComplete="username" placeholder="Crie seu usuário" className="field w-full text-foreground" required minLength={3} maxLength={40} />
-              <p className="mt-1 text-xs text-muted-foreground">Use de 3 a 40 caracteres: letras, números, ponto, hífen ou underline.</p>
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">Senha</label>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="Crie uma senha com 8 caracteres ou mais" className="field w-full text-foreground" required minLength={8} maxLength={128} />
             </div>
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
