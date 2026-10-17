@@ -30,6 +30,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [email, setEmail] = useState("");
   const [signupSuccess, setSignupSuccess] = useState("");
   const [signupComplete, setSignupComplete] = useState(false);
+  const [signupAmount, setSignupAmount] = useState(79.90);
+  const [signupPayment, setSignupPayment] = useState<{ pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; amount: number } | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -65,6 +68,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setError("");
     setSignupSuccess("");
     setSignupComplete(false);
+    setSignupPayment(null);
+    setPixCopied(false);
     try {
       const { data, error: signupError } = await supabase.functions.invoke("mobflow-signup", {
         body: {
@@ -82,6 +87,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         return;
       }
       setSignupSuccess(data.message || "Cadastro recebido. O pagamento via Pix aguarda confirmação manual.");
+      setSignupPayment(data.pixCopyPaste && data.pixQrCode ? {
+        pixCopyPaste: data.pixCopyPaste,
+        pixQrCode: data.pixQrCode,
+        pixRecipientName: data.pixRecipientName || "MobFlow",
+        amount: Number(data.amount) || signupAmount,
+      } : null);
+      setPixCopied(false);
       setSignupComplete(true);
       setCreatingAccount(false);
       setUsername("");
@@ -269,7 +281,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
               <p className="text-sm font-semibold text-foreground">Assinatura MobFlow Completo</p>
               <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-foreground">R$ 79,90</span>
+                <span className="text-2xl font-bold text-foreground">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(signupPayment?.amount ?? signupAmount)}</span>
                 <span className="text-sm text-muted-foreground">/mês</span>
               </div>
               <div className="mt-4 rounded-lg border border-border bg-background p-3">
@@ -280,9 +292,19 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
                     <p className="text-xs text-muted-foreground">Confirmação manual pelo MobFlow</p>
                   </div>
                 </div>
-                <p className="mt-3 text-sm text-foreground">A chave Pix do MobFlow ainda precisa ser informada pelo administrador. Não faça transferência para uma chave não confirmada.</p>
+                {signupPayment ? (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm text-foreground">Pague para <strong>{signupPayment.pixRecipientName}</strong> usando o QR Code ou o Pix copia e cola.</p>
+                    <img src={signupPayment.pixQrCode} alt="QR Code Pix para pagamento da assinatura" className="mx-auto h-56 w-56 rounded-lg border border-border bg-white p-2" />
+                    <label className="block text-xs font-semibold text-muted-foreground">Pix copia e cola</label>
+                    <textarea value={signupPayment.pixCopyPaste} readOnly rows={4} className="w-full resize-none rounded-lg border border-border bg-background p-2 text-xs text-foreground" />
+                    <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(signupPayment.pixCopyPaste); setPixCopied(true); } catch { setPixCopied(false); } }} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm font-semibold hover:bg-accent">{pixCopied ? "Código Pix copiado" : "Copiar código Pix"}</button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-foreground">O Pix ainda não está configurado. Entre em contato com o administrador antes de realizar qualquer pagamento.</p>
+                )}
               </div>
-              <p className="mt-3 text-sm text-muted-foreground">Depois de receber a chave oficial, faça o pagamento e envie o comprovante pelo canal indicado pelo administrador. O acesso será ativado após a conferência.</p>
+              <p className="mt-3 text-sm text-muted-foreground">Após pagar, aguarde a conferência manual. O acesso será liberado quando o administrador confirmar o recebimento.</p>
             </div>
             <button type="button" onClick={() => { setSignupComplete(false); setSignupSuccess(""); setError(""); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors">
               Voltar para o login
@@ -325,7 +347,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
                   <p className="mt-1 text-xs text-muted-foreground">Todas as funcionalidades em um único plano.</p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-xl font-bold text-foreground">R$ 79,90</p>
+                  <p className="text-xl font-bold text-foreground">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(signupAmount)}</p>
                   <p className="text-xs text-muted-foreground">por mês</p>
                 </div>
               </div>
@@ -362,7 +384,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         {mode === "empresa" && !creatingAccount && !signupComplete && (
-          <button type="button" onClick={() => { setCreatingAccount(true); setError(""); setSignupSuccess(""); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
+          <button type="button" onClick={async () => { setCreatingAccount(true); setError(""); setSignupSuccess(""); setSignupPayment(null); const { data } = await supabase.functions.invoke("mobflow-signup", { body: { action: "payment_info" } }); if (data?.ok) setSignupAmount(Number(data.amount) || 79.90); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
             Criar conta
           </button>
         )}
