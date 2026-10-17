@@ -368,6 +368,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
+        {mode === "empresa" && (
+          <div className="mt-2 text-center">
+            <a href="/?admin=1" className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
+              Administração
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
