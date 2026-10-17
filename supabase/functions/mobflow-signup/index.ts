@@ -75,6 +75,50 @@ Deno.serve(async (req) => {
       return json({ ok: true, message: "Solicitação enviada. Aguarde a análise do administrador." });
     }
 
+    if (body.action === "complete_manager_setup") {
+      const cnpjSetup = cleanDigits(body.cnpj);
+      const setupToken = String(body.setupToken ?? "");
+      const setupUsername = normalizeUsername(body.username);
+      const setupPassword = String(body.password ?? "");
+      if (cnpjSetup.length !== 14 || !/^[0-9a-f-]{36}$/i.test(setupToken)) return json({ error: "Dados de primeiro acesso inválidos." }, 400);
+      if (!/^[A-Z0-9._-]{3,40}$/.test(setupUsername)) return json({ error: "O usuário deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou underline." }, 400);
+      if (setupPassword.length < 8 || setupPassword.length > 128) return json({ error: "A senha precisa ter pelo menos 8 caracteres." }, 400);
+      const setupUrl = Deno.env.get("SUPABASE_URL");
+      const setupKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!setupUrl || !setupKey) return json({ error: "Primeiro acesso temporariamente indisponível." }, 503);
+      const setupAdmin = createClient(setupUrl, setupKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: company, error: companyError } = await setupAdmin.from("companies")
+        .select("account_id,cnpj,company_name,manager_setup_token,manager_setup_completed_at")
+        .eq("cnpj", cnpjSetup).eq("manager_setup_token", setupToken).maybeSingle();
+      if (companyError || !company || company.manager_setup_completed_at) return json({ error: "Link de primeiro acesso inválido ou já utilizado." }, 409);
+      const { data: existingProfile } = await setupAdmin.from("profiles").select("id").eq("username", setupUsername).maybeSingle();
+      if (existingProfile) return json({ error: "Esse nome de usuário já está em uso." }, 409);
+      const authEmail = setupUsername.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+      const { error: authUpdateError } = await setupAdmin.auth.admin.updateUserById(company.account_id, {
+        email: authEmail, password: setupPassword, email_confirm: true,
+        user_metadata: { username: setupUsername, role: "manager", mobflow_signup: "public_signup" },
+      });
+      if (authUpdateError) return json({ error: "Não foi possível configurar o acesso. Tente novamente." }, 500);
+      const { error: profileInsertError } = await setupAdmin.from("profiles").insert({
+        id: company.account_id, username: setupUsername, cnpj: cnpjSetup, account_id: company.account_id,
+        role: "manager", active: true, display_name: company.company_name,
+        permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"],
+      });
+      if (profileInsertError) {
+        console.error("mobflow first manager profile insert failed", profileInsertError.message);
+        return json({ error: profileInsertError.code === "23505" ? "Esse nome de usuário já está em uso." : "Não foi possível preparar o acesso. Tente novamente." }, profileInsertError.code === "23505" ? 409 : 500);
+      }
+      const { error: companyUpdateError } = await setupAdmin.from("companies").update({
+        username: setupUsername, manager_setup_token: null, manager_setup_completed_at: new Date().toISOString(),
+      }).eq("account_id", company.account_id).eq("manager_setup_token", setupToken);
+      if (companyUpdateError) {
+        await setupAdmin.from("profiles").delete().eq("id", company.account_id);
+        console.error("mobflow first manager company update failed", companyUpdateError.message);
+        return json({ error: "Não foi possível finalizar o primeiro acesso. Tente novamente." }, 500);
+      }
+      return json({ ok: true, message: "Acesso do gerente configurado. O pagamento ainda depende da aprovação manual." });
+    }
+
     if (body.action === "payment_info") {
       const url = Deno.env.get("SUPABASE_URL");
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -94,12 +138,6 @@ Deno.serve(async (req) => {
 
     if (companyName.length < 2 || companyName.length > 120) {
       return json({ error: "Informe o nome da empresa (2 a 120 caracteres)." }, 400);
-    }
-    if (!/^[A-Z0-9._-]{3,40}$/.test(username)) {
-      return json({ error: "O usuário deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou underline." }, 400);
-    }
-    if (password.length < 8 || password.length > 128) {
-      return json({ error: "A senha precisa ter pelo menos 8 caracteres." }, 400);
     }
     if (cnpj.length !== 14) return json({ error: "Informe um CNPJ com 14 números." }, 400);
     if (phone.length < 10 || phone.length > 13) return json({ error: "Informe um telefone válido com DDD." }, 400);
@@ -121,20 +159,19 @@ Deno.serve(async (req) => {
     const pixCopyPaste = buildPixPayload(String(paymentSettings.pix_key), String(paymentSettings.recipient_name || "MOBFLOW"), String(paymentSettings.recipient_city || "SAO PAULO"), monthlyPrice);
     const pixQrCode = "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" + encodeURIComponent(pixCopyPaste);
 
-    const { data: existingProfile } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
-    if (existingProfile) return json({ error: "Esse nome de usuário já está em uso." }, 409);
-
     const { data: existingCnpj } = await admin.from("companies").select("account_id").eq("cnpj", cnpj).maybeSingle();
     if (existingCnpj) return json({ error: "Já existe um cadastro com esse CNPJ." }, 409);
     const { data: existingEmail } = await admin.from("companies").select("account_id").ilike("email", email).maybeSingle();
     if (existingEmail) return json({ error: "Já existe um cadastro com esse e-mail." }, 409);
 
-    const authEmail = username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+    const setupToken = crypto.randomUUID();
+    const pendingUsername = "PENDING_" + cnpj;
+    const authEmail = "setup-" + cnpj + "-" + crypto.randomUUID() + "@accounts.mobflow.local";
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email: authEmail,
-      password,
+      password: crypto.randomUUID() + crypto.randomUUID() + "aA1!",
       email_confirm: true,
-      user_metadata: { username, role: "manager", mobflow_signup: "public_signup" },
+      user_metadata: { username: pendingUsername, role: "manager", mobflow_signup: "public_signup", setup_pending: true },
     });
     if (createError || !created.user) {
       const message = createError?.message ?? "";
@@ -148,7 +185,8 @@ Deno.serve(async (req) => {
       account_id: created.user.id,
       company_name: companyName,
       cnpj,
-      username,
+      username: pendingUsername,
+      manager_setup_token: setupToken,
       email,
       phone,
       plan_code: "complete",
@@ -172,24 +210,6 @@ Deno.serve(async (req) => {
       createdUserId = null;
       console.error("mobflow-signup request token fetch failed", requestTokenError?.message);
       return json({ error: "Não foi possível preparar a solicitação de pagamento." }, 500);
-    }
-
-    const { error: profileError } = await admin.from("profiles").insert({
-      id: created.user.id,
-      username,
-      cnpj,
-      account_id: created.user.id,
-      role: "manager",
-      active: true,
-      display_name: companyName,
-      permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"],
-    });
-    if (profileError) {
-      await admin.from("companies").delete().eq("account_id", created.user.id);
-      await admin.auth.admin.deleteUser(created.user.id);
-      createdUserId = null;
-      console.error("mobflow-signup profile insert failed", profileError.message);
-      return json({ error: "Não foi possível preparar o acesso da empresa." }, 500);
     }
 
     const initialState = {
@@ -220,7 +240,8 @@ Deno.serve(async (req) => {
       pixQrCode,
       pixRecipientName: paymentSettings.recipient_name,
       requestToken: paymentRequest.payment_request_token,
-      message: "Cadastro criado. Faça o pagamento, anexe o comprovante e envie a solicitação para análise.",
+      setupToken,
+      message: "Cadastro criado. Configure o acesso do gerente e depois envie o comprovante para análise.",
     }, 201);
   } catch (error) {
     console.error("mobflow-signup unexpected error", error);
