@@ -26,6 +26,7 @@ export function AppHeader() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [pdvAuthorized, setPdvAuthorized] = useState(false);
   const [username, setUsername] = useState("Usuário");
+  const [permissions, setPermissions] = useState<string[]>(["PDV"]);
   const settings = useStore((s) => s.settings);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function AppHeader() {
     setDarkMode(localStorage.getItem("mobflow-theme") === "dark");
     setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
     setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
+    try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[\\"PDV\\"]")); } catch { setPermissions(["PDV"]); }
     setMounted(true);
   }, []);
 
@@ -76,6 +78,7 @@ export function AppHeader() {
   }, []);
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
+    const required: Record<string, string> = { "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };\n    if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
