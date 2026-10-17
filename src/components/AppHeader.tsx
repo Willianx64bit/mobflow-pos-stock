@@ -39,7 +39,7 @@ export function AppHeader() {
     setDarkMode(localStorage.getItem("mobflow-theme") === "dark");
     setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
     setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
-    try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[\\"PDV\\"]")); } catch { setPermissions(["PDV"]); }
+    try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || '["PDV"]')); } catch { setPermissions(["PDV"]); }
     setMounted(true);
   }, []);
 
@@ -77,7 +77,7 @@ export function AppHeader() {
     const sync = () => {
       setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
       setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
-      try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[\\"PDV\\"]")); } catch { setPermissions(["PDV"]); }
+    try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || '["PDV"]')); } catch { setPermissions(["PDV"]); }
     };
     window.addEventListener("mobflow-pdv-auth-changed", sync);
     return () => window.removeEventListener("mobflow-pdv-auth-changed", sync);
