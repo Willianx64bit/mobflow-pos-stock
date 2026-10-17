@@ -96,6 +96,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
       sessionStorage.setItem("mobflow-role", data.profile?.role === "manager" ? "manager" : "pdv");
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
+      sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
       onLogin();
     } catch {
       setError("Não foi possível conectar ao servidor.");
