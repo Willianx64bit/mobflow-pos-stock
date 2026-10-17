@@ -31,6 +31,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupSuccess, setSignupSuccess] = useState("");
   const [signupComplete, setSignupComplete] = useState(false);
   const [managerSetupToken, setManagerSetupToken] = useState("");
+  const [managerSetupCnpj, setManagerSetupCnpj] = useState("");
   const [managerSetupUsername, setManagerSetupUsername] = useState("");
   const [managerSetupPassword, setManagerSetupPassword] = useState("");
   const [managerSetupDone, setManagerSetupDone] = useState(false);
@@ -93,6 +94,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         return;
       }
       setManagerSetupToken(String(data.setupToken || ""));
+      setManagerSetupCnpj(cnpj.replace(/\\D/g, ""));
       setManagerSetupDone(false);
       setManagerSetupUsername("");
       setManagerSetupPassword("");
@@ -134,7 +136,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         body: {
           action: "complete_manager_setup",
           setupToken: managerSetupToken,
-          cnpj: cnpj.replace(/\\D/g, ""),
+          cnpj: managerSetupCnpj,
           username: managerSetupUsername.trim(),
           password: managerSetupPassword,
         },
