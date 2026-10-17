@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, LockKeyhole, Trash2, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore } from "@/lib/store";
+import { actions, hydrateStore, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { verifyManagerPassword } from "@/lib/manager-auth";
 
