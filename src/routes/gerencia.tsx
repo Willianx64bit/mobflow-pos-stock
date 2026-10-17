@@ -119,25 +119,12 @@ function Gerencia() {
           }
           return;
         }
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role,active,permissions")
-          .eq("id", sessionData.session.user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        if (!profile || profile.active === false || (profile.role !== "manager" && !(profile.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência")))) {
-          if (active) {
-            setAccessIssue("Este usuário não tem permissão para acessar a Gerência. Peça ao administrador da empresa para liberar essa área em Configurações → Usuários.");
-            setCheckingManager(false);
-          }
-          return;
-        }
         const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
-        if (securityStatusError || typeof securityStatus?.configured !== "boolean") {
-          throw new Error("Não foi possível verificar a senha da gerência.");
+        if (securityStatusError || typeof securityStatus?.configured !== "boolean" || !["manager", "pdv"].includes(securityStatus?.role)) {
+          throw new Error("Não foi possível verificar a permissão da Gerência.");
         }
         let needsFirstUser = false;
-        if (securityStatus.configured) {
+        if (securityStatus.role === "manager" && securityStatus.configured) {
           const { data: usersData, error: usersError } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
           if (usersError || !Array.isArray(usersData?.users)) throw new Error("Não foi possível verificar o primeiro usuário.");
           needsFirstUser = usersData.users.length === 0;
