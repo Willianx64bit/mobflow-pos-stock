@@ -29,6 +29,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [signupSuccess, setSignupSuccess] = useState("");
+  const [signupComplete, setSignupComplete] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -63,6 +64,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setLoading(true);
     setError("");
     setSignupSuccess("");
+    setSignupComplete(false);
     try {
       const { data, error: signupError } = await supabase.functions.invoke("mobflow-signup", {
         body: {
@@ -72,13 +74,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           cnpj: cnpj.replace(/\\D/g, ""),
           phone: phone.replace(/\\D/g, ""),
           email: email.trim().toLowerCase(),
+          paymentMethod: "pix",
         },
       });
       if (signupError || !data?.ok) {
         setError(data?.error || "Não foi possível criar a conta. Confira os dados e tente novamente.");
         return;
       }
-      setSignupSuccess(data.message || "Cadastro recebido. A assinatura aguarda confirmação e ativação.");
+      setSignupSuccess(data.message || "Cadastro recebido. O pagamento via Pix aguarda confirmação manual.");
+      setSignupComplete(true);
       setCreatingAccount(false);
       setUsername("");
       setPassword("");
@@ -212,13 +216,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : signupComplete ? "CADASTRO RECEBIDO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : signupComplete ? "Seu cadastro foi recebido; falta confirmar o pagamento." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
-        {signupSuccess && !creatingAccount && <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-3 text-center text-sm text-foreground ring-1 ring-emerald-500/30">{signupSuccess}</div>}
+        {signupSuccess && !creatingAccount && !signupComplete && <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-3 text-center text-sm text-foreground ring-1 ring-emerald-500/30">{signupSuccess}</div>}
 
-        {!(creatingAccount && mode !== "pdv") && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
+        {!(creatingAccount && mode !== "pdv") && !signupComplete && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "username"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
@@ -252,6 +256,39 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </button>
           )}
         </form>}
+
+        {signupComplete && mode !== "pdv" && (
+          <div className="mt-5 space-y-4">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
+              <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600">
+                <span className="text-2xl" aria-hidden="true">✓</span>
+              </div>
+              <h2 className="text-lg font-bold text-foreground">Cadastro recebido!</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Sua conta ainda não está liberada. O pagamento será conferido manualmente pelo administrador.</p>
+            </div>
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <p className="text-sm font-semibold text-foreground">Assinatura MobFlow Completo</p>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="text-2xl font-bold text-foreground">R$ 79,90</span>
+                <span className="text-sm text-muted-foreground">/mês</span>
+              </div>
+              <div className="mt-4 rounded-lg border border-border bg-background p-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 font-bold">Pix</div>
+                  <div>
+                    <p className="font-semibold text-foreground">Forma de pagamento: Pix</p>
+                    <p className="text-xs text-muted-foreground">Confirmação manual pelo MobFlow</p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-foreground">A chave Pix do MobFlow ainda precisa ser informada pelo administrador. Não faça transferência para uma chave não confirmada.</p>
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">Depois de receber a chave oficial, faça o pagamento e envie o comprovante pelo canal indicado pelo administrador. O acesso será ativado após a conferência.</p>
+            </div>
+            <button type="button" onClick={() => { setSignupComplete(false); setSignupSuccess(""); setError(""); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors">
+              Voltar para o login
+            </button>
+          </div>
+        )}
 
         {creatingAccount && mode !== "pdv" && (
           <form onSubmit={submitSignup} className="mt-5 space-y-4" autoComplete="off">
@@ -300,6 +337,19 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
               </ul>
             </div>
 
+            <div className="space-y-2">
+              <label className="label-mono block">FORMA DE PAGAMENTO</label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-primary bg-primary/5 p-3">
+                <input type="radio" name="signup-payment-method" value="pix" checked readOnly className="mt-1 h-4 w-4 accent-primary" />
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-500/10 font-bold text-emerald-600">Pix</span>
+                <span className="flex-1">
+                  <span className="block font-semibold text-foreground">Pix</span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">Pagamento conferido manualmente pelo administrador.</span>
+                </span>
+                <span className="text-xs font-semibold text-primary">Selecionado</span>
+              </label>
+            </div>
+
             {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
               {loading ? "Criando conta..." : "Criar conta"}
@@ -311,7 +361,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </form>
         )}
 
-        {mode !== "pdv" && !creatingAccount && (
+        {mode !== "pdv" && !creatingAccount && !signupComplete && (
           <button type="button" onClick={() => { setCreatingAccount(true); setError(""); setSignupSuccess(""); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
             Criar conta
           </button>
