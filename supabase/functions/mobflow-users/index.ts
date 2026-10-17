@@ -37,6 +37,66 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "list");
 
+    if (action === "reset_application") {
+      // Destructive operation: require the manager password again on the server.
+      const managerPassword = String(body.managerPassword ?? "");
+      if (!managerPassword) return json({ error: "Informe a senha da gerência." }, 400);
+      if (manager.role !== "manager") return json({ error: "Somente o login principal da Gerência pode zerar a aplicação." }, 403);
+
+      const { data: security, error: securityError } = await admin
+        .from("manager_security_by_account")
+        .select("password_hash")
+        .eq("account_id", manager.account_id)
+        .maybeSingle();
+      if (securityError || !security?.password_hash) return json({ error: "Não foi possível validar a senha da gerência." }, 500);
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(managerPassword));
+      const submittedHash = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (submittedHash !== security.password_hash) return json({ error: "Senha da gerência incorreta." }, 401);
+
+      // Empty the company's single source-of-truth row in Supabase. Product photos
+      // and logo are currently stored inline in this JSON state, so this removes
+      // their stored data as well, without touching any other account.
+      const emptyState = {
+        products: [], cart: [], sales: [], conferences: [], receiving: [],
+        manualExpiries: [], promotions: [], suppliers: [], settings: { companyName: "" }
+      };
+      const { data: savedState, error: stateError } = await admin
+        .from("app_state")
+        .upsert({ owner_id: manager.account_id, state: emptyState, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
+        .select("owner_id,updated_at")
+        .maybeSingle();
+      if (stateError || !savedState) return json({ error: "Não foi possível confirmar a limpeza dos dados no Supabase. Nenhum sucesso foi informado." }, 500);
+
+      const { data: users, error: listError } = await admin
+        .from("profiles").select("id,username")
+        .eq("account_id", manager.account_id).eq("role", "pdv");
+      if (listError) return json({ error: "Os dados foram limpos, mas não foi possível listar os usuários do PDV para exclusão. Atualize e tente novamente." }, 500);
+
+      let deleted = 0;
+      for (const user of users ?? []) {
+        const { error: allowlistError } = await admin.from("account_allowlist")
+          .update({ active: false }).eq("username", user.username).eq("cnpj", manager.cnpj);
+        if (allowlistError) return json({ error: "Os dados foram limpos, mas não foi possível desativar todos os usuários do PDV. Revise a lista de usuários." }, 500);
+        const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
+        if (deleteError) return json({ error: "Os dados foram limpos, mas houve falha ao excluir um usuário do PDV. Revise a lista de usuários." }, 500);
+        deleted++;
+      }
+
+      // Confirm server-side that the persisted application state is empty.
+      const { data: verifyState, error: verifyError } = await admin
+        .from("app_state").select("state,updated_at").eq("owner_id", manager.account_id).maybeSingle();
+      const state = verifyState?.state as Record<string, unknown> | undefined;
+      const empty = !verifyError && !!state &&
+        ["products","cart","sales","conferences","receiving","manualExpiries","promotions","suppliers"]
+          .every((key) => Array.isArray(state[key]) && (state[key] as unknown[]).length === 0) &&
+        !!state.settings && typeof state.settings === "object" &&
+        !(state.settings as Record<string, unknown>).pixKey &&
+        !(state.settings as Record<string, unknown>).companyLogo;
+      if (!empty) return json({ error: "A limpeza foi solicitada, mas a verificação final no Supabase não confirmou todos os dados vazios." }, 500);
+
+      return json({ ok: true, deleted, cloudCleared: true, updatedAt: verifyState?.updated_at });
+    }
+
     if (action === "delete_all_pdv") {
       const { data: users, error: listError } = await admin
         .from("profiles")
