@@ -69,7 +69,6 @@ function Configuracoes() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [usersDetailsOpen, setUsersDetailsOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
-  const [isCompanyManager, setIsCompanyManager] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -100,7 +99,6 @@ function Configuracoes() {
         }
 
         // Somente a conta principal da empresa pode ver e gerenciar usuários do PDV.
-        setIsCompanyManager(status.role === "manager");
         if (status.role === "manager") {
           setUsersLoading(true);
           setUserError("");
