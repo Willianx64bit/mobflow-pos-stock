@@ -23,7 +23,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState(mode === "admin" ? "Willian.nunes.pereira" : "");
   const [password, setPassword] = useState("");
-  const [cnpj, setCnpj] = useState(mode === "admin" ? "12.345.678/9000-00" : "");
+  const [cnpj, setCnpj] = useState(mode === "admin" ? "01.234.567/8900-00" : "");
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
