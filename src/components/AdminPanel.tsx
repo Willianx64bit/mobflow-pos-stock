@@ -3,6 +3,15 @@ import { supabase } from "@/lib/supabase";
 import { logout } from "@/components/LoginScreen";
 import { CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 
+type ActiveAccount = {
+  account_id: string;
+  company_name: string;
+  cnpj: string;
+  usernames: string[];
+  user_count: number;
+  status: "active";
+};
+
 type Company = {
   account_id: string;
   company_name: string;
@@ -32,6 +41,7 @@ const date = (value: string | null) => value ? new Date(value).toLocaleString("p
 
 export function AdminPanel() {
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [activeAccounts, setActiveAccounts] = useState<ActiveAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [error, setError] = useState("");
@@ -51,6 +61,7 @@ export function AdminPanel() {
     try {
       const data = await callAdmin({ action: "list" });
       setCompanies(data.companies || []);
+      setActiveAccounts(data.activeAccounts || []);
       setNotes(Object.fromEntries((data.companies || []).map((company: Company) => [company.account_id, company.payment_notes || ""])));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível carregar as empresas.");
@@ -101,6 +112,29 @@ export function AdminPanel() {
           <div className="rounded-xl border border-amber-500/30 bg-card p-4"><p className="flex items-center gap-2 text-sm text-muted-foreground"><Clock3 className="h-4 w-4" /> Aguardando pagamento</p><p className="mt-2 text-3xl font-bold">{pending}</p></div>
           <div className="rounded-xl border border-emerald-500/30 bg-card p-4"><p className="flex items-center gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-4 w-4" /> Assinaturas ativas</p><p className="mt-2 text-3xl font-bold">{active}</p></div>
         </div>
+        {activeAccounts.length > 0 && (
+          <section className="space-y-3">
+            <div>
+              <h3 className="text-lg font-bold">Empresas com acesso ativo</h3>
+              <p className="text-sm text-muted-foreground">Contas que já existiam no MobFlow e ainda não possuem registro na lista de assinaturas.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {activeAccounts.map((account) => (
+                <article key={account.account_id} className="rounded-xl border border-emerald-500/30 bg-card p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold">{account.company_name}</h4>
+                      <p className="text-sm text-muted-foreground">CNPJ: {account.cnpj || "—"}</p>
+                    </div>
+                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700">Acesso ativo</span>
+                  </div>
+                  <p className="mt-3 text-sm"><span className="text-muted-foreground">Usuários:</span> {account.user_count}</p>
+                  <p className="mt-1 break-words text-sm text-muted-foreground">{account.usernames.join(", ")}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
         {error && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {notice && <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">{notice}</div>}
         <div className="flex flex-wrap items-center justify-between gap-3">
