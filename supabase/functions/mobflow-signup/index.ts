@@ -1,5 +1,4 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-// MobFlow signup: existing accounts and manual payment approval must remain unchanged.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const cors = {
@@ -34,5 +33,208 @@ const buildPixPayload = (key: string, name: string, city: string, amount: number
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
-  return json({ error: "Esta versão de segurança é apenas uma tentativa de gravação; nenhum cadastro foi alterado." }, 503);
+
+  let createdUserId: string | null = null;
+  try {
+    const body = await req.json();
+    if (body.action === "submit_payment_proof") {
+      const requestToken = String(body.requestToken ?? "");
+      const mimeType = String(body.mimeType ?? "");
+      const base64 = String(body.fileBase64 ?? "");
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!/^[0-9a-f-]{36}$/i.test(requestToken)) return json({ error: "Solicitação inválida. Refaça o cadastro." }, 400);
+      if (!allowedTypes.includes(mimeType)) return json({ error: "Envie uma imagem JPG, PNG, WEBP ou um PDF." }, 400);
+      if (!base64 || base64.length > 7_000_000) return json({ error: "O comprovante deve ter até 5 MB." }, 400);
+      const url = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !serviceKey) return json({ error: "Envio de comprovante temporariamente indisponível." }, 503);
+      const proofAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: company, error: companyLookupError } = await proofAdmin.from("companies")
+        .select("account_id,subscription_status,payment_proof_path").eq("payment_request_token", requestToken).maybeSingle();
+      if (companyLookupError || !company) return json({ error: "Solicitação não encontrada. Confira o cadastro." }, 404);
+      if (company.subscription_status === "active") return json({ error: "Esta conta já está ativa." }, 409);
+      const binary = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      if (binary.byteLength > 5 * 1024 * 1024) return json({ error: "O comprovante deve ter até 5 MB." }, 400);
+      const ext = mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+      const path = requestToken + "/" + crypto.randomUUID() + "." + ext;
+      const { error: uploadError } = await proofAdmin.storage.from("mobflow-payment-proofs").upload(path, binary, { contentType: mimeType, upsert: false });
+      if (uploadError) {
+        console.error("mobflow proof upload failed", uploadError.message);
+        return json({ error: "Não foi possível enviar o comprovante. Tente novamente." }, 500);
+      }
+      const { error: updateError } = await proofAdmin.from("companies").update({
+        payment_proof_path: path,
+        payment_submitted_at: new Date().toISOString(),
+        subscription_status: "pending_payment",
+      }).eq("payment_request_token", requestToken);
+      if (updateError) {
+        await proofAdmin.storage.from("mobflow-payment-proofs").remove([path]);
+        console.error("mobflow proof metadata update failed", updateError.message);
+        return json({ error: "O arquivo foi recebido, mas não foi possível registrar a solicitação." }, 500);
+      }
+      return json({ ok: true, message: "Solicitação enviada. Aguarde a análise do administrador." });
+    }
+
+    if (body.action === "payment_info") {
+      const url = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !serviceKey) return json({ error: "Pagamento temporariamente indisponível." }, 503);
+      const publicAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: settings, error: settingsError } = await publicAdmin.from("mobflow_payment_settings")
+        .select("monthly_price").eq("id", true).maybeSingle();
+      if (settingsError || !settings) return json({ error: "Configurações de pagamento ainda não foram definidas." }, 503);
+      return json({ ok: true, amount: Number(settings.monthly_price) || 79.90 });
+    }
+    const companyName = String(body.companyName ?? "").trim();
+    const username = normalizeUsername(body.username);
+    const password = String(body.password ?? "");
+    const cnpj = cleanDigits(body.cnpj);
+    const phone = cleanDigits(body.phone);
+    const email = String(body.email ?? "").trim().toLowerCase();
+
+    if (companyName.length < 2 || companyName.length > 120) {
+      return json({ error: "Informe o nome da empresa (2 a 120 caracteres)." }, 400);
+    }
+    if (!/^[A-Z0-9._-]{3,40}$/.test(username)) {
+      return json({ error: "O usuário deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou underline." }, 400);
+    }
+    if (password.length < 8 || password.length > 128) {
+      return json({ error: "A senha precisa ter pelo menos 8 caracteres." }, 400);
+    }
+    if (cnpj.length !== 14) return json({ error: "Informe um CNPJ com 14 números." }, 400);
+    if (phone.length < 10 || phone.length > 13) return json({ error: "Informe um telefone válido com DDD." }, 400);
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return json({ error: "Informe um e-mail válido." }, 400);
+    }
+
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !serviceKey) return json({ error: "Cadastro temporariamente indisponível." }, 503);
+    const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+
+    const { data: paymentSettings, error: settingsError } = await admin.from("mobflow_payment_settings")
+      .select("pix_key,recipient_name,recipient_city,monthly_price").eq("id", true).maybeSingle();
+    if (settingsError || !paymentSettings?.pix_key) {
+      return json({ error: "O cadastro está temporariamente indisponível para pagamento. Tente novamente mais tarde." }, 503);
+    }
+    const monthlyPrice = Number(paymentSettings.monthly_price) || 79.90;
+    const pixCopyPaste = buildPixPayload(String(paymentSettings.pix_key), String(paymentSettings.recipient_name || "MOBFLOW"), String(paymentSettings.recipient_city || "SAO PAULO"), monthlyPrice);
+    const pixQrCode = "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" + encodeURIComponent(pixCopyPaste);
+
+    const { data: existingProfile } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
+    if (existingProfile) return json({ error: "Esse nome de usuário já está em uso." }, 409);
+
+    const { data: existingCnpj } = await admin.from("companies").select("account_id").eq("cnpj", cnpj).maybeSingle();
+    if (existingCnpj) return json({ error: "Já existe um cadastro com esse CNPJ." }, 409);
+    const { data: existingEmail } = await admin.from("companies").select("account_id").ilike("email", email).maybeSingle();
+    if (existingEmail) return json({ error: "Já existe um cadastro com esse e-mail." }, 409);
+
+    const authEmail = username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email: authEmail,
+      password,
+      email_confirm: true,
+      user_metadata: { username, role: "manager", mobflow_signup: "public_signup" },
+    });
+    if (createError || !created.user) {
+      const message = createError?.message ?? "";
+      if (message.toLowerCase().includes("already")) return json({ error: "Esse nome de usuário já está em uso." }, 409);
+      console.error("mobflow-signup auth create failed", message);
+      return json({ error: "Não foi possível criar a conta agora." }, 500);
+    }
+    createdUserId = created.user.id;
+
+    const { error: companyError } = await admin.from("companies").insert({
+      account_id: created.user.id,
+      company_name: companyName,
+      cnpj,
+      username,
+      email,
+      phone,
+      plan_code: "complete",
+      monthly_price: monthlyPrice,
+      payment_method: "pix",
+      subscription_status: "pending_payment",
+    });
+    if (companyError) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      createdUserId = null;
+      if (companyError.code === "23505") return json({ error: "Já existe um cadastro com esse CNPJ, usuário ou e-mail." }, 409);
+      console.error("mobflow-signup company insert failed", companyError.message);
+      return json({ error: "Não foi possível salvar os dados da empresa." }, 500);
+    }
+
+    const { data: paymentRequest, error: requestTokenError } = await admin.from("companies")
+      .select("payment_request_token").eq("account_id", created.user.id).single();
+    if (requestTokenError || !paymentRequest?.payment_request_token) {
+      await admin.from("companies").delete().eq("account_id", created.user.id);
+      await admin.auth.admin.deleteUser(created.user.id);
+      createdUserId = null;
+      console.error("mobflow-signup request token fetch failed", requestTokenError?.message);
+      return json({ error: "Não foi possível preparar a solicitação de pagamento." }, 500);
+    }
+
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: created.user.id,
+      username,
+      cnpj,
+      account_id: created.user.id,
+      role: "manager",
+      active: true,
+      display_name: companyName,
+      permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"],
+    });
+    if (profileError) {
+      await admin.from("companies").delete().eq("account_id", created.user.id);
+      await admin.auth.admin.deleteUser(created.user.id);
+      createdUserId = null;
+      console.error("mobflow-signup profile insert failed", profileError.message);
+      return json({ error: "Não foi possível preparar o acesso da empresa." }, 500);
+    }
+
+    const initialState = {
+      products: [], cart: [], sales: [], conferences: [], receiving: [],
+      manualExpiries: [], promotions: [], suppliers: [],
+      settings: { companyName },
+    };
+    const { error: stateError } = await admin.from("app_state").insert({
+      owner_id: created.user.id,
+      state: initialState,
+      updated_at: new Date().toISOString(),
+    });
+    if (stateError) {
+      await admin.from("profiles").delete().eq("id", created.user.id);
+      await admin.from("companies").delete().eq("account_id", created.user.id);
+      await admin.auth.admin.deleteUser(created.user.id);
+      createdUserId = null;
+      console.error("mobflow-signup app_state insert failed", stateError.message);
+      return json({ error: "Não foi possível inicializar os dados da empresa." }, 500);
+    }
+
+    return json({
+      ok: true,
+      subscriptionStatus: "pending_payment",
+      paymentMethod: "pix",
+      amount: monthlyPrice,
+      pixCopyPaste,
+      pixQrCode,
+      pixRecipientName: paymentSettings.recipient_name,
+      requestToken: paymentRequest.payment_request_token,
+      message: "Cadastro criado. Faça o pagamento, anexe o comprovante e envie a solicitação para análise.",
+    }, 201);
+  } catch (error) {
+    console.error("mobflow-signup unexpected error", error);
+    if (createdUserId) {
+      const url = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (url && serviceKey) {
+        const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+        await admin.from("profiles").delete().eq("id", createdUserId);
+        await admin.from("companies").delete().eq("account_id", createdUserId);
+        await admin.from("app_state").delete().eq("owner_id", createdUserId);
+        await admin.auth.admin.deleteUser(createdUserId);
+      }
+    }
+    return json({ error: "Não foi possível concluir o cadastro agora." }, 500);
+  }
 });
