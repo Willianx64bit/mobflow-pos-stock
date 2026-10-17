@@ -265,12 +265,15 @@ function Configuracoes() {
     const ok = confirm("Senha confirmada. Esta ação apagará os dados desta empresa e excluirá todos os usuários do PDV vinculados a ela. O login da gerência e as outras empresas não serão afetados. Deseja continuar?");
     if (!ok) return;
 
-    const { data, error } = await callUsers({ body: { action: "delete_all_pdv" } });
-    if (error || !data?.ok) {
-      setResetError(data?.error || "Não foi possível excluir os usuários do PDV. Os dados da aplicação não foram zerados.");
+    const { data, error } = await callUsers({ body: { action: "reset_application", managerPassword } });
+    if (error || !data?.ok || data?.cloudCleared !== true) {
+      setResetError(data?.error || "O Supabase não confirmou a limpeza completa. A aplicação não foi marcada como zerada.");
       return;
     }
 
+    // Reload the confirmed empty server snapshot first, so an older local sync
+    // cannot merge deleted sales/products back into the state.
+    await hydrateStore();
     actions.resetAppData();
     setName("");
     setLogo("");
@@ -279,9 +282,11 @@ function Configuracoes() {
     setPixEditing(false);
     setSaved(false);
     setPdvUsers([]);
+    setUsersDetailsOpen(true);
+    setAddUserOpen(true);
     setResetOpen(false);
     setResetError("");
-    alert(`Aplicação zerada. Dados da empresa apagados e ${data.deleted ?? 0} usuário(s) do PDV excluído(s). O login da gerência foi mantido.`);
+    alert(`Supabase confirmou a limpeza dos dados e imagens. ${data.deleted ?? 0} usuário(s) do PDV excluído(s). A senha da Gerência foi preservada. Cadastre agora o novo usuário do PDV.`);
   };
 
   return (
