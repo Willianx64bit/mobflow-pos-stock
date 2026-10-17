@@ -8,10 +8,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
-    const { username, password, cnpj } = await req.json();
+    const { username, password, cnpj, expectedRole: requestedRole } = await req.json();
     const cleanUsername = String(username ?? "").trim().toUpperCase();
     const cleanPassword = String(password ?? "");
     const cleanCnpj = String(cnpj ?? "").replace(/\D/g, "");
+    // Clientes antigos sem expectedRole e sem CNPJ são tratados como login de PDV.
+    const expectedRole = requestedRole === "pdv" || (!requestedRole && !cleanCnpj) ? "pdv" : "manager";
     if (!cleanUsername || cleanPassword.length < 6) return json({ error: "Usuário ou senha inválido." }, 400);
     const url = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -23,14 +25,27 @@ Deno.serve(async (req) => {
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
     if (profile) {
       if (!profile.active) return json({ error: "Usuário ou acesso inválido." }, 401);
-      if (profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
+      if (expectedRole === "pdv" && profile.role !== "pdv") {
+        return json({ error: "Esse usuário não é um usuário do PDV. Use um usuário criado em Configurações → Usuários do PDV." }, 403);
+      }
+      if (expectedRole === "pdv" && cleanCnpj.length !== 14) {
+        return json({ error: "Informe o CNPJ da empresa para validar o acesso do PDV." }, 400);
+      }
+      if (expectedRole === "pdv" && profile.cnpj !== cleanCnpj) {
+        return json({ error: "Esse usuário do PDV pertence a outra empresa." }, 403);
+      }
+      if (expectedRole === "manager" && profile.role !== "manager") {
+        return json({ error: "Esse usuário é do PDV e não pode entrar como gerente." }, 403);
+      }
+      if (profile.role === "manager" && profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
     } else {
+      if (expectedRole !== "manager") return json({ error: "Usuário do PDV não encontrado. Cadastre-o primeiro pela gerência da empresa." }, 401);
       if (cleanCnpj.length !== 14) return json({ error: "Para acessar a gerência, informe o CNPJ da empresa." }, 400);
       const { data: allowed } = await admin.from("account_allowlist").select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
       if (!allowed) return json({ error: "Usuário não autorizado." }, 401);
       const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: cleanPassword, email_confirm: true, user_metadata: { username: cleanUsername, cnpj: cleanCnpj, role: "manager", display_name: cleanUsername } });
       if (createError || !created.user) { console.error("createUser failed", createError); return json({ error: createError?.message ?? "Não foi possível criar a conta." }, 400); }
-      const { error: insertError } = await admin.from("profiles").upsert({ id: created.user.id, username: cleanUsername, cnpj: cleanCnpj, account_id: created.user.id, role: "manager", active: true, display_name: cleanUsername }, { onConflict: "id" });
+      const { error: insertError } = await admin.from("profiles").upsert({ id: created.user.id, username: cleanUsername, cnpj: cleanCnpj, account_id: created.user.id, role: "manager", active: true, display_name: cleanUsername, permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] }, { onConflict: "id" });
       if (insertError) { await admin.auth.admin.deleteUser(created.user.id); return json({ error: "Não foi possível preparar a conta." }, 500); }
     }
     const { data, error } = await client.auth.signInWithPassword({ email, password: cleanPassword });
