@@ -243,6 +243,16 @@ export function AdminPanel() {
                   <p><span className="text-muted-foreground">Plano:</span> MobFlow Completo</p><p><span className="text-muted-foreground">Valor:</span> {money(company.monthly_price)}/mês</p><p><span className="text-muted-foreground">Cadastro:</span> {date(company.created_at)}</p>
                   <p className="sm:col-span-3"><span className="text-muted-foreground">Pagamento confirmado:</span> {date(company.payment_confirmed_at)}</p>
                 </div>
+                {company.payment_proof_url && (
+                  <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                    <p className="text-sm font-semibold">Comprovante enviado</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Solicitação: {date(company.payment_submitted_at)}</p>
+                    <a href={company.payment_proof_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-accent">Abrir comprovante</a>
+                  </div>
+                )}
+                {!company.payment_proof_url && company.subscription_status === "pending_payment" && (
+                  <p className="mt-3 text-sm text-amber-700">Ainda não foi enviado comprovante.</p>
+                )}
                 <label className="mt-4 block text-sm font-semibold">Observações da conferência</label>
                 <textarea value={notes[company.account_id] || ""} onChange={(e) => setNotes((prev) => ({ ...prev, [company.account_id]: e.target.value }))} maxLength={1000} placeholder="Ex.: comprovante conferido, data e referência do pagamento…" className="mt-1 min-h-20 w-full rounded-lg border border-border bg-background p-3 text-sm outline-none focus:ring-2 focus:ring-primary" />
                 <div className="mt-3 flex flex-wrap gap-2">
