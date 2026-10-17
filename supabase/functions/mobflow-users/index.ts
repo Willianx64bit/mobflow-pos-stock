@@ -69,17 +69,18 @@ Deno.serve(async (req) => {
     if (action === "list") {
       const { data, error } = await admin
         .from("profiles")
-        .select("id,username,display_name,role,active,created_at")
+        .select("id,username,display_name,role,active,created_at,permissions")
         .eq("account_id", manager.account_id)
         .eq("role", "pdv")
         .order("created_at", { ascending: false });
       if (error) return json({ error: "Não foi possível carregar os usuários." }, 500);
-      return json({ users: data ?? [] });
+      return json({ users: (data ?? []).map((user) => ({ ...user, permissions: Array.isArray(user.permissions) ? user.permissions : ["PDV", "Conferência"] })) });
     }
 
     if (action === "create") {
       const username = String(body.username ?? "").trim().toUpperCase();
       const displayName = String(body.displayName ?? "").trim() || username;
+      const permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : ["PDV", "Conferência"];
       const password = String(body.password ?? "");
       if (!/^[A-Z0-9._-]{3,40}$/.test(username)) return json({ error: "Usuário inválido. Use letras, números, ponto, hífen ou underline." }, 400);
       if (password.length < 6) return json({ error: "A senha precisa ter pelo menos 6 caracteres." }, 400);
@@ -163,7 +164,7 @@ Deno.serve(async (req) => {
       return json({ error: "Usuário não encontrado." }, 404);
     }
 
-    if (action === "toggle") {
+    if (action === "update_permissions") {\n      const permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : null;\n      if (!permissions || !permissions.includes("PDV")) return json({ error: "O usuário precisa manter acesso ao PDV." }, 400);\n      const { error } = await admin.from("profiles").update({ permissions }).eq("id", userId);\n      if (error) return json({ error: "Não foi possível salvar as permissões." }, 500);\n      return json({ ok: true });\n    }\n\n    if (action === "toggle") {
       const active = Boolean(body.active);
       const { error } = await admin.from("profiles").update({ active }).eq("id", userId);
       if (error) return json({ error: "Não foi possível alterar o acesso." }, 500);
