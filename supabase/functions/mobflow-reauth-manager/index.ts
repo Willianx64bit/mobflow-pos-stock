@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
       .select("password_hash").eq("account_id", profile.account_id).maybeSingle();
     if (securityError) return json({ error: "Não foi possível consultar a configuração da gerência." }, 500);
 
-    if (action === "status") return json({ configured: Boolean(security?.password_hash) });
+    if (action === "status") return json({ configured: Boolean(security?.password_hash), role: profile.role });
 
     if (action === "set_password") {
       if (password.length < 8) return json({ error: "A senha da gerência precisa ter pelo menos 8 caracteres." }, 400);
