@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logout } from "@/components/LoginScreen";
-import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, Settings, ShieldCheck, Trash2, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, Trash2, XCircle } from "lucide-react";
 
 type ActiveAccount = {
   account_id: string;
@@ -51,13 +51,6 @@ export function AdminPanel() {
   const [notice, setNotice] = useState("");
   const [filter, setFilter] = useState("pending_payment");
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [pixKey, setPixKey] = useState("");
-  const [recipientName, setRecipientName] = useState("MOBFLOW");
-  const [recipientCity, setRecipientCity] = useState("CAPAO BONITO");
-  const [monthlyPrice, setMonthlyPrice] = useState("79.90");
-  const [savingSettings, setSavingSettings] = useState(false);
-
   const callAdmin = useCallback(async (body: Record<string, unknown>) => {
     const { data, error: invokeError } = await supabase.functions.invoke("mobflow-admin-subscriptions", { body });
     if (invokeError || !data?.ok) throw new Error(data?.error || invokeError?.message || "Falha ao comunicar com o servidor.");
@@ -80,43 +73,6 @@ export function AdminPanel() {
   }, [callAdmin]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const openPaymentSettings = async () => {
-    setError("");
-    try {
-      const data = await callAdmin({ action: "get_payment_settings" });
-      const settings = data.settings || {};
-      setPixKey(settings.pix_key || "");
-      setRecipientName(settings.recipient_name || "MOBFLOW");
-      setRecipientCity(settings.recipient_city || "CAPAO BONITO");
-      setMonthlyPrice(String(settings.monthly_price ?? 79.90));
-      setSettingsOpen(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível carregar as configurações Pix.");
-    }
-  };
-
-  const savePaymentSettings = async () => {
-    setSavingSettings(true);
-    setError("");
-    setNotice("");
-    try {
-      const data = await callAdmin({
-        action: "save_payment_settings", pixKey, recipientName, recipientCity,
-        monthlyPrice: Number(monthlyPrice.replace(",", ".")),
-      });
-      setPixKey(data.settings.pix_key);
-      setRecipientName(data.settings.recipient_name);
-      setRecipientCity(data.settings.recipient_city);
-      setMonthlyPrice(String(data.settings.monthly_price));
-      setNotice("Configurações Pix salvas. Novos cadastros já poderão exibir o QR Code.");
-      setSettingsOpen(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível salvar as configurações Pix.");
-    } finally {
-      setSavingSettings(false);
-    }
-  };
 
   const update = async (company: Company, status: Company["subscription_status"]) => {
     setSavingId(company.account_id);
@@ -179,29 +135,9 @@ export function AdminPanel() {
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Acompanhe as contas do MobFlow, pagamentos e situação dos acessos em um só lugar.</p>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <button onClick={() => void openPaymentSettings()} className="inline-flex w-fit items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-accent"><Settings className="h-4 w-4" /> Configurações Pix</button>
             <button onClick={() => void load()} disabled={loading} className="inline-flex w-fit items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Atualizar dados</button>
           </div>
         </div>
-        {settingsOpen && (
-          <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div><h3 className="text-lg font-bold">Configurações de pagamento Pix</h3><p className="mt-1 text-sm text-muted-foreground">Esses dados serão usados na tela de pagamento dos novos cadastros.</p></div>
-              <button onClick={() => setSettingsOpen(false)} className="rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent">Fechar</button>
-            </div>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2"><label className="mb-1 block text-sm font-semibold">Chave Pix</label><input value={pixKey} onChange={(e) => setPixKey(e.target.value)} maxLength={77} placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória" className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary" /></div>
-              <div><label className="mb-1 block text-sm font-semibold">Nome do recebedor</label><input value={recipientName} onChange={(e) => setRecipientName(e.target.value.toUpperCase())} maxLength={25} placeholder="NOME DO RECEBEDOR" className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary" /></div>
-              <div><label className="mb-1 block text-sm font-semibold">Cidade do recebedor</label><input value={recipientCity} onChange={(e) => setRecipientCity(e.target.value.toUpperCase())} maxLength={15} placeholder="SUA CIDADE" className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary" /></div>
-              <div><label className="mb-1 block text-sm font-semibold">Valor mensal (R$)</label><input value={monthlyPrice} onChange={(e) => setMonthlyPrice(e.target.value)} inputMode="decimal" placeholder="79,90" className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary" /></div>
-            </div>
-            <p className="mt-3 text-xs text-muted-foreground">O QR Code usa um Pix com valor definido e a confirmação continua manual. Para mudar o valor, ajuste também a apresentação do plano se necessário.</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => void savePaymentSettings()} disabled={savingSettings || !pixKey.trim() || !recipientName.trim() || !recipientCity.trim() || !(Number(monthlyPrice.replace(",", ".")) > 0)} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50">{savingSettings ? "Salvando…" : "Salvar configurações"}</button>
-              <button onClick={() => setSettingsOpen(false)} className="rounded-lg border border-border px-4 py-2.5 text-sm font-semibold hover:bg-accent">Cancelar</button>
-            </div>
-          </section>
-        )}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Contas empresariais</p><Building2 className="h-4 w-4 text-primary" /></div>
