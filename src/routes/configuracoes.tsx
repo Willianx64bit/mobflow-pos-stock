@@ -59,6 +59,11 @@ function Configuracoes() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetSectionOpen, setResetSectionOpen] = useState(false);
   const [resetError, setResetError] = useState("");
+  const [securityModal, setSecurityModal] = useState<"pix" | "reset" | "reset-final" | "reset-user" | null>(null);
+  const [securityPassword, setSecurityPassword] = useState("");
+  const [securityError, setSecurityError] = useState("");
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [passwordResetUser, setPasswordResetUser] = useState<{ id: string; username: string } | null>(null);
   const [pdvUsers, setPdvUsers] = useState<Array<{ id: string; username: string; display_name?: string | null; active: boolean; permissions?: string[] }>>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userName, setUserName] = useState("");
@@ -159,15 +164,33 @@ function Configuracoes() {
   };
 
   const resetPdvPassword = async (user: (typeof pdvUsers)[number]) => {
-    const next = window.prompt(`Nova senha para ${user.username} (mínimo 6 caracteres):`);
-    if (!next) return;
-    setUserError("");
-    const { data, error } = await callUsers({
-      body: { action: "reset_password", userId: user.id, password: next },
-    });
-    if (error || !data?.ok) setUserError(data?.error || "Não foi possível trocar a senha.");
-    else setUserMessage("Senha alterada.");
+    setPasswordResetUser({ id: user.id, username: user.username });
+    setSecurityPassword(""); setSecurityError(""); setSecurityModal("reset-user");
   };
+
+  const submitSecurityModal = async () => {
+    if (securityBusy) return;
+    setSecurityError("");
+    if (securityModal === "reset-user") {
+      if (securityPassword.length < 6) { setSecurityError("A senha precisa ter pelo menos 6 caracteres."); return; }
+      setSecurityBusy(true);
+      const result = await callUsers({ body: { action: "reset_password", userId: passwordResetUser?.id, password: securityPassword } });
+      setSecurityBusy(false);
+      if (result.error || !result.data?.ok) { setSecurityError(result.data?.error || "Não foi possível trocar a senha."); return; }
+      setSecurityModal(null); setSecurityPassword(""); setPasswordResetUser(null); setUserMessage("Senha alterada."); return;
+    }
+    if (!securityPassword.trim()) { setSecurityError("Informe a senha da gerência."); return; }
+    setSecurityBusy(true);
+    const result = await verifyManagerPassword(securityPassword);
+    setSecurityBusy(false);
+    if (!result.ok) { setSecurityError(result.error || "Senha da gerência incorreta."); return; }
+    if (securityModal === "pix") {
+      setPixEditing(true); setPixError(""); setSecurityModal(null); setSecurityPassword("");
+    } else if (securityModal === "reset") {
+      setSecurityModal("reset-final"); setSecurityError("");
+    }
+  };
+
 
   const saveUserPermissions = async (user: (typeof pdvUsers)[number], permissions: string[]) => {
     setUserError("");
@@ -211,18 +234,7 @@ function Configuracoes() {
   };
 
   const unlockPixEditing = async () => {
-    setPixError("");
-    const password = window.prompt("Digite a senha da gerência para alterar a chave Pix:");
-    if (password === null) return;
-    setPixChecking(true);
-    const result = await verifyManagerPassword(password);
-    setPixChecking(false);
-    if (!result.ok) {
-      setPixError(result.error || "Senha da gerência incorreta.");
-      return;
-    }
-    setPixEditing(true);
-    setPixError("");
+    setSecurityPassword(""); setSecurityError(""); setSecurityModal("pix");
   };
 
   const cancelPixEditing = () => {
@@ -246,48 +258,20 @@ function Configuracoes() {
   };
 
   const reset = async () => {
-    setResetError("");
-    const managerPassword = window.prompt("Digite somente a senha da gerência para confirmar e zerar a aplicação:");
-    if (managerPassword === null) return;
-    if (!managerPassword.trim()) {
-      setResetError("Informe a senha da gerência para continuar.");
-      return;
+    if (!securityPassword.trim()) { setSecurityError("Informe a senha da gerência."); return; }
+    setSecurityError(""); setSecurityBusy(true);
+    const result = await callUsers({ body: { action: "reset_application", managerPassword: securityPassword } });
+    setSecurityBusy(false);
+    if (result.error || !result.data?.ok || result.data?.cloudCleared !== true) {
+      setSecurityError(result.data?.error || "O Supabase não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
     }
-
-    setPixChecking(true);
-    const passwordCheck = await verifyManagerPassword(managerPassword);
-    setPixChecking(false);
-    if (!passwordCheck.ok) {
-      setResetError(passwordCheck.error || "Senha da gerência incorreta.");
-      return;
-    }
-
-    const ok = confirm("Senha confirmada. Esta ação apagará os dados desta empresa e excluirá todos os usuários do PDV vinculados a ela. O login da gerência e as outras empresas não serão afetados. Deseja continuar?");
-    if (!ok) return;
-
-    const { data, error } = await callUsers({ body: { action: "reset_application", managerPassword } });
-    if (error || !data?.ok || data?.cloudCleared !== true) {
-      setResetError(data?.error || "O Supabase não confirmou a limpeza completa. A aplicação não foi marcada como zerada.");
-      return;
-    }
-
-    // Reload the confirmed empty server snapshot first, so an older local sync
-    // cannot merge deleted sales/products back into the state.
-    await hydrateStore();
-    actions.resetAppData();
-    setName("");
-    setLogo("");
-    setPixKey("");
-    setPixKeyType("aleatoria");
-    setPixEditing(false);
-    setSaved(false);
-    setPdvUsers([]);
-    setUsersDetailsOpen(true);
-    setAddUserOpen(true);
-    setResetOpen(false);
-    setResetError("");
-    alert(`Supabase confirmou a limpeza dos dados e imagens. ${data.deleted ?? 0} usuário(s) do PDV excluído(s). A senha da Gerência foi preservada. Cadastre agora o novo usuário do PDV.`);
+    await hydrateStore(); actions.resetAppData();
+    setName(""); setLogo(""); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
+    setPdvUsers([]); setUsersDetailsOpen(true); setAddUserOpen(true);
+    setResetOpen(false); setSecurityModal(null); setSecurityPassword(""); setSecurityError(""); setResetError("");
+    setUserMessage("Limpeza confirmada. " + (result.data.deleted ?? 0) + " usuário(s) do PDV excluído(s). A senha da Gerência foi preservada. Cadastre agora o novo usuário do PDV.");
   };
+
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -476,12 +460,28 @@ function Configuracoes() {
                 {resetError && <p className="mt-2 text-sm text-destructive">{resetError}</p>}
                 <div className="mt-5 flex gap-2">
                   <button onClick={() => setResetOpen(false)} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">Cancelar</button>
-                  <button onClick={reset} className="flex-1 rounded-xl bg-destructive px-4 py-3 font-semibold text-destructive-foreground hover:opacity-90">Continuar</button>
+                  <button onClick={() => { setSecurityPassword(""); setSecurityError(""); setResetOpen(false); setSecurityModal("reset"); }} className="flex-1 rounded-xl bg-destructive px-4 py-3 font-semibold text-destructive-foreground hover:opacity-90">Continuar</button>
                 </div>
               </div>
             </div>
           )}
         </section>
+
+      {securityModal && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <form onSubmit={(e) => { e.preventDefault(); if (securityModal === "reset-final") void reset(); else void submitSecurityModal(); }} className="w-full max-w-md glass p-6 shadow-2xl">
+            <LockKeyhole className="h-6 w-6 text-green-600" />
+            <h3 className="mt-2 text-lg font-semibold text-heading">{securityModal === "pix" ? "Confirmar senha da Gerência" : securityModal === "reset-user" ? "Trocar senha de " + (passwordResetUser?.username ?? "usuário") : securityModal === "reset" ? "Senha da Gerência" : "Confirmar limpeza definitiva"}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">{securityModal === "pix" ? "Digite a senha da Gerência para liberar a alteração da chave Pix." : securityModal === "reset-user" ? "Defina uma nova senha para este usuário do PDV (mínimo de 6 caracteres)." : securityModal === "reset" ? "Para continuar, confirme a senha da Gerência desta empresa." : "Esta ação apagará os dados desta empresa e excluirá os usuários do PDV vinculados a ela. O login da Gerência e as outras empresas não serão afetados."}</p>
+            {securityModal !== "reset-final" && <input type="password" value={securityPassword} onChange={e => { setSecurityPassword(e.target.value); setSecurityError(""); }} placeholder={securityModal === "reset-user" ? "Nova senha (mínimo 6 caracteres)" : "Senha da Gerência"} autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />}
+            {securityError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{securityError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => { setSecurityModal(null); setSecurityPassword(""); setSecurityError(""); setPasswordResetUser(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+              <button type="submit" disabled={securityBusy} className={"flex-1 rounded-xl px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 " + (securityModal === "reset-final" ? "bg-destructive" : "bg-primary")}>{securityBusy ? "Aguarde..." : securityModal === "reset-final" ? "Zerar aplicação" : securityModal === "reset-user" ? "Salvar nova senha" : "Confirmar senha"}</button>
+            </div>
+          </form>
+        </div>
+      )}
       </main>
     </div>
   );
