@@ -78,7 +78,8 @@ export function AppHeader() {
   }, []);
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
-    const required: Record<string, string> = { "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };\n    if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
+    const required: Record<string, string> = { "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+    if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
