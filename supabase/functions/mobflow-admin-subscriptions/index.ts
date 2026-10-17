@@ -156,9 +156,10 @@ Deno.serve(async (req) => {
         return json({ error: "Os logins foram removidos, mas parte dos dados da conta não pôde ser apagada. Revise a conta no banco antes de tentar novamente." }, 500);
       }
 
-      if (usernames.length && accountCnpj) {
-        const { error: allowlistError } = await admin.from("account_allowlist")
-          .delete().in("username", usernames).eq("cnpj", accountCnpj);
+      if (usernames.length) {
+        let allowlistDelete = admin.from("account_allowlist").delete().in("username", usernames);
+        if (accountCnpj) allowlistDelete = allowlistDelete.eq("cnpj", accountCnpj);
+        const { error: allowlistError } = await allowlistDelete;
         if (allowlistError) {
           console.error("Account allowlist cleanup failed:", allowlistError.message);
           return json({ error: "Os logins e dados principais foram removidos, mas não foi possível apagar todas as autorizações. Revise a lista de autorizações." }, 500);
