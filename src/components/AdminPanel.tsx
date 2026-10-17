@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logout } from "@/components/LoginScreen";
-import { CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, Users, Wallet, XCircle } from "lucide-react";
 
 type ActiveAccount = {
   account_id: string;
@@ -90,6 +90,9 @@ export function AdminPanel() {
   const visible = companies.filter((company) => filter === "all" || company.subscription_status === filter);
   const pending = companies.filter((company) => company.subscription_status === "pending_payment").length;
   const active = companies.filter((company) => company.subscription_status === "active").length;
+  const suspended = companies.filter((company) => company.subscription_status === "suspended").length;
+  const totalAccounts = new Set([...companies.map((company) => company.account_id), ...activeAccounts.map((account) => account.account_id)]).size;
+  const activeTotal = active + activeAccounts.length;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -103,14 +106,42 @@ export function AdminPanel() {
         </div>
       </header>
       <section className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
-        <div>
-          <h2 className="text-2xl font-bold">Assinaturas e pagamentos</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Área exclusiva para conferir cadastros, registrar observações e liberar ou suspender o acesso das empresas.</p>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">Visão geral</p>
+            <h2 className="text-2xl font-bold">Dashboard administrativo</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Acompanhe as contas do MobFlow, pagamentos e situação dos acessos em um só lugar.</p>
+          </div>
+          <button onClick={() => void load()} disabled={loading} className="mt-2 inline-flex w-fit items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Atualizar dados</button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card p-4"><p className="text-sm text-muted-foreground">Empresas cadastradas</p><p className="mt-2 text-3xl font-bold">{companies.length}</p></div>
-          <div className="rounded-xl border border-amber-500/30 bg-card p-4"><p className="flex items-center gap-2 text-sm text-muted-foreground"><Clock3 className="h-4 w-4" /> Aguardando pagamento</p><p className="mt-2 text-3xl font-bold">{pending}</p></div>
-          <div className="rounded-xl border border-emerald-500/30 bg-card p-4"><p className="flex items-center gap-2 text-sm text-muted-foreground"><CheckCircle2 className="h-4 w-4" /> Assinaturas ativas</p><p className="mt-2 text-3xl font-bold">{active}</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Contas empresariais</p><Building2 className="h-4 w-4 text-primary" /></div>
+            <p className="mt-3 text-3xl font-bold">{totalAccounts}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Contas únicas identificadas</p>
+          </div>
+          <div className="rounded-xl border border-emerald-600/20 bg-card p-4">
+            <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Acessos ativos</p><CheckCircle2 className="h-4 w-4 text-emerald-700" /></div>
+            <p className="mt-3 text-3xl font-bold">{activeTotal}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Assinaturas e contas existentes</p>
+          </div>
+          <div className="rounded-xl border border-amber-500/25 bg-card p-4">
+            <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Aguardando pagamento</p><Clock3 className="h-4 w-4 text-amber-700" /></div>
+            <p className="mt-3 text-3xl font-bold">{pending}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Precisam de conferência</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">Assinaturas suspensas</p><XCircle className="h-4 w-4 text-muted-foreground" /></div>
+            <p className="mt-3 text-3xl font-bold">{suspended}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Acessos bloqueados pelo painel</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+          <div>
+            <h3 className="font-semibold">Empresas e assinaturas</h3>
+            <p className="text-sm text-muted-foreground">Confira os cadastros existentes ou gerencie pagamentos pendentes.</p>
+          </div>
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground"><Users className="h-4 w-4" /> {activeAccounts.reduce((sum, account) => sum + account.user_count, 0)} usuários nas contas existentes</div>
         </div>
         {activeAccounts.length > 0 && (
           <section className="space-y-3">
@@ -138,6 +169,10 @@ export function AdminPanel() {
         {error && <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
         {notice && <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">{notice}</div>}
         <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Filtrar assinaturas</p>
+            <p className="text-xs text-muted-foreground">As contas antigas aparecem na seção verde acima.</p>
+          </div>
           <div className="flex flex-wrap gap-2">
             {[["pending_payment","Pendentes"],["active","Ativas"],["suspended","Suspensas"],["all","Todas"]].map(([value,label]) => <button key={value} onClick={() => setFilter(value)} className={`rounded-lg px-3 py-2 text-sm font-semibold ${filter === value ? "bg-primary text-primary-foreground" : "border border-border hover:bg-accent"}`}>{label}</button>)}
           </div>
