@@ -97,11 +97,14 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [checkingSession, setCheckingSession] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
+  const [userLoginRequired, setUserLoginRequired] = useState(false);
 
   useEffect(() => {
-    const onAuthChanged = () => setAuthenticated(false);
+    const onAuthChanged = () => { setAuthenticated(false); setUserLoginRequired(false); };
+    const onUserLogout = () => setUserLoginRequired(true);
     window.addEventListener("mobflow-auth-changed", onAuthChanged);
-    return () => window.removeEventListener("mobflow-auth-changed", onAuthChanged);
+    window.addEventListener("mobflow-user-logout", onUserLogout);
+    return () => { window.removeEventListener("mobflow-auth-changed", onAuthChanged); window.removeEventListener("mobflow-user-logout", onUserLogout); };
   }, []);
 
   useEffect(() => {
@@ -158,6 +161,7 @@ function RootComponent() {
 
         if (active) {
           setAuthenticated(true);
+          setUserLoginRequired(profile.role === "manager");
           setCheckingSession(false);
         }
       } catch (error) {
@@ -185,9 +189,14 @@ function RootComponent() {
         onLogin={async () => {
           await hydrateStore();
           setAuthenticated(true);
+          setUserLoginRequired(true);
         }}
       />
     );
+  }
+
+  if (userLoginRequired) {
+    return <LoginScreen mode="pdv" onLogin={() => setUserLoginRequired(false)} />;
   }
 
   return (
