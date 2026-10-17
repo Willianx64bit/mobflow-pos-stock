@@ -28,12 +28,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
-  const [showNewAccount, setShowNewAccount] = useState(false);
-  const [requestCompanyName, setRequestCompanyName] = useState("");
-  const [requestUsername, setRequestUsername] = useState("");
-  const [requestCnpj, setRequestCnpj] = useState("");
-  const [requestPhone, setRequestPhone] = useState("");
-  const [requestMessage, setRequestMessage] = useState("");
 
   // O login do operador deve sempre começar vazio, sem reaproveitar/autopreencher credenciais da empresa.
   useEffect(() => {
@@ -58,31 +52,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
-
-  const submitNewAccountRequest = (e: FormEvent) => {
-    e.preventDefault();
-    const company = requestCompanyName.trim();
-    const requestedUsername = requestUsername.trim();
-    const digitsCnpj = requestCnpj.replace(/\D/g, "");
-    const phone = requestPhone.trim();
-
-    if (!company || !requestedUsername || digitsCnpj.length !== 14 || !phone) {
-      setRequestMessage("Preencha todos os campos e informe um CNPJ válido.");
-      return;
-    }
-
-    const subject = encodeURIComponent("Solicitação de nova conta MobFlow");
-    const body = encodeURIComponent(
-      "Solicitação de criação de conta MobFlow\n\n" +
-      "Nome da empresa: " + company + "\n" +
-      "Nome de usuário desejado: " + requestedUsername + "\n" +
-      "CNPJ: " + requestCnpj + "\n" +
-      "Telefone: " + phone + "\n\n" +
-      "Solicitação pendente de aprovação. A senha será definida de forma segura após a criação da conta."
-    );
-    setRequestMessage("Abrindo seu aplicativo de e-mail. Confira a mensagem e toque em Enviar para concluir a solicitação.");
-    window.location.href = `mailto:williannunesx456@gmail.com?subject=${subject}&body=${body}`;
-  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -171,40 +140,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </button>
         )}
         {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
-        {showNewAccount && mode !== "pdv" && (
-          <div className="fixed inset-0 z-[130] grid place-items-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" onClick={() => setShowNewAccount(false)}>
-            <div className="my-6 w-full max-w-md rounded-2xl bg-popover p-6 shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-display text-xl tracking-[.08em] text-heading">ABRIR NOVA CONTA</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Preencha os dados para solicitar o cadastro da sua empresa.</p>
-                </div>
-                <button type="button" onClick={() => { setShowNewAccount(false); setRequestMessage(""); }} aria-label="Fechar" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"><span className="text-2xl leading-none">×</span></button>
-              </div>
-              <form onSubmit={submitNewAccountRequest} className="mt-5 space-y-3">
-                <div>
-                  <label className="label-mono mb-1.5 block">Nome da empresa</label>
-                  <input value={requestCompanyName} onChange={(e) => setRequestCompanyName(e.target.value)} autoComplete="organization" placeholder="Nome da empresa" className="field w-full text-foreground" required />
-                </div>
-                <div>
-                  <label className="label-mono mb-1.5 block">Nome de usuário desejado</label>
-                  <input value={requestUsername} onChange={(e) => setRequestUsername(e.target.value)} autoComplete="off" placeholder="Como deseja entrar no sistema" className="field w-full text-foreground" required />
-                </div>
-                <div>
-                  <label className="label-mono mb-1.5 block">CNPJ</label>
-                  <input value={requestCnpj} onChange={(e) => setRequestCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
-                </div>
-                <div>
-                  <label className="label-mono mb-1.5 block">Número de telefone</label>
-                  <input value={requestPhone} onChange={(e) => setRequestPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000" className="field w-full text-foreground" required />
-                </div>
-                <p className="rounded-lg bg-secondary/70 px-3 py-2 text-xs leading-relaxed text-muted-foreground">Por segurança, não envie sua senha por e-mail. Após analisar o pedido, a conta será criada e a senha definida de forma segura.</p>
-                {requestMessage && <p role="status" className="rounded-lg bg-secondary px-3 py-2 text-sm text-muted-foreground">{requestMessage}</p>}
-                <button type="submit" className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground transition-colors hover:bg-primary/85">Enviar solicitação por e-mail</button>
-              </form>
-            </div>
-          </div>
-        )}
         {showAccountLogoutConfirm && mode === "pdv" && !onClose && (
           <div className="fixed inset-0 z-[120] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowAccountLogoutConfirm(false)}>
             <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
@@ -275,12 +210,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </button>
           )}
         </form>
-
-        {mode !== "pdv" && (
-          <button type="button" onClick={() => { setShowNewAccount(true); setRequestMessage(""); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
-            Abrir nova conta
-          </button>
-        )}
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
       </div>
