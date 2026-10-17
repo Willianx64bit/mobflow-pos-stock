@@ -119,22 +119,17 @@ function Gerencia() {
           }
           return;
         }
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role,active,permissions")
-          .eq("id", sessionData.session.user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        if (!profile || profile.active === false || (profile.role !== "manager" && !(profile.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência")))) {
+        // A função segura valida perfil, empresa e permissão usando a chave de serviço.
+        // Evita consultar profiles diretamente pelo cliente, pois a RLS pode bloquear usuários PDV.
+        const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
+        if (securityStatusError || typeof securityStatus?.configured !== "boolean") {
+          let message = securityStatus?.error || "";
+          try { message = message || String((await (securityStatusError as { context?: Response })?.context?.json())?.error || ""); } catch {}
           if (active) {
-            setAccessIssue("Este usuário não tem permissão para acessar a Gerência. Peça ao administrador da empresa para liberar essa área em Configurações → Usuários.");
+            setAccessIssue(message || "Não foi possível confirmar a permissão da sua conta. Verifique a conexão e tente novamente.");
             setCheckingManager(false);
           }
           return;
-        }
-        const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
-        if (securityStatusError || typeof securityStatus?.configured !== "boolean") {
-          throw new Error("Não foi possível verificar a senha da gerência.");
         }
         let needsFirstUser = false;
         if (securityStatus.configured) {
