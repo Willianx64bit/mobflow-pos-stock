@@ -79,27 +79,35 @@ function Configuracoes() {
           if (active) navigate({ to: "/gerencia" });
           return;
         }
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("role,active")
-          .eq("id", sessionData.session.user.id)
-          .maybeSingle();
 
-        const allowed = !error && profile?.active !== false && profile?.role === "manager" && sessionStorage.getItem("mobflow-management") === "1";
+        // A Gerência já foi desbloqueada com a senha na tela anterior.
+        // Confirme a permissão pelo servidor para não depender de uma consulta
+        // direta a profiles que pode ser bloqueada por RLS.
+        const { data: status, error: statusError } = await supabase.functions.invoke(
+          "mobflow-reauth-manager",
+          { body: { action: "status" } },
+        );
+        const allowedRole = status?.role === "manager" || status?.role === "pdv";
+        const unlocked = sessionStorage.getItem("mobflow-management") === "1";
+        const allowed = !statusError && status?.configured === true && allowedRole && unlocked;
+
         if (!active) return;
         if (!allowed) {
           sessionStorage.removeItem("mobflow-management");
           navigate({ to: "/gerencia" });
           return;
         }
-        // Só busca usuários depois de confirmar que a conta é da gerência
-        setUsersLoading(true);
-        setUserError("");
-        const { data, error: usersError } = await callUsers({ body: { action: "list" } });
-        if (!active) return;
-        if (usersError || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
-        else setPdvUsers(data.users);
-        setUsersLoading(false);
+
+        // Gerenciar usuários continua restrito à conta principal da empresa.
+        if (status.role === "manager") {
+          setUsersLoading(true);
+          setUserError("");
+          const { data, error: usersError } = await callUsers({ body: { action: "list" } });
+          if (!active) return;
+          if (usersError || !data?.users) setUserError(data?.error || "Não foi possível carregar os usuários.");
+          else setPdvUsers(data.users);
+          setUsersLoading(false);
+        }
       } catch {
         if (active) navigate({ to: "/gerencia" });
       }
