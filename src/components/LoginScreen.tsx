@@ -19,11 +19,11 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
+export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" | "admin" }) {
   const companySettings = useStore((s) => s.settings);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(mode === "admin" ? "Willian.nunes.pereira" : "");
   const [password, setPassword] = useState("");
-  const [cnpj, setCnpj] = useState("");
+  const [cnpj, setCnpj] = useState(mode === "admin" ? "12.345.678/9000-00" : "");
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
@@ -137,7 +137,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       sessionStorage.removeItem("mobflow-username");
 
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
+        body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "admin" ? "admin" : mode === "pdv" ? "pdv" : "manager" },
       });
 
       if (error || !data?.session) {
@@ -146,7 +146,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         return;
       }
 
-      if (mode === "pdv" && data.profile?.role !== "pdv") {
+      if ((mode === "pdv" && data.profile?.role !== "pdv") || (mode === "admin" && data.profile?.role !== "admin")) {
         setError("Usuário ou senha inválido.");
         return;
       }
@@ -162,11 +162,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       }
 
       localStorage.setItem(AUTH_KEY, "1");
-      if (mode !== "pdv") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+      if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
       if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
-      sessionStorage.setItem("mobflow-role", data.profile?.role === "manager" ? "manager" : "pdv");
+      sessionStorage.setItem("mobflow-role", data.profile?.role || (mode === "pdv" ? "pdv" : "manager"));
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
-      sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
+      sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "admin" ? ["Assinaturas", "Confirmação de pagamentos"] : data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
       onLogin();
     } catch {
       setError("Não foi possível conectar ao servidor.");
@@ -216,21 +216,21 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : signupComplete ? "CADASTRO RECEBIDO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : signupComplete ? "Seu cadastro foi recebido; falta confirmar o pagamento." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "admin" ? "ADMINISTRAÇÃO MOBFLOW" : mode === "pdv" ? "LOGIN DO USUÁRIO" : signupComplete ? "CADASTRO RECEBIDO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "admin" ? "Acesso reservado ao administrador de assinaturas." : mode === "pdv" ? "Informe seu usuário e senha para continuar." : signupComplete ? "Seu cadastro foi recebido; falta confirmar o pagamento." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         {signupSuccess && !creatingAccount && !signupComplete && <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-3 text-center text-sm text-foreground ring-1 ring-emerald-500/30">{signupSuccess}</div>}
 
-        {!(creatingAccount && mode !== "pdv") && !signupComplete && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
+        {!(creatingAccount && mode === "empresa") && !(signupComplete && mode === "empresa") && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "username"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : mode === "admin" ? "admin-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
           </div>
 
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" || mode === "admin" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : mode === "admin" ? "admin-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
@@ -257,7 +257,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
         </form>}
 
-        {signupComplete && mode !== "pdv" && (
+        {signupComplete && mode === "empresa" && (
           <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
               <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600">
@@ -290,7 +290,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </div>
         )}
 
-        {creatingAccount && mode !== "pdv" && (
+        {creatingAccount && mode === "empresa" && (
           <form onSubmit={submitSignup} className="mt-5 space-y-4" autoComplete="off">
             <div>
               <label className="label-mono block mb-1.5">Nome da empresa</label>
@@ -361,7 +361,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </form>
         )}
 
-        {mode !== "pdv" && !creatingAccount && !signupComplete && (
+        {mode === "empresa" && !creatingAccount && !signupComplete && (
           <button type="button" onClick={() => { setCreatingAccount(true); setError(""); setSignupSuccess(""); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
             Criar conta
           </button>
