@@ -37,6 +37,16 @@ Deno.serve(async (req) => {
   let createdUserId: string | null = null;
   try {
     const body = await req.json();
+    if (body.action === "payment_info") {
+      const url = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !serviceKey) return json({ error: "Pagamento temporariamente indisponível." }, 503);
+      const publicAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: settings, error: settingsError } = await publicAdmin.from("mobflow_payment_settings")
+        .select("monthly_price").eq("id", true).maybeSingle();
+      if (settingsError || !settings) return json({ error: "Configurações de pagamento ainda não foram definidas." }, 503);
+      return json({ ok: true, amount: Number(settings.monthly_price) || 79.90 });
+    }
     const companyName = String(body.companyName ?? "").trim();
     const username = normalizeUsername(body.username);
     const password = String(body.password ?? "");
