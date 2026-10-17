@@ -97,17 +97,18 @@ export function AppHeader() {
     return next;
   });
 
-  const logoutPdv = () => {
+  const logoutPdv = async () => {
     sessionStorage.removeItem("mobflow-pdv-authorized");
     sessionStorage.removeItem("mobflow-role");
     sessionStorage.removeItem("mobflow-username");
     sessionStorage.removeItem("mobflow-permissions");
     localStorage.removeItem("mobflow-authenticated");
+    await supabase.auth.signOut();
     setPdvAuthorized(false);
     setUsername("Usuário");
     setShowLogoutConfirm(false);
     window.dispatchEvent(new Event("mobflow-pdv-auth-changed"));
-    navigate({ to: "/" });
+    window.dispatchEvent(new Event("mobflow-user-logout"));
   };
 
   if (!mounted) return null;
