@@ -37,6 +37,44 @@ Deno.serve(async (req) => {
   let createdUserId: string | null = null;
   try {
     const body = await req.json();
+    if (body.action === "submit_payment_proof") {
+      const requestToken = String(body.requestToken ?? "");
+      const mimeType = String(body.mimeType ?? "");
+      const base64 = String(body.fileBase64 ?? "");
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+      if (!/^[0-9a-f-]{36}$/i.test(requestToken)) return json({ error: "Solicitação inválida. Refaça o cadastro." }, 400);
+      if (!allowedTypes.includes(mimeType)) return json({ error: "Envie uma imagem JPG, PNG, WEBP ou um PDF." }, 400);
+      if (!base64 || base64.length > 7_000_000) return json({ error: "O comprovante deve ter até 5 MB." }, 400);
+      const url = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (!url || !serviceKey) return json({ error: "Envio de comprovante temporariamente indisponível." }, 503);
+      const proofAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { data: company, error: companyLookupError } = await proofAdmin.from("companies")
+        .select("account_id,subscription_status,payment_proof_path").eq("payment_request_token", requestToken).maybeSingle();
+      if (companyLookupError || !company) return json({ error: "Solicitação não encontrada. Confira o cadastro." }, 404);
+      if (company.subscription_status === "active") return json({ error: "Esta conta já está ativa." }, 409);
+      const binary = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      if (binary.byteLength > 5 * 1024 * 1024) return json({ error: "O comprovante deve ter até 5 MB." }, 400);
+      const ext = mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
+      const path = requestToken + "/" + crypto.randomUUID() + "." + ext;
+      const { error: uploadError } = await proofAdmin.storage.from("mobflow-payment-proofs").upload(path, binary, { contentType: mimeType, upsert: false });
+      if (uploadError) {
+        console.error("mobflow proof upload failed", uploadError.message);
+        return json({ error: "Não foi possível enviar o comprovante. Tente novamente." }, 500);
+      }
+      const { error: updateError } = await proofAdmin.from("companies").update({
+        payment_proof_path: path,
+        payment_submitted_at: new Date().toISOString(),
+        subscription_status: "pending_payment",
+      }).eq("payment_request_token", requestToken);
+      if (updateError) {
+        await proofAdmin.storage.from("mobflow-payment-proofs").remove([path]);
+        console.error("mobflow proof metadata update failed", updateError.message);
+        return json({ error: "O arquivo foi recebido, mas não foi possível registrar a solicitação." }, 500);
+      }
+      return json({ ok: true, message: "Solicitação enviada. Aguarde a análise do administrador." });
+    }
+
     if (body.action === "payment_info") {
       const url = Deno.env.get("SUPABASE_URL");
       const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -126,6 +164,16 @@ Deno.serve(async (req) => {
       return json({ error: "Não foi possível salvar os dados da empresa." }, 500);
     }
 
+    const { data: paymentRequest, error: requestTokenError } = await admin.from("companies")
+      .select("payment_request_token").eq("account_id", created.user.id).single();
+    if (requestTokenError || !paymentRequest?.payment_request_token) {
+      await admin.from("companies").delete().eq("account_id", created.user.id);
+      await admin.auth.admin.deleteUser(created.user.id);
+      createdUserId = null;
+      console.error("mobflow-signup request token fetch failed", requestTokenError?.message);
+      return json({ error: "Não foi possível preparar a solicitação de pagamento." }, 500);
+    }
+
     const { error: profileError } = await admin.from("profiles").insert({
       id: created.user.id,
       username,
@@ -171,7 +219,8 @@ Deno.serve(async (req) => {
       pixCopyPaste,
       pixQrCode,
       pixRecipientName: paymentSettings.recipient_name,
-      message: "Cadastro recebido. Pague via Pix e aguarde a conferência manual para liberar o acesso.",
+      requestToken: paymentRequest.payment_request_token,
+      message: "Cadastro criado. Faça o pagamento, anexe o comprovante e envie a solicitação para análise.",
     }, 201);
   } catch (error) {
     console.error("mobflow-signup unexpected error", error);
