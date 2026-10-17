@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 import { LogOut } from "lucide-react";
@@ -28,6 +28,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
+
+  // O login do operador deve sempre começar vazio, sem reaproveitar/autopreencher credenciais da empresa.
+  useEffect(() => {
+    if (mode === "pdv") {
+      setUsername("");
+      setPassword("");
+      setError("");
+      setRememberLogin(false);
+    }
+  }, [mode]);
 
   const logoutAccount = async () => {
     await supabase.auth.signOut();
@@ -166,15 +176,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
-        <form onSubmit={submit} className="mt-5 space-y-4">
+        <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "off" : "username"} name={mode === "pdv" ? "mobflow-user-login" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "username"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
           </div>
 
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "mobflow-user-password" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
@@ -187,7 +197,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
 
           <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-            <input type="checkbox" checked={rememberLogin} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
+            <input type="checkbox" checked={mode === "pdv" ? false : rememberLogin} disabled={mode === "pdv"} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
 
