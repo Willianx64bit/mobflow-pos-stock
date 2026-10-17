@@ -137,12 +137,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         <form onSubmit={submit} className="mt-5 space-y-4">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "off" : "username"} name={mode === "pdv" ? "mobflow-user-login" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
           </div>
 
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="current-password" placeholder="Senha" className="field w-full text-foreground" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "mobflow-user-password" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
