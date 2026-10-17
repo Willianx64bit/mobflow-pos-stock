@@ -114,6 +114,77 @@ Deno.serve(async (req) => {
       return json({ ok: true, companies: companiesWithProof, activeAccounts });
     }
 
+
+    if (body.action === "delete_account") {
+      const accountId = String(body.accountId ?? "").trim();
+      if (!accountId || accountId.length > 100) return json({ error: "Conta não informada." }, 400);
+
+      const [{ data: company, error: companyError }, { data: accountProfiles, error: profilesError }] = await Promise.all([
+        admin.from("companies").select("account_id,company_name,cnpj,username,payment_proof_path").eq("account_id", accountId).maybeSingle(),
+        admin.from("profiles").select("id,username,cnpj,role,account_id").eq("account_id", accountId),
+      ]);
+      if (companyError || profilesError) return json({ error: "Não foi possível validar a conta para exclusão." }, 500);
+
+      const profiles = accountProfiles ?? [];
+      if (!company && profiles.length === 0) return json({ error: "Conta não encontrada ou já excluída." }, 404);
+      if (profiles.some((profile) => profile.role === "admin")) {
+        return json({ error: "Por segurança, contas administrativas não podem ser excluídas por esta opção." }, 403);
+      }
+
+      const accountCnpj = String(company?.cnpj ?? profiles.find((profile) => profile.cnpj)?.cnpj ?? "");
+      const usernames = [...new Set(profiles.map((profile) => String(profile.username ?? "").trim()).filter(Boolean))];
+      const authUserIds = [...new Set(profiles.map((profile) => String(profile.id ?? "")).filter(Boolean))];
+
+      const authDeleteErrors: string[] = [];
+      for (const userId of authUserIds) {
+        const { error: deleteUserError } = await admin.auth.admin.deleteUser(userId);
+        if (deleteUserError) authDeleteErrors.push(userId);
+      }
+      if (authDeleteErrors.length) {
+        console.error("Account deletion incomplete; auth users could not be deleted:", authDeleteErrors);
+        return json({ error: "A exclusão ficou incompleta porque não foi possível remover todos os logins. Nenhum sucesso foi informado; verifique esta conta e tente novamente." }, 500);
+      }
+
+      const cleanupResults = await Promise.all([
+        admin.from("app_state").delete().eq("owner_id", accountId),
+        admin.from("manager_security_by_account").delete().eq("account_id", accountId),
+        admin.from("profiles").delete().eq("account_id", accountId),
+        admin.from("companies").delete().eq("account_id", accountId),
+      ]);
+      if (cleanupResults.some((result) => result.error)) {
+        console.error("Account deletion database cleanup failed:", cleanupResults.map((result) => result.error?.message).filter(Boolean));
+        return json({ error: "Os logins foram removidos, mas parte dos dados da conta não pôde ser apagada. Revise a conta no banco antes de tentar novamente." }, 500);
+      }
+
+      if (usernames.length && accountCnpj) {
+        const { error: allowlistError } = await admin.from("account_allowlist")
+          .delete().in("username", usernames).eq("cnpj", accountCnpj);
+        if (allowlistError) {
+          console.error("Account allowlist cleanup failed:", allowlistError.message);
+          return json({ error: "Os logins e dados principais foram removidos, mas não foi possível apagar todas as autorizações. Revise a lista de autorizações." }, 500);
+        }
+      }
+
+      if (company?.payment_proof_path) {
+        const { error: proofError } = await admin.storage.from("mobflow-payment-proofs").remove([company.payment_proof_path]);
+        if (proofError) {
+          console.error("Payment proof cleanup failed:", proofError.message);
+          return json({ error: "A conta foi removida, mas o comprovante de pagamento não pôde ser apagado do armazenamento." }, 500);
+        }
+      }
+
+      const [{ count: remainingState, error: verifyStateError }, { count: remainingProfiles, error: verifyProfilesError }, { count: remainingCompany, error: verifyCompanyError }] = await Promise.all([
+        admin.from("app_state").select("owner_id", { count: "exact", head: true }).eq("owner_id", accountId),
+        admin.from("profiles").select("id", { count: "exact", head: true }).eq("account_id", accountId),
+        admin.from("companies").select("account_id", { count: "exact", head: true }).eq("account_id", accountId),
+      ]);
+      if (verifyStateError || verifyProfilesError || verifyCompanyError || (remainingState ?? 0) > 0 || (remainingProfiles ?? 0) > 0 || (remainingCompany ?? 0) > 0) {
+        return json({ error: "A verificação final não confirmou a exclusão completa. Revise os dados desta conta." }, 500);
+      }
+
+      return json({ ok: true, deleted: true, accountId });
+    }
+
     if (body.action === "update") {
       const accountId = String(body.accountId ?? "");
       const status = String(body.status ?? "");
