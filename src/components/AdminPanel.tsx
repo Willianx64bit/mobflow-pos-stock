@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logout } from "@/components/LoginScreen";
-import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, Users, Wallet, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, Users, XCircle } from "lucide-react";
 
 type ActiveAccount = {
   account_id: string;
