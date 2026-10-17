@@ -136,19 +136,8 @@ export function AdminPanel() {
             <p className="mt-1 text-xs text-muted-foreground">Acessos bloqueados pelo painel</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-          <div>
-            <h3 className="font-semibold">Empresas e assinaturas</h3>
-            <p className="text-sm text-muted-foreground">Confira os cadastros existentes ou gerencie pagamentos pendentes.</p>
-          </div>
-          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground"><Users className="h-4 w-4" /> {activeAccounts.reduce((sum, account) => sum + account.user_count, 0)} usuários nas contas existentes</div>
-        </div>
         {activeAccounts.length > 0 && (
           <section className="space-y-3">
-            <div>
-              <h3 className="text-lg font-bold">Empresas com acesso ativo</h3>
-              <p className="text-sm text-muted-foreground">Contas que já existiam no MobFlow e ainda não possuem registro na lista de assinaturas.</p>
-            </div>
             <div className="grid gap-3 md:grid-cols-2">
               {activeAccounts.map((account) => (
                 <article key={account.account_id} className="rounded-xl border border-emerald-500/30 bg-card p-4">
