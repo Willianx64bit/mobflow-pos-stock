@@ -34,11 +34,11 @@ Deno.serve(async (req) => {
 
     const { data: manager, error: managerError } = await admin
       .from("profiles")
-      .select("id,username,role,active,account_id")
+      .select("id,username,role,active,account_id,permissions")
       .eq("id", authData.user.id)
       .maybeSingle();
 
-    if (managerError || !manager || !manager.active || !["manager", "pdv"].includes(manager.role)) {
+    if (managerError || !manager || !manager.active || (manager.role !== "manager" && !(manager.role === "pdv" && Array.isArray(manager.permissions) && manager.permissions.includes("Gerência")))) {
       return json({ error: "Conta ativa necessária para acessar a gerência." }, 403);
     }
     if (!manager.account_id) {
