@@ -69,6 +69,7 @@ function Configuracoes() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [usersDetailsOpen, setUsersDetailsOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
+  const [isCompanyManager, setIsCompanyManager] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -98,7 +99,8 @@ function Configuracoes() {
           return;
         }
 
-        // Gerenciar usuários continua restrito à conta principal da empresa.
+        // Somente a conta principal da empresa pode ver e gerenciar usuários do PDV.
+        setIsCompanyManager(status.role === "manager");
         if (status.role === "manager") {
           setUsersLoading(true);
           setUserError("");
@@ -297,6 +299,7 @@ function Configuracoes() {
             <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm text-secondary-foreground hover:bg-accent">← Voltar</button>
           </div>
 
+          {isCompanyManager && (
           <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -368,6 +371,8 @@ function Configuracoes() {
               </div>
             )}
           </div>
+
+          )}
 
           <div className="rounded-2xl border border-border/60 p-5">
             <button type="button" onClick={() => setPixSectionOpen(open => !open)} aria-expanded={pixSectionOpen} className="flex w-full items-center justify-between gap-3 text-left">
