@@ -147,6 +147,19 @@ function RootComponent() {
           return;
         }
 
+        if (isAdminPortal && profile.role !== "admin") {
+          await supabase.auth.signOut();
+          localStorage.removeItem("mobflow-authenticated");
+          sessionStorage.removeItem("mobflow-role");
+          sessionStorage.removeItem("mobflow-username");
+          sessionStorage.removeItem("mobflow-pdv-authorized");
+          if (active) {
+            setAuthenticated(false);
+            setCheckingSession(false);
+          }
+          return;
+        }
+
         sessionStorage.setItem("mobflow-role", profile.role);
         sessionStorage.setItem("mobflow-username", profile.username);
 
