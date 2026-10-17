@@ -32,7 +32,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupComplete, setSignupComplete] = useState(false);
   const [signupAmount, setSignupAmount] = useState(79.90);
   const [signupPayment, setSignupPayment] = useState<{ pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; amount: number; requestToken: string } | null>(null);
-  const [pixCopied, setPixCopied] = useState(false);\n  const [proofFile, setProofFile] = useState<File | null>(null);\n  const [proofSubmitted, setProofSubmitted] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofSubmitted, setProofSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
