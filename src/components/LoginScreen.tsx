@@ -492,11 +492,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </form>
         )}
 
-        {mode === "empresa" && !creatingAccount && !signupComplete && (
-          <button type="button" onClick={async () => { setCreatingAccount(true); setError(""); setSignupSuccess(""); setSignupPayment(null); const { data } = await supabase.functions.invoke("mobflow-signup", { body: { action: "payment_info" } }); if (data?.ok) setSignupAmount(Number(data.amount) || 79.90); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
-            Criar conta
-          </button>
-        )}
+
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
         {mode === "admin" && (
@@ -507,13 +503,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </div>
         )}
 
-        {mode === "empresa" && (
-          <div className="mt-2 text-center">
-            <a href="/?admin=1" className="text-[10px] text-muted-foreground/60 hover:text-muted-foreground">
-              Administração
-            </a>
-          </div>
-        )}
+
       </div>
     </div>
   );
