@@ -81,8 +81,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       const { data, error: signupError } = await supabase.functions.invoke("mobflow-signup", {
         body: {
           companyName: companyName.trim(),
-          username: username.trim(),
-          password,
           cnpj: cnpj.replace(/\D/g, ""),
           phone: phone.replace(/\D/g, ""),
           email: email.trim().toLowerCase(),
