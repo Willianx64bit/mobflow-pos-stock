@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
+import { LogOut } from "lucide-react";
 
 const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
@@ -26,6 +27,19 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
+  const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
+
+  const logoutAccount = async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem(AUTH_KEY);
+    sessionStorage.removeItem("mobflow-role");
+    sessionStorage.removeItem("mobflow-username");
+    sessionStorage.removeItem("mobflow-pdv-authorized");
+    sessionStorage.removeItem("mobflow-management");
+    sessionStorage.removeItem("mobflow-permissions");
+    setShowAccountLogoutConfirm(false);
+    window.dispatchEvent(new Event("mobflow-auth-changed"));
+  };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
 
@@ -110,7 +124,25 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
       <div className="mfb-in relative w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+        {mode === "pdv" && !onClose && (
+          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Sair da conta" title="Sair da conta">
+            <LogOut className="h-4 w-4" /><span>Sair da conta</span>
+          </button>
+        )}
         {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
+        {showAccountLogoutConfirm && mode === "pdv" && !onClose && (
+          <div className="fixed inset-0 z-[120] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowAccountLogoutConfirm(false)}>
+            <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-secondary text-foreground ring-1 ring-border"><LogOut className="h-6 w-6" /></div>
+              <h2 className="mt-3 font-display text-2xl tracking-[.08em] text-heading">SAIR DA CONTA?</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Você voltará ao login da empresa. Os dados salvos não serão apagados.</p>
+              <div className="mt-5 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setShowAccountLogoutConfirm(false)} className="rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">Cancelar</button>
+                <button type="button" onClick={logoutAccount} className="rounded-xl bg-red-600 py-3 font-bold text-white hover:bg-red-700">Sair da conta</button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="mx-auto w-full max-w-[320px] text-center">
           <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
         </div>
