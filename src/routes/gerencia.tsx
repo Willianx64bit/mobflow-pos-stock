@@ -114,13 +114,13 @@ function Gerencia() {
         }
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role,active")
+          .select("role,active,permissions")
           .eq("id", sessionData.session.user.id)
           .maybeSingle();
         if (profileError) throw profileError;
-        if (!profile || profile.active === false || profile.role !== "manager") {
+        if (!profile || profile.active === false || (profile.role !== "manager" && !(profile.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência")))) {
           if (active) {
-            setAccessIssue("A conta atualmente conectada não tem permissão de Gerência. Saia do usuário do PDV e entre novamente com o login da empresa. A senha da Gerência não substitui a permissão da conta.");
+            setAccessIssue("Este usuário não tem permissão para acessar a Gerência. Peça ao administrador da empresa para liberar essa área em Configurações → Usuários.");
             setCheckingManager(false);
           }
           return;
