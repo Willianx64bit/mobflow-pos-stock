@@ -84,6 +84,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           cnpj: cnpj.replace(/\D/g, ""),
           phone: phone.replace(/\D/g, ""),
           email: email.trim().toLowerCase(),
+          username: managerSetupUsername.trim(),
+          password: managerSetupPassword,
           paymentMethod: "pix",
         },
       });
@@ -91,12 +93,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         setError(data?.error || (signupError ? "O servidor recusou o cadastro. Confira se a chave Pix já foi configurada na Administração e se o CNPJ, e-mail e usuário ainda não estão cadastrados." : "Não foi possível criar a conta. Confira os dados e tente novamente."));
         return;
       }
-      setManagerSetupToken(String(data.setupToken || ""));
-      setManagerSetupCnpj(cnpj.replace(/\\D/g, ""));
-      setManagerSetupDone(false);
-      setManagerSetupUsername("");
+      setManagerSetupToken("");
+      setManagerSetupCnpj("");
+      setManagerSetupDone(true);
       setManagerSetupPassword("");
-      setSignupSuccess(data.message || "Cadastro recebido. Configure o gerente e aguarde a confirmação manual do pagamento.");
+      setSignupSuccess(data.message || "Cadastro recebido. Usuário do gerente criado; aguarde a aprovação manual do pagamento.");
       setSignupPayment(data.pixCopyPaste && data.pixQrCode ? {
         pixCopyPaste: data.pixCopyPaste,
         pixQrCode: data.pixQrCode,
@@ -356,23 +357,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
         {signupComplete && mode === "empresa" && (
           <div className="mt-5 space-y-4">
-            {!managerSetupDone && (
-              <form onSubmit={submitManagerSetup} className="space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-                <h2 className="text-lg font-bold text-foreground">Configure o primeiro acesso do gerente</h2>
-                <p className="text-sm text-muted-foreground">Crie o usuário e a senha que serão usados para entrar na gerência. Guarde essas credenciais.</p>
-                <label className="block">
-                  <span className="label-mono mb-1.5 block">Usuário do gerente</span>
-                  <input value={managerSetupUsername} onChange={(e) => setManagerSetupUsername(e.target.value.toUpperCase())} autoComplete="username" placeholder="Crie seu usuário" className="field w-full text-foreground" required minLength={3} maxLength={40} />
-                </label>
-                <label className="block">
-                  <span className="label-mono mb-1.5 block">Senha do gerente</span>
-                  <input value={managerSetupPassword} onChange={(e) => setManagerSetupPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="Pelo menos 8 caracteres" className="field w-full text-foreground" required minLength={8} maxLength={128} />
-                </label>
-                {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-                <button type="submit" disabled={loading || !managerSetupToken} className="w-full rounded-lg bg-primary px-3 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">{loading ? "Configurando..." : "Salvar acesso do gerente"}</button>
-              </form>
-            )}
-            {managerSetupDone && <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Acesso do gerente configurado. A liberação do sistema ainda depende da aprovação manual do pagamento.</div>}
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Usuário e senha do gerente criados no cadastro. A liberação do sistema ainda depende da aprovação manual do pagamento.</div>
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
               <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600">
                 <span className="text-2xl" aria-hidden="true">✓</span>
@@ -444,6 +429,14 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
               <label className="label-mono block mb-1.5">E-mail</label>
               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="empresa@email.com" className="field w-full text-foreground" required maxLength={254} />
             </div>
+            <div>
+              <label className="label-mono block mb-1.5">Usuário do gerente</label>
+              <input value={managerSetupUsername} onChange={(e) => setManagerSetupUsername(e.target.value.toUpperCase())} autoComplete="username" placeholder="Crie seu usuário de acesso" className="field w-full text-foreground" required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]{3,40}" title="Use de 3 a 40 letras, números, ponto, hífen ou underline." />
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">Senha do gerente</label>
+              <input value={managerSetupPassword} onChange={(e) => setManagerSetupPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="Crie uma senha com pelo menos 8 caracteres" className="field w-full text-foreground" required minLength={8} maxLength={128} />
+            </div>
 
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
               <div className="flex items-start justify-between gap-3">
@@ -481,7 +474,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
               {loading ? "Criando conta..." : "Criar conta"}
             </button>
-            <p className="text-center text-xs text-muted-foreground">O acesso será liberado após a confirmação do pagamento e ativação da assinatura.</p>
+            <p className="text-center text-xs text-muted-foreground">O usuário já terá permissão de gerente. O acesso ao sistema será liberado após a confirmação do pagamento e ativação da assinatura.</p>
             <button type="button" onClick={() => { setCreatingAccount(false); setError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               Voltar para login
             </button>
