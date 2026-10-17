@@ -140,7 +140,8 @@ Deno.serve(async (req) => {
         account_id: manager.account_id,
         role: "pdv",
         active: true,
-        display_name: displayName
+        display_name: displayName,
+        permissions
       }, { onConflict: "id" });
 
       if (insertError) {
@@ -164,7 +165,15 @@ Deno.serve(async (req) => {
       return json({ error: "Usuário não encontrado." }, 404);
     }
 
-    if (action === "update_permissions") {\n      const permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : null;\n      if (!permissions || !permissions.includes("PDV")) return json({ error: "O usuário precisa manter acesso ao PDV." }, 400);\n      const { error } = await admin.from("profiles").update({ permissions }).eq("id", userId);\n      if (error) return json({ error: "Não foi possível salvar as permissões." }, 500);\n      return json({ ok: true });\n    }\n\n    if (action === "toggle") {
+    if (action === "update_permissions") {
+      const permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : null;
+      if (!permissions || !permissions.includes("PDV")) return json({ error: "O usuário precisa manter acesso ao PDV." }, 400);
+      const { error } = await admin.from("profiles").update({ permissions }).eq("id", userId);
+      if (error) return json({ error: "Não foi possível salvar as permissões." }, 500);
+      return json({ ok: true });
+    }
+
+    if (action === "toggle") {
       const active = Boolean(body.active);
       const { error } = await admin.from("profiles").update({ active }).eq("id", userId);
       if (error) return json({ error: "Não foi possível alterar o acesso." }, 500);
