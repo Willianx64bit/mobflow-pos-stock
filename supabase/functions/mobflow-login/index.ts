@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     const cleanUsername = String(username ?? "").trim().toUpperCase();
     const cleanPassword = String(password ?? "");
     const cleanCnpj = String(cnpj ?? "").replace(/\D/g, "");
-    const expectedRole = requestedRole === "pdv" || (!requestedRole && !cleanCnpj) ? "pdv" : "manager";
+    const expectedRole = requestedRole === "admin" ? "admin" : requestedRole === "pdv" || (!requestedRole && !cleanCnpj) ? "pdv" : "manager";
     if (!cleanUsername || cleanPassword.length < 6) return json({ error: "Usuário ou senha inválido." }, 400);
     const url = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,6 +22,46 @@ Deno.serve(async (req) => {
     const email = cleanUsername.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
     const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name,permissions").eq("username", cleanUsername).maybeSingle();
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
+
+    // Admin access is independently allowlisted; it never creates a paid company or app_state.
+    if (expectedRole === "admin") {
+      if (cleanCnpj.length !== 14) return json({ error: "CNPJ administrativo inválido." }, 400);
+      const { data: allowed, error: allowError } = await admin.from("mobflow_admin_allowlist")
+        .select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
+      if (allowError) return json({ error: "Não foi possível validar o acesso administrativo." }, 500);
+      if (!allowed) return json({ error: "Usuário ou senha inválido." }, 401);
+      let adminProfile = profile;
+      if (adminProfile && (adminProfile.role !== "admin" || !adminProfile.active || adminProfile.cnpj !== cleanCnpj)) {
+        return json({ error: "Usuário ou senha inválido." }, 401);
+      }
+      if (!adminProfile) {
+        const { data: created, error: createError } = await admin.auth.admin.createUser({
+          email, password: cleanPassword, email_confirm: true,
+          user_metadata: { username: cleanUsername, cnpj: cleanCnpj, role: "admin", display_name: "Administrador MobFlow" },
+        });
+        if (createError || !created.user) {
+          console.error("admin createUser failed", createError?.message);
+          return json({ error: "Não foi possível criar o acesso administrativo. Se o usuário já existe, solicite a regularização do perfil." }, 500);
+        }
+        const { data: createdProfile, error: insertError } = await admin.from("profiles").insert({
+          id: created.user.id, username: cleanUsername, cnpj: cleanCnpj,
+          account_id: created.user.id, role: "admin", active: true,
+          display_name: "Administrador MobFlow", permissions: ["Assinaturas", "Confirmação de pagamentos"],
+        }).select("id,username,cnpj,account_id,role,active,display_name,permissions").single();
+        if (insertError || !createdProfile) {
+          await admin.auth.admin.deleteUser(created.user.id);
+          console.error("admin profile insert failed", insertError?.message);
+          return json({ error: "Não foi possível preparar o acesso administrativo." }, 500);
+        }
+        adminProfile = createdProfile;
+      }
+      const { data: adminSession, error: adminSignInError } = await client.auth.signInWithPassword({ email, password: cleanPassword });
+      if (adminSignInError || !adminSession.session) return json({ error: "Usuário ou senha inválido." }, 401);
+      return json({ session: adminSession.session, profile: {
+        username: adminProfile.username, role: "admin", account_id: adminProfile.account_id,
+        display_name: adminProfile.display_name, permissions: ["Assinaturas", "Confirmação de pagamentos"],
+      } });
+    }
 
     // New paid accounts must be activated by the subscription owner before login.
     // Legacy accounts without a companies row continue to work as before.
