@@ -74,11 +74,11 @@ Deno.serve(async (req) => {
 
       let deleted = 0;
       for (const user of users ?? []) {
-        const { error: allowlistError } = await admin.from("account_allowlist")
-          .update({ active: false }).eq("username", user.username).eq("cnpj", manager.cnpj);
-        if (allowlistError) return json({ error: "Os dados foram limpos, mas não foi possível desativar todos os usuários do PDV. Revise a lista de usuários." }, 500);
         const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
         if (deleteError) return json({ error: "Os dados foram limpos, mas houve falha ao excluir um usuário do PDV. Revise a lista de usuários." }, 500);
+        const { error: allowlistError } = await admin.from("account_allowlist")
+          .delete().eq("username", user.username).eq("cnpj", manager.cnpj);
+        if (allowlistError) return json({ error: "Os dados foram limpos, mas não foi possível remover o cadastro de autorização de um usuário. Revise a lista de usuários." }, 500);
         deleted++;
       }
 
