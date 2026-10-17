@@ -77,7 +77,14 @@ Deno.serve(async (req) => {
         adminProfile = createdProfile;
       }
       const { data: adminSession, error: adminSignInError } = await client.auth.signInWithPassword({ email, password: cleanPassword });
-      if (adminSignInError || !adminSession.session) {\n        const failed = await registerAdminFailure();\n        const lockedUntil = failed?.locked_until;\n        if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) return json({ error: "Você atingiu 3 tentativas. Aguarde 30 minutos para tentar novamente.", locked: true, retryAfterMinutes: 30 }, 429);\n        return json({ error: "Usuário ou senha inválido.", attemptsRemaining: Math.max(0, 3 - Number(failed?.attempts ?? 0)) }, 401);\n      }\n      await admin.rpc("mobflow_admin_login_guard", { p_username: cleanUsername, p_client_ip: clientIp, p_action: "reset" });\n      return json({ session: adminSession.session, profile: {
+      if (adminSignInError || !adminSession.session) {
+        const failed = await registerAdminFailure();
+        const lockedUntil = failed?.locked_until;
+        if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) return json({ error: "Você atingiu 3 tentativas. Aguarde 30 minutos para tentar novamente.", locked: true, retryAfterMinutes: 30 }, 429);
+        return json({ error: "Usuário ou senha inválido.", attemptsRemaining: Math.max(0, 3 - Number(failed?.attempts ?? 0)) }, 401);
+      }
+      await admin.rpc("mobflow_admin_login_guard", { p_username: cleanUsername, p_client_ip: clientIp, p_action: "reset" });
+      return json({ session: adminSession.session, profile: {
         username: adminProfile.username, role: "admin", account_id: adminProfile.account_id,
         display_name: adminProfile.display_name, permissions: ["Assinaturas", "Confirmação de pagamentos"],
       } });
