@@ -23,7 +23,6 @@ export function AppHeader() {
   const [darkMode, setDarkMode] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [pdvAuthorized, setPdvAuthorized] = useState(false);
   const [username, setUsername] = useState("Usuário");
@@ -112,22 +111,6 @@ export function AppHeader() {
     window.dispatchEvent(new Event("mobflow-user-logout"));
   };
 
-  const logoutAccount = async () => {
-    await supabase.auth.signOut();
-    localStorage.removeItem("mobflow-authenticated");
-    sessionStorage.removeItem("mobflow-role");
-    sessionStorage.removeItem("mobflow-username");
-    sessionStorage.removeItem("mobflow-pdv-authorized");
-    sessionStorage.removeItem("mobflow-management");
-    sessionStorage.removeItem("mobflow-permissions");
-    setPdvAuthorized(false);
-    setUsername("Usuário");
-    setShowAccountLogoutConfirm(false);
-    window.dispatchEvent(new Event("mobflow-pdv-auth-changed"));
-    window.dispatchEvent(new Event("mobflow-auth-changed"));
-    navigate({ to: "/" });
-  };
-
   if (!mounted) return null;
 
   return createPortal(
@@ -136,9 +119,6 @@ export function AppHeader() {
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           <button type="button" onClick={() => setShowLogin(true)} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
             <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
-          </button>
-          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-popover/95 px-3 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent" aria-label="Sair da conta" title="Sair da conta">
-            <LogOut className="h-4 w-4 text-muted-foreground" /><span className="hidden sm:inline">Sair da conta</span>
           </button>
           {pdvAuthorized && (
             <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair do usuário do PDV" title="Sair do PDV">
@@ -161,20 +141,6 @@ export function AppHeader() {
               setOpen(false);
               navigate({ to: "/" });
             }} />
-          </div>
-        </div>
-      )}
-
-      {showAccountLogoutConfirm && (
-        <div className="fixed inset-0 z-[115] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowAccountLogoutConfirm(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-secondary text-foreground ring-1 ring-border"><LogOut className="h-6 w-6" /></div>
-            <h2 className="mt-3 font-display text-2xl tracking-[.08em] text-heading">SAIR DA CONTA?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Você será desconectado da empresa e precisará entrar novamente. Os dados salvos não serão apagados.</p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setShowAccountLogoutConfirm(false)} className="rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">Cancelar</button>
-              <button type="button" onClick={logoutAccount} className="rounded-xl bg-red-600 py-3 font-bold text-white hover:bg-red-700">Sair da conta</button>
-            </div>
           </div>
         </div>
       )}
