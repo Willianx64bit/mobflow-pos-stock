@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
     const client = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
     const email = cleanUsername.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
-    const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name").eq("username", cleanUsername).maybeSingle();
+    const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name,permissions").eq("username", cleanUsername).maybeSingle();
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
     if (profile) {
       if (!profile.active) return json({ error: "Usuário ou acesso inválido." }, 401);
@@ -35,6 +35,6 @@ Deno.serve(async (req) => {
     }
     const { data, error } = await client.auth.signInWithPassword({ email, password: cleanPassword });
     if (error || !data.session) return json({ error: "Usuário ou senha inválido." }, 401);
-    return json({ session: data.session, profile: { username: profile?.username ?? cleanUsername, role: profile?.role ?? "manager", account_id: profile?.account_id ?? data.user?.id ?? null, display_name: profile?.display_name ?? cleanUsername } });
+    return json({ session: data.session, profile: { username: profile?.username ?? cleanUsername, role: profile?.role ?? "manager", account_id: profile?.account_id ?? data.user?.id ?? null, display_name: profile?.display_name ?? cleanUsername, permissions: profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : (Array.isArray(profile?.permissions) ? profile.permissions : ["PDV", "Conferência"]) } });
   } catch { return json({ error: "Não foi possível entrar agora." }, 500); }
 });
