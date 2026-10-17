@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logout } from "@/components/LoginScreen";
-import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, Settings, ShieldCheck, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, Settings, ShieldCheck, Trash2, XCircle } from "lucide-react";
 
 type ActiveAccount = {
   account_id: string;
@@ -46,6 +46,7 @@ export function AdminPanel() {
   const [activeAccounts, setActiveAccounts] = useState<ActiveAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
+  const [deletingId, setDeletingId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [filter, setFilter] = useState("pending_payment");
@@ -129,6 +130,26 @@ export function AdminPanel() {
       setError(e instanceof Error ? e.message : "Não foi possível atualizar a assinatura.");
     } finally {
       setSavingId("");
+    }
+  };
+
+  const deleteAccount = async (accountId: string, companyName: string) => {
+    const confirmed = window.confirm(
+      `ATENÇÃO: excluir permanentemente "${companyName}"?\n\nIsso apaga os produtos, vendas, estoque, conferências, usuários vinculados, dados de acesso e o cadastro da assinatura. Esta ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(accountId);
+    setError("");
+    setNotice("");
+    try {
+      await callAdmin({ action: "delete_account", accountId });
+      setNotice(`A conta "${companyName}" e os dados vinculados foram excluídos.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível excluir a conta. Verifique o estado dela antes de tentar novamente.");
+    } finally {
+      setDeletingId("");
     }
   };
 
@@ -216,6 +237,16 @@ export function AdminPanel() {
                     <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700">Acesso ativo</span>
                   </div>
                   <p className="mt-3 text-sm"><span className="text-muted-foreground">Usuários:</span> {account.user_count}</p>
+                  <div className="mt-4 border-t border-border pt-3">
+                    <button
+                      disabled={deletingId === account.account_id}
+                      onClick={() => void deleteAccount(account.account_id, account.company_name)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2 text-sm font-semibold text-destructive hover:bg-destructive/5 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deletingId === account.account_id ? "Excluindo…" : "Excluir conta permanentemente"}
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -261,6 +292,7 @@ export function AdminPanel() {
                   {company.subscription_status !== "active" && <button disabled={savingId === company.account_id} onClick={() => void update(company, "active")} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"><CheckCircle2 className="h-4 w-4" /> {savingId === company.account_id ? "Salvando…" : "Confirmar pagamento e ativar"}</button>}
                   {company.subscription_status !== "pending_payment" && <button disabled={savingId === company.account_id} onClick={() => void update(company, "pending_payment")} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2.5 text-sm font-semibold hover:bg-accent disabled:opacity-50"><Clock3 className="h-4 w-4" /> Voltar para pendente</button>}
                   {company.subscription_status !== "suspended" && <button disabled={savingId === company.account_id} onClick={() => void update(company, "suspended")} className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 px-3 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/5 disabled:opacity-50"><XCircle className="h-4 w-4" /> Suspender</button>}
+                  <button disabled={deletingId === company.account_id} onClick={() => void deleteAccount(company.account_id, company.company_name)} className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 px-3 py-2.5 text-sm font-bold text-destructive hover:bg-destructive/5 disabled:opacity-50"><Trash2 className="h-4 w-4" /> {deletingId === company.account_id ? "Excluindo…" : "Excluir conta permanentemente"}</button>
                 </div>
               </article>
             ))}
