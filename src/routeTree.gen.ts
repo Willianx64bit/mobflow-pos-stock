@@ -16,10 +16,10 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FiadoRouteImport } from './routes/fiado'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
-import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as PromocoesRouteImport } from './routes/promocoes'
-import { Route as VendasRouteImport } from './routes/vendas'
+import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as ValidadeRouteImport } from './routes/validade'
+import { Route as VendasRouteImport } from './routes/vendas'
 import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as FiadoClienteRouteImport } from './routes/fiado.cliente'
 
@@ -58,24 +58,24 @@ const GerenciaRoute = GerenciaRouteImport.update({
   path: '/gerencia',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RecebimentoRoute = RecebimentoRouteImport.update({
-  id: '/recebimento',
-  path: '/recebimento',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PromocoesRoute = PromocoesRouteImport.update({
   id: '/promocoes',
   path: '/promocoes',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VendasRoute = VendasRouteImport.update({
-  id: '/vendas',
-  path: '/vendas',
+const RecebimentoRoute = RecebimentoRouteImport.update({
+  id: '/recebimento',
+  path: '/recebimento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ValidadeRoute = ValidadeRouteImport.update({
   id: '/validade',
   path: '/validade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VendasRoute = VendasRouteImport.update({
+  id: '/vendas',
+  path: '/vendas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
@@ -97,10 +97,10 @@ export interface FileRoutesByFullPath {
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
   '/gerencia': typeof GerenciaRoute
-  '/recebimento': typeof RecebimentoRoute
   '/promocoes': typeof PromocoesRoute
-  '/vendas': typeof VendasRoute
+  '/recebimento': typeof RecebimentoRoute
   '/validade': typeof ValidadeRoute
+  '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
@@ -112,10 +112,10 @@ export interface FileRoutesByTo {
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
   '/gerencia': typeof GerenciaRoute
-  '/recebimento': typeof RecebimentoRoute
   '/promocoes': typeof PromocoesRoute
-  '/vendas': typeof VendasRoute
+  '/recebimento': typeof RecebimentoRoute
   '/validade': typeof ValidadeRoute
+  '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
@@ -128,10 +128,10 @@ export interface FileRoutesById {
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
   '/gerencia': typeof GerenciaRoute
-  '/recebimento': typeof RecebimentoRoute
   '/promocoes': typeof PromocoesRoute
-  '/vendas': typeof VendasRoute
+  '/recebimento': typeof RecebimentoRoute
   '/validade': typeof ValidadeRoute
+  '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
@@ -145,10 +145,10 @@ export interface FileRouteTypes {
     | '/estoque'
     | '/fiado'
     | '/gerencia'
-    | '/recebimento'
     | '/promocoes'
-    | '/vendas'
+    | '/recebimento'
     | '/validade'
+    | '/vendas'
     | '/fiado/$customer'
     | '/fiado/cliente'
   fileRoutesByTo: FileRoutesByTo
@@ -160,10 +160,10 @@ export interface FileRouteTypes {
     | '/estoque'
     | '/fiado'
     | '/gerencia'
-    | '/recebimento'
     | '/promocoes'
-    | '/vendas'
+    | '/recebimento'
     | '/validade'
+    | '/vendas'
     | '/fiado/$customer'
     | '/fiado/cliente'
   id:
@@ -175,10 +175,10 @@ export interface FileRouteTypes {
     | '/estoque'
     | '/fiado'
     | '/gerencia'
-    | '/recebimento'
     | '/promocoes'
-    | '/vendas'
+    | '/recebimento'
     | '/validade'
+    | '/vendas'
     | '/fiado/$customer'
     | '/fiado/cliente'
   fileRoutesById: FileRoutesById
@@ -191,10 +191,10 @@ export interface RootRouteChildren {
   EstoqueRoute: typeof EstoqueRoute
   FiadoRoute: typeof FiadoRouteWithChildren
   GerenciaRoute: typeof GerenciaRoute
-  RecebimentoRoute: typeof RecebimentoRoute
   PromocoesRoute: typeof PromocoesRoute
-  VendasRoute: typeof VendasRoute
+  RecebimentoRoute: typeof RecebimentoRoute
   ValidadeRoute: typeof ValidadeRoute
+  VendasRoute: typeof VendasRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -248,18 +248,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GerenciaRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/recebimento': {
-      id: '/recebimento'
-      path: '/recebimento'
-      fullPath: '/recebimento'
-      preLoaderRoute: typeof RecebimentoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/promocoes': {
       id: '/promocoes'
       path: '/promocoes'
       fullPath: '/promocoes'
       preLoaderRoute: typeof PromocoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recebimento': {
+      id: '/recebimento'
+      path: '/recebimento'
+      fullPath: '/recebimento'
+      preLoaderRoute: typeof RecebimentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/validade': {
@@ -313,10 +313,10 @@ const rootRouteChildren: RootRouteChildren = {
   EstoqueRoute: EstoqueRoute,
   FiadoRoute: FiadoRouteWithChildren,
   GerenciaRoute: GerenciaRoute,
-  RecebimentoRoute: RecebimentoRoute,
   PromocoesRoute: PromocoesRoute,
-  VendasRoute: VendasRoute,
+  RecebimentoRoute: RecebimentoRoute,
   ValidadeRoute: ValidadeRoute,
+  VendasRoute: VendasRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
