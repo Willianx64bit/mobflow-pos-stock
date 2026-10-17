@@ -21,8 +21,8 @@ const crc16 = (input: string) => {
   return crc.toString(16).toUpperCase().padStart(4, "0");
 };
 const buildPixPayload = (key: string, name: string, city: string, amount: number) => {
-  const cleanName = name.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^A-Z0-9 .&-]/gi, "").toUpperCase().slice(0, 25) || "MOBFLOW";
-  const cleanCity = city.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").replace(/[^A-Z0-9 .-]/gi, "").toUpperCase().slice(0, 15) || "SAO PAULO";
+  const cleanName = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 .&-]/gi, "").toUpperCase().slice(0, 25) || "MOBFLOW";
+  const cleanCity = city.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9 .-]/gi, "").toUpperCase().slice(0, 15) || "SAO PAULO";
   const merchant = tlv("00", "BR.GOV.BCB.PIX") + tlv("01", key);
   const additional = tlv("05", "***");
   const payload = tlv("00", "01") + tlv("01", "12") + tlv("26", merchant) + tlv("52", "0000") + tlv("53", "986") +
