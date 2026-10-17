@@ -60,13 +60,18 @@ export function AppHeader() {
       const tab = tabs.find((item) => item.key && item.key === e.key);
       if (!tab) return;
       e.preventDefault();
+      const required: Record<string, string> = { "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+      if (!permissions.includes(required[tab.to] ?? "")) {
+        window.alert("Seu usuário não tem permissão para acessar esta área.");
+        return;
+      }
       navigate({ to: tab.to });
     };
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [navigate]);
+  }, [navigate, permissions]);
 
   useEffect(() => {
     const sync = () => {
