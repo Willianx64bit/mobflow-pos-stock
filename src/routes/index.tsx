@@ -36,6 +36,7 @@ function PDV() {
   const receivedInput = useRef<HTMLInputElement>(null);
   const finishButton = useRef<HTMLButtonElement>(null);
   const [customer, setCustomer] = useState("");
+  const [customerFocused, setCustomerFocused] = useState(false);
   const customerCpfMap = useMemo(() => {
     const map = new Map<string, string>();
     // sales are stored newest first, so the first CPF found is the latest one.
@@ -355,14 +356,46 @@ function PDV() {
           </div>
           <div className="pt-3 border-t border-border">
             <div className="grid grid-cols-2 gap-2 mb-2">
-              <input list="clientes-conhecidos" disabled={!pdvAuthorized} value={customer} onChange={(e) => {
-                const name = e.target.value.toUpperCase();
-                setCustomer(name);
-                // Fill the CPF whenever a known customer is selected, regardless of payment method.
-                const knownCustomer = customerSuggestions.find((item) => item === name);
-                if (knownCustomer) setCpf(formatCpf(customerCpfMap.get(knownCustomer) || ""));
-              }} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
-              <datalist id="clientes-conhecidos">{customerSuggestions.map((name) => <option key={name} value={name} label={customerCpfMap.get(name) ? `CPF: ${formatCpf(customerCpfMap.get(name) || "")}` : "Cliente salvo"} />)}</datalist>
+              <div className="relative min-w-0">
+                <input
+                  disabled={!pdvAuthorized}
+                  value={customer}
+                  onFocus={() => setCustomerFocused(true)}
+                  onBlur={() => setCustomerFocused(false)}
+                  onChange={(e) => {
+                    const name = e.target.value.toUpperCase();
+                    setCustomer(name);
+                    const knownCustomer = customerSuggestions.find((item) => item === name);
+                    if (knownCustomer) setCpf(formatCpf(customerCpfMap.get(knownCustomer) || ""));
+                  }}
+                  placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"}
+                  autoComplete="off"
+                  className="field w-full text-[13px] text-foreground"
+                />
+                {customerFocused && customer.trim() && customerSuggestions.some((name) => name.includes(customer.trim().toUpperCase())) && (
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-background shadow-lg">
+                    {customerSuggestions
+                      .filter((name) => name.includes(customer.trim().toUpperCase()))
+                      .slice(0, 8)
+                      .map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setCustomer(name);
+                            setCpf(formatCpf(customerCpfMap.get(name) || ""));
+                            setCustomerFocused(false);
+                          }}
+                          className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2.5 text-left text-sm last:border-b-0 hover:bg-accent"
+                        >
+                          <span className="truncate font-medium">{name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{customerCpfMap.get(name) ? formatCpf(customerCpfMap.get(name) || "") : "Cliente salvo"}</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
               <input disabled={!pdvAuthorized} value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
             </div>
             <div className="flex items-center gap-2 mb-3">
