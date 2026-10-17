@@ -64,6 +64,13 @@ function Gerencia() {
   const [setupPassword, setSetupPassword] = useState("");
   const [setupPasswordConfirm, setSetupPasswordConfirm] = useState("");
   const [setupPasswordError, setSetupPasswordError] = useState("");
+  const [firstUserRequired, setFirstUserRequired] = useState(false);
+  const [firstUsername, setFirstUsername] = useState("");
+  const [firstDisplayName, setFirstDisplayName] = useState("");
+  const [firstPassword, setFirstPassword] = useState("");
+  const [firstPasswordConfirm, setFirstPasswordConfirm] = useState("");
+  const [firstUserError, setFirstUserError] = useState("");
+  const [firstUserLoading, setFirstUserLoading] = useState(false);
 
   const today = localDateKey();
   const todays = sales.filter((s) => localDateKey(new Date(s.date)) === today);
@@ -129,8 +136,15 @@ function Gerencia() {
         if (securityStatusError || typeof securityStatus?.configured !== "boolean") {
           throw new Error("Não foi possível verificar a senha da gerência.");
         }
+        let needsFirstUser = false;
+        if (securityStatus.configured) {
+          const { data: usersData, error: usersError } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+          if (usersError || !Array.isArray(usersData?.users)) throw new Error("Não foi possível verificar o primeiro usuário.");
+          needsFirstUser = usersData.users.length === 0;
+        }
         if (active) {
           setManagerPasswordConfigured(securityStatus.configured);
+          setFirstUserRequired(needsFirstUser);
           setAccessIssue("");
           setCheckingManager(false);
         }
@@ -165,6 +179,7 @@ function Gerencia() {
         return;
       }
       setManagerPasswordConfigured(true);
+      setFirstUserRequired(true);
       setSetupPassword("");
       setSetupPasswordConfirm("");
       setPasswordError("");
@@ -264,6 +279,79 @@ function Gerencia() {
               {setupPasswordError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{setupPasswordError}</div>}
               <button type="submit" disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Salvando..." : "Salvar senha da Gerência"}</button>
               <p className="text-center text-xs text-muted-foreground">A senha é vinculada somente a esta empresa e não pode ser redefinida por esta tela após o cadastro.</p>
+            </form>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  const createFirstUser = async () => {
+    setFirstUserError("");
+    const username = firstUsername.trim().toUpperCase();
+    if (!/^[A-Z0-9._-]{3,40}$/.test(username)) {
+      setFirstUserError("Use um usuário com 3 a 40 caracteres: letras, números, ponto, hífen ou underline.");
+      return;
+    }
+    if (firstPassword.length < 6) {
+      setFirstUserError("A senha do usuário precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (firstPassword !== firstPasswordConfirm) {
+      setFirstUserError("As senhas do usuário não conferem.");
+      return;
+    }
+    setFirstUserLoading(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-users", {
+        body: {
+          action: "create",
+          username,
+          displayName: firstDisplayName.trim() || username,
+          password: firstPassword,
+          permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"],
+        },
+      });
+      if (invokeError || !data?.ok) {
+        let message = data?.error || "";
+        try { message = message || String((await (invokeError as { context?: Response })?.context?.json())?.error || ""); } catch {}
+        setFirstUserError(message || "Não foi possível cadastrar o primeiro usuário. Tente novamente.");
+        return;
+      }
+      setFirstUserRequired(false);
+      setFirstUsername("");
+      setFirstDisplayName("");
+      setFirstPassword("");
+      setFirstPasswordConfirm("");
+      sessionStorage.setItem("mobflow-management", "1");
+      setUnlocked(true);
+    } catch {
+      setFirstUserError("Não foi possível conectar ao servidor. Seus dados da empresa foram preservados.");
+    } finally {
+      setFirstUserLoading(false);
+    }
+  };
+
+  if (firstUserRequired && managerPasswordConfigured) {
+    return (
+      <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
+        <AppHeader />
+        <section className="min-h-[calc(100vh-7rem)] grid place-items-center">
+          <div className="w-full max-w-md rounded-2xl bg-surface p-6 ring-1 ring-border sm:p-8">
+            <div className="text-center">
+              <img src="/mobflow-logo.svg" alt="MobFlow — PDV + Estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">PRIMEIRO ACESSO · USUÁRIO</div>
+              <h1 className="mt-4 font-display text-2xl text-heading">Cadastre o primeiro usuário</h1>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">A senha exclusiva da Gerência foi configurada. Agora crie o usuário que será usado para entrar no sistema. Os dados da empresa ficam preservados.</p>
+            </div>
+            <form className="mt-6 space-y-3" onSubmit={(e) => { e.preventDefault(); void createFirstUser(); }}>
+              <input value={firstDisplayName} onChange={(e) => setFirstDisplayName(e.target.value)} placeholder="Nome da pessoa (opcional)" autoComplete="name" className="field w-full text-foreground" />
+              <input value={firstUsername} onChange={(e) => { setFirstUsername(e.target.value); setFirstUserError(""); }} placeholder="Nome de usuário" autoComplete="username" className="field w-full text-foreground" autoFocus required />
+              <input type="password" value={firstPassword} onChange={(e) => { setFirstPassword(e.target.value); setFirstUserError(""); }} placeholder="Senha do usuário (mínimo 6 caracteres)" autoComplete="new-password" className="field w-full text-foreground" required />
+              <input type="password" value={firstPasswordConfirm} onChange={(e) => { setFirstPasswordConfirm(e.target.value); setFirstUserError(""); }} placeholder="Confirme a senha do usuário" autoComplete="new-password" className="field w-full text-foreground" required />
+              {firstUserError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{firstUserError}</div>}
+              <button type="submit" disabled={firstUserLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">{firstUserLoading ? "Cadastrando..." : "Cadastrar usuário e continuar"}</button>
+              <p className="text-center text-xs text-muted-foreground">O primeiro usuário recebe todas as permissões. A senha da Gerência continua separada e será exigida para abrir essa área.</p>
             </form>
           </div>
         </section>
