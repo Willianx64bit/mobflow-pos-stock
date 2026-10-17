@@ -61,9 +61,15 @@ Deno.serve(async (req) => {
 
     if (body.action === "list") {
       const { data, error } = await admin.from("companies")
-        .select("account_id,company_name,cnpj,username,email,phone,plan_code,monthly_price,subscription_status,payment_method,created_at,payment_confirmed_at,payment_notes")
+        .select("account_id,company_name,cnpj,username,email,phone,plan_code,monthly_price,subscription_status,payment_method,created_at,payment_confirmed_at,payment_notes,payment_proof_path,payment_submitted_at")
         .order("created_at", { ascending: false });
       if (error) return json({ error: "Não foi possível carregar as assinaturas." }, 500);
+      const companiesWithProof = await Promise.all((data ?? []).map(async (company) => {
+        if (!company.payment_proof_path) return { ...company, payment_proof_url: null };
+        const { data: signed, error: signedError } = await admin.storage.from("mobflow-payment-proofs")
+          .createSignedUrl(company.payment_proof_path, 60 * 60);
+        return { ...company, payment_proof_url: signedError ? null : signed?.signedUrl ?? null };
+      }));
 
       // Include existing active accounts created before the subscription registry existed.
       const { data: allowedUsers, error: allowlistError } = await admin.from("account_allowlist")
@@ -105,7 +111,7 @@ Deno.serve(async (req) => {
         user_count: item.user_count,
         status: "active",
       }));
-      return json({ ok: true, companies: data ?? [], activeAccounts });
+      return json({ ok: true, companies: companiesWithProof, activeAccounts });
     }
 
     if (body.action === "update") {
