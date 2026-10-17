@@ -362,7 +362,7 @@ function PDV() {
                 const knownCustomer = customerSuggestions.find((item) => item === name);
                 if (knownCustomer) setCpf(formatCpf(customerCpfMap.get(knownCustomer) || ""));
               }} placeholder={payment === "Fiado" ? "Cliente (obrigatório)" : "Cliente (opcional)"} className="field text-[13px] text-foreground" />
-              <datalist id="clientes-conhecidos">{customerSuggestions.map((name) => <option key={name} value={name} label={customerCpfMap.get(name) ? `CPF: ${formatCpf(customerCpfMap.get(name) || "")}` : "Cliente salvo"} />)}</datalist>}
+              <datalist id="clientes-conhecidos">{customerSuggestions.map((name) => <option key={name} value={name} label={customerCpfMap.get(name) ? `CPF: ${formatCpf(customerCpfMap.get(name) || "")}` : "Cliente salvo"} />)}</datalist>
               <input disabled={!pdvAuthorized} value={cpf} onChange={(e) => setCpf(formatCpf(e.target.value))} inputMode="numeric" placeholder="CPF (opcional)" className="field font-mono text-[13px] text-foreground" />
             </div>
             <div className="flex items-center gap-2 mb-3">
