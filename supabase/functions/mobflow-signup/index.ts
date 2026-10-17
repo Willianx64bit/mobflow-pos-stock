@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
       email: authEmail,
       password,
       email_confirm: true,
-      user_metadata: { username, role: "manager" },
+      user_metadata: { username, role: "manager", mobflow_signup: "public_signup" },
     });
     if (createError || !created.user) {
       const message = createError?.message ?? "";
