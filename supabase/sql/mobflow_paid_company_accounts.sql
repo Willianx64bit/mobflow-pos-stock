@@ -9,6 +9,7 @@ create table if not exists public.companies (
   phone text not null,
   plan_code text not null default 'complete' check (plan_code = 'complete'),
   monthly_price numeric(10,2) not null default 79.90 check (monthly_price = 79.90),
+  payment_method text not null default 'pix' check (payment_method = 'pix'),
   subscription_status text not null default 'pending_payment'
     check (subscription_status in ('pending_payment','active','past_due','suspended','cancelled')),
   created_at timestamptz not null default now(),
