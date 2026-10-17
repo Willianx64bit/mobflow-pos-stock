@@ -299,7 +299,6 @@ function Configuracoes() {
             <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm text-secondary-foreground hover:bg-accent">← Voltar</button>
           </div>
 
-          {isCompanyManager && (
           <div className="rounded-2xl border border-sky-100 bg-sky-50/30 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -371,8 +370,6 @@ function Configuracoes() {
               </div>
             )}
           </div>
-
-          )}
 
           <div className="rounded-2xl border border-border/60 p-5">
             <button type="button" onClick={() => setPixSectionOpen(open => !open)} aria-expanded={pixSectionOpen} className="flex w-full items-center justify-between gap-3 text-left">
