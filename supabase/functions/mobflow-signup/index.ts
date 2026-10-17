@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
       phone,
       plan_code: "complete",
       monthly_price: 79.90,
+      payment_method: "pix",
       subscription_status: "pending_payment",
     });
     if (companyError) {
@@ -128,7 +129,9 @@ Deno.serve(async (req) => {
     return json({
       ok: true,
       subscriptionStatus: "pending_payment",
-      message: "Cadastro recebido. A assinatura de R$ 79,90/mês ficará pendente até a confirmação do pagamento e ativação do acesso.",
+      paymentMethod: "pix",
+      amount: 79.90,
+      message: "Cadastro recebido. Forma de pagamento: Pix. Valor: R$ 79,90/mês. A conta ficará pendente até o administrador confirmar o pagamento e ativar o acesso.",
     }, 201);
   } catch (error) {
     console.error("mobflow-signup unexpected error", error);
