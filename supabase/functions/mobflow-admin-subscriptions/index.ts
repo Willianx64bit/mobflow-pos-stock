@@ -40,7 +40,48 @@ Deno.serve(async (req) => {
         .select("account_id,company_name,cnpj,username,email,phone,plan_code,monthly_price,subscription_status,payment_method,created_at,payment_confirmed_at,payment_notes")
         .order("created_at", { ascending: false });
       if (error) return json({ error: "Não foi possível carregar as assinaturas." }, 500);
-      return json({ ok: true, companies: data ?? [] });
+
+      // Include existing active accounts created before the subscription registry existed.
+      const { data: allowedUsers, error: allowlistError } = await admin.from("account_allowlist")
+        .select("username,cnpj").eq("active", true);
+      if (allowlistError) return json({ error: "Não foi possível carregar as contas ativas." }, 500);
+
+      const { data: profiles, error: profilesError } = await admin.from("profiles")
+        .select("username,cnpj,account_id,role,active,display_name")
+        .eq("active", true).neq("role", "admin");
+      if (profilesError) return json({ error: "Não foi possível carregar as contas ativas." }, 500);
+
+      const allowedNames = new Set((allowedUsers ?? []).map((item) => String(item.username).toUpperCase()));
+      const registeredAccountIds = new Set((data ?? []).map((item) => item.account_id));
+      const grouped = new Map<string, { account_id: string; company_name: string; cnpj: string; usernames: Set<string>; user_count: number }>();
+      for (const profile of profiles ?? []) {
+        const username = String(profile.username ?? "").toUpperCase();
+        const accountId = String(profile.account_id ?? "");
+        if (!username || !accountId || !allowedNames.has(username) || registeredAccountIds.has(accountId)) continue;
+        const existing = grouped.get(accountId);
+        if (existing) {
+          existing.usernames.add(username);
+          existing.user_count += 1;
+          if (profile.role === "manager" && profile.display_name) existing.company_name = profile.display_name;
+        } else {
+          grouped.set(accountId, {
+            account_id: accountId,
+            company_name: profile.role === "manager" && profile.display_name ? profile.display_name : (profile.display_name || username),
+            cnpj: String(profile.cnpj ?? ""),
+            usernames: new Set([username]),
+            user_count: 1,
+          });
+        }
+      }
+      const activeAccounts = Array.from(grouped.values()).map((item) => ({
+        account_id: item.account_id,
+        company_name: item.company_name,
+        cnpj: item.cnpj,
+        usernames: Array.from(item.usernames).sort(),
+        user_count: item.user_count,
+        status: "active",
+      }));
+      return json({ ok: true, companies: data ?? [], activeAccounts });
     }
 
     if (body.action === "update") {
