@@ -19,6 +19,27 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
     const client = createClient(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const clientIp = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown").split(",")[0].trim().slice(0, 100);
+    if (expectedRole === "admin") {
+      const { data: guardRows, error: guardError } = await admin.rpc("mobflow_admin_login_guard", {
+        p_username: cleanUsername, p_client_ip: clientIp, p_action: "check",
+      });
+      if (guardError) return json({ error: "Não foi possível validar o acesso administrativo." }, 500);
+      const guard = Array.isArray(guardRows) ? guardRows[0] : guardRows;
+      if (guard?.locked_until && new Date(guard.locked_until).getTime() > Date.now()) {
+        const retryAt = new Date(guard.locked_until).getTime();
+        const remainingMinutes = Math.max(1, Math.ceil((retryAt - Date.now()) / 60000));
+        return json({ error: `Muitas tentativas. Aguarde ${remainingMinutes} minuto(s) antes de tentar novamente.`, locked: true, retryAfterMinutes: remainingMinutes }, 429);
+      }
+    }
+    const registerAdminFailure = async () => {
+      if (expectedRole !== "admin") return null;
+      const { data: rows, error: rpcError } = await admin.rpc("mobflow_admin_login_guard", {
+        p_username: cleanUsername, p_client_ip: clientIp, p_action: "fail",
+      });
+      if (rpcError) console.error("admin login attempt tracking failed", rpcError.message);
+      return Array.isArray(rows) ? rows[0] : rows;
+    };
     const email = cleanUsername.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
     const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name,permissions").eq("username", cleanUsername).maybeSingle();
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
@@ -29,7 +50,7 @@ Deno.serve(async (req) => {
       const { data: allowed, error: allowError } = await admin.from("mobflow_admin_allowlist")
         .select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
       if (allowError) return json({ error: "Não foi possível validar o acesso administrativo." }, 500);
-      if (!allowed) return json({ error: "Usuário ou senha inválido." }, 401);
+      if (!allowed) { await registerAdminFailure(); return json({ error: "Usuário ou senha inválido." }, 401); }
       let adminProfile = profile;
       if (adminProfile && (adminProfile.role !== "admin" || !adminProfile.active || adminProfile.cnpj !== cleanCnpj)) {
         return json({ error: "Usuário ou senha inválido." }, 401);
@@ -56,8 +77,7 @@ Deno.serve(async (req) => {
         adminProfile = createdProfile;
       }
       const { data: adminSession, error: adminSignInError } = await client.auth.signInWithPassword({ email, password: cleanPassword });
-      if (adminSignInError || !adminSession.session) return json({ error: "Usuário ou senha inválido." }, 401);
-      return json({ session: adminSession.session, profile: {
+      if (adminSignInError || !adminSession.session) {\n        const failed = await registerAdminFailure();\n        const lockedUntil = failed?.locked_until;\n        if (lockedUntil && new Date(lockedUntil).getTime() > Date.now()) return json({ error: "Você atingiu 3 tentativas. Aguarde 30 minutos para tentar novamente.", locked: true, retryAfterMinutes: 30 }, 429);\n        return json({ error: "Usuário ou senha inválido.", attemptsRemaining: Math.max(0, 3 - Number(failed?.attempts ?? 0)) }, 401);\n      }\n      await admin.rpc("mobflow_admin_login_guard", { p_username: cleanUsername, p_client_ip: clientIp, p_action: "reset" });\n      return json({ session: adminSession.session, profile: {
         username: adminProfile.username, role: "admin", account_id: adminProfile.account_id,
         display_name: adminProfile.display_name, permissions: ["Assinaturas", "Confirmação de pagamentos"],
       } });
