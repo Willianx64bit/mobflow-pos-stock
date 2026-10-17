@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { logout } from "@/components/LoginScreen";
-import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, Users, XCircle } from "lucide-react";
+import { Building2, CheckCircle2, Clock3, LogOut, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 
 type ActiveAccount = {
   account_id: string;
@@ -149,7 +149,6 @@ export function AdminPanel() {
                     <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-700">Acesso ativo</span>
                   </div>
                   <p className="mt-3 text-sm"><span className="text-muted-foreground">Usuários:</span> {account.user_count}</p>
-                  <p className="mt-1 break-words text-sm text-muted-foreground">{account.usernames.join(", ")}</p>
                 </article>
               ))}
             </div>
@@ -190,7 +189,6 @@ export function AdminPanel() {
             ))}
           </div>
         )}
-        <p className="text-xs text-muted-foreground">A ativação libera o login da empresa. Confira o comprovante fora do sistema antes de confirmar; esta tela não recebe pagamentos automaticamente.</p>
       </section>
     </main>
   );
