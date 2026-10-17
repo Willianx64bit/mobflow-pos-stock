@@ -23,12 +23,15 @@ Deno.serve(async (req) => {
 
     const { data: manager, error: managerError } = await admin
       .from("profiles")
-      .select("id,username,cnpj,account_id,role,active")
+      .select("id,username,cnpj,account_id,role,active,permissions")
       .eq("id", authData.user.id)
       .maybeSingle();
 
-    if (managerError || !manager || !manager.active || manager.role !== "manager") {
-      return json({ error: "Acesso de gerência necessário." }, 403);
+    const canManageUsers = manager?.role === "manager" ||
+      (manager?.role === "pdv" && Array.isArray(manager.permissions) && manager.permissions.includes("Gerência"));
+
+    if (managerError || !manager || !manager.active || !canManageUsers) {
+      return json({ error: "A conta precisa ter permissão de Gerência para acessar usuários do PDV." }, 403);
     }
 
     const body = await req.json().catch(() => ({}));
