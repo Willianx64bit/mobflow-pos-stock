@@ -94,6 +94,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         pixQrCode: data.pixQrCode,
         pixRecipientName: data.pixRecipientName || "MobFlow",
         amount: Number(data.amount) || signupAmount,
+        requestToken: data.requestToken,
       } : null);
       setPixCopied(false);
       setSignupComplete(true);
