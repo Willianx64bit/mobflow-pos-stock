@@ -140,6 +140,8 @@ Deno.serve(async (req) => {
       return json({ error: "Informe o nome da empresa (2 a 120 caracteres)." }, 400);
     }
     if (cnpj.length !== 14) return json({ error: "Informe um CNPJ com 14 números." }, 400);
+    if (!/^[A-Z0-9._-]{3,40}$/.test(username)) return json({ error: "O usuário do gerente deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou underline." }, 400);
+    if (password.length < 8 || password.length > 128) return json({ error: "A senha do gerente precisa ter pelo menos 8 caracteres." }, 400);
     if (phone.length < 10 || phone.length > 13) return json({ error: "Informe um telefone válido com DDD." }, 400);
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return json({ error: "Informe um e-mail válido." }, 400);
@@ -163,15 +165,19 @@ Deno.serve(async (req) => {
     if (existingCnpj) return json({ error: "Já existe um cadastro com esse CNPJ." }, 409);
     const { data: existingEmail } = await admin.from("companies").select("account_id").ilike("email", email).maybeSingle();
     if (existingEmail) return json({ error: "Já existe um cadastro com esse e-mail." }, 409);
+    const { data: existingUsername, error: usernameCheckError } = await admin.from("profiles").select("id").eq("username", username).maybeSingle();
+    if (usernameCheckError) {
+      console.error("mobflow-signup username check failed", usernameCheckError.message);
+      return json({ error: "Não foi possível validar o usuário agora. Tente novamente." }, 500);
+    }
+    if (existingUsername) return json({ error: "Esse nome de usuário já está em uso." }, 409);
 
-    const setupToken = crypto.randomUUID();
-    const pendingUsername = "PENDING_" + cnpj;
-    const authEmail = "setup-" + cnpj + "-" + crypto.randomUUID() + "@accounts.mobflow.local";
+    const authEmail = username.toLowerCase() + "@accounts.mobflow.local";
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email: authEmail,
-      password: crypto.randomUUID() + crypto.randomUUID() + "aA1!",
+      password,
       email_confirm: true,
-      user_metadata: { username: pendingUsername, role: "manager", mobflow_signup: "public_signup", setup_pending: true },
+      user_metadata: { username, role: "manager", mobflow_signup: "public_signup" },
     });
     if (createError || !created.user) {
       const message = createError?.message ?? "";
@@ -185,8 +191,9 @@ Deno.serve(async (req) => {
       account_id: created.user.id,
       company_name: companyName,
       cnpj,
-      username: pendingUsername,
-      manager_setup_token: setupToken,
+      username,
+      manager_setup_token: null,
+      manager_setup_completed_at: new Date().toISOString(),
       email,
       phone,
       plan_code: "complete",
@@ -200,6 +207,24 @@ Deno.serve(async (req) => {
       if (companyError.code === "23505") return json({ error: "Já existe um cadastro com esse CNPJ, usuário ou e-mail." }, 409);
       console.error("mobflow-signup company insert failed", companyError.message);
       return json({ error: "Não foi possível salvar os dados da empresa." }, 500);
+    }
+
+    const { error: profileInsertError } = await admin.from("profiles").insert({
+      id: created.user.id,
+      username,
+      cnpj,
+      account_id: created.user.id,
+      role: "manager",
+      active: true,
+      display_name: companyName,
+      permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"],
+    });
+    if (profileInsertError) {
+      await admin.from("companies").delete().eq("account_id", created.user.id);
+      await admin.auth.admin.deleteUser(created.user.id);
+      createdUserId = null;
+      console.error("mobflow-signup manager profile insert failed", profileInsertError.message);
+      return json({ error: profileInsertError.code === "23505" ? "Esse nome de usuário já está em uso." : "Não foi possível criar o acesso do gerente." }, profileInsertError.code === "23505" ? 409 : 500);
     }
 
     const { data: paymentRequest, error: requestTokenError } = await admin.from("companies")
@@ -240,8 +265,8 @@ Deno.serve(async (req) => {
       pixQrCode,
       pixRecipientName: paymentSettings.recipient_name,
       requestToken: paymentRequest.payment_request_token,
-      setupToken,
-      message: "Cadastro criado. Configure o acesso do gerente e depois envie o comprovante para análise.",
+      username,
+      message: "Cadastro criado com acesso de gerente. Aguarde a aprovação manual do pagamento.",
     }, 201);
   } catch (error) {
     console.error("mobflow-signup unexpected error", error);
