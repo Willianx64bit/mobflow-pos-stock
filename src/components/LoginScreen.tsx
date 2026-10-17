@@ -77,12 +77,18 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setSignupComplete(false);
     setSignupPayment(null);
     setPixCopied(false);
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+      setError("Informe um telefone válido com DDD, ex.: (11) 98765-4321.");
+      setLoading(false);
+      return;
+    }
     try {
       const { data, error: signupError } = await supabase.functions.invoke("mobflow-signup", {
         body: {
           companyName: companyName.trim(),
           cnpj: cnpj.replace(/\D/g, ""),
-          phone: phone.replace(/\D/g, ""),
+          phone: phoneDigits,
           email: email.trim().toLowerCase(),
           username: managerSetupUsername.trim(),
           password: managerSetupPassword,
@@ -90,7 +96,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         },
       });
       if (signupError || !data?.ok) {
-        setError(data?.error || (signupError ? "O servidor recusou o cadastro. Confira a mensagem de erro e verifique se o CNPJ ou e-mail já possuem cadastro." : "Não foi possível criar a conta. Confira os dados e tente novamente."));
+        let serverMsg: string | undefined = data?.error;
+        const ctx = (signupError as { context?: Response } | null)?.context;
+        if (!serverMsg && ctx && typeof ctx.json === "function") {
+          try { serverMsg = (await ctx.clone().json())?.error; } catch { /* ignore */ }
+        }
+        setError(serverMsg || "Não foi possível criar a conta. Confira os dados e tente novamente.");
         return;
       }
       setManagerSetupToken("");
