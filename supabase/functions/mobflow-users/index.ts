@@ -21,18 +21,24 @@ Deno.serve(async (req) => {
     const { data: authData, error: authError } = await client.auth.getUser(token);
     if (authError || !authData.user) return json({ error: "Sessão inválida." }, 401);
 
+    const body = await req.json().catch(() => ({}));
+    const action = String(body.action ?? "list");
+
     const { data: manager, error: managerError } = await admin
       .from("profiles")
-      .select("id,username,cnpj,account_id,role,active")
+      .select("id,username,cnpj,account_id,role,active,permissions")
       .eq("id", authData.user.id)
       .maybeSingle();
 
-    if (managerError || !manager || !manager.active || manager.role !== "manager") {
+    const isManager = manager?.role === "manager";
+    const canListUsers = manager?.role === "pdv"
+      && Array.isArray(manager.permissions)
+      && manager.permissions.includes("Gerência");
+    const allowed = action === "list" ? (isManager || canListUsers) : isManager;
+
+    if (managerError || !manager || !manager.active || !manager.account_id || !allowed) {
       return json({ error: "Acesso de gerência necessário." }, 403);
     }
-
-    const body = await req.json().catch(() => ({}));
-    const action = String(body.action ?? "list");
 
     if (action === "delete_all_pdv") {
       const { data: users, error: listError } = await admin
