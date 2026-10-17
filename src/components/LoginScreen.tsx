@@ -21,9 +21,9 @@ export async function logout() {
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" | "admin" }) {
   const companySettings = useStore((s) => s.settings);
-  const [username, setUsername] = useState(mode === "admin" ? "Willian.nunes.pereira" : "");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [cnpj, setCnpj] = useState(mode === "admin" ? "01.234.567/8900-00" : "");
+  const [cnpj, setCnpj] = useState("");
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [phone, setPhone] = useState("");
@@ -238,7 +238,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode !== "pdv" && (
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete={mode === "admin" ? "off" : "organization"} placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
             </div>
           )}
 
