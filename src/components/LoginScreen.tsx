@@ -24,6 +24,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cnpj, setCnpj] = useState("");
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [companyName, setCompanyName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [signupSuccess, setSignupSuccess] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -52,6 +57,41 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
+
+  const submitSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSignupSuccess("");
+    try {
+      const { data, error: signupError } = await supabase.functions.invoke("mobflow-signup", {
+        body: {
+          companyName: companyName.trim(),
+          username: username.trim(),
+          password,
+          cnpj: cnpj.replace(/\\D/g, ""),
+          phone: phone.replace(/\\D/g, ""),
+          email: email.trim().toLowerCase(),
+        },
+      });
+      if (signupError || !data?.ok) {
+        setError(data?.error || "Não foi possível criar a conta. Confira os dados e tente novamente.");
+        return;
+      }
+      setSignupSuccess(data.message || "Cadastro recebido. A assinatura aguarda confirmação e ativação.");
+      setCreatingAccount(false);
+      setUsername("");
+      setPassword("");
+      setCnpj("");
+      setCompanyName("");
+      setPhone("");
+      setEmail("");
+    } catch {
+      setError("Não foi possível conectar ao servidor para criar a conta.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -172,11 +212,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
-        <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
+        {signupSuccess && !creatingAccount && <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-3 text-center text-sm text-foreground ring-1 ring-emerald-500/30">{signupSuccess}</div>}
+
+        {!(creatingAccount && mode !== "pdv") && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "username"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
@@ -209,7 +251,71 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
               Cancelar
             </button>
           )}
-        </form>
+        </form>}
+
+        {creatingAccount && mode !== "pdv" && (
+          <form onSubmit={submitSignup} className="mt-5 space-y-4" autoComplete="off">
+            <div>
+              <label className="label-mono block mb-1.5">Nome da empresa</label>
+              <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization" placeholder="Ex.: Mercado do João" className="field w-full text-foreground" required maxLength={120} />
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">Nome de usuário</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} autoComplete="username" placeholder="Crie seu usuário" className="field w-full text-foreground" required minLength={3} maxLength={40} />
+              <p className="mt-1 text-xs text-muted-foreground">Use de 3 a 40 caracteres: letras, números, ponto, hífen ou underline.</p>
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">Senha</label>
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="Crie uma senha com 8 caracteres ou mais" className="field w-full text-foreground" required minLength={8} maxLength={128} />
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">CNPJ</label>
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">Número de telefone</label>
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000" className="field w-full text-foreground" required />
+            </div>
+            <div>
+              <label className="label-mono block mb-1.5">E-mail</label>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="empresa@email.com" className="field w-full text-foreground" required maxLength={254} />
+            </div>
+
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-foreground">MobFlow Completo</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Todas as funcionalidades em um único plano.</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-xl font-bold text-foreground">R$ 79,90</p>
+                  <p className="text-xs text-muted-foreground">por mês</p>
+                </div>
+              </div>
+              <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                <li>✓ PDV, produtos, códigos de barras e estoque</li>
+                <li>✓ Recebimento, conferência e validade</li>
+                <li>✓ Clientes, fiado e relatórios de vendas</li>
+                <li>✓ Controle de lucro e dados separados por empresa</li>
+              </ul>
+            </div>
+
+            {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
+            <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
+              {loading ? "Criando conta..." : "Criar conta"}
+            </button>
+            <p className="text-center text-xs text-muted-foreground">O acesso será liberado após a confirmação do pagamento e ativação da assinatura.</p>
+            <button type="button" onClick={() => { setCreatingAccount(false); setError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              Voltar para login
+            </button>
+          </form>
+        )}
+
+        {mode !== "pdv" && !creatingAccount && (
+          <button type="button" onClick={() => { setCreatingAccount(true); setError(""); setSignupSuccess(""); }} className="mt-3 w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-foreground transition-colors hover:bg-accent">
+            Criar conta
+          </button>
+        )}
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
       </div>
