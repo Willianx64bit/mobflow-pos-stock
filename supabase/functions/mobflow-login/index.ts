@@ -12,7 +12,6 @@ Deno.serve(async (req) => {
     const cleanUsername = String(username ?? "").trim().toUpperCase();
     const cleanPassword = String(password ?? "");
     const cleanCnpj = String(cnpj ?? "").replace(/\D/g, "");
-    // Clientes antigos sem expectedRole e sem CNPJ são tratados como login de PDV.
     const expectedRole = requestedRole === "pdv" || (!requestedRole && !cleanCnpj) ? "pdv" : "manager";
     if (!cleanUsername || cleanPassword.length < 6) return json({ error: "Usuário ou senha inválido." }, 400);
     const url = Deno.env.get("SUPABASE_URL")!;
@@ -23,20 +22,24 @@ Deno.serve(async (req) => {
     const email = cleanUsername.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
     const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name,permissions").eq("username", cleanUsername).maybeSingle();
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
+
+    // New paid accounts must be activated by the subscription owner before login.
+    // Legacy accounts without a companies row continue to work as before.
+    if (profile?.role === "manager" && profile.account_id) {
+      const { data: company, error: companyError } = await admin.from("companies")
+        .select("subscription_status").eq("account_id", profile.account_id).maybeSingle();
+      if (companyError) return json({ error: "Não foi possível verificar a assinatura." }, 500);
+      if (company && company.subscription_status !== "active") {
+        return json({ error: "Sua conta foi criada, mas a assinatura ainda aguarda confirmação e ativação. Entre em contato com o MobFlow para liberar o acesso." }, 403);
+      }
+    }
+
     if (profile) {
       if (!profile.active) return json({ error: "Usuário ou acesso inválido." }, 401);
-      if (expectedRole === "pdv" && profile.role !== "pdv") {
-        return json({ error: "Esse usuário não é um usuário do PDV. Use um usuário criado em Configurações → Usuários do PDV." }, 403);
-      }
-      if (expectedRole === "pdv" && cleanCnpj.length !== 14) {
-        return json({ error: "Informe o CNPJ da empresa para validar o acesso do PDV." }, 400);
-      }
-      if (expectedRole === "pdv" && profile.cnpj !== cleanCnpj) {
-        return json({ error: "Esse usuário do PDV pertence a outra empresa." }, 403);
-      }
-      if (expectedRole === "manager" && profile.role !== "manager") {
-        return json({ error: "Esse usuário é do PDV e não pode entrar como gerente." }, 403);
-      }
+      if (expectedRole === "pdv" && profile.role !== "pdv") return json({ error: "Esse usuário não é um usuário do PDV. Use um usuário criado em Configurações → Usuários do PDV." }, 403);
+      if (expectedRole === "pdv" && cleanCnpj.length !== 14) return json({ error: "Informe o CNPJ da empresa para validar o acesso do PDV." }, 400);
+      if (expectedRole === "pdv" && profile.cnpj !== cleanCnpj) return json({ error: "Esse usuário do PDV pertence a outra empresa." }, 403);
+      if (expectedRole === "manager" && profile.role !== "manager") return json({ error: "Esse usuário é do PDV e não pode entrar como gerente." }, 403);
       if (profile.role === "manager" && profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
     } else {
       if (expectedRole !== "manager") return json({ error: "Usuário do PDV não encontrado. Cadastre-o primeiro pela gerência da empresa." }, 401);
