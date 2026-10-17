@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { UserRound, Printer, Trash2, ArrowLeft, ReceiptText } from "lucide-react";
+import { UserRound, Printer, Trash2, ArrowLeft, ReceiptText, LockKeyhole } from "lucide-react";
 
 export const Route = createFileRoute("/fiado")({
   head: () => ({ meta: [{ title: "MobFlow — Fiado" }] }),
@@ -20,37 +20,42 @@ function Fiado() {
   const [paymentValue, setPaymentValue] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [authorizing, setAuthorizing] = useState(false);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [pendingChange, setPendingChange] = useState<(() => void) | null>(null);
   const formatMoneyInput = (value: string) => { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
-  const confirmFiadoChange = async (change: () => void) => {
+  const confirmFiadoChange = (change: () => void) => {
+    if (authorizing) return;
+    setPendingChange(() => change);
+    setPasswordInput("");
+    setPasswordError("");
+    setPasswordModalOpen(true);
+  };
+
+  const submitFiadoPassword = async () => {
     if (authorizing) return;
     const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
-    if (!username) {
-      alert("Entre com um usuário do PDV para confirmar esta alteração.");
-      return;
-    }
-    const password = window.prompt(`Confirme com a senha do usuário ${username}:`);
-    if (password === null) return;
-    if (!password) {
-      alert("Informe a senha para confirmar.");
-      return;
-    }
+    if (!username) { setPasswordError("Entre com um usuário do PDV para confirmar esta alteração."); return; }
+    if (!passwordInput) { setPasswordError("Informe sua senha para confirmar."); return; }
     const cnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
-    if (cnpj.length !== 14) {
-      alert("Não foi possível identificar o CNPJ desta empresa. Entre novamente na gerência e tente de novo.");
-      return;
-    }
+    if (cnpj.length !== 14) { setPasswordError("Não foi possível identificar o CNPJ desta empresa. Entre novamente na gerência e tente de novo."); return; }
     setAuthorizing(true);
+    setPasswordError("");
     try {
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username, password, cnpj, expectedRole: "pdv" },
+        body: { username, password: passwordInput, cnpj, expectedRole: "pdv" },
       });
       if (error || !data?.session || data?.profile?.role !== "pdv") {
-        alert("Senha incorreta ou usuário do PDV inválido.");
+        setPasswordError("Senha incorreta ou usuário do PDV inválido.");
         return;
       }
-      change();
+      pendingChange?.();
+      setPasswordModalOpen(false);
+      setPasswordInput("");
+      setPendingChange(null);
     } catch {
-      alert("Não foi possível validar a senha. Tente novamente.");
+      setPasswordError("Não foi possível validar a senha. Tente novamente.");
     } finally {
       setAuthorizing(false);
     }
@@ -139,6 +144,22 @@ function Fiado() {
             </section>
           </>
         )}
+
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <form onSubmit={(e) => { e.preventDefault(); void submitFiadoPassword(); }} className="w-full max-w-md glass p-6 shadow-2xl">
+            <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-primary/10"><LockKeyhole className="h-5 w-5 text-primary" /></div>
+            <h2 className="text-xl font-bold text-heading">Confirmar senha do usuário</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Para confirmar esta alteração no fiado, digite novamente a senha do usuário do PDV.</p>
+            <input type="password" value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setPasswordError(""); }} placeholder="Senha do usuário" autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />
+            {passwordError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{passwordError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => { setPasswordModalOpen(false); setPasswordInput(""); setPasswordError(""); setPendingChange(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+              <button type="submit" disabled={authorizing} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{authorizing ? "Validando..." : "Confirmar"}</button>
+            </div>
+          </form>
+        </div>
+      )}
       </main>
     </div>
   );
