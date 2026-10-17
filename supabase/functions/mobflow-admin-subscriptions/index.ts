@@ -35,6 +35,30 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
+    if (body.action === "get_payment_settings") {
+      const { data, error } = await admin.from("mobflow_payment_settings")
+        .select("pix_key,recipient_name,recipient_city,monthly_price").eq("id", true).maybeSingle();
+      if (error) return json({ error: "Não foi possível carregar as configurações Pix." }, 500);
+      return json({ ok: true, settings: data ?? { pix_key: "", recipient_name: "MOBFLOW", recipient_city: "CAPAO BONITO", monthly_price: 79.90 } });
+    }
+
+    if (body.action === "save_payment_settings") {
+      const pixKey = String(body.pixKey ?? "").trim().slice(0, 200);
+      const recipientName = String(body.recipientName ?? "").trim().replace(/[^a-zA-Z0-9 .&-]/g, "").slice(0, 25).toUpperCase();
+      const recipientCity = String(body.recipientCity ?? "").trim().replace(/[^a-zA-Z0-9 .-]/g, "").slice(0, 15).toUpperCase();
+      const monthlyPrice = Number(body.monthlyPrice);
+      if (!pixKey || pixKey.length < 3) return json({ error: "Informe uma chave Pix válida." }, 400);
+      if (!recipientName || !recipientCity || !Number.isFinite(monthlyPrice) || monthlyPrice <= 0 || monthlyPrice > 999999.99) {
+        return json({ error: "Confira o nome do recebedor, cidade e valor mensal." }, 400);
+      }
+      const { data, error } = await admin.from("mobflow_payment_settings").upsert({
+        id: true, pix_key: pixKey, recipient_name: recipientName, recipient_city: recipientCity,
+        monthly_price: monthlyPrice, updated_at: new Date().toISOString(),
+      }, { onConflict: "id" }).select("pix_key,recipient_name,recipient_city,monthly_price").single();
+      if (error) return json({ error: "Não foi possível salvar as configurações Pix." }, 500);
+      return json({ ok: true, settings: data });
+    }
+
     if (body.action === "list") {
       const { data, error } = await admin.from("companies")
         .select("account_id,company_name,cnpj,username,email,phone,plan_code,monthly_price,subscription_status,payment_method,created_at,payment_confirmed_at,payment_notes")
