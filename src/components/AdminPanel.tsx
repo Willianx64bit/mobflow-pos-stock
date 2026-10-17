@@ -26,6 +26,8 @@ type Company = {
   created_at: string;
   payment_confirmed_at: string | null;
   payment_notes: string | null;
+  payment_proof_url: string | null;
+  payment_submitted_at: string | null;
 };
 
 const statusLabels: Record<Company["subscription_status"], string> = {
