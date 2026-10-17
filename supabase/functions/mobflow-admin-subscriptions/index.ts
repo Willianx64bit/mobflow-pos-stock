@@ -43,11 +43,11 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === "save_payment_settings") {
-      const pixKey = String(body.pixKey ?? "").trim().slice(0, 200);
+      const pixKey = String(body.pixKey ?? "").trim();
       const recipientName = String(body.recipientName ?? "").trim().replace(/[^a-zA-Z0-9 .&-]/g, "").slice(0, 25).toUpperCase();
       const recipientCity = String(body.recipientCity ?? "").trim().replace(/[^a-zA-Z0-9 .-]/g, "").slice(0, 15).toUpperCase();
       const monthlyPrice = Number(body.monthlyPrice);
-      if (!pixKey || pixKey.length < 3) return json({ error: "Informe uma chave Pix válida." }, 400);
+      if (!pixKey || pixKey.length < 3 || pixKey.length > 77) return json({ error: "Informe uma chave Pix válida com até 77 caracteres." }, 400);
       if (!recipientName || !recipientCity || !Number.isFinite(monthlyPrice) || monthlyPrice <= 0 || monthlyPrice > 999999.99) {
         return json({ error: "Confira o nome do recebedor, cidade e valor mensal." }, 400);
       }
