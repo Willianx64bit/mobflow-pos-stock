@@ -83,7 +83,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         },
       });
       if (signupError || !data?.ok) {
-        setError(data?.error || "Não foi possível criar a conta. Confira os dados e tente novamente.");
+        setError(data?.error || (signupError ? "O servidor recusou o cadastro. Confira se a chave Pix já foi configurada na Administração e se o CNPJ, e-mail e usuário ainda não estão cadastrados." : "Não foi possível criar a conta. Confira os dados e tente novamente."));
         return;
       }
       setSignupSuccess(data.message || "Cadastro recebido. O pagamento via Pix aguarda confirmação manual.");
