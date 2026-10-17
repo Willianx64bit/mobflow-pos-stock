@@ -31,8 +31,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupSuccess, setSignupSuccess] = useState("");
   const [signupComplete, setSignupComplete] = useState(false);
   const [signupAmount, setSignupAmount] = useState(79.90);
-  const [signupPayment, setSignupPayment] = useState<{ pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; amount: number } | null>(null);
-  const [pixCopied, setPixCopied] = useState(false);
+  const [signupPayment, setSignupPayment] = useState<{ pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; amount: number; requestToken: string } | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);\n  const [proofFile, setProofFile] = useState<File | null>(null);\n  const [proofSubmitted, setProofSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -104,6 +104,46 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       setEmail("");
     } catch {
       setError("Não foi possível conectar ao servidor para criar a conta.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitPaymentProof = async () => {
+    if (!signupPayment?.requestToken || !proofFile) {
+      setError("Escolha o comprovante antes de enviar a solicitação.");
+      return;
+    }
+    if (proofFile.size > 5 * 1024 * 1024) {
+      setError("O comprovante deve ter até 5 MB.");
+      return;
+    }
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(proofFile.type)) {
+      setError("Envie um comprovante em JPG, PNG, WEBP ou PDF.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const fileBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Não foi possível ler o arquivo."));
+        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+        reader.readAsDataURL(proofFile);
+      });
+      const { data, error: proofError } = await supabase.functions.invoke("mobflow-signup", {
+        body: { action: "submit_payment_proof", requestToken: signupPayment.requestToken, mimeType: proofFile.type, fileBase64 },
+      });
+      if (proofError || !data?.ok) {
+        setError(data?.error || "Não foi possível enviar a solicitação. Tente novamente.");
+        return;
+      }
+      setProofSubmitted(true);
+      setSignupSuccess(data.message || "Solicitação enviada para análise.");
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Não foi possível enviar o comprovante.");
     } finally {
       setLoading(false);
     }
@@ -299,6 +339,18 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
                     <label className="block text-xs font-semibold text-muted-foreground">Pix copia e cola</label>
                     <textarea value={signupPayment.pixCopyPaste} readOnly rows={4} className="w-full resize-none rounded-lg border border-border bg-background p-2 text-xs text-foreground" />
                     <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(signupPayment.pixCopyPaste); setPixCopied(true); } catch { setPixCopied(false); } }} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm font-semibold hover:bg-accent">{pixCopied ? "Código Pix copiado" : "Copiar código Pix"}</button>
+                    {!proofSubmitted ? (
+                      <div className="space-y-3 rounded-lg border border-border p-3 text-left">
+                        <label className="block text-sm font-semibold text-foreground">Anexar comprovante (até 5 MB)</label>
+                        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setProofFile(e.target.files?.[0] || null)} className="block w-full text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-semibold" />
+                        {proofFile && <p className="break-all text-xs text-muted-foreground">Arquivo: {proofFile.name}</p>}
+                        <button type="button" disabled={loading || !proofFile} onClick={() => void submitPaymentProof()} className="w-full rounded-lg bg-primary px-3 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">{loading ? "Enviando solicitação…" : "Enviar solicitação para análise"}</button>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Solicitação enviada! Aguarde a análise do administrador para liberar o acesso.</div>
+                    )}
+                    {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+                    {signupSuccess && <p className="text-sm text-emerald-700">{signupSuccess}</p>}
                   </div>
                 ) : (
                   <p className="mt-3 text-sm text-foreground">O Pix ainda não está configurado. Entre em contato com o administrador antes de realizar qualquer pagamento.</p>
