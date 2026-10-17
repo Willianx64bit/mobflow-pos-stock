@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useStore } from "@/lib/store";
 
 const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
@@ -18,6 +19,7 @@ export async function logout() {
 }
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
+  const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -113,9 +115,23 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
         </div>
 
+        {mode === "pdv" && (
+          <div className="mt-6 text-center">
+            {companySettings.companyLogo ? (
+              <img src={companySettings.companyLogo} alt={companySettings.companyName || "Logo da empresa"} className="mx-auto h-24 w-24 rounded-full border border-border bg-background object-contain p-1 shadow-sm" />
+            ) : (
+              <div className="mx-auto grid h-24 w-24 place-items-center rounded-full border border-border bg-secondary font-display text-3xl text-primary">
+                {(companySettings.companyName || "M").trim().charAt(0).toUpperCase()}
+              </div>
+            )}
+            <h2 className="mt-4 font-display text-2xl tracking-[.06em] text-heading">{companySettings.companyName || "Sua empresa"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Acesso de usuário</p>
+          </div>
+        )}
+
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "USUÁRIO DO PDV" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe o usuário e a senha liberados pela gerência." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         <form onSubmit={submit} className="mt-5 space-y-4">
