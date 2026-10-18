@@ -76,6 +76,14 @@ function Configuracoes() {
   const [addUserOpen, setAddUserOpen] = useState(false);
 
   useEffect(() => {
+    if (sessionStorage.getItem("mobflow-first-manager-setup") === "1") {
+      setUsersDetailsOpen(true);
+      setAddUserOpen(true);
+      sessionStorage.removeItem("mobflow-first-manager-setup");
+    }
+  }, []);
+
+  useEffect(() => {
     let active = true;
     const verifyManager = async () => {
       try {
