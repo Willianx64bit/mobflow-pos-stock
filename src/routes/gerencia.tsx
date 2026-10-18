@@ -166,10 +166,13 @@ function Gerencia() {
         return;
       }
       setManagerPasswordConfigured(true);
-      setFirstUserRequired(true);
+      setFirstUserRequired(false);
+      sessionStorage.setItem("mobflow-management", "1");
+      setUnlocked(true);
       setSetupPassword("");
       setSetupPasswordConfirm("");
       setPasswordError("");
+      navigate({ to: "/configuracoes" });
     } catch {
       setSetupPasswordError("Não foi possível conectar ao servidor.");
     } finally {
