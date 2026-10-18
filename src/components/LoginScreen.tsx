@@ -366,6 +366,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
         </form>}
 
+        {mode === "empresa" && !creatingAccount && !signupComplete && (
+          <button
+            type="button"
+            onClick={() => { setCreatingAccount(true); setError(""); setSignupSuccess(""); }}
+            className="mt-3 w-full rounded-xl border border-primary/40 bg-transparent py-3 font-semibold text-primary transition-colors hover:bg-primary/5"
+          >
+            Criar conta da empresa
+          </button>
+        )}
+
         {signupComplete && mode === "empresa" && (
           <div className="mt-5 space-y-4">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Usuário e senha do gerente criados no cadastro. A liberação do sistema ainda depende da aprovação manual do pagamento.</div>
