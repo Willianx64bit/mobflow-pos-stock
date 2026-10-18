@@ -366,16 +366,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
         </form>}
 
-        {mode === "empresa" && !creatingAccount && !signupComplete && (
-          <button
-            type="button"
-            onClick={() => { setCreatingAccount(true); setError(""); setSignupSuccess(""); }}
-            className="mt-3 w-full rounded-xl border border-primary/40 bg-transparent py-3 font-semibold text-primary transition-colors hover:bg-primary/5"
-          >
-            Criar conta da empresa
-          </button>
-        )}
-
         {signupComplete && mode === "empresa" && (
           <div className="mt-5 space-y-4">
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Usuário e senha do gerente criados no cadastro. A liberação do sistema ainda depende da aprovação manual do pagamento.</div>
@@ -431,78 +421,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </button>
           </div>
         )}
-
-        {creatingAccount && mode === "empresa" && (
-          <form onSubmit={submitSignup} className="mt-5 space-y-4" autoComplete="off">
-            <div>
-              <label className="label-mono block mb-1.5">Nome da empresa</label>
-              <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} autoComplete="organization" placeholder="Ex.: Mercado do João" className="field w-full text-foreground" required maxLength={120} />
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="off" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">Número de telefone</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000" className="field w-full text-foreground" required />
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">E-mail</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" autoComplete="email" placeholder="empresa@email.com" className="field w-full text-foreground" required maxLength={254} />
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">Usuário do gerente</label>
-              <input value={managerSetupUsername} onChange={(e) => setManagerSetupUsername(e.target.value.toUpperCase())} autoComplete="username" placeholder="Crie seu usuário de acesso" className="field w-full text-foreground" required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]{3,40}" title="Use de 3 a 40 letras, números, ponto, hífen ou underline." />
-            </div>
-            <div>
-              <label className="label-mono block mb-1.5">Senha do gerente</label>
-              <input value={managerSetupPassword} onChange={(e) => setManagerSetupPassword(e.target.value)} type="password" autoComplete="new-password" placeholder="Crie uma senha com pelo menos 8 caracteres" className="field w-full text-foreground" required minLength={8} maxLength={128} />
-            </div>
-
-            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-foreground">MobFlow Completo</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Todas as funcionalidades em um único plano.</p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-xl font-bold text-foreground">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(signupAmount)}</p>
-                  <p className="text-xs text-muted-foreground">por mês</p>
-                </div>
-              </div>
-              <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
-                <li>✓ PDV, produtos, códigos de barras e estoque</li>
-                <li>✓ Recebimento, conferência e validade</li>
-                <li>✓ Clientes, fiado e relatórios de vendas</li>
-                <li>✓ Controle de lucro e dados separados por empresa</li>
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <label className="label-mono block">FORMA DE PAGAMENTO</label>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-primary bg-primary/5 p-3">
-                <input type="radio" name="signup-payment-method" value="pix" checked readOnly className="mt-1 h-4 w-4 accent-primary" />
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-emerald-500/10 font-bold text-emerald-600">Pix</span>
-                <span className="flex-1">
-                  <span className="block font-semibold text-foreground">Pix</span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">Pagamento conferido manualmente pelo administrador.</span>
-                </span>
-                <span className="text-xs font-semibold text-primary">Selecionado</span>
-              </label>
-            </div>
-
-            {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
-            <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
-              {loading ? "Criando conta..." : "Criar conta"}
-            </button>
-            <p className="text-center text-xs text-muted-foreground">O usuário já terá permissão de gerente. O acesso ao sistema será liberado após a confirmação do pagamento e ativação da assinatura.</p>
-            <button type="button" onClick={() => { setCreatingAccount(false); setError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              Voltar para login
-            </button>
-          </form>
-        )}
-
-
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
 
