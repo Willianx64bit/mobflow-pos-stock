@@ -15,7 +15,6 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/lib/supabase";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
-import { AdminPanel } from "@/components/AdminPanel";
 
 function NotFoundComponent() {
   return (
@@ -96,7 +95,6 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const isAdminPortal = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("admin") === "1";
   const [checkingSession, setCheckingSession] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [userLoginRequired, setUserLoginRequired] = useState(false);
@@ -134,20 +132,7 @@ function RootComponent() {
           .eq("id", session.user.id)
           .maybeSingle();
 
-        if (!profile || profile.active === false) {
-          await supabase.auth.signOut();
-          localStorage.removeItem("mobflow-authenticated");
-          sessionStorage.removeItem("mobflow-role");
-          sessionStorage.removeItem("mobflow-username");
-          sessionStorage.removeItem("mobflow-pdv-authorized");
-          if (active) {
-            setAuthenticated(false);
-            setCheckingSession(false);
-          }
-          return;
-        }
-
-        if (isAdminPortal && profile.role !== "admin") {
+        if (!profile || profile.active === false || profile.role === "admin") {
           await supabase.auth.signOut();
           localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
@@ -168,12 +153,10 @@ function RootComponent() {
         }
 
         localStorage.setItem("mobflow-authenticated", "1");
-        if (profile.role !== "admin") {
-          try {
-            await hydrateStore();
-          } catch (error) {
-            console.error("MobFlow: falha ao carregar os dados da conta", error);
-          }
+        try {
+          await hydrateStore();
+        } catch (error) {
+          console.error("MobFlow: falha ao carregar os dados da conta", error);
         }
 
         if (active) {
@@ -202,19 +185,15 @@ function RootComponent() {
   if (!authenticated) {
     return (
       <LoginScreen
-        mode={isAdminPortal ? "admin" : "empresa"}
+        mode="empresa"
         onLogin={async () => {
           const role = sessionStorage.getItem("mobflow-role");
-          if (role !== "admin") await hydrateStore();
+          await hydrateStore();
           setAuthenticated(true);
           setUserLoginRequired(role === "manager");
         }}
       />
     );
-  }
-
-  if (sessionStorage.getItem("mobflow-role") === "admin") {
-    return <AdminPanel />;
   }
 
   if (userLoginRequired) {
