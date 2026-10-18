@@ -161,9 +161,11 @@ function RootComponent() {
         }
 
         if (active) {
+          const firstSetupPending = sessionStorage.getItem("mobflow-first-manager-setup") === "1";
           setAuthenticated(true);
-          setUserLoginRequired(profile.role === "manager");
+          setUserLoginRequired(profile.role === "manager" && !firstSetupPending);
           setCheckingSession(false);
+          if (firstSetupPending && profile.role === "manager") void router.navigate({ to: "/gerencia" });
         }
       } catch (error) {
         console.error("MobFlow: falha ao inicializar a sessão", error);
