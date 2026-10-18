@@ -95,6 +95,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
   const [checkingSession, setCheckingSession] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [userLoginRequired, setUserLoginRequired] = useState(false);
@@ -186,11 +187,16 @@ function RootComponent() {
     return (
       <LoginScreen
         mode="empresa"
-        onLogin={async () => {
+        onLogin={async (options) => {
           const role = sessionStorage.getItem("mobflow-role");
           await hydrateStore();
           setAuthenticated(true);
-          setUserLoginRequired(role === "manager");
+          if (options?.firstManagerLogin) {
+            setUserLoginRequired(false);
+            await router.navigate({ to: "/gerencia" });
+          } else {
+            setUserLoginRequired(role === "manager");
+          }
         }}
       />
     );
