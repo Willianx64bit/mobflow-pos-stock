@@ -19,7 +19,7 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" | "admin" }) {
+export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
   const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -246,7 +246,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       sessionStorage.removeItem("mobflow-username");
 
       const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "admin" ? "admin" : mode === "pdv" ? "pdv" : "manager" },
+        body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
       });
 
       if (error || !data?.session) {
@@ -255,7 +255,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         return;
       }
 
-      if ((mode === "pdv" && data.profile?.role !== "pdv") || (mode === "admin" && data.profile?.role !== "admin")) {
+      if (mode === "pdv" && data.profile?.role !== "pdv") {
         setError("Usuário ou senha inválido.");
         return;
       }
@@ -275,7 +275,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
       sessionStorage.setItem("mobflow-role", data.profile?.role || (mode === "pdv" ? "pdv" : "manager"));
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
-      sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "admin" ? ["Assinaturas", "Confirmação de pagamentos"] : data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
+      sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
       onLogin();
     } catch {
       setError("Não foi possível conectar ao servidor.");
@@ -325,8 +325,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "admin" ? "ADMINISTRAÇÃO MOBFLOW" : mode === "pdv" ? "LOGIN DO USUÁRIO" : signupComplete ? "CADASTRO RECEBIDO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "admin" ? "Acesso reservado ao administrador de assinaturas." : mode === "pdv" ? "Informe seu usuário e senha para continuar." : signupComplete ? "Seu cadastro foi recebido; falta confirmar o pagamento." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : signupComplete ? "CADASTRO RECEBIDO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : signupComplete ? "Seu cadastro foi recebido; falta confirmar o pagamento." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         {signupSuccess && !creatingAccount && !signupComplete && <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-3 text-center text-sm text-foreground ring-1 ring-emerald-500/30">{signupSuccess}</div>}
@@ -334,12 +334,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         {!(creatingAccount && mode === "empresa") && !(signupComplete && mode === "empresa") && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : mode === "admin" ? "admin-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
           </div>
 
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" || mode === "admin" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : mode === "admin" ? "admin-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
@@ -347,7 +347,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode !== "pdv" && (
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete={mode === "admin" ? "off" : "organization"} placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
             </div>
           )}
 
@@ -495,13 +495,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
-        {mode === "admin" && (
-          <div className="mt-3 text-center">
-            <a href="/" className="inline-flex w-full items-center justify-center rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              Voltar ao login da empresa
-            </a>
-          </div>
-        )}
 
 
       </div>
