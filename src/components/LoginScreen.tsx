@@ -24,22 +24,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [cnpj, setCnpj] = useState("");
-  const [creatingAccount, setCreatingAccount] = useState(false);
-  const [companyName, setCompanyName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [signupSuccess, setSignupSuccess] = useState("");
-  const [signupComplete, setSignupComplete] = useState(false);
-  const [managerSetupToken, setManagerSetupToken] = useState("");
-  const [managerSetupCnpj, setManagerSetupCnpj] = useState("");
-  const [managerSetupUsername, setManagerSetupUsername] = useState("");
-  const [managerSetupPassword, setManagerSetupPassword] = useState("");
-  const [managerSetupDone, setManagerSetupDone] = useState(false);
-  const [signupAmount, setSignupAmount] = useState(79.90);
-  const [signupPayment, setSignupPayment] = useState<{ pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; amount: number; requestToken: string } | null>(null);
-  const [pixCopied, setPixCopied] = useState(false);
-  const [proofFile, setProofFile] = useState<File | null>(null);
-  const [proofSubmitted, setProofSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -68,143 +52,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
-
-  const submitSignup = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setSignupSuccess("");
-    setSignupComplete(false);
-    setSignupPayment(null);
-    setPixCopied(false);
-    const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length < 10 || phoneDigits.length > 13) {
-      setError("Informe um telefone válido com DDD, ex.: (11) 98765-4321.");
-      setLoading(false);
-      return;
-    }
-    try {
-      const { data, error: signupError } = await supabase.functions.invoke("mobflow-signup", {
-        body: {
-          companyName: companyName.trim(),
-          cnpj: cnpj.replace(/\D/g, ""),
-          phone: phoneDigits,
-          email: email.trim().toLowerCase(),
-          username: managerSetupUsername.trim(),
-          password: managerSetupPassword,
-          paymentMethod: "pix",
-        },
-      });
-      if (signupError || !data?.ok) {
-        let serverMsg: string | undefined = data?.error;
-        const ctx = (signupError as { context?: Response } | null)?.context;
-        if (!serverMsg && ctx && typeof ctx.json === "function") {
-          try { serverMsg = (await ctx.clone().json())?.error; } catch { /* ignore */ }
-        }
-        setError(serverMsg || "Não foi possível criar a conta. Confira os dados e tente novamente.");
-        return;
-      }
-      setManagerSetupToken("");
-      setManagerSetupCnpj("");
-      setManagerSetupDone(true);
-      setManagerSetupPassword("");
-      setSignupSuccess(data.message || "Cadastro recebido. Usuário do gerente criado; aguarde a aprovação manual do pagamento.");
-      setSignupPayment(data.pixCopyPaste && data.pixQrCode ? {
-        pixCopyPaste: data.pixCopyPaste,
-        pixQrCode: data.pixQrCode,
-        pixRecipientName: data.pixRecipientName || "MobFlow",
-        amount: Number(data.amount) || signupAmount,
-        requestToken: data.requestToken,
-      } : null);
-      setPixCopied(false);
-      setSignupComplete(true);
-      setCreatingAccount(false);
-      setUsername("");
-      setPassword("");
-      setCnpj("");
-      setCompanyName("");
-      setPhone("");
-      setEmail("");
-    } catch {
-      setError("Não foi possível conectar ao servidor para criar a conta.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const submitManagerSetup = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!managerSetupToken) {
-      setError("Token de primeiro acesso não encontrado. Refaça o cadastro ou entre em contato com o administrador.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const { data, error: setupError } = await supabase.functions.invoke("mobflow-signup", {
-        body: {
-          action: "complete_manager_setup",
-          setupToken: managerSetupToken,
-          cnpj: managerSetupCnpj,
-          username: managerSetupUsername.trim(),
-          password: managerSetupPassword,
-        },
-      });
-      if (setupError || !data?.ok) {
-        setError(data?.error || "Não foi possível configurar o gerente. Confira os dados e tente novamente.");
-        return;
-      }
-      setManagerSetupDone(true);
-      setManagerSetupToken("");
-      setManagerSetupPassword("");
-      setSignupSuccess(data.message || "Acesso do gerente configurado. Aguarde a aprovação manual do pagamento.");
-    } catch {
-      setError("Não foi possível conectar ao servidor para configurar o gerente.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const submitPaymentProof = async () => {
-    if (!signupPayment?.requestToken || !proofFile) {
-      setError("Escolha o comprovante antes de enviar a solicitação.");
-      return;
-    }
-    if (proofFile.size > 5 * 1024 * 1024) {
-      setError("O comprovante deve ter até 5 MB.");
-      return;
-    }
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (!allowedTypes.includes(proofFile.type)) {
-      setError("Envie um comprovante em JPG, PNG, WEBP ou PDF.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const fileBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("Não foi possível ler o arquivo."));
-        reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
-        reader.readAsDataURL(proofFile);
-      });
-      const { data, error: proofError } = await supabase.functions.invoke("mobflow-signup", {
-        body: { action: "submit_payment_proof", requestToken: signupPayment.requestToken, mimeType: proofFile.type, fileBase64 },
-      });
-      if (proofError || !data?.ok) {
-        setError(data?.error || "Não foi possível enviar a solicitação. Tente novamente.");
-        return;
-      }
-      setProofSubmitted(true);
-      setSignupSuccess(data.message || "Solicitação enviada para análise.");
-      setError("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível enviar o comprovante.");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -325,13 +172,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : signupComplete ? "CADASTRO RECEBIDO" : creatingAccount ? "CRIAR CONTA DA EMPRESA" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : signupComplete ? "Seu cadastro foi recebido; falta confirmar o pagamento." : creatingAccount ? "Preencha os dados e escolha a assinatura MobFlow." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
-        {signupSuccess && !creatingAccount && !signupComplete && <div className="mt-4 rounded-lg bg-emerald-500/10 px-3 py-3 text-center text-sm text-foreground ring-1 ring-emerald-500/30">{signupSuccess}</div>}
-
-        {!(creatingAccount && mode === "empresa") && !(signupComplete && mode === "empresa") && <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
+        <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono block mb-1.5">Usuário</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
@@ -364,63 +209,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
               Cancelar
             </button>
           )}
-        </form>}
-
-        {signupComplete && mode === "empresa" && (
-          <div className="mt-5 space-y-4">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Usuário e senha do gerente criados no cadastro. A liberação do sistema ainda depende da aprovação manual do pagamento.</div>
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-center">
-              <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600">
-                <span className="text-2xl" aria-hidden="true">✓</span>
-              </div>
-              <h2 className="text-lg font-bold text-foreground">Cadastro recebido!</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Sua conta ainda não está liberada. O pagamento será conferido manualmente pelo administrador.</p>
-            </div>
-            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-              <p className="text-sm font-semibold text-foreground">Assinatura MobFlow Completo</p>
-              <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-foreground">{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(signupPayment?.amount ?? signupAmount)}</span>
-                <span className="text-sm text-muted-foreground">/mês</span>
-              </div>
-              <div className="mt-4 rounded-lg border border-border bg-background p-3">
-                <div className="flex items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 font-bold">Pix</div>
-                  <div>
-                    <p className="font-semibold text-foreground">Forma de pagamento: Pix</p>
-                    <p className="text-xs text-muted-foreground">Confirmação manual pelo MobFlow</p>
-                  </div>
-                </div>
-                {signupPayment ? (
-                  <div className="mt-4 space-y-3">
-                    <p className="text-sm text-foreground">Pague para <strong>{signupPayment.pixRecipientName}</strong> usando o QR Code ou o Pix copia e cola.</p>
-                    <img src={signupPayment.pixQrCode} alt="QR Code Pix para pagamento da assinatura" className="mx-auto h-56 w-56 rounded-lg border border-border bg-white p-2" />
-                    <label className="block text-xs font-semibold text-muted-foreground">Pix copia e cola</label>
-                    <textarea value={signupPayment.pixCopyPaste} readOnly rows={4} className="w-full resize-none rounded-lg border border-border bg-background p-2 text-xs text-foreground" />
-                    <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(signupPayment.pixCopyPaste); setPixCopied(true); } catch { setPixCopied(false); } }} className="w-full rounded-lg border border-border px-3 py-2.5 text-sm font-semibold hover:bg-accent">{pixCopied ? "Código Pix copiado" : "Copiar código Pix"}</button>
-                    {!proofSubmitted ? (
-                      <div className="space-y-3 rounded-lg border border-border p-3 text-left">
-                        <label className="block text-sm font-semibold text-foreground">Anexar comprovante (até 5 MB)</label>
-                        <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => setProofFile(e.target.files?.[0] || null)} className="block w-full text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-secondary file:px-3 file:py-2 file:font-semibold" />
-                        {proofFile && <p className="break-all text-xs text-muted-foreground">Arquivo: {proofFile.name}</p>}
-                        <button type="button" disabled={loading || !proofFile} onClick={() => void submitPaymentProof()} className="w-full rounded-lg bg-primary px-3 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50">{loading ? "Enviando solicitação…" : "Enviar solicitação para análise"}</button>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm font-semibold text-foreground">Solicitação enviada! Aguarde a análise do administrador para liberar o acesso.</div>
-                    )}
-                    {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
-                    {signupSuccess && <p className="text-sm text-emerald-700">{signupSuccess}</p>}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-foreground">O Pix ainda não está configurado. Entre em contato com o administrador antes de realizar qualquer pagamento.</p>
-                )}
-              </div>
-              <p className="mt-3 text-sm text-muted-foreground">Após pagar, aguarde a conferência manual. O acesso será liberado quando o administrador confirmar o recebimento.</p>
-            </div>
-            <button type="button" onClick={() => { setSignupComplete(false); setSignupSuccess(""); setError(""); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors">
-              Voltar para o login
-            </button>
-          </div>
-        )}
+        </form>
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
 
