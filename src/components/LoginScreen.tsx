@@ -19,7 +19,7 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: () => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
+export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
   const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -123,7 +123,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       sessionStorage.setItem("mobflow-role", data.profile?.role || (mode === "pdv" ? "pdv" : "manager"));
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
       sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
-      onLogin();
+      const firstManagerLogin = mode === "empresa" && data.firstManagerLogin === true;
+      if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
+      onLogin({ firstManagerLogin });
     } catch {
       setError("Não foi possível conectar ao servidor.");
     } finally {
