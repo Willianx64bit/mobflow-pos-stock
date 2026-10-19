@@ -18,6 +18,7 @@ import { Route as FiadoRouteImport } from './routes/fiado'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
 import { Route as PromocoesRouteImport } from './routes/promocoes'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
+import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
 import { Route as ValidadeRouteImport } from './routes/validade'
 import { Route as VendasRouteImport } from './routes/vendas'
 import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
@@ -68,6 +69,11 @@ const RecebimentoRoute = RecebimentoRouteImport.update({
   path: '/recebimento',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecuperarSenhaRoute = RecuperarSenhaRouteImport.update({
+  id: '/recuperar-senha',
+  path: '/recuperar-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ValidadeRoute = ValidadeRouteImport.update({
   id: '/validade',
   path: '/validade',
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRouteTypes {
@@ -147,8 +156,10 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/promocoes'
     | '/recebimento'
+    | '/recuperar-senha'
     | '/validade'
     | '/vendas'
+    | '/recuperar-senha'
     | '/fiado/$customer'
     | '/fiado/cliente'
   fileRoutesByTo: FileRoutesByTo
@@ -193,6 +204,7 @@ export interface RootRouteChildren {
   GerenciaRoute: typeof GerenciaRoute
   PromocoesRoute: typeof PromocoesRoute
   RecebimentoRoute: typeof RecebimentoRoute
+  RecuperarSenhaRoute: typeof RecuperarSenhaRoute
   ValidadeRoute: typeof ValidadeRoute
   VendasRoute: typeof VendasRoute
 }
@@ -262,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecebimentoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/recuperar-senha': {
+      id: '/recuperar-senha'
+      path: '/recuperar-senha'
+      fullPath: '/recuperar-senha'
+      preLoaderRoute: typeof RecuperarSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/validade': {
       id: '/validade'
       path: '/validade'
@@ -315,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   GerenciaRoute: GerenciaRoute,
   PromocoesRoute: PromocoesRoute,
   RecebimentoRoute: RecebimentoRoute,
+  RecuperarSenhaRoute: RecuperarSenhaRoute,
   ValidadeRoute: ValidadeRoute,
   VendasRoute: VendasRoute,
 }
