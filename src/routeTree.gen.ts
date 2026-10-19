@@ -105,10 +105,10 @@ export interface FileRoutesByFullPath {
   '/gerencia': typeof GerenciaRoute
   '/promocoes': typeof PromocoesRoute
   '/recebimento': typeof RecebimentoRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
-  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesByTo {
@@ -121,10 +121,10 @@ export interface FileRoutesByTo {
   '/gerencia': typeof GerenciaRoute
   '/promocoes': typeof PromocoesRoute
   '/recebimento': typeof RecebimentoRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
-  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesById {
@@ -138,10 +138,10 @@ export interface FileRoutesById {
   '/gerencia': typeof GerenciaRoute
   '/promocoes': typeof PromocoesRoute
   '/recebimento': typeof RecebimentoRoute
+  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
-  '/recuperar-senha': typeof RecuperarSenhaRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRouteTypes {
