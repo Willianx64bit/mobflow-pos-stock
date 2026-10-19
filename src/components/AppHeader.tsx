@@ -3,7 +3,7 @@ import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -20,6 +20,7 @@ export function AppHeader() {
   const [time, setTime] = useState("");
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -45,6 +46,19 @@ export function AppHeader() {
 
   useEffect(() => {
     document.body.classList.toggle("mfb-side-open", open);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideTap = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && sidebarRef.current && !sidebarRef.current.contains(target)) {
+        localStorage.setItem("mobflow-sidebar", "closed");
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsideTap);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideTap);
   }, [open]);
 
   useEffect(() => {
@@ -159,8 +173,7 @@ export function AppHeader() {
         </div>
       )}
 
-      {open ? (
-        <aside className="fixed left-0 top-0 z-50 h-screen w-64 transition-transform duration-200">
+      <aside ref={sidebarRef} aria-hidden={!open} className={`fixed left-0 top-0 z-50 h-screen w-64 transform transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? "translate-x-0 pointer-events-auto" : "-translate-x-full pointer-events-none"}`}>
           <div className="h-full bg-popover/95 backdrop-blur-xl ring-r-1 ring-border flex flex-col">
             <div className="h-20 flex items-center px-4 gap-3">
               {settings.companyLogo ? <img src={settings.companyLogo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" /> : <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>}
@@ -176,7 +189,7 @@ export function AppHeader() {
             </div>
           </div>
         </aside>
-      ) : (
+      {!open && (
         <button type="button" onClick={toggleSidebar} className="fixed left-0 top-1/2 z-50 -translate-y-1/2 h-10 w-5 rounded-r-lg bg-popover/95 ring-1 ring-border text-foreground shadow-sm flex items-center justify-center hover:bg-accent transition-colors" aria-label="Abrir menu lateral" title="Abrir menu"><ChevronRight className="h-4 w-4 text-green-600" /></button>
       )}
     </>,
