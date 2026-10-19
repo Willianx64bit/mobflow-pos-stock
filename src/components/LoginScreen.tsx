@@ -28,11 +28,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const [recoveryUsername, setRecoveryUsername] = useState("");
-  const [recoveryCnpj, setRecoveryCnpj] = useState("");
-  const [recoveryMessage, setRecoveryMessage] = useState("");
-  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   // O login do operador deve sempre começar vazio, sem reaproveitar/autopreencher credenciais da empresa.
   useEffect(() => {
@@ -57,34 +52,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
-
-  const requestPasswordRecovery = async (event: FormEvent) => {
-    event.preventDefault();
-    setRecoveryMessage("");
-    const cleanUsername = recoveryUsername.trim();
-    const cleanCnpj = recoveryCnpj.replace(/\D/g, "");
-    if (!cleanUsername || cleanCnpj.length !== 14) {
-      setRecoveryMessage("Informe o usuário e o CNPJ completo da empresa.");
-      return;
-    }
-    setRecoveryLoading(true);
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-manager-password-recovery", {
-        body: { action: "request", username: cleanUsername, cnpj: cleanCnpj },
-      });
-      if (invokeError || !data?.ok) {
-        let detail = String(data?.error ?? "");
-        try { if (!detail) detail = String((await (invokeError as { context?: Response })?.context?.json())?.error ?? ""); } catch {}
-        setRecoveryMessage(detail || "Não foi possível processar a solicitação agora. Tente novamente mais tarde.");
-        return;
-      }
-      setRecoveryMessage(data.message || "Se os dados corresponderem a uma conta de Gerência com e-mail cadastrado, enviaremos um link de recuperação.");
-    } catch {
-      setRecoveryMessage("Não foi possível conectar ao serviço de recuperação.");
-    } finally {
-      setRecoveryLoading(false);
-    }
-  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -221,18 +188,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <label className="label-mono block mb-1.5">Senha</label>
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
           </div>
-          {mode === "empresa" && (
-            <div className="-mt-2 text-right">
-              <button type="button" onClick={() => {
-                setRecoveryUsername(username);
-                setRecoveryCnpj(cnpj);
-                setRecoveryMessage("");
-                setRecoveryOpen(true);
-              }} className="text-sm font-semibold text-primary underline-offset-4 hover:underline">
-                Esqueci minha senha
-              </button>
-            </div>
-          )}
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
 
@@ -260,21 +215,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
         <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
 
-        {recoveryOpen && mode === "empresa" && (
-          <div className="fixed inset-0 z-[130] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
-            <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl ring-1 ring-border">
-              <h2 id="recovery-title" className="text-center font-display text-xl text-heading">Recuperar senha da Gerência</h2>
-              <p className="mt-2 text-center text-sm text-muted-foreground">Informe o usuário e o CNPJ da empresa. O link será enviado ao e-mail cadastrado, se os dados corresponderem à conta da Gerência.</p>
-              <form onSubmit={(e) => void requestPasswordRecovery(e)} className="mt-5 space-y-3">
-                <input value={recoveryUsername} onChange={(e) => { setRecoveryUsername(e.target.value); setRecoveryMessage(""); }} placeholder="Usuário da empresa" autoComplete="username" className="field w-full text-foreground" required />
-                <input value={recoveryCnpj} onChange={(e) => { setRecoveryCnpj(formatCnpj(e.target.value)); setRecoveryMessage(""); }} inputMode="numeric" placeholder="CNPJ da empresa" autoComplete="organization" className="field w-full text-foreground" required />
-                {recoveryMessage && <div role="status" className="rounded-lg bg-secondary/70 px-3 py-2 text-center text-sm text-muted-foreground">{recoveryMessage}</div>}
-                <button type="submit" disabled={recoveryLoading} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{recoveryLoading ? "Solicitando..." : "Enviar link de recuperação"}</button>
-                <button type="button" onClick={() => { setRecoveryOpen(false); setRecoveryMessage(""); }} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Fechar</button>
-              </form>
-            </div>
-          </div>
-        )}
+
 
       </div>
     </div>
