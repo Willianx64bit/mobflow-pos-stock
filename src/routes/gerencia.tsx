@@ -45,6 +45,8 @@ function Gerencia() {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
 
   useEffect(() => {
     const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
@@ -196,6 +198,25 @@ function Gerencia() {
     sessionStorage.setItem("mobflow-management", "1");
     setUnlocked(true);
     setPassword("");
+  };
+
+  const requestManagerPasswordRecovery = async () => {
+    setRecoveryMessage("");
+    setRecoveryLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mobflow-manager-password-recovery", { body: { action: "request" } });
+      if (error || !data?.ok) {
+        let detail = String(data?.error ?? "");
+        try { if (!detail) detail = String((await (error as { context?: Response })?.context?.json())?.error ?? ""); } catch {}
+        setRecoveryMessage(detail || "Não foi possível enviar o e-mail de recuperação agora.");
+      } else {
+        setRecoveryMessage(data.message || "Verifique o e-mail cadastrado da empresa.");
+      }
+    } catch {
+      setRecoveryMessage("Não foi possível conectar ao serviço de recuperação.");
+    } finally {
+      setRecoveryLoading(false);
+    }
   };
 
   const confirmPromotionPassword = async () => {
@@ -377,6 +398,10 @@ function Gerencia() {
                 <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
                   {passwordLoading ? "Validando..." : "Confirmar senha"}
                 </button>
+                <button type="button" onClick={() => void requestManagerPasswordRecovery()} disabled={recoveryLoading} className="w-full py-2 text-sm font-semibold text-primary underline-offset-4 hover:underline disabled:opacity-50">
+                  {recoveryLoading ? "Enviando e-mail..." : "Esqueci minha senha"}
+                </button>
+                {recoveryMessage && <div role="status" className="rounded-lg bg-secondary/70 px-3 py-2 text-center text-sm text-muted-foreground">{recoveryMessage}</div>}
               </div>
             </div>
           </div>
