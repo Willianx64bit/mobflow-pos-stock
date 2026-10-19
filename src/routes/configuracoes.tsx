@@ -59,7 +59,7 @@ function Configuracoes() {
   const [resetOpen, setResetOpen] = useState(false);
   const [resetSectionOpen, setResetSectionOpen] = useState(false);
   const [resetError, setResetError] = useState("");
-  const [securityModal, setSecurityModal] = useState<"pix" | "reset" | "reset-final" | "reset-user" | null>(null);
+  const [securityModal, setSecurityModal] = useState<"pix" | "reset" | "reset-final" | "reset-user" | "users-details" | null>(null);
   const [securityPassword, setSecurityPassword] = useState("");
   const [securityError, setSecurityError] = useState("");
   const [securityBusy, setSecurityBusy] = useState(false);
@@ -189,6 +189,17 @@ function Configuracoes() {
   const submitSecurityModal = async () => {
     if (securityBusy) return;
     setSecurityError("");
+    if (securityModal === "users-details") {
+      if (!securityPassword.trim()) { setSecurityError("Informe a senha da gerência."); return; }
+      setSecurityBusy(true);
+      const result = await verifyManagerPassword(securityPassword);
+      setSecurityBusy(false);
+      if (!result.ok) { setSecurityError(result.error || "Senha da gerência incorreta."); return; }
+      setSecurityModal(null); setSecurityPassword(""); setSecurityError("");
+      setUsersDetailsOpen(true);
+      await loadPdvUsers();
+      return;
+    }
     if (securityModal === "reset-user") {
       if (securityPassword.length < 6) { setSecurityError("A senha precisa ter pelo menos 6 caracteres."); return; }
       setSecurityBusy(true);
@@ -316,10 +327,14 @@ function Configuracoes() {
               <button
                 type="button"
                 onClick={() => {
-                  const opening = !usersDetailsOpen;
-                  setUsersDetailsOpen(opening);
-                  if (opening) void loadPdvUsers();
-                  else setAddUserOpen(false);
+                  if (usersDetailsOpen) {
+                    setUsersDetailsOpen(false);
+                    setAddUserOpen(false);
+                    return;
+                  }
+                  setSecurityPassword("");
+                  setSecurityError("");
+                  setSecurityModal("users-details");
                 }}
                 className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"
               >
@@ -492,8 +507,8 @@ function Configuracoes() {
         <div className="fixed inset-0 z-[60] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
           <form onSubmit={(e) => { e.preventDefault(); if (securityModal === "reset-final") void reset(); else void submitSecurityModal(); }} className="w-full max-w-md glass p-6 shadow-2xl">
             <LockKeyhole className="h-6 w-6 text-green-600" />
-            <h3 className="mt-2 text-lg font-semibold text-heading">{securityModal === "pix" ? "Confirmar senha da Gerência" : securityModal === "reset-user" ? "Trocar senha de " + (passwordResetUser?.username ?? "usuário") : securityModal === "reset" ? "Senha da Gerência" : "Confirmar limpeza definitiva"}</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{securityModal === "pix" ? "Digite a senha da Gerência para liberar a alteração da chave Pix." : securityModal === "reset-user" ? "Defina uma nova senha para este usuário do PDV (mínimo de 6 caracteres)." : securityModal === "reset" ? "Para continuar, confirme a senha da Gerência desta empresa." : "Esta ação apagará os dados desta empresa e excluirá os usuários do PDV vinculados a ela. O login da Gerência e as outras empresas não serão afetados."}</p>
+            <h3 className="mt-2 text-lg font-semibold text-heading">{securityModal === "pix" ? "Confirmar senha da Gerência" : securityModal === "users-details" ? "Confirmar senha da Gerência" : securityModal === "reset-user" ? "Trocar senha de " + (passwordResetUser?.username ?? "usuário") : securityModal === "reset" ? "Senha da Gerência" : "Confirmar limpeza definitiva"}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">{securityModal === "pix" ? "Digite a senha da Gerência para liberar a alteração da chave Pix." : securityModal === "users-details" ? "Para evitar aberturas acidentais, confirme a senha da Gerência para visualizar os detalhes e gerenciar usuários." : securityModal === "reset-user" ? "Defina uma nova senha para este usuário do PDV (mínimo de 6 caracteres)." : securityModal === "reset" ? "Para continuar, confirme a senha da Gerência desta empresa." : "Esta ação apagará os dados desta empresa e excluirá os usuários do PDV vinculados a ela. O login da Gerência e as outras empresas não serão afetados."}</p>
             {securityModal !== "reset-final" && <input type="password" value={securityPassword} onChange={e => { setSecurityPassword(e.target.value); setSecurityError(""); }} placeholder={securityModal === "reset-user" ? "Nova senha (mínimo 6 caracteres)" : "Senha da Gerência"} autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />}
             {securityError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{securityError}</p>}
             <div className="mt-5 flex gap-2">
