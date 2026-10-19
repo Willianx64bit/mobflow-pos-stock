@@ -45,6 +45,11 @@ function Gerencia() {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoveryCnpj, setRecoveryCnpj] = useState("");
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   useEffect(() => {
     const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
@@ -56,6 +61,32 @@ function Gerencia() {
     sessionStorage.removeItem("mobflow-management");
     setUnlocked(false);
     window.dispatchEvent(new Event("mobflow-management-changed"));
+  };
+
+  const requestManagerPasswordRecovery = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setRecoveryMessage("");
+    const email = recoveryEmail.trim().toLowerCase();
+    const cnpj = recoveryCnpj.replace(/\\D/g, "");
+    if (!email || !email.includes("@") || cnpj.length !== 14) {
+      setRecoveryMessage("Informe um e-mail válido e o CNPJ completo da empresa.");
+      return;
+    }
+    setRecoveryLoading(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-manager-password-recovery", {
+        body: { action: "request", email, cnpj },
+      });
+      if (invokeError || !data?.ok) {
+        setRecoveryMessage(String(data?.error ?? "Não foi possível processar a solicitação agora. Tente novamente mais tarde."));
+      } else {
+        setRecoveryMessage(data.message || "Se os dados corresponderem à conta da Gerência, enviaremos um link para o e-mail cadastrado.");
+      }
+    } catch {
+      setRecoveryMessage("Não foi possível conectar ao serviço de recuperação.");
+    } finally {
+      setRecoveryLoading(false);
+    }
   };
   const [error, setError] = useState("");
   const [checkingManager, setCheckingManager] = useState(true);
@@ -377,6 +408,24 @@ function Gerencia() {
                 <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
                   {passwordLoading ? "Validando..." : "Confirmar senha"}
                 </button>
+                <button type="button" onClick={() => { setRecoveryMessage(""); setRecoveryOpen(true); }} className="w-full py-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">
+                  Esqueci minha senha
+                </button>
+                {recoveryOpen && (
+                  <div className="fixed inset-0 z-[130] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="manager-recovery-title">
+                    <div className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl ring-1 ring-border">
+                      <h2 id="manager-recovery-title" className="text-center font-display text-xl text-heading">Recuperar senha da Gerência</h2>
+                      <p className="mt-2 text-center text-sm text-muted-foreground">Informe o e-mail cadastrado da empresa e o CNPJ. Enviaremos um link se os dados corresponderem à conta da Gerência.</p>
+                      <form onSubmit={(e) => void requestManagerPasswordRecovery(e)} className="mt-5 space-y-3">
+                        <input type="email" value={recoveryEmail} onChange={(e) => { setRecoveryEmail(e.target.value); setRecoveryMessage(""); }} placeholder="E-mail cadastrado" autoComplete="email" className="field w-full text-foreground" required />
+                        <input value={recoveryCnpj} onChange={(e) => { setRecoveryCnpj(e.target.value.replace(/\\D/g, "").slice(0,14)); setRecoveryMessage(""); }} inputMode="numeric" placeholder="CNPJ da empresa (somente números)" autoComplete="organization" className="field w-full text-foreground" required />
+                        {recoveryMessage && <div role="status" className="rounded-lg bg-secondary/70 px-3 py-2 text-center text-sm text-muted-foreground">{recoveryMessage}</div>}
+                        <button type="submit" disabled={recoveryLoading} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{recoveryLoading ? "Solicitando..." : "Enviar link de recuperação"}</button>
+                        <button type="button" onClick={() => setRecoveryOpen(false)} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Fechar</button>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
