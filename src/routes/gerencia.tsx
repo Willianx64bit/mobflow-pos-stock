@@ -68,7 +68,7 @@ function Gerencia() {
     event.preventDefault();
     setRecoveryMessage("");
     const email = recoveryEmail.trim().toLowerCase();
-    const cnpj = recoveryCnpj.replace(/\\D/g, "");
+    const cnpj = recoveryCnpj.replace(/\D/g, "");
     if (!email || !email.includes("@") || cnpj.length !== 14) {
       setRecoveryMessage("Informe um e-mail válido e o CNPJ completo da empresa.");
       return;
@@ -419,7 +419,7 @@ function Gerencia() {
                       <p className="mt-2 text-center text-sm text-muted-foreground">Informe o e-mail cadastrado da empresa e o CNPJ. Enviaremos um link se os dados corresponderem à conta da Gerência.</p>
                       <form onSubmit={(e) => void requestManagerPasswordRecovery(e)} className="mt-5 space-y-3">
                         <input type="email" value={recoveryEmail} onChange={(e) => { setRecoveryEmail(e.target.value); setRecoveryMessage(""); }} placeholder="E-mail cadastrado" autoComplete="email" className="field w-full text-foreground" required />
-                        <input value={recoveryCnpj} onChange={(e) => { setRecoveryCnpj(e.target.value.replace(/\\D/g, "").slice(0,14)); setRecoveryMessage(""); }} inputMode="numeric" placeholder="CNPJ da empresa (somente números)" autoComplete="organization" className="field w-full text-foreground" required />
+                        <input value={recoveryCnpj} onChange={(e) => { setRecoveryCnpj(e.target.value.replace(/\D/g, "").slice(0,14)); setRecoveryMessage(""); }} inputMode="numeric" placeholder="CNPJ da empresa (somente números)" autoComplete="organization" className="field w-full text-foreground" required />
                         {recoveryMessage && <div role="status" className="rounded-lg bg-secondary/70 px-3 py-2 text-center text-sm text-muted-foreground">{recoveryMessage}</div>}
                         <button type="submit" disabled={recoveryLoading} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{recoveryLoading ? "Solicitando..." : "Enviar link de recuperação"}</button>
                         <button type="button" onClick={() => setRecoveryOpen(false)} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Fechar</button>
