@@ -72,6 +72,9 @@ function Configuracoes() {
   const [userMessage, setUserMessage] = useState("");
   const [userError, setUserError] = useState("");
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [savingPermissionsUserId, setSavingPermissionsUserId] = useState<string | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+  const [creatingPdvUser, setCreatingPdvUser] = useState(false);
   const [usersDetailsOpen, setUsersDetailsOpen] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
 
@@ -146,6 +149,8 @@ function Configuracoes() {
   };
 
   const createPdvUser = async () => {
+    if (creatingPdvUser) return;
+    setCreatingPdvUser(true);
     setUserError("");
     setUserMessage("");
     const { data, error } = await callUsers({
@@ -153,6 +158,7 @@ function Configuracoes() {
     });
     if (error || !data?.ok) {
       setUserError(data?.error || "Não foi possível criar o usuário.");
+      setCreatingPdvUser(false);
       return;
     }
     setUserName("");
@@ -160,15 +166,19 @@ function Configuracoes() {
     setUserPassword("");
     setUserMessage("Usuário do PDV criado com sucesso.");
     await loadPdvUsers();
+    setCreatingPdvUser(false);
   };
 
   const togglePdvUser = async (user: (typeof pdvUsers)[number]) => {
+    if (togglingUserId || savingPermissionsUserId || deletingUserId) return;
+    setTogglingUserId(user.id);
     setUserError("");
     const { data, error } = await callUsers({
       body: { action: "toggle", userId: user.id, active: !user.active },
     });
     if (error || !data?.ok) setUserError(data?.error || "Não foi possível alterar o acesso.");
     else await loadPdvUsers();
+    setTogglingUserId(null);
   };
 
   const resetPdvPassword = async (user: (typeof pdvUsers)[number]) => {
@@ -201,10 +211,13 @@ function Configuracoes() {
 
 
   const saveUserPermissions = async (user: (typeof pdvUsers)[number], permissions: string[]) => {
+    if (savingPermissionsUserId || togglingUserId || deletingUserId) return;
+    setSavingPermissionsUserId(user.id);
     setUserError("");
     const { data, error } = await callUsers({ body: { action: "update_permissions", userId: user.id, permissions } });
     if (error || !data?.ok) setUserError(data?.error || "Não foi possível salvar as permissões.");
     else { setUserMessage(`Permissões de ${user.username} atualizadas.`); await loadPdvUsers(); }
+    setSavingPermissionsUserId(null);
   };
 
   const deletePdvUser = async (user: (typeof pdvUsers)[number]) => {
@@ -321,7 +334,7 @@ function Configuracoes() {
                     {pdvUsers.length} {pdvUsers.length === 1 ? "usuário cadastrado" : "usuários cadastrados"}
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => void loadPdvUsers()} className="rounded-xl bg-secondary px-3 py-2 text-sm text-secondary-foreground">Atualizar</button>
+                    <button type="button" onClick={() => void loadPdvUsers()} disabled={usersLoading} className="rounded-xl bg-secondary px-3 py-2 text-sm text-secondary-foreground disabled:opacity-50">{usersLoading ? "Carregando..." : "Atualizar"}</button>
                     <button
                       type="button"
                       onClick={() => {
@@ -344,7 +357,7 @@ function Configuracoes() {
                       <input value={userUsername} onChange={e => setUserUsername(e.target.value.toUpperCase())} placeholder="Usuário" className="field text-sm text-foreground" />
                       <input value={userPassword} onChange={e => setUserPassword(e.target.value)} type="password" placeholder="Senha (mín. 6)" className="field text-sm text-foreground" />
                     </div>
-                    <button type="button" onClick={() => void createPdvUser()} disabled={userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">Criar usuário do PDV</button>
+                    <button type="button" onClick={() => void createPdvUser()} disabled={creatingPdvUser || userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">{creatingPdvUser ? "Aguarde, criando usuário..." : "Criar usuário do PDV"}</button>
                   </div>
                 )}
 
@@ -356,8 +369,8 @@ function Configuracoes() {
                     <div key={user.id} className="flex flex-wrap items-center gap-2 border-b border-border/40 py-3 last:border-0">
                       <div className="min-w-40 flex-1"><div className="font-semibold text-foreground">{user.display_name || user.username}</div><div className="font-mono text-[11px] text-muted-foreground">@{user.username}</div></div>
                       <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold">{user.active ? "Ativo" : "Desativado"}</span>
-                      <div className="w-full rounded-xl bg-background/70 p-3 mt-2"><div className="mb-2 text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div><div className="flex flex-wrap gap-3">{["PDV","Conferência","Validade","Fiado","Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-xs text-foreground"><input type="checkbox" checked={(user.permissions ?? ["PDV","Conferência"]).includes(area)} disabled={area === "PDV"} onChange={e => void saveUserPermissions(user, e.target.checked ? [...(user.permissions ?? ["PDV","Conferência"]), area] : (user.permissions ?? ["PDV","Conferência"]).filter(p => p !== area))} className="accent-primary" />{area}</label>)}</div><p className="mt-2 text-xs text-muted-foreground">A permissão Gerência libera a tentativa de entrada, mas a senha da Gerência continua obrigatória.</p></div><button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
-                      <button onClick={() => void togglePdvUser(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{user.active ? "Desativar" : "Ativar"}</button>
+                      <div className="w-full rounded-xl bg-background/70 p-3 mt-2"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>{savingPermissionsUserId === user.id && <span role="status" className="text-xs font-semibold text-primary">Salvando permissões… aguarde</span>}</div><div className="flex flex-wrap gap-3">{["PDV","Conferência","Validade","Fiado","Gerência"].map(area => <label key={area} className={`flex items-center gap-1.5 text-xs text-foreground ${savingPermissionsUserId === user.id ? "opacity-60" : ""}`}><input type="checkbox" checked={(user.permissions ?? ["PDV","Conferência"]).includes(area)} disabled={area === "PDV" || !!savingPermissionsUserId || !!togglingUserId || !!deletingUserId} onChange={e => void saveUserPermissions(user, e.target.checked ? [...(user.permissions ?? ["PDV","Conferência"]), area] : (user.permissions ?? ["PDV","Conferência"]).filter(p => p !== area))} className="accent-primary" />{area}</label>)}</div><p className="mt-2 text-xs text-muted-foreground">A permissão Gerência libera a tentativa de entrada, mas a senha da Gerência continua obrigatória.</p></div><button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
+                      <button onClick={() => void togglePdvUser(user)} disabled={togglingUserId === user.id || !!savingPermissionsUserId || !!deletingUserId} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground disabled:opacity-50">{togglingUserId === user.id ? "Aguarde..." : user.active ? "Desativar" : "Ativar"}</button>
                       <button onClick={() => void deletePdvUser(user)} disabled={deletingUserId === user.id} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">{deletingUserId === user.id ? "Excluindo..." : "Excluir"}</button>
                     </div>
                   ))}
