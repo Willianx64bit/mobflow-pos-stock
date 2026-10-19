@@ -308,7 +308,7 @@ function Configuracoes() {
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
-      <main className="max-w-3xl mx-auto space-y-5">
+      <main className="w-full max-w-7xl mx-auto space-y-5">
         <section className="glass p-5 md:p-6">
           <div className="flex items-center justify-between gap-3 mb-6">
             <div>
