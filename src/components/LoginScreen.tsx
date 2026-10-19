@@ -62,7 +62,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     event.preventDefault();
     setRecoveryMessage("");
     const cleanUsername = recoveryUsername.trim();
-    const cleanCnpj = recoveryCnpj.replace(/\\D/g, "");
+    const cleanCnpj = recoveryCnpj.replace(/\D/g, "");
     if (!cleanUsername || cleanCnpj.length !== 14) {
       setRecoveryMessage("Informe o usuário e o CNPJ completo da empresa.");
       return;
