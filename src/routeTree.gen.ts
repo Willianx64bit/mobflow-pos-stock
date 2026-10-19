@@ -159,7 +159,6 @@ export interface FileRouteTypes {
     | '/recuperar-senha'
     | '/validade'
     | '/vendas'
-    | '/recuperar-senha'
     | '/fiado/$customer'
     | '/fiado/cliente'
   fileRoutesByTo: FileRoutesByTo
@@ -173,6 +172,7 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/promocoes'
     | '/recebimento'
+    | '/recuperar-senha'
     | '/validade'
     | '/vendas'
     | '/fiado/$customer'
@@ -188,6 +188,7 @@ export interface FileRouteTypes {
     | '/gerencia'
     | '/promocoes'
     | '/recebimento'
+    | '/recuperar-senha'
     | '/validade'
     | '/vendas'
     | '/fiado/$customer'
