@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -63,7 +64,7 @@ function Gerencia() {
     window.dispatchEvent(new Event("mobflow-management-changed"));
   };
 
-  const requestManagerPasswordRecovery = async (event: React.FormEvent<HTMLFormElement>) => {
+  const requestManagerPasswordRecovery = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setRecoveryMessage("");
     const email = recoveryEmail.trim().toLowerCase();
