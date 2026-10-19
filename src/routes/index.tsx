@@ -240,7 +240,7 @@ function PDV() {
   };
 
   return (
-    <div className="mfb-in min-h-screen p-4 md:p-6">
+    <div className="mfb-in min-h-screen p-3 md:p-4 xl:p-5">
       <AppHeader />
       {(settings.companyName || settings.companyLogo) && (
         <div className="mb-4 glass px-4 py-3 flex items-center gap-3">
@@ -248,9 +248,9 @@ function PDV() {
           {settings.companyName && <div className="font-display text-xl tracking-[.08em] text-heading truncate">{settings.companyName}</div>}
         </div>
       )}
-      <main className="grid lg:grid-cols-[minmax(0,1fr)_460px] gap-4">
+      <main className="grid lg:grid-cols-[minmax(0,1fr)_500px] xl:grid-cols-[minmax(0,1fr)_520px] gap-4 items-stretch">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
-        <section className="glass p-4">
+        <section className="glass p-4 min-w-0">
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-3 field px-4 py-3">
               <span className="font-mono text-[11px] text-primary">/</span>
@@ -276,7 +276,7 @@ function PDV() {
             {flash && <span className={`font-mono text-[11px] ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-5 gap-2 mt-4 max-h-[calc(100vh-330px)] overflow-y-auto pr-1">
+          <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-5 gap-2.5 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
             {results.map((p, i) => {
               const out = p.stock <= 0;
               return (
@@ -309,18 +309,18 @@ function PDV() {
           
         </section>
 
-        <aside className="glass p-5 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
+        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:h-[calc(100vh-100px)] lg:max-h-none">
           <div className="flex items-center justify-between pb-3 border-b border-border">
-            <span className="font-display text-[28px] tracking-[.12em] text-heading">CHECKOUT</span>
-            <span className="font-mono text-[11px] text-muted-foreground">{count} itens</span>
+            <span className="font-display text-[32px] xl:text-[36px] tracking-[.12em] text-heading">CHECKOUT</span>
+            <span className="font-mono text-[13px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
 
             {lines.map(({ p, qty }) => (
-              <div key={p.id} className="py-3 flex items-center gap-3">
+              <div key={p.id} className="py-4 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold text-foreground truncate">{p.name}</div>
-                  <div className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
+                  <div className="text-[15px] xl:text-[16px] font-semibold text-foreground truncate">{p.name}</div>
+                  <div className="font-mono text-[12px] xl:text-[13px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
                   <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
@@ -345,7 +345,7 @@ function PDV() {
                     }}
                     inputMode="decimal"
                     aria-label={`Quantidade de ${p.name}`}
-                    className="w-14 bg-transparent text-center font-mono text-[13px] text-foreground outline-none"
+                    className="w-16 bg-transparent text-center font-mono text-[15px] text-foreground outline-none"
                   />
                   <span className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
                   <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
@@ -407,15 +407,15 @@ function PDV() {
               {discount > 0 && <span className="font-mono text-[11px] text-destructive whitespace-nowrap">- R$ {brl(discount)}</span>}
             </div>
             <div className="flex justify-between items-baseline">
-              <span className="label-mono">{discount > 0 ? "Total com desconto" : "Total"}</span>
-              <span className="font-display text-[40px] leading-none text-heading">R$ {brl(total)}</span>
+              <span className="label-mono text-[14px]">{discount > 0 ? "Total com desconto" : "Total"}</span>
+              <span className="font-display text-[44px] xl:text-[50px] leading-none text-heading">R$ {brl(total)}</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
               {PAYMENTS.map((m) => {
                 const shortcut: Record<Payment, string> = { Dinheiro: "F2", Pix: "F3", Cartão: "F4", Fiado: "F5" };
                 return (
                   <button key={m} onClick={() => setPayment(m)}
-                    className={`rounded-lg py-2 px-1 text-[12px] font-semibold ring-1 transition-colors ${payment === m ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground hover:text-foreground"}`}>
+                    className={`rounded-lg py-3 px-1 text-[14px] font-semibold ring-1 transition-colors ${payment === m ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground hover:text-foreground"}`}>
                     <span className="block">{m}</span>
                     <kbd className="mt-0.5 block text-[9px] leading-none opacity-60 font-mono">{shortcut[m]}</kbd>
                   </button>
@@ -433,7 +433,7 @@ function PDV() {
               </div>
             )}
             <button ref={finishButton} onClick={() => { setPaymentShortcutArmed(false); finish(); }} disabled={!pdvAuthorized || !lines.length}
-              className="mt-3 w-full rounded-xl bg-primary text-primary-foreground font-bold text-[15px] py-3.5 flex items-center justify-center gap-2 hover:bg-primary/85 disabled:opacity-40">
+              className="mt-4 w-full rounded-xl bg-primary text-primary-foreground font-bold text-[17px] py-4 flex items-center justify-center gap-2 hover:bg-primary/85 disabled:opacity-40">
               Finalizar venda <kbd className="font-mono text-[11px] opacity-70">Enter</kbd>
             </button>
           </div>
