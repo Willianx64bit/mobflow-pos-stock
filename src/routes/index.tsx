@@ -248,7 +248,7 @@ function PDV() {
           {settings.companyName && <div className="font-display text-xl tracking-[.08em] text-heading truncate">{settings.companyName}</div>}
         </div>
       )}
-      <main className="grid lg:grid-cols-[1fr_380px] gap-4">
+      <main className="grid lg:grid-cols-[minmax(0,1fr)_460px] gap-4">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4">
           <div className="flex gap-2">
@@ -276,16 +276,16 @@ function PDV() {
             {flash && <span className={`font-mono text-[11px] ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mt-4 max-h-[calc(100vh-330px)] overflow-y-auto pr-1">
+          <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-5 gap-2 mt-4 max-h-[calc(100vh-330px)] overflow-y-auto pr-1">
             {results.map((p, i) => {
               const out = p.stock <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-3 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
+                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
-                  <div className="aspect-[4/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
+                  <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
                   <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
@@ -309,9 +309,9 @@ function PDV() {
           
         </section>
 
-        <aside className="glass p-4 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
+        <aside className="glass p-5 flex flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-130px)]">
           <div className="flex items-center justify-between pb-3 border-b border-border">
-            <span className="font-display text-[20px] tracking-[.12em] text-heading">CHECKOUT</span>
+            <span className="font-display text-[28px] tracking-[.12em] text-heading">CHECKOUT</span>
             <span className="font-mono text-[11px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
