@@ -25,7 +25,10 @@ Deno.serve(async (req) => {
 
     // New paid accounts must be activated by the subscription owner before login.
     // Legacy accounts without a companies row continue to work as before.
-    if (profile?.role === "manager" && profile.account_id) {
+    const hasManagementAccess = profile?.role === "manager" ||
+      (profile?.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência"));
+
+    if (hasManagementAccess && profile?.account_id) {
       const { data: company, error: companyError } = await admin.from("companies")
         .select("subscription_status").eq("account_id", profile.account_id).maybeSingle();
       if (companyError) return json({ error: "Não foi possível verificar a assinatura." }, 500);
