@@ -37,6 +37,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   } | null>(null);
   const [signupCopied, setSignupCopied] = useState(false);
   const [pendingPayment, setPendingPayment] = useState<any>(null);
+  const [savedPendingPayment, setSavedPendingPayment] = useState<any>(() => {
+    try { return JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null"); } catch { return null; }
+  });
   const [signupForm, setSignupForm] = useState({
     companyName: "", username: "", password: "", cnpj: "", email: "", phone: "",
   });
@@ -113,19 +116,19 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         if (error && !serverMessage && error.context && typeof error.context.clone === "function") {
           try { const detail = await error.context.clone().json(); serverMessage = String(detail?.error || ""); } catch { /* mantém mensagem genérica */ }
         }
-        if (mode === "empresa" && /aguarda confirmação e ativação|assinatura ainda aguarda confirmação/i.test(serverMessage)) {
-          try {
-            const saved = JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null");
-            const enteredUsername = username.trim().toUpperCase();
-            const enteredCnpj = cnpj.replace(/\D/g, "");
-            if (saved && saved.username === enteredUsername && saved.cnpj === enteredCnpj && saved.amount && saved.pixCopyPaste && saved.pixQrCode) {
-              setPendingPayment(saved);
-              setError("");
-              return;
-            }
-          } catch { /* sem dados locais, mantém o aviso seguro */ }
-          setError("Pagamento pendente. Sua conta ainda não foi liberada. Para abrir o Pix, use o dispositivo em que fez o cadastro ou entre em contato com o MobFlow.");
-          return;
+        if (mode === "empresa") {
+          const saved = savedPendingPayment;
+          const enteredUsername = username.trim().toUpperCase();
+          const enteredCnpj = cnpj.replace(/\D/g, "");
+          if (saved && saved.username === enteredUsername && saved.cnpj === enteredCnpj && saved.amount && saved.pixCopyPaste && saved.pixQrCode) {
+            setPendingPayment(saved);
+            setError("");
+            return;
+          }
+          if (/aguarda confirmação e ativação|assinatura ainda aguarda confirmação|pagamento pendente/i.test(serverMessage)) {
+            setError("Pagamento pendente. Se você fez o cadastro neste dispositivo, informe o mesmo usuário e CNPJ para abrir o Pix.");
+            return;
+          }
         }
         // Nunca revelar se o usuário existe ou se pertence a outra empresa.
         setError("Usuário ou senha inválido.");
@@ -193,13 +196,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         username: String(data.username || signupForm.username.toUpperCase()),
         requestToken: String(data.requestToken || ""),
       });
-      localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify({
+      const pending = {
         amount: Number(data.amount), pixCopyPaste: String(data.pixCopyPaste), pixQrCode: String(data.pixQrCode),
         pixRecipientName: String(data.pixRecipientName || "MOBFLOW"),
         username: String(data.username || signupForm.username.toUpperCase()),
         requestToken: String(data.requestToken || ""), cnpj: signupForm.cnpj.replace(/\D/g, ""),
         email: signupForm.email.trim().toLowerCase(),
-      }));
+      };
+      localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
+      setSavedPendingPayment(pending);
     } catch (err) {
       setSignupError(err instanceof Error ? err.message : "Não foi possível conectar ao servidor.");
     } finally {
@@ -268,7 +273,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             Seu acesso ficará pendente até o administrador confirmar o recebimento do Pix. Guarde o usuário e a senha cadastrados.
           </div>
           {signupError && <p className="mt-3 text-sm text-destructive">{signupError}</p>}
-          <button type="button" onClick={() => { setShowSignup(false); setSignupResult(null); setSignupCopied(false); setSignupForm({ companyName: "", username: "", password: "", cnpj: "", email: "", phone: "" }); }} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 font-semibold text-muted-foreground hover:bg-accent">
+          <button type="button" onClick={() => { setShowSignup(false); setSignupResult(null); setSignupCopied(false); setUsername(signupResult.username); setCnpj(formatCnpj(signupForm.cnpj)); setSignupForm({ companyName: "", username: "", password: "", cnpj: "", email: "", phone: "" }); }} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 font-semibold text-muted-foreground hover:bg-accent">
             <ArrowLeft className="h-4 w-4" /> Voltar ao login
           </button>
         </div>
@@ -372,6 +377,22 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
+          {mode === "empresa" && savedPendingPayment && (
+            <button type="button" onClick={() => {
+              const enteredUsername = username.trim().toUpperCase();
+              const enteredCnpj = cnpj.replace(/\D/g, "");
+              if (enteredUsername !== savedPendingPayment.username || enteredCnpj !== savedPendingPayment.cnpj) {
+                setError("Informe o mesmo usuário e CNPJ usados no cadastro para abrir o pagamento pendente.");
+                return;
+              }
+              setPendingPayment(savedPendingPayment);
+              setError("");
+              setSignupError("");
+              setSignupCopied(false);
+            }} className="w-full rounded-xl border border-amber-500/50 bg-amber-500/10 py-3.5 font-bold text-foreground hover:bg-amber-500/20">
+              Pagamento pendente · Ver QR Code Pix
+            </button>
+          )}
           {mode === "empresa" && !onClose && (
             <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3.5 font-bold text-foreground hover:bg-accent transition-colors">
               Criar conta
