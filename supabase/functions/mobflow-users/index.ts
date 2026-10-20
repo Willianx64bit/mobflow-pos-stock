@@ -143,7 +143,18 @@ Deno.serve(async (req) => {
     if (action === "create") {
       const username = String(body.username ?? "").trim().toUpperCase();
       const displayName = String(body.displayName ?? "").trim() || username;
-      const permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : ["PDV", "Conferência"];
+      let permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : ["PDV", "Conferência"];
+
+      // The first operator created for a company automatically receives Gerência
+      // so the company is not locked out during initial setup.
+      const { data: existingPdvUsers, error: existingPdvUsersError } = await admin
+        .from("profiles")
+        .select("id")
+        .eq("account_id", manager.account_id)
+        .eq("role", "pdv")
+        .limit(1);
+      if (existingPdvUsersError) return json({ error: "Não foi possível verificar se este é o primeiro usuário da empresa." }, 500);
+      if (!existingPdvUsers?.length && !permissions.includes("Gerência")) permissions = [...permissions, "Gerência"];
       const password = String(body.password ?? "");
       if (!/^[A-Z0-9._-]{3,40}$/.test(username)) return json({ error: "Usuário inválido. Use letras, números, ponto, hífen ou underline." }, 400);
       if (password.length < 6) return json({ error: "A senha precisa ter pelo menos 6 caracteres." }, 400);
