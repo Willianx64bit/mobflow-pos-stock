@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
-import { LogOut } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
 
 const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
@@ -28,6 +28,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
+  const [signupError, setSignupError] = useState("");
+  const [signupResult, setSignupResult] = useState<{
+    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string;
+  } | null>(null);
+  const [signupCopied, setSignupCopied] = useState(false);
+  const [signupForm, setSignupForm] = useState({
+    companyName: "", username: "", password: "", cnpj: "", email: "", phone: "",
+  });
 
   // O login do operador deve sempre começar vazio, sem reaproveitar/autopreencher credenciais da empresa.
   useEffect(() => {
@@ -133,6 +143,107 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     }
   };
 
+  const submitSignup = async (e: FormEvent) => {
+    e.preventDefault();
+    setSignupLoading(true);
+    setSignupError("");
+    try {
+      const { data, error } = await supabase.functions.invoke("mobflow-signup", {
+        body: {
+          companyName: signupForm.companyName.trim(),
+          username: signupForm.username.trim().toUpperCase(),
+          password: signupForm.password,
+          cnpj: signupForm.cnpj,
+          email: signupForm.email.trim().toLowerCase(),
+          phone: signupForm.phone,
+        },
+      });
+      if (error || !data?.ok) {
+        let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";
+        if (error && !data?.error && error.context && typeof error.context.json === "function") {
+          try { const detail = await error.context.json(); if (detail?.error) message = detail.error; } catch { /* mantém a mensagem padrão */ }
+        }
+        throw new Error(message);
+      }
+      setSignupResult({
+        amount: Number(data.amount),
+        pixCopyPaste: String(data.pixCopyPaste),
+        pixQrCode: String(data.pixQrCode),
+        pixRecipientName: String(data.pixRecipientName || "MOBFLOW"),
+        username: String(data.username || signupForm.username.toUpperCase()),
+      });
+    } catch (err) {
+      setSignupError(err instanceof Error ? err.message : "Não foi possível conectar ao servidor.");
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
+  const copyPixCode = async () => {
+    if (!signupResult) return;
+    try {
+      await navigator.clipboard.writeText(signupResult.pixCopyPaste);
+      setSignupCopied(true);
+    } catch {
+      setSignupError("Não foi possível copiar automaticamente. Selecione e copie o código Pix.");
+    }
+  };
+
+  if (mode === "empresa" && showSignup && signupResult) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
+        <div className="mfb-in w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+          <img src="/mobflow-logo.svg" alt="MobFlow" className="mx-auto mb-6 block h-auto w-full max-w-[240px] object-contain" />
+          <div className="text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-secondary text-primary"><CheckCircle2 className="h-7 w-7" /></div>
+            <h1 className="mt-4 font-display text-xl tracking-[.08em] text-heading">CADASTRO RECEBIDO</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Usuário gerente: <strong>{signupResult.username}</strong></p>
+            <p className="mt-3 text-sm text-muted-foreground">Mensalidade: <strong className="text-foreground">{signupResult.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong></p>
+          </div>
+          <div className="mt-5 rounded-xl border border-border bg-background p-4 text-center">
+            <p className="mb-3 text-sm font-semibold">Pague com Pix para {signupResult.pixRecipientName}</p>
+            <img src={signupResult.pixQrCode} alt="QR Code Pix da mensalidade" className="mx-auto h-56 w-56 max-w-full rounded-lg bg-white p-2" />
+            <label className="mt-3 block text-left text-xs font-semibold text-muted-foreground">Pix copia e cola</label>
+            <textarea readOnly value={signupResult.pixCopyPaste} rows={4} className="field mt-1 w-full resize-y text-xs text-foreground" onFocus={(e) => e.currentTarget.select()} />
+            <button type="button" onClick={copyPixCode} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground hover:bg-primary/85">
+              <Copy className="h-4 w-4" /> {signupCopied ? "Código Pix copiado" : "Copiar código Pix"}
+            </button>
+          </div>
+          <div className="mt-4 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">
+            Seu acesso ficará pendente até o administrador confirmar o recebimento do Pix. Guarde o usuário e a senha cadastrados.
+          </div>
+          {signupError && <p className="mt-3 text-sm text-destructive">{signupError}</p>}
+          <button type="button" onClick={() => { setShowSignup(false); setSignupResult(null); setSignupCopied(false); setSignupForm({ companyName: "", username: "", password: "", cnpj: "", email: "", phone: "" }); }} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 font-semibold text-muted-foreground hover:bg-accent">
+            <ArrowLeft className="h-4 w-4" /> Voltar ao login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "empresa" && showSignup) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
+        <div className="mfb-in w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+          <img src="/mobflow-logo.svg" alt="MobFlow" className="mx-auto mb-6 block h-auto w-full max-w-[240px] object-contain" />
+          <button type="button" onClick={() => { setShowSignup(false); setSignupError(""); }} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Voltar ao login</button>
+          <h1 className="font-display text-xl tracking-[.08em] text-heading">CRIAR CONTA</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Preencha os dados da empresa para gerar a cobrança Pix.</p>
+          <form onSubmit={submitSignup} className="mt-5 space-y-3" autoComplete="off">
+            <div><label className="label-mono mb-1 block">Nome da empresa</label><input required minLength={2} maxLength={120} value={signupForm.companyName} onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })} className="field w-full text-foreground" placeholder="Nome da empresa" /></div>
+            <div><label className="label-mono mb-1 block">Usuário do gerente</label><input required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]+" value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value.toUpperCase() })} className="field w-full text-foreground" placeholder="Ex.: MERCADO01" /></div>
+            <div><label className="label-mono mb-1 block">Senha (mínimo 8 caracteres)</label><input required minLength={8} maxLength={128} type="password" autoComplete="new-password" value={signupForm.password} onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })} className="field w-full text-foreground" placeholder="Crie uma senha" /></div>
+            <div><label className="label-mono mb-1 block">CNPJ</label><input required inputMode="numeric" value={signupForm.cnpj} onChange={(e) => setSignupForm({ ...signupForm, cnpj: formatCnpj(e.target.value) })} className="field w-full text-foreground" placeholder="00.000.000/0000-00" /></div>
+            <div><label className="label-mono mb-1 block">E-mail</label><input required type="email" maxLength={254} autoComplete="email" value={signupForm.email} onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })} className="field w-full text-foreground" placeholder="email@empresa.com" /></div>
+            <div><label className="label-mono mb-1 block">Telefone com DDD</label><input required type="tel" inputMode="tel" value={signupForm.phone} onChange={(e) => setSignupForm({ ...signupForm, phone: e.target.value })} className="field w-full text-foreground" placeholder="(15) 99999-9999" /></div>
+            {signupError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{signupError}</div>}
+            <button type="submit" disabled={signupLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 disabled:opacity-50">{signupLoading ? "Criando cadastro..." : "Criar conta e gerar Pix"}</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
       <div className="mfb-in relative w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
@@ -206,6 +317,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
+          {mode === "empresa" && !onClose && (
+            <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3.5 font-bold text-foreground hover:bg-accent transition-colors">
+              Criar conta
+            </button>
+          )}
           {mode === "pdv" && onClose && (
             <button type="button" onClick={onClose} className="w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               Cancelar
