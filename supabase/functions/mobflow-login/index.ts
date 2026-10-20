@@ -26,13 +26,18 @@ Deno.serve(async (req) => {
     const hasManagementAccess = profile?.role === "manager" ||
       (profile?.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência"));
 
-    // Any account with management access must have an active subscription.
-    if (hasManagementAccess && profile?.account_id) {
+    // Validate subscription for every user in the company, not only management users.
+    if (profile?.account_id) {
       const { data: company, error: companyError } = await admin.from("companies")
-        .select("subscription_status").eq("account_id", profile.account_id).maybeSingle();
+        .select("subscription_status,subscription_expires_at,company_name").eq("account_id", profile.account_id).maybeSingle();
       if (companyError) return json({ error: "Não foi possível verificar a assinatura." }, 500);
-      if (company && company.subscription_status !== "active") {
-        return json({ error: "Sua conta foi criada, mas a assinatura ainda aguarda confirmação e ativação. Entre em contato com o MobFlow para liberar o acesso." }, 403);
+      if (!company) return json({ error: "Assinatura da empresa não encontrada. Entre em contato com o MobFlow." }, 403);
+      const expired = Boolean(company.subscription_expires_at && new Date(company.subscription_expires_at).getTime() <= Date.now());
+      if (expired && company.subscription_status === "active") {
+        await admin.from("companies").update({ subscription_status: "past_due" }).eq("account_id", profile.account_id).eq("subscription_status", "active");
+      }
+      if (company.subscription_status !== "active" || expired) {
+        return json({ error: expired ? "A mensalidade desta empresa venceu. Solicite ao administrador a confirmação do pagamento para liberar o acesso." : "A assinatura desta empresa não está ativa. Entre em contato com o administrador do MobFlow." }, 403);
       }
     }
 
