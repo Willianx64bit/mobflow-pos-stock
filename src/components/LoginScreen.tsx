@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
 
 const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
+const PENDING_PAYMENT_KEY = "mobflow-pending-payment";
 
 export function isAuthenticated() {
   return localStorage.getItem(AUTH_KEY) === "1";
@@ -32,9 +33,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [signupResult, setSignupResult] = useState<{
-    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string;
+    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string; requestToken?: string;
   } | null>(null);
   const [signupCopied, setSignupCopied] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<any>(null);
   const [signupForm, setSignupForm] = useState({
     companyName: "", username: "", password: "", cnpj: "", email: "", phone: "",
   });
@@ -107,6 +109,21 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       });
 
       if (error || !data?.session) {
+        const serverMessage = String(data?.error || "");
+        if (mode === "empresa" && /aguarda confirmação e ativação|assinatura ainda aguarda confirmação/i.test(serverMessage)) {
+          try {
+            const saved = JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null");
+            const enteredUsername = username.trim().toUpperCase();
+            const enteredCnpj = cnpj.replace(/\D/g, "");
+            if (saved && saved.username === enteredUsername && saved.cnpj === enteredCnpj && saved.amount && saved.pixCopyPaste && saved.pixQrCode) {
+              setPendingPayment(saved);
+              setError("");
+              return;
+            }
+          } catch { /* sem dados locais, mantém o aviso seguro */ }
+          setError("Pagamento pendente. Sua conta ainda não foi liberada. Para abrir o Pix, use o dispositivo em que fez o cadastro ou entre em contato com o MobFlow.");
+          return;
+        }
         // Nunca revelar se o usuário existe ou se pertence a outra empresa.
         setError("Usuário ou senha inválido.");
         return;
@@ -171,7 +188,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         pixQrCode: String(data.pixQrCode),
         pixRecipientName: String(data.pixRecipientName || "MOBFLOW"),
         username: String(data.username || signupForm.username.toUpperCase()),
+        requestToken: String(data.requestToken || ""),
       });
+      localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify({
+        amount: Number(data.amount), pixCopyPaste: String(data.pixCopyPaste), pixQrCode: String(data.pixQrCode),
+        pixRecipientName: String(data.pixRecipientName || "MOBFLOW"),
+        username: String(data.username || signupForm.username.toUpperCase()),
+        requestToken: String(data.requestToken || ""), cnpj: signupForm.cnpj.replace(/\D/g, ""),
+        email: signupForm.email.trim().toLowerCase(),
+      }));
     } catch (err) {
       setSignupError(err instanceof Error ? err.message : "Não foi possível conectar ao servidor.");
     } finally {
@@ -188,6 +213,33 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       setSignupError("Não foi possível copiar automaticamente. Selecione e copie o código Pix.");
     }
   };
+
+
+  if (mode === "empresa" && pendingPayment) {
+    return (
+      <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
+        <div className="mfb-in w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+          <img src="/mobflow-logo.svg" alt="MobFlow" className="mx-auto mb-6 block h-auto w-full max-w-[240px] object-contain" />
+          <div className="text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-secondary text-primary"><CheckCircle2 className="h-7 w-7" /></div>
+            <h1 className="mt-4 font-display text-xl tracking-[.08em] text-heading">PAGAMENTO PENDENTE</h1>
+            <p className="mt-2 text-sm text-muted-foreground">A conta <strong>{pendingPayment.username}</strong> aguarda a confirmação do Pix para liberar o acesso.</p>
+            <p className="mt-3 text-lg font-bold text-foreground">{pendingPayment.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+          </div>
+          <div className="mt-5 rounded-xl border border-border bg-background p-4 text-center">
+            <p className="mb-3 text-sm font-semibold">Pague com Pix para {pendingPayment.pixRecipientName}</p>
+            <img src={pendingPayment.pixQrCode} alt="QR Code Pix da mensalidade" className="mx-auto h-56 w-56 max-w-full rounded-lg bg-white p-2" />
+            <label className="mt-3 block text-left text-xs font-semibold text-muted-foreground">Pix copia e cola</label>
+            <textarea readOnly value={pendingPayment.pixCopyPaste} rows={4} className="field mt-1 w-full resize-y text-xs text-foreground" onFocus={(e) => e.currentTarget.select()} />
+            <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(pendingPayment.pixCopyPaste); setSignupCopied(true); } catch { setSignupError("Selecione e copie o código Pix manualmente."); } }} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground hover:bg-primary/85"><Copy className="h-4 w-4" /> {signupCopied ? "Código Pix copiado" : "Copiar código Pix"}</button>
+          </div>
+          <p className="mt-4 rounded-lg bg-secondary p-3 text-sm text-muted-foreground">Depois de pagar, aguarde a confirmação manual do administrador. Não é necessário criar outra conta.</p>
+          {signupError && <p className="mt-3 text-sm text-destructive">{signupError}</p>}
+          <button type="button" onClick={() => { setPendingPayment(null); setPassword(""); setError(""); setSignupCopied(false); }} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 font-semibold text-muted-foreground hover:bg-accent"><ArrowLeft className="h-4 w-4" /> Voltar ao login</button>
+        </div>
+      </div>
+    );
+  }
 
   if (mode === "empresa" && showSignup && signupResult) {
     return (
