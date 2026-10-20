@@ -377,22 +377,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
-          {mode === "empresa" && savedPendingPayment && (
-            <button type="button" onClick={() => {
-              const enteredUsername = username.trim().toUpperCase();
-              const enteredCnpj = cnpj.replace(/\D/g, "");
-              if (enteredUsername !== savedPendingPayment.username || enteredCnpj !== savedPendingPayment.cnpj) {
-                setError("Informe o mesmo usuário e CNPJ usados no cadastro para abrir o pagamento pendente.");
-                return;
-              }
-              setPendingPayment(savedPendingPayment);
-              setError("");
-              setSignupError("");
-              setSignupCopied(false);
-            }} className="w-full rounded-xl border border-amber-500/50 bg-amber-500/10 py-3.5 font-bold text-foreground hover:bg-amber-500/20">
-              Pagamento pendente · Ver QR Code Pix
-            </button>
-          )}
           {mode === "empresa" && !onClose && (
             <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3.5 font-bold text-foreground hover:bg-accent transition-colors">
               Criar conta
