@@ -23,11 +23,10 @@ Deno.serve(async (req) => {
     const { data: profile, error: profileError } = await admin.from("profiles").select("id,username,cnpj,account_id,role,active,display_name,permissions").eq("username", cleanUsername).maybeSingle();
     if (profileError) return json({ error: "Não foi possível validar a conta." }, 500);
 
-    // New paid accounts must be activated by the subscription owner before login.
-    // Legacy accounts without a companies row continue to work as before.
     const hasManagementAccess = profile?.role === "manager" ||
       (profile?.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência"));
 
+    // Any account with management access must have an active subscription.
     if (hasManagementAccess && profile?.account_id) {
       const { data: company, error: companyError } = await admin.from("companies")
         .select("subscription_status").eq("account_id", profile.account_id).maybeSingle();
@@ -37,25 +36,36 @@ Deno.serve(async (req) => {
       }
     }
 
+    let firstManagerLogin = false;
     if (profile) {
       if (!profile.active) return json({ error: "Usuário ou acesso inválido." }, 401);
       if (expectedRole === "pdv" && profile.role !== "pdv") return json({ error: "Esse usuário não é um usuário do PDV. Use um usuário criado em Configurações → Usuários do PDV." }, 403);
       if (expectedRole === "pdv" && cleanCnpj.length !== 14) return json({ error: "Informe o CNPJ da empresa para validar o acesso do PDV." }, 400);
       if (expectedRole === "pdv" && profile.cnpj !== cleanCnpj) return json({ error: "Esse usuário do PDV pertence a outra empresa." }, 403);
-      if (expectedRole === "manager" && profile.role !== "manager") return json({ error: "Esse usuário é do PDV e não pode entrar como gerente." }, 403);
-      if (profile.role === "manager" && profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
+      if (expectedRole === "manager" && !hasManagementAccess) return json({ error: "Esse usuário não tem permissão de Gerência." }, 403);
+      if (expectedRole === "manager" && profile.cnpj !== cleanCnpj) return json({ error: "CNPJ da empresa inválido." }, 401);
+      if (expectedRole === "manager" && profile.account_id) {
+        const { data: managerSecurity, error: managerSecurityError } = await admin.from("manager_security_by_account").select("account_id").eq("account_id", profile.account_id).maybeSingle();
+        const { data: activePdvUsers, error: pdvUsersError } = await admin.from("profiles").select("id").eq("account_id", profile.account_id).eq("role", "pdv").eq("active", true).limit(1);
+        if (managerSecurityError || pdvUsersError) return json({ error: "Não foi possível verificar a configuração inicial da empresa." }, 500);
+        firstManagerLogin = !managerSecurity && !activePdvUsers?.length;
+      }
     } else {
       if (expectedRole !== "manager") return json({ error: "Usuário do PDV não encontrado. Cadastre-o primeiro pela gerência da empresa." }, 401);
       if (cleanCnpj.length !== 14) return json({ error: "Para acessar a gerência, informe o CNPJ da empresa." }, 400);
       const { data: allowed } = await admin.from("account_allowlist").select("username,cnpj,active").eq("username", cleanUsername).eq("cnpj", cleanCnpj).eq("active", true).maybeSingle();
       if (!allowed) return json({ error: "Usuário não autorizado." }, 401);
+      const { data: existingCompanyProfiles, error: existingProfilesError } = await admin.from("profiles").select("id").eq("cnpj", cleanCnpj).limit(1);
+      if (existingProfilesError) return json({ error: "Não foi possível verificar os usuários da empresa." }, 500);
+      const isFirstCompanyUser = !existingCompanyProfiles?.length;
       const { data: created, error: createError } = await admin.auth.admin.createUser({ email, password: cleanPassword, email_confirm: true, user_metadata: { username: cleanUsername, cnpj: cleanCnpj, role: "manager", display_name: cleanUsername } });
       if (createError || !created.user) { console.error("createUser failed", createError); return json({ error: createError?.message ?? "Não foi possível criar a conta." }, 400); }
       const { error: insertError } = await admin.from("profiles").upsert({ id: created.user.id, username: cleanUsername, cnpj: cleanCnpj, account_id: created.user.id, role: "manager", active: true, display_name: cleanUsername, permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] }, { onConflict: "id" });
       if (insertError) { await admin.auth.admin.deleteUser(created.user.id); return json({ error: "Não foi possível preparar a conta." }, 500); }
+      firstManagerLogin = isFirstCompanyUser;
     }
     const { data, error } = await client.auth.signInWithPassword({ email, password: cleanPassword });
     if (error || !data.session) return json({ error: "Usuário ou senha inválido." }, 401);
-    return json({ session: data.session, profile: { username: profile?.username ?? cleanUsername, role: profile?.role ?? "manager", account_id: profile?.account_id ?? data.user?.id ?? null, display_name: profile?.display_name ?? cleanUsername, permissions: profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : (Array.isArray(profile?.permissions) ? profile.permissions : ["PDV", "Conferência"]) } });
+    return json({ session: data.session, firstManagerLogin, profile: { username: profile?.username ?? cleanUsername, role: expectedRole === "manager" ? "manager" : (profile?.role ?? "pdv"), account_id: profile?.account_id ?? data.user?.id ?? null, display_name: profile?.display_name ?? cleanUsername, permissions: expectedRole === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : (Array.isArray(profile?.permissions) ? profile.permissions : ["PDV", "Conferência"]) } });
   } catch { return json({ error: "Não foi possível entrar agora." }, 500); }
 });
