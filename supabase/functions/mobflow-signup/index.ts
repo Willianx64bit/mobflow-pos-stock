@@ -35,6 +35,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Método não permitido." }, 405);
 
   let createdUserId: string | null = null;
+  let allowlistCreated = false;
+  let allowlistUsername = "";
   try {
     const body = await req.json();
     if (body.action === "submit_payment_proof") {
@@ -119,16 +121,6 @@ Deno.serve(async (req) => {
       return json({ ok: true, message: "Acesso do gerente configurado. O pagamento ainda depende da aprovação manual." });
     }
 
-    if (body.action === "payment_info") {
-      const url = Deno.env.get("SUPABASE_URL");
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (!url || !serviceKey) return json({ error: "Pagamento temporariamente indisponível." }, 503);
-      const publicAdmin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-      const { data: settings, error: settingsError } = await publicAdmin.from("mobflow_payment_settings")
-        .select("monthly_price").eq("id", true).maybeSingle();
-      if (settingsError || !settings) return json({ error: "Configurações de pagamento ainda não foram definidas." }, 503);
-      return json({ ok: true, amount: Number(settings.monthly_price) || 79.90 });
-    }
     const companyName = String(body.companyName ?? "").trim();
     const username = normalizeUsername(body.username);
     const password = String(body.password ?? "");
@@ -152,13 +144,22 @@ Deno.serve(async (req) => {
     if (!url || !serviceKey) return json({ error: "Cadastro temporariamente indisponível." }, 503);
     const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
-    const { data: paymentSettings, error: settingsError } = await admin.from("mobflow_payment_settings")
-      .select("pix_key,recipient_name,recipient_city,monthly_price").eq("id", true).maybeSingle();
-    if (settingsError || !paymentSettings?.pix_key) {
+    const billingResponse = await fetch("https://xsitutjpdshmidzpgxpx.supabase.co/functions/v1/mobflow-public-billing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!billingResponse.ok) {
+      console.error("mobflow signup billing config failed", billingResponse.status);
       return json({ error: "O cadastro está temporariamente indisponível para pagamento. Tente novamente mais tarde." }, 503);
     }
-    const monthlyPrice = Number(paymentSettings.monthly_price) || 79.90;
-    const pixCopyPaste = buildPixPayload(String(paymentSettings.pix_key), String(paymentSettings.recipient_name || "MOBFLOW"), String(paymentSettings.recipient_city || "SAO PAULO"), monthlyPrice);
+    const paymentSettings = await billingResponse.json();
+    const pixKey = String(paymentSettings.pix_phone ?? "").trim();
+    const monthlyPrice = Number(paymentSettings.monthly_price);
+    if (paymentSettings.ok !== true || !/^\+?\d{10,15}$/.test(pixKey) || !Number.isFinite(monthlyPrice) || monthlyPrice <= 0) {
+      return json({ error: "As configurações Pix ainda não estão disponíveis. Tente novamente mais tarde." }, 503);
+    }
+    const pixCopyPaste = buildPixPayload(pixKey, String(paymentSettings.recipient_name || "MOBFLOW"), String(paymentSettings.recipient_city || "SAO PAULO"), monthlyPrice);
     const pixQrCode = "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" + encodeURIComponent(pixCopyPaste);
 
     const { data: existingCnpj } = await admin.from("companies").select("account_id").eq("cnpj", cnpj).maybeSingle();
@@ -172,6 +173,22 @@ Deno.serve(async (req) => {
     }
     if (existingUsername) return json({ error: "Esse nome de usuário já está em uso." }, 409);
 
+    const { data: existingAllowlist, error: allowlistCheckError } = await admin.from("account_allowlist")
+      .select("username").eq("username", username).maybeSingle();
+    if (allowlistCheckError) {
+      console.error("mobflow-signup allowlist check failed", allowlistCheckError.message);
+      return json({ error: "Não foi possível validar o usuário agora. Tente novamente." }, 500);
+    }
+    if (existingAllowlist) return json({ error: "Esse nome de usuário já está em uso." }, 409);
+
+    const { error: allowlistInsertError } = await admin.from("account_allowlist").insert({ username, cnpj, active: true });
+    if (allowlistInsertError) {
+      console.error("mobflow-signup allowlist insert failed", allowlistInsertError.message);
+      return json({ error: allowlistInsertError.code === "23505" ? "Esse nome de usuário já está em uso." : "Não foi possível preparar o cadastro." }, allowlistInsertError.code === "23505" ? 409 : 500);
+    }
+    allowlistCreated = true;
+    allowlistUsername = username;
+
     const authEmail = username.toLowerCase() + "@accounts.mobflow.local";
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email: authEmail,
@@ -180,6 +197,8 @@ Deno.serve(async (req) => {
       user_metadata: { username, role: "manager", mobflow_signup: "public_signup" },
     });
     if (createError || !created.user) {
+      await admin.from("account_allowlist").delete().eq("username", username);
+      allowlistCreated = false;
       const message = createError?.message ?? "";
       if (message.toLowerCase().includes("already")) return json({ error: "Esse nome de usuário já está em uso." }, 409);
       console.error("mobflow-signup auth create failed", message);
@@ -203,6 +222,8 @@ Deno.serve(async (req) => {
     });
     if (companyError) {
       await admin.auth.admin.deleteUser(created.user.id);
+      await admin.from("account_allowlist").delete().eq("username", username);
+      allowlistCreated = false;
       createdUserId = null;
       if (companyError.code === "23505") return json({ error: "Já existe um cadastro com esse CNPJ, usuário ou e-mail." }, 409);
       console.error("mobflow-signup company insert failed", companyError.message);
@@ -222,6 +243,8 @@ Deno.serve(async (req) => {
     if (profileInsertError) {
       await admin.from("companies").delete().eq("account_id", created.user.id);
       await admin.auth.admin.deleteUser(created.user.id);
+      await admin.from("account_allowlist").delete().eq("username", username);
+      allowlistCreated = false;
       createdUserId = null;
       console.error("mobflow-signup manager profile insert failed", profileInsertError.message);
       return json({ error: profileInsertError.code === "23505" ? "Esse nome de usuário já está em uso." : "Não foi possível criar o acesso do gerente." }, profileInsertError.code === "23505" ? 409 : 500);
@@ -232,6 +255,8 @@ Deno.serve(async (req) => {
     if (requestTokenError || !paymentRequest?.payment_request_token) {
       await admin.from("companies").delete().eq("account_id", created.user.id);
       await admin.auth.admin.deleteUser(created.user.id);
+      await admin.from("account_allowlist").delete().eq("username", username);
+      allowlistCreated = false;
       createdUserId = null;
       console.error("mobflow-signup request token fetch failed", requestTokenError?.message);
       return json({ error: "Não foi possível preparar a solicitação de pagamento." }, 500);
@@ -251,6 +276,8 @@ Deno.serve(async (req) => {
       await admin.from("profiles").delete().eq("id", created.user.id);
       await admin.from("companies").delete().eq("account_id", created.user.id);
       await admin.auth.admin.deleteUser(created.user.id);
+      await admin.from("account_allowlist").delete().eq("username", username);
+      allowlistCreated = false;
       createdUserId = null;
       console.error("mobflow-signup app_state insert failed", stateError.message);
       return json({ error: "Não foi possível inicializar os dados da empresa." }, 500);
@@ -263,23 +290,24 @@ Deno.serve(async (req) => {
       amount: monthlyPrice,
       pixCopyPaste,
       pixQrCode,
-      pixRecipientName: paymentSettings.recipient_name,
+      pixRecipientName: paymentSettings.recipient_name || "MOBFLOW",
       requestToken: paymentRequest.payment_request_token,
       username,
       message: "Cadastro criado com acesso de gerente. Aguarde a aprovação manual do pagamento.",
     }, 201);
   } catch (error) {
     console.error("mobflow-signup unexpected error", error);
-    if (createdUserId) {
-      const url = Deno.env.get("SUPABASE_URL");
-      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      if (url && serviceKey) {
-        const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (url && serviceKey) {
+      const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+      if (createdUserId) {
         await admin.from("profiles").delete().eq("id", createdUserId);
         await admin.from("companies").delete().eq("account_id", createdUserId);
         await admin.from("app_state").delete().eq("owner_id", createdUserId);
         await admin.auth.admin.deleteUser(createdUserId);
       }
+      if (allowlistCreated && allowlistUsername) await admin.from("account_allowlist").delete().eq("username", allowlistUsername);
     }
     return json({ error: "Não foi possível concluir o cadastro agora." }, 500);
   }
