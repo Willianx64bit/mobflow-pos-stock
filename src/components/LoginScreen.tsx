@@ -109,7 +109,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       });
 
       if (error || !data?.session) {
-        const serverMessage = String(data?.error || "");
+        let serverMessage = String(data?.error || "");
+        if (error && !serverMessage && error.context && typeof error.context.clone === "function") {
+          try { const detail = await error.context.clone().json(); serverMessage = String(detail?.error || ""); } catch { /* mantém mensagem genérica */ }
+        }
         if (mode === "empresa" && /aguarda confirmação e ativação|assinatura ainda aguarda confirmação/i.test(serverMessage)) {
           try {
             const saved = JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null");
