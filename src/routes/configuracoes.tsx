@@ -69,6 +69,7 @@ function Configuracoes() {
   const [userName, setUserName] = useState("");
   const [userUsername, setUserUsername] = useState("");
   const [userPassword, setUserPassword] = useState("");
+  const [newUserPermissions, setNewUserPermissions] = useState<string[]>(["PDV", "Conferência"]);
   const [userMessage, setUserMessage] = useState("");
   const [userError, setUserError] = useState("");
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -154,7 +155,7 @@ function Configuracoes() {
     setUserError("");
     setUserMessage("");
     const { data, error } = await callUsers({
-      body: { action: "create", displayName: userName, username: userUsername, password: userPassword, permissions: ["PDV", "Conferência"] },
+      body: { action: "create", displayName: userName, username: userUsername, password: userPassword, permissions: newUserPermissions },
     });
     if (error || !data?.ok) {
       setUserError(data?.error || "Não foi possível criar o usuário.");
@@ -164,7 +165,8 @@ function Configuracoes() {
     setUserName("");
     setUserUsername("");
     setUserPassword("");
-    setUserMessage("Usuário do PDV criado com sucesso.");
+    setNewUserPermissions(["PDV", "Conferência"]);
+    setUserMessage("Usuário criado com sucesso.");
     await loadPdvUsers();
     setCreatingPdvUser(false);
   };
@@ -371,6 +373,11 @@ function Configuracoes() {
                       <input value={userName} onChange={e => setUserName(e.target.value)} placeholder="Nome do operador" className="field text-sm text-foreground" />
                       <input value={userUsername} onChange={e => setUserUsername(e.target.value.toUpperCase())} placeholder="Usuário" className="field text-sm text-foreground" />
                       <input value={userPassword} onChange={e => setUserPassword(e.target.value)} type="password" placeholder="Senha (mín. 6)" className="field text-sm text-foreground" />
+                    </div>
+                    <div className="mt-3 rounded-xl border border-border/60 bg-background/70 p-3">
+                      <div className="mb-2 text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>
+                      <div className="flex flex-wrap gap-3">{["PDV", "Conferência", "Validade", "Fiado", "Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-sm text-foreground"><input type="checkbox" checked={newUserPermissions.includes(area)} onChange={e => setNewUserPermissions(current => e.target.checked ? [...current, area] : current.filter(permission => permission !== area))} className="accent-primary" />{area}</label>)}</div>
+                      <p className="mt-2 text-xs text-muted-foreground">Para um conferente usar somente a Conferência, marque apenas essa opção. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
                     </div>
                     <button type="button" onClick={() => void createPdvUser()} disabled={creatingPdvUser || userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">{creatingPdvUser ? "Aguarde, criando usuário..." : "Criar usuário do PDV"}</button>
                   </div>
