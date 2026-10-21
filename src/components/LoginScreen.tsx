@@ -320,10 +320,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }
 
   return (
-    <div className="grid min-h-[100dvh] place-items-center bg-[#07111f] px-4 py-6">
-      <div className="mfb-in relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1b2a] p-6 shadow-2xl shadow-black/30 sm:p-8">
+    <div className="grid min-h-[100dvh] place-items-center bg-[#0b1726] px-4 py-6">
+      <div className="mfb-in relative w-full max-w-md rounded-2xl border border-white/10 bg-[#14263a] p-6 shadow-2xl shadow-black/30 sm:p-8">
         {mode === "pdv" && !onClose && (
-          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#142336] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
+          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#20364b] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
           </button>
         )}
@@ -341,7 +341,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </div>
           </div>
         )}
-        <div className="mx-auto w-full max-w-[320px] text-center">
+        <div className="mx-auto w-full max-w-[320px] rounded-xl bg-[#f8fafc] px-3 py-2.5 text-center shadow-sm">
           <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
         </div>
 
@@ -367,12 +367,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
             <label className="label-mono mb-1.5 block !text-slate-400">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-white/10 !bg-[#142336] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" autoFocus />
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-white/10 !bg-[#20364b] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" autoFocus />
           </div>
 
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-white/10 !bg-[#142336] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-white/10 !bg-[#20364b] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
