@@ -153,8 +153,7 @@ function BalancoEstoque() {
                 <option value="definir">Definir novo saldo total</option>
               </select>
             </div>
-            {drafts.length === 0 ? (
-            ) : (
+            {drafts.length === 0 ? null : (
               <div className="space-y-3">
                 {drafts.map((draft) => {
                   const product = products.find((p) => p.id === draft.productId);
