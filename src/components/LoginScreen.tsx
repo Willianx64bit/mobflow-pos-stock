@@ -323,11 +323,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
       <div className="mfb-in relative w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
         {mode === "pdv" && !onClose && (
-          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" aria-label="Sair da conta" title="Sair da conta">
+          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#142336] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
           </button>
         )}
-        {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
+        {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-slate-300 hover:bg-[#1b3048] hover:text-white"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
         {showAccountLogoutConfirm && mode === "pdv" && !onClose && (
           <div className="fixed inset-0 z-[120] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowAccountLogoutConfirm(false)}>
             <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
@@ -354,25 +354,25 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
                 {(companySettings.companyName || "M").trim().charAt(0).toUpperCase()}
               </div>
             )}
-            <h2 className="mt-4 font-display text-2xl tracking-[.06em] text-heading">{companySettings.companyName || "Sua empresa"}</h2>
+            <h2 className="mt-4 font-display text-2xl tracking-[.06em] text-white">{companySettings.companyName || "Sua empresa"}</h2>
             <p className="mt-1 text-sm text-muted-foreground">Acesso de usuário</p>
           </div>
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-heading">{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className="font-display text-xl tracking-[.1em] text-white">{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
+          <p className="mt-1 text-sm text-slate-400">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
           <div>
-            <label className="label-mono block mb-1.5">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full text-foreground" autoFocus />
+            <label className="label-mono mb-1.5 block !text-slate-400">Usuário</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-white/10 !bg-[#142336] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" autoFocus />
           </div>
 
           <div>
             <label className="label-mono block mb-1.5">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full text-foreground" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-white/10 !bg-[#142336] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
@@ -384,7 +384,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </div>
           )}
 
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={mode === "pdv" ? false : rememberLogin} disabled={mode === "pdv"} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
@@ -394,22 +394,22 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </button>
           {mode === "empresa" && !onClose && (
             <>
-              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3.5 font-bold text-foreground hover:bg-accent transition-colors">
+              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-white/15 bg-transparent py-3.5 font-bold text-slate-100 transition-colors hover:bg-white/5">
                 Criar conta
               </button>
-              <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/15">
+              <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/20">
                 Saiba mais sobre o MobFlow
               </a>
             </>
           )}
           {mode === "pdv" && onClose && (
-            <button type="button" onClick={onClose} className="w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+            <button type="button" onClick={onClose} className="w-full rounded-xl border border-white/15 bg-transparent py-3 font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white">
               Cancelar
             </button>
           )}
         </form>
 
-        <p className="mt-5 text-center font-mono text-[10px] text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
+        <p className="mt-5 text-center font-mono text-[10px] text-slate-500">Acesso restrito · informe as credenciais cadastradas</p>
 
 
 
