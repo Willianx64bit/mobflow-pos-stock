@@ -26,6 +26,8 @@ export type ReceivingNote = {
   stockReleased?: boolean;
   source?: "manual";
 };
+export type StockAdjustmentItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; mode: "somar" | "definir"; quantity: number; previousStock: number; newStock: number };
+export type StockAdjustment = { id: string; date: string; reason: string; operator?: string; items: StockAdjustmentItem[] };
 export type Conference = {
   id: string;
   name: string;
@@ -41,7 +43,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -54,6 +56,7 @@ const emptyState = (): State => ({
   conferences: [],
   receiving: [],
   manualExpiries: [],
+  stockAdjustments: [],
   promotions: [],
   suppliers: [],
   settings: { companyName: "" },
@@ -76,7 +79,7 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], promotions: remote.promotions ?? local.promotions ?? [], suppliers: remote.suppliers };
+  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], promotions: remote.promotions ?? local.promotions ?? [], suppliers: remote.suppliers };
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
@@ -106,6 +109,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     conferences: mergeById(local.conferences, remote.conferences),
     receiving: mergeById(local.receiving, remote.receiving),
     manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
+    stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
     promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
     suppliers: (() => {
       const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
@@ -134,6 +138,7 @@ function normalizeState() {
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
   state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
   state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
+  state.stockAdjustments = Array.isArray(state.stockAdjustments) ? state.stockAdjustments : [];
   state.promotions = Array.isArray(state.promotions) ? state.promotions : [];
   const legacyManual = state.receiving.filter((n) => n.source === "manual");
   if (legacyManual.length) {
@@ -391,6 +396,7 @@ export const actions = {
       conferences: [],
       receiving: [],
       manualExpiries: [],
+      stockAdjustments: [],
       promotions: [],
       suppliers: [],
       settings: { companyName: "" },
@@ -419,6 +425,35 @@ export const actions = {
   },
   updateField(id: string, field: "price" | "stock", value: number) {
     set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)) });
+  },
+  applyStockAdjustmentBatch(input: { reason: string; items: { productId: string; mode: "somar" | "definir"; quantity: number }[] }) {
+    const reason = input.reason.trim();
+    if (!reason || !input.items.length) return false;
+    const prepared = input.items.map((item) => {
+      const product = state.products.find((p) => p.id === item.productId);
+      if (!product || !Number.isFinite(item.quantity) || item.quantity < 0) return null;
+      if (product.unit !== "kg" && !Number.isInteger(item.quantity)) return null;
+      const quantity = product.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
+      const newStock = item.mode === "somar" ? product.stock + quantity : quantity;
+      return {
+        productId: product.id, code: product.code, ref: product.ref, name: product.name, unit: product.unit,
+        mode: item.mode, quantity, previousStock: product.stock, newStock,
+      };
+    });
+    if (prepared.some((item) => item === null)) return false;
+    const items = prepared as StockAdjustment["items"];
+    const id = uid();
+    const adjustment: StockAdjustment = {
+      id, date: new Date().toISOString(), reason,
+      operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined,
+      items,
+    };
+    const updatedProducts = state.products.map((product) => {
+      const changed = items.find((item) => item.productId === product.id);
+      return changed ? { ...product, stock: changed.newStock } : product;
+    });
+    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])] });
+    return id;
   },
   deleteProduct(id: string) { set({ products: state.products.filter((x) => x.id !== id), cart: state.cart.filter((c) => c.productId !== id) }); },
   newConference(name: string): string {
