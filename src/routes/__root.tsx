@@ -58,8 +58,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "MobFlow — PDV e Estoque" },
-      { name: "description", content: "MobFlow: ponto de venda rápido com controle de estoque." },
+      { title: "MobFlow PDV | Sistema de Vendas e Controle de Estoque" },
+      { name: "description", content: "Conheça o MobFlow, sistema de PDV para vendas, controle de estoque, conferência de mercadorias, validade de produtos, fiado e gestão da sua empresa." },
+      { name: "keywords", content: "MobFlow, MobFlow PDV, sistema PDV, sistema de vendas, controle de estoque, gestão de comércio, validade de produtos, conferência de mercadorias" },
+      { property: "og:site_name", content: "MobFlow" },
+      { property: "og:title", content: "MobFlow PDV | Sistema de Vendas e Controle de Estoque" },
+      { property: "og:description", content: "Organize vendas, estoque, conferência, validade e gestão da sua empresa com o MobFlow." },
+      { name: "twitter:title", content: "MobFlow PDV | Vendas e Estoque" },
+      { name: "twitter:description", content: "Sistema para organizar vendas, estoque e gestão do seu comércio." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -82,6 +88,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt-BR">
       <head>
         <HeadContent />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "MobFlow", applicationCategory: "BusinessApplication", operatingSystem: "Web", description: "Sistema de PDV para vendas, controle de estoque, conferência, validade de produtos e gestão de comércio.", url: "https://mobflow-pos-stock.vercel.app/" }) }} />
         <style>{`html { scrollbar-color: var(--border) var(--background); }
           ::-webkit-scrollbar { width: 10px; height: 10px; }
           ::-webkit-scrollbar-track { background: var(--background); }
