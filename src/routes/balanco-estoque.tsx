@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
 
@@ -92,7 +92,13 @@ function BalancoEstoque() {
       <AppHeader />
       <main className="mx-auto w-full max-w-5xl space-y-5">
         {showForm ? (
+        {showForm ? (
         <section className="glass p-5 md:p-6">
+          <div className="mb-4 flex justify-end">
+            <button type="button" onClick={() => { setShowForm(false); setDrafts([]); setReason(""); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+              <X className="h-4 w-4" /> Fechar
+            </button>
+          </div>
           <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="mb-5 inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
             <ArrowLeft className="h-4 w-4" /> Voltar para Gerência
           </button>
@@ -205,7 +211,7 @@ function BalancoEstoque() {
           </div>
         )}
 
-        <section className="glass p-5 md:p-6">
+        {!showForm && <section className="glass p-5 md:p-6">
           <div className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><ClipboardList className="h-5 w-5" /></div>
             <div>
@@ -241,7 +247,7 @@ function BalancoEstoque() {
               ))}
             </div>
           )}
-        </section>
+        </section>}
       </main>
     </div>
   );
