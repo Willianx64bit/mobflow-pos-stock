@@ -154,7 +154,6 @@ function BalancoEstoque() {
               </select>
             </div>
             {drafts.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Pesquise um produto acima e toque nele para adicioná-lo. Você pode incluir vários antes de salvar.</div>
             ) : (
               <div className="space-y-3">
                 {drafts.map((draft) => {
@@ -195,7 +194,6 @@ function BalancoEstoque() {
             <textarea id="stock-adjust-reason" value={reason} onChange={(e) => { setReason(e.target.value); setError(""); }}
               placeholder="Ex.: contagem física, perda, avaria, correção de cadastro..." rows={3} required
               className="field w-full resize-y text-foreground" />
-            <p className="mt-1 text-xs text-muted-foreground">Obrigatório. Este motivo ficará salvo no histórico junto com os produtos e os saldos anteriores e novos.</p>
           </div>
 
           {error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
