@@ -129,13 +129,13 @@ export function AppHeader() {
 
   return createPortal(
     <>
-      {pathname === "/" && (
+      {(pathname === "/" || pathname === "/conferencia") && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
-          <button type="button" onClick={() => setShowLogin(true)} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
+          <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
             <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
           </button>
           {pdvAuthorized && (
-            <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair do usuário do PDV" title="Sair do PDV">
+            <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair da conta do usuário" title="Sair da conta">
               <LogOut className="h-4 w-4" />
             </button>
           )}
@@ -163,11 +163,11 @@ export function AppHeader() {
         <div className="fixed inset-0 z-[110] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)}>
           <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-red-500/15 text-2xl text-red-600 ring-1 ring-red-500/30"><LogOut className="h-6 w-6" /></div>
-            <h2 className="mt-3 font-display text-2xl tracking-[.08em] text-heading">SAIR DO PDV?</h2>
-            <p className="mt-2 text-sm text-muted-foreground">O usuário será desconectado das vendas. O PDV continuará disponível apenas para pesquisa.</p>
+            <h2 className="mt-3 font-display text-2xl tracking-[.08em] text-heading">SAIR DA CONTA?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Você será desconectado deste usuário e precisará entrar novamente para continuar.</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <button type="button" onClick={() => setShowLogoutConfirm(false)} className="rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">Cancelar</button>
-              <button type="button" onClick={logoutPdv} className="rounded-xl bg-red-600 py-3 font-bold text-white hover:bg-red-700">Sair</button>
+              <button type="button" onClick={logoutPdv} className="rounded-xl bg-red-600 py-3 font-bold text-white hover:bg-red-700">Sair da conta</button>
             </div>
           </div>
         </div>
