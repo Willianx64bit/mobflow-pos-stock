@@ -153,7 +153,15 @@ export function AppHeader() {
               setShowLogin(false);
               localStorage.setItem("mobflow-sidebar", "closed");
               setOpen(false);
-              navigate({ to: "/" });
+              const userPermissions = (() => {
+                try { return JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[]; }
+                catch { return []; }
+              })();
+              if (!userPermissions.includes("PDV") && userPermissions.includes("Conferência")) {
+                navigate({ to: "/conferencia" });
+              } else {
+                navigate({ to: "/" });
+              }
             }} />
           </div>
         </div>
