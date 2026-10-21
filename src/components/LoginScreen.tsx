@@ -321,7 +321,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-[#0b1726] px-4 py-6">
-      <div className={`mfb-in relative w-full rounded-2xl border border-white/10 bg-[#14263a] p-6 shadow-2xl shadow-black/30 sm:p-8 ${mode === "empresa" ? "max-w-md lg:max-w-2xl lg:p-12 xl:max-w-3xl" : "max-w-md"}`} style={{ animation: "mobflowLoginEntrance 700ms cubic-bezier(0.16, 1, 0.3, 1) both" }}>
+      <style>{`@keyframes mobflowLoginReveal { 0% { opacity: 0; transform: translateX(26px) scale(.975); filter: blur(7px); } 65% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } } @media (prefers-reduced-motion: reduce) { .mobflow-login-reveal { animation: none !important; } }`}</style>
+      <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-white/10 bg-[#14263a] p-6 shadow-2xl shadow-black/30 sm:p-8 ${mode === "empresa" ? "max-w-md lg:max-w-2xl lg:p-12 xl:max-w-3xl" : "max-w-md"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
         {mode === "pdv" && !onClose && (
           <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#20364b] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
