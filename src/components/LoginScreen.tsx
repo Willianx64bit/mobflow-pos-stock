@@ -378,9 +378,14 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             {loading ? "Validando..." : "Entrar"}
           </button>
           {mode === "empresa" && !onClose && (
-            <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3.5 font-bold text-foreground hover:bg-accent transition-colors">
-              Criar conta
-            </button>
+            <>
+              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-border bg-transparent py-3.5 font-bold text-foreground hover:bg-accent transition-colors">
+                Criar conta
+              </button>
+              <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/15">
+                Saiba mais sobre o MobFlow
+              </a>
+            </>
           )}
           {mode === "pdv" && onClose && (
             <button type="button" onClick={onClose} className="w-full rounded-xl border border-border bg-transparent py-3 font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
