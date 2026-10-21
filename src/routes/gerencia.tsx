@@ -5,10 +5,11 @@ import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { verifyManagerPassword } from "@/lib/manager-auth";
-import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent } from "lucide-react";
+import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent, Scale } from "lucide-react";
 
 const managementTabs = [
   { to: "/estoque", label: "Estoque", icon: "stock" },
+  { to: "/balanco-estoque", label: "Balanço de estoque", icon: "balance" },
   { to: "/vendas", label: "Vendas", icon: "sales" },
   { to: "/recebimento", label: "Recebimento", icon: "receiving" },
   { to: "/configuracoes", label: "Configurações", icon: "settings" },
@@ -476,7 +477,7 @@ function Gerencia() {
                 navigate({ to: tab.to });
               }
             }} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:ring-primary/50">
-              <div className="text-2xl text-green-600">{tab.icon === "settings" ? <Settings className="h-6 w-6" /> : tab.icon === "stock" ? <Package className="h-6 w-6" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-6 w-6" /> : tab.icon === "receiving" ? <Truck className="h-6 w-6" /> : tab.icon === "promotions" ? <Percent className="h-6 w-6" /> : null}</div><div className="mt-3 font-bold text-heading">{tab.label}</div>
+              <div className="text-2xl text-green-600">{tab.icon === "settings" ? <Settings className="h-6 w-6" /> : tab.icon === "stock" ? <Package className="h-6 w-6" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-6 w-6" /> : tab.icon === "receiving" ? <Truck className="h-6 w-6" /> : tab.icon === "promotions" ? <Percent className="h-6 w-6" /> : tab.icon === "balance" ? <Scale className="h-6 w-6" /> : null}</div><div className="mt-3 font-bold text-heading">{tab.label}</div>
             </button>
           ))}
         </div>
