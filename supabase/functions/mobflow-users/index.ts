@@ -240,8 +240,9 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update_permissions") {
-      const permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : null;
-      if (!permissions || !permissions.includes("PDV")) return json({ error: "O usuário precisa manter acesso ao PDV." }, 400);
+      const permissions = Array.isArray(body.permissions) ? [...new Set(body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))))] : null;
+      if (!permissions) return json({ error: "Informe as permissões de acesso do usuário." }, 400);
+      if (permissions.includes("Gerência") && manager.role !== "manager") return json({ error: "Somente a conta principal da Gerência pode conceder a permissão Gerência." }, 403);
       const { error } = await admin.from("profiles").update({ permissions }).eq("id", userId);
       if (error) return json({ error: "Não foi possível salvar as permissões." }, 500);
       return json({ ok: true });
