@@ -320,8 +320,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }
 
   return (
-    <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-6">
-      <div className="mfb-in relative w-full max-w-md rounded-2xl bg-surface ring-1 ring-border p-6 sm:p-8">
+    <div className="grid min-h-[100dvh] place-items-center bg-[#07111f] px-4 py-6">
+      <div className="mfb-in relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0d1b2a] p-6 shadow-2xl shadow-black/30 sm:p-8">
         {mode === "pdv" && !onClose && (
           <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#142336] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
