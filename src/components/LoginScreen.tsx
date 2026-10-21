@@ -36,6 +36,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string; requestToken?: string;
   } | null>(null);
   const [signupCopied, setSignupCopied] = useState(false);
+  const [signupMonthlyPrice, setSignupMonthlyPrice] = useState<number | null>(null);
   const [pendingPayment, setPendingPayment] = useState<any>(null);
   const [savedPendingPayment, setSavedPendingPayment] = useState<any>(() => {
     try { return JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null"); } catch { return null; }
@@ -43,6 +44,19 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupForm, setSignupForm] = useState({
     companyName: "", username: "", password: "", cnpj: "", email: "", phone: "",
   });
+
+  useEffect(() => {
+    if (mode !== "empresa" || !showSignup || signupResult) return;
+    let cancelled = false;
+    fetch("https://xsitutjpdshmidzpgxpx.supabase.co/functions/v1/mobflow-public-billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Configuração indisponível")))
+      .then((settings) => {
+        const price = Number(settings?.monthly_price);
+        if (!cancelled && settings?.ok === true && Number.isFinite(price) && price > 0) setSignupMonthlyPrice(price);
+      })
+      .catch(() => { if (!cancelled) setSignupMonthlyPrice(null); });
+    return () => { cancelled = true; };
+  }, [mode, showSignup, signupResult]);
 
   // O login do operador deve sempre começar vazio, sem reaproveitar/autopreencher credenciais da empresa.
   useEffect(() => {
@@ -289,7 +303,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <button type="button" onClick={() => { setShowSignup(false); setSignupError(""); }} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Voltar ao login</button>
           <h1 className="font-display text-xl tracking-[.08em] text-heading">CRIAR CONTA</h1>
           <p className="mt-1 text-sm text-muted-foreground">Preencha os dados da empresa para gerar a cobrança Pix.</p>
-          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 p-4"><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Mensalidade do MobFlow</p><div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-black text-foreground">R$ 79,90</span><span className="text-sm text-muted-foreground">/ mês</span></div><p className="mt-1 text-xs leading-5 text-muted-foreground">O pagamento inicial é feito por Pix. O acesso é liberado após a confirmação do pagamento pelo administrador.</p></div>
+          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 p-4"><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Mensalidade do MobFlow</p><div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-black text-foreground">{signupMonthlyPrice === null ? "Consultar valor" : signupMonthlyPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>{signupMonthlyPrice !== null && <span className="text-sm text-muted-foreground">/ mês</span>}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">{signupMonthlyPrice === null ? "O valor atualizado será confirmado ao gerar o Pix." : "Este valor vem da configuração atual da mensalidade no painel administrativo."} O pagamento inicial é feito por Pix e o acesso é liberado após a confirmação do administrador.</p></div>
           <form onSubmit={submitSignup} className="mt-5 space-y-3" autoComplete="off">
             <div><label className="label-mono mb-1 block">Nome da empresa</label><input required minLength={2} maxLength={120} value={signupForm.companyName} onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })} className="field w-full text-foreground" placeholder="Nome da empresa" /></div>
             <div><label className="label-mono mb-1 block">Usuário do gerente</label><input required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]+" value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value.toUpperCase() })} className="field w-full text-foreground" placeholder="Ex.: MERCADO01" /></div>
