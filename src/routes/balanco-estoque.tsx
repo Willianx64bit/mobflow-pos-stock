@@ -171,16 +171,36 @@ function BalancoEstoque() {
                         </div>
                         <button type="button" onClick={() => setEditingProductId(product.id)} aria-label={`Editar ${product.name}`} title="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                       </div>
-                      <div className="mt-4 grid gap-3">
-                        
-                        <div>
-                          <label className="mb-2 block text-xs font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label>
-                          <input type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity}
-                            onChange={(e) => updateDraft(product.id, { quantity: e.target.value })}
-                            placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full font-mono text-foreground" />
+                      {editingProductId === product.id ? (
+                        <div className="mt-4 grid gap-3">
+                          <div>
+                            <label className="mb-2 block text-xs font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label>
+                            <input type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity}
+                              onChange={(e) => updateDraft(product.id, { quantity: e.target.value })}
+                              placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full font-mono text-foreground" />
+                          </div>
+                          <button type="button" onClick={() => {
+                            const raw = draft.quantity.trim();
+                            const amount = Number(raw.replace(",", "."));
+                            if (!raw || !Number.isFinite(amount) || amount < 0 || (product.unit !== "kg" && !Number.isInteger(amount))) {
+                              setError(product.unit !== "kg" && raw && Number.isFinite(amount) ? "Informe um número inteiro para este produto." : "Informe uma quantidade válida antes de salvar o produto.");
+                              return;
+                            }
+                            setError("");
+                            setEditingProductId(null);
+                          }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">
+                            <Save className="h-4 w-4" /> Salvar produto
+                          </button>
                         </div>
-                      </div>
-                      {next !== null && <div className="mt-3 rounded-lg bg-primary/5 px-3 py-2 text-sm text-muted-foreground">Saldo após ajuste: <strong className="text-heading">{next} {product.unit === "kg" ? "kg" : "un."}</strong></div>}
+                      ) : (
+                        <div className="mt-4 rounded-lg bg-secondary/60 px-3 py-3 text-sm text-muted-foreground">
+                          {draft.quantity.trim() ? (
+                            <> {draft.mode === "somar" ? "Quantidade a somar" : "Novo saldo definido"}: <strong className="text-heading">{draft.quantity} {product.unit === "kg" ? "kg" : "un."}</strong>
+                              {next !== null && <div className="mt-1">Saldo após ajuste: <strong className="text-heading">{next} {product.unit === "kg" ? "kg" : "un."}</strong></div>}
+                            </>
+                          ) : <span>Quantidade ainda não informada.</span>}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
