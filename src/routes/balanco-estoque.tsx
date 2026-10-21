@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
 
@@ -25,6 +25,8 @@ function BalancoEstoque() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [operation, setOperation] = useState<"somar" | "definir">("somar");
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -45,14 +47,15 @@ function BalancoEstoque() {
       setError("Esse produto já está na lista de ajustes.");
       return;
     }
-    setDrafts((old) => [...old, { productId: product.id, mode: "somar", quantity: "" }]);
+    setDrafts((old) => [...old, { productId: product.id, mode: operation, quantity: "" }]);
+    setEditingProductId(product.id);
     setQuery("");
     setError("");
     setMessage("");
   };
 
   const updateDraft = (productId: string, patch: Partial<DraftItem>) => {
-    setDrafts((old) => old.map((d) => d.productId === productId ? { ...d, ...patch } : d));
+    setDrafts((old) => old.map((d) => d.productId === productId ? { ...d, ...patch, mode: operation } : d));
     setError("");
     setMessage("");
   };
@@ -80,6 +83,7 @@ function BalancoEstoque() {
     setReason("");
     setQuery("");
     setShowForm(false);
+    setEditingProductId(null);
   };
 
   const fmtDate = (date: string) => {
@@ -143,6 +147,13 @@ function BalancoEstoque() {
               <h2 className="font-semibold text-heading">Produtos deste balanço</h2>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">{drafts.length} produto(s)</span>
             </div>
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold text-heading">Operação do balanço (vale para todos os produtos)</label>
+              <select value={operation} onChange={(e) => { const mode = e.target.value as "somar" | "definir"; setOperation(mode); setDrafts((old) => old.map((d) => ({ ...d, mode }))); }} className="field w-full text-foreground">
+                <option value="somar">Somar ao saldo atual</option>
+                <option value="definir">Definir novo saldo total</option>
+              </select>
+            </div>
             {drafts.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Pesquise um produto acima e toque nele para adicioná-lo. Você pode incluir vários antes de salvar.</div>
             ) : (
@@ -161,16 +172,10 @@ function BalancoEstoque() {
                           <div className="mt-1 break-all font-mono text-xs text-muted-foreground">Código: {product.code} · REF: {product.ref || "—"}</div>
                           <div className="mt-1 text-sm text-muted-foreground">Saldo atual: <strong className="text-heading">{product.stock} {product.unit === "kg" ? "kg" : "un."}</strong></div>
                         </div>
-                        <button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => setEditingProductId(product.id)} aria-label={`Editar ${product.name}`} title="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                       </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="mb-2 block text-xs font-semibold text-heading">Operação</label>
-                          <select value={draft.mode} onChange={(e) => updateDraft(product.id, { mode: e.target.value as "somar" | "definir" })} className="field w-full text-foreground">
-                            <option value="somar">Somar ao saldo atual</option>
-                            <option value="definir">Definir novo saldo total</option>
-                          </select>
-                        </div>
+                      <div className="mt-4 grid gap-3">
+                        
                         <div>
                           <label className="mb-2 block text-xs font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label>
                           <input type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity}
