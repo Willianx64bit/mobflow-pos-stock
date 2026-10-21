@@ -106,8 +106,6 @@ export interface FileRoutesByFullPath {
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/balanco-estoque': typeof BalancoEstoqueRoute
-  '/balanco-estoque': typeof BalancoEstoqueRoute
-  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
@@ -124,6 +122,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
@@ -141,6 +140,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
@@ -159,6 +159,7 @@ export interface FileRouteTypes {
     | '/'
     | '/conferencia'
     | '/configuracoes'
+    | '/balanco-estoque'
     | '/dashboard'
     | '/estoque'
     | '/fiado'
@@ -175,6 +176,7 @@ export interface FileRouteTypes {
     | '/'
     | '/conferencia'
     | '/configuracoes'
+    | '/balanco-estoque'
     | '/dashboard'
     | '/estoque'
     | '/fiado'
@@ -191,6 +193,7 @@ export interface FileRouteTypes {
     | '/'
     | '/conferencia'
     | '/configuracoes'
+    | '/balanco-estoque'
     | '/dashboard'
     | '/estoque'
     | '/fiado'
@@ -346,6 +349,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConferenciaRoute: ConferenciaRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
+  BalancoEstoqueRoute: BalancoEstoqueRoute,
   BalancoEstoqueRoute: BalancoEstoqueRoute,
   DashboardRoute: DashboardRoute,
   EstoqueRoute: EstoqueRoute,
