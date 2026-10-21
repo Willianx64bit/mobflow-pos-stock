@@ -24,6 +24,7 @@ function BalancoEstoque() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -78,6 +79,7 @@ function BalancoEstoque() {
     setDrafts([]);
     setReason("");
     setQuery("");
+    setShowForm(false);
   };
 
   const fmtDate = (date: string) => {
@@ -89,6 +91,7 @@ function BalancoEstoque() {
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <main className="mx-auto w-full max-w-5xl space-y-5">
+        {showForm ? (
         <section className="glass p-5 md:p-6">
           <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="mb-5 inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
             <ArrowLeft className="h-4 w-4" /> Voltar para Gerência
@@ -192,6 +195,15 @@ function BalancoEstoque() {
             {saving ? "Registrando balanço..." : `Confirmar balanço de ${drafts.length} produto(s)`}
           </button>
         </section>
+        ) : (
+          <div className="glass flex items-center justify-between gap-4 p-5 md:p-6">
+            <div>
+              <h1 className="font-display text-xl tracking-wide text-heading md:text-2xl">BALANÇO DE ESTOQUE</h1>
+              <p className="mt-1 text-sm text-muted-foreground">O formulário está fechado. Toque em Novo + para iniciar um balanço.</p>
+            </div>
+            <button type="button" onClick={() => setShowForm(true)} className="shrink-0 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">Novo +</button>
+          </div>
+        )}
 
         <section className="glass p-5 md:p-6">
           <div className="flex items-center gap-3">
