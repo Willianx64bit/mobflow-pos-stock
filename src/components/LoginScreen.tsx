@@ -321,7 +321,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
   return (
     <div className="grid min-h-[100dvh] place-items-center bg-[#0b1726] px-4 py-6">
-      <div className="mfb-in relative w-full max-w-md rounded-2xl border border-white/10 bg-[#14263a] p-6 shadow-2xl shadow-black/30 sm:p-8">
+      <div className={`mfb-in relative w-full rounded-2xl border border-white/10 bg-[#14263a] p-6 shadow-2xl shadow-black/30 sm:p-8 ${mode === "empresa" ? "max-w-md lg:max-w-2xl lg:p-12 xl:max-w-3xl" : "max-w-md"}`} style={{ animation: "mobflowLoginEntrance 700ms cubic-bezier(0.16, 1, 0.3, 1) both" }}>
         {mode === "pdv" && !onClose && (
           <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#20364b] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
@@ -341,8 +341,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </div>
           </div>
         )}
-        <div className="mx-auto w-full max-w-[320px] rounded-xl bg-[#f8fafc] px-3 py-2.5 text-center shadow-sm">
-          <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className="mx-auto block h-auto w-full max-w-[280px] object-contain" />
+        <div className={`mx-auto w-full rounded-xl bg-[#f8fafc] px-3 py-2.5 text-center shadow-sm ${mode === "empresa" ? "max-w-[320px] lg:max-w-[420px]" : "max-w-[320px]"}`}>
+          <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className={`mx-auto block h-auto w-full object-contain ${mode === "empresa" ? "max-w-[280px] lg:max-w-[380px]" : "max-w-[280px]"}`} />
         </div>
 
         {mode === "pdv" && (
@@ -360,11 +360,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className="font-display text-xl tracking-[.1em] text-white">{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
-          <p className="mt-1 text-sm text-slate-400">{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className={`font-display tracking-[.1em] text-white ${mode === "empresa" ? "text-xl lg:text-3xl" : "text-xl"}`}>{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
+          <p className={`mt-1 text-slate-400 ${mode === "empresa" ? "text-sm lg:text-base" : "text-sm"}`}>{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
-        <form onSubmit={submit} className="mt-5 space-y-4" autoComplete="off">
+        <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="off">
           <div>
             <label className="label-mono mb-1.5 block !text-slate-400">Usuário</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-white/10 !bg-[#20364b] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" autoFocus />
