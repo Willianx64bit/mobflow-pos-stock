@@ -136,7 +136,7 @@ function RootComponent() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role,username,active")
+          .select("role,username,active,permissions")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -155,6 +155,7 @@ function RootComponent() {
 
         sessionStorage.setItem("mobflow-role", profile.role);
         sessionStorage.setItem("mobflow-username", profile.username);
+        sessionStorage.setItem("mobflow-permissions", JSON.stringify(Array.isArray(profile.permissions) ? profile.permissions : (profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
 
         if (profile.role === "pdv") {
           sessionStorage.setItem("mobflow-pdv-authorized", "1");
@@ -172,7 +173,12 @@ function RootComponent() {
           setAuthenticated(true);
           setUserLoginRequired(profile.role === "manager" && !firstSetupPending);
           setCheckingSession(false);
-          if (firstSetupPending && profile.role === "manager") void router.navigate({ to: "/gerencia" });
+          if (firstSetupPending && profile.role === "manager") {
+            void router.navigate({ to: "/gerencia" });
+          } else if (profile.role === "pdv" && router.state.location.pathname === "/") {
+            const userPermissions = Array.isArray(profile.permissions) ? profile.permissions : ["PDV", "Conferência"];
+            if (!userPermissions.includes("PDV") && userPermissions.includes("Conferência")) void router.navigate({ to: "/conferencia" });
+          }
         }
       } catch (error) {
         console.error("MobFlow: falha ao inicializar a sessão", error);
@@ -214,6 +220,11 @@ function RootComponent() {
             await router.navigate({ to: "/gerencia" });
           } else {
             setUserLoginRequired(role === "manager");
+            if (role === "pdv") {
+              let permissions: string[] = [];
+              try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch { permissions = []; }
+              if (!permissions.includes("PDV") && permissions.includes("Conferência")) await router.navigate({ to: "/conferencia" });
+            }
           }
         }}
       />
