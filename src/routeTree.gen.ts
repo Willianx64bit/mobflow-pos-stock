@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConferenciaRouteImport } from './routes/conferencia'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as BalancoEstoqueRouteImport } from './routes/balanco-estoque'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FiadoRouteImport } from './routes/fiado'
@@ -32,6 +33,11 @@ const IndexRoute = IndexRouteImport.update({
 const ConferenciaRoute = ConferenciaRouteImport.update({
   id: '/conferencia',
   path: '/conferencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BalancoEstoqueRoute = BalancoEstoqueRouteImport.update({
+  id: '/balanco-estoque',
+  path: '/balanco-estoque',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -99,6 +105,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
@@ -199,6 +208,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ConferenciaRoute: typeof ConferenciaRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
+  BalancoEstoqueRoute: typeof BalancoEstoqueRoute
   DashboardRoute: typeof DashboardRoute
   EstoqueRoute: typeof EstoqueRoute
   FiadoRoute: typeof FiadoRouteWithChildren
@@ -224,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/conferencia'
       fullPath: '/conferencia'
       preLoaderRoute: typeof ConferenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/balanco-estoque': {
+      id: '/balanco-estoque'
+      path: '/balanco-estoque'
+      fullPath: '/balanco-estoque'
+      preLoaderRoute: typeof BalancoEstoqueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -329,6 +346,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ConferenciaRoute: ConferenciaRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
+  BalancoEstoqueRoute: BalancoEstoqueRoute,
   DashboardRoute: DashboardRoute,
   EstoqueRoute: EstoqueRoute,
   FiadoRoute: FiadoRouteWithChildren,
