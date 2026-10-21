@@ -74,7 +74,8 @@ function SaibaMais() {
       <header className="mx-auto flex max-w-7xl items-center px-4 py-5 sm:px-6 lg:px-8">
         <a href="/saiba-mais" className="text-xl font-black tracking-[.18em] text-emerald-300">MOBFLOW</a>
       </header>
-      <section className="relative mx-auto grid max-w-7xl gap-10 px-4 pb-20 pt-8 sm:px-6 md:grid-cols-[.9fr_1.1fr] md:items-center md:pb-28 md:pt-12 lg:px-8">
+      <section className="relative mx-auto max-w-7xl overflow-hidden px-4 pb-20 pt-8 sm:px-6 md:pb-28 md:pt-12 lg:px-8">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-no-repeat opacity-[.11]" style={{ backgroundImage: "url('/mobflow-watermark.svg')", backgroundPosition: "right 5% center", backgroundSize: "min(68%, 620px)" }}/>
         <div className="absolute -left-32 top-10 h-72 w-72 rounded-full bg-emerald-400/10 blur-[100px]"/>
         <div className="relative z-10">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1.5 text-xs font-semibold text-emerald-200"><span className="h-2 w-2 rounded-full bg-emerald-300"/> Vendas, estoque e gestão</div>
