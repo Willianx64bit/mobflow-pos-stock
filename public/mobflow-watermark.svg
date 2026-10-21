@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#00c878"/><stop offset="1" stop-color="#18e59a"/></linearGradient>
+  </defs>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round" stroke-width="92">
+    <path d="M170 525 V175 Q170 155 190 175 L370 355 L550 175 V525" stroke="#eaf3f1"/>
+    <path d="M550 525 V175 Q550 155 570 155 H850 L790 235 H650 L550 335 V525" stroke="url(#g)"/>
+  </g>
+</svg>
