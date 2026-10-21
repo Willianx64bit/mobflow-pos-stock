@@ -109,7 +109,6 @@ function BalancoEstoque() {
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary"><Scale className="h-6 w-6" /></div>
             <div>
               <h1 className="font-display text-2xl tracking-wide text-heading md:text-3xl">BALANÇO DE ESTOQUE</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Adicione vários produtos, informe o motivo e registre todas as alterações.</p>
             </div>
           </div>
 
