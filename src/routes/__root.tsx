@@ -185,8 +185,8 @@ function RootComponent() {
     return <div className={`${savedDarkTheme ? "dark " : ""}min-h-screen bg-background grid place-items-center`}><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;
   }
 
-  // A página de recuperação precisa ser acessível pelo link do e-mail sem exigir login prévio.
-  if (router.state.location.pathname === "/recuperar-senha") {
+  // Páginas públicas precisam funcionar sem sessão para divulgação e recuperação de acesso.
+  if (["/recuperar-senha", "/saiba-mais"].includes(router.state.location.pathname)) {
     return (
       <QueryClientProvider client={queryClient}>
         <Outlet />
