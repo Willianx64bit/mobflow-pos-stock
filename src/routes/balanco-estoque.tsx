@@ -26,6 +26,7 @@ function BalancoEstoque() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
   const [operation, setOperation] = useState<"somar" | "definir">("somar");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
@@ -109,6 +110,7 @@ function BalancoEstoque() {
     setReason("");
     setQuery("");
     setShowForm(false);
+    setStep(1);
     setEditingProductId(null);
   };
 
@@ -124,7 +126,7 @@ function BalancoEstoque() {
         {showForm ? (
         <section className="glass p-5 md:p-6">
           <div className="mb-4 flex justify-end">
-            <button type="button" onClick={() => { setShowForm(false); setDrafts([]); setReason(""); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+            <button type="button" onClick={() => { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
               <X className="h-4 w-4" /> Fechar
             </button>
           </div>
@@ -138,6 +140,25 @@ function BalancoEstoque() {
             </div>
           </div>
 
+          {step === 1 ? (
+            <div className="mt-6 space-y-6">
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-semibold text-heading">Operação do balanço (vale para todos os produtos)</label>
+              <select value={operation} onChange={(e) => { const mode = e.target.value as "somar" | "definir"; setOperation(mode); setDrafts((old) => old.map((d) => ({ ...d, mode }))); }} className="field w-full text-foreground">
+                <option value="somar">Somar ao saldo atual</option>
+                <option value="definir">Definir novo saldo total</option>
+              </select>
+            </div>
+
+          {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+              <button type="button" onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); setStep(2); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Próximo: selecionar produtos</button>
+            </div>
+          ) : (
+            <>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div><h2 className="font-semibold text-heading">2. Produtos do balanço</h2><p className="text-sm text-muted-foreground">Operação: {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p></div>
+                <button type="button" onClick={() => { setStep(1); setError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold">Voltar</button>
+              </div>
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm font-semibold text-heading">Inserir rápido</p><p className="text-xs text-muted-foreground">Bipe o código para adicionar +1 automaticamente</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} className={`relative h-6 w-11 rounded-full transition-colors ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${quickInsert ? "translate-x-5" : "translate-x-0.5"}`} /></button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
             <div className="relative flex gap-2">
@@ -181,13 +202,6 @@ function BalancoEstoque() {
               <h2 className="font-semibold text-heading">Produtos deste balanço</h2>
               <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">{drafts.length} produto(s)</span>
             </div>
-            <div className="mb-4">
-              <label className="mb-2 block text-sm font-semibold text-heading">Operação do balanço (vale para todos os produtos)</label>
-              <select value={operation} onChange={(e) => { const mode = e.target.value as "somar" | "definir"; setOperation(mode); setDrafts((old) => old.map((d) => ({ ...d, mode }))); }} className="field w-full text-foreground">
-                <option value="somar">Somar ao saldo atual</option>
-                <option value="definir">Definir novo saldo total</option>
-              </select>
-            </div>
             {drafts.length === 0 ? null : (
               <div className="space-y-3">
                 {drafts.map((draft) => {
@@ -208,6 +222,9 @@ function BalancoEstoque() {
             )}
           </div>
 
+
+            </>
+          )}
           {editingProductId && (() => {
             const draft = drafts.find((d) => d.productId === editingProductId);
             const product = products.find((p) => p.id === editingProductId);
@@ -244,11 +261,11 @@ function BalancoEstoque() {
               className="field w-full resize-y text-foreground" />
           </div>
 
-          {error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-          {message && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{message}</div>}
-          <button type="button" onClick={saveBatch} disabled={saving || drafts.length === 0} className="mt-5 w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+          {step === 2 && error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          {step === 2 && message && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{message}</div>}
+          {step === 2 && <button type="button" onClick={saveBatch} disabled={saving || drafts.length === 0} className="mt-5 w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
             {saving ? "Registrando balanço..." : `Confirmar balanço de ${drafts.length} produto(s)`}
-          </button>
+          </button>}
         </section>
         ) : (
           <div className="glass flex items-center justify-between gap-4 p-5 md:p-6">
@@ -256,7 +273,7 @@ function BalancoEstoque() {
               <h1 className="font-display text-xl tracking-wide text-heading md:text-2xl">BALANÇO DE ESTOQUE</h1>
               <p className="mt-1 text-sm text-muted-foreground">O formulário está fechado. Toque em Novo + para iniciar um balanço.</p>
             </div>
-            <button type="button" onClick={() => setShowForm(true)} className="shrink-0 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">Novo +</button>
+            <button type="button" onClick={() => { setShowForm(true); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setError(""); setMessage(""); setQuery(""); }} className="shrink-0 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">Novo +</button>
           </div>
         )}
 
