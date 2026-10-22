@@ -54,6 +54,12 @@ function Gerencia() {
   const [recoveryLoading, setRecoveryLoading] = useState(false);
 
   useEffect(() => {
+    let permissions: string[] = [];
+    try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch {}
+    if (permissions.includes("Operações") && !permissions.includes("Gerência")) {
+      navigate({ to: "/operacoes", replace: true });
+      return;
+    }
     const syncLock = () => setUnlocked(sessionStorage.getItem("mobflow-management") === "1");
     window.addEventListener("mobflow-management-changed", syncLock);
     return () => window.removeEventListener("mobflow-management-changed", syncLock);
