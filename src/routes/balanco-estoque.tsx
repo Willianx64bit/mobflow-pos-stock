@@ -19,6 +19,7 @@ function BalancoEstoque() {
   const products = useStore((s) => s.products);
   const history = useStore((s) => s.stockAdjustments ?? []);
   const [query, setQuery] = useState("");
+  const [quickInsert, setQuickInsert] = useState(false);
   const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -44,6 +45,17 @@ function BalancoEstoque() {
 
   const addProduct = (product: Product) => {
     const existing = drafts.find((d) => d.productId === product.id);
+    if (quickInsert) {
+      const current = existing ? Number(existing.quantity.trim().replace(",", ".")) || 0 : 0;
+      const next = operation === "somar" ? current + 1 : current + 1;
+      setDrafts((old) => existing
+        ? old.map((d) => d.productId === product.id ? { ...d, quantity: String(next), mode: operation } : d)
+        : [...old, { productId: product.id, mode: operation, quantity: "1" }]);
+      setQuery("");
+      setError("");
+      setMessage(`Adicionado +1 ${product.name}`);
+      return;
+    }
     if (existing) {
       setEditingProductId(product.id);
       setQuery("");
@@ -56,6 +68,16 @@ function BalancoEstoque() {
     setQuery("");
     setError("");
     setMessage("");
+  };
+
+  const handleScannerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter" || !quickInsert) return;
+    e.preventDefault();
+    const code = query.trim().toLocaleLowerCase();
+    if (!code) return;
+    const product = products.find((p) => p.code.trim().toLocaleLowerCase() === code);
+    if (product) addProduct(product);
+    else { setError(`Produto não encontrado para o código ${query.trim()}.`); setMessage(""); }
   };
 
   const updateDraft = (productId: string, patch: Partial<DraftItem>) => {
@@ -117,13 +139,14 @@ function BalancoEstoque() {
           </div>
 
           <div className="mt-6">
-            <label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm font-semibold text-heading">Inserir rápido</p><p className="text-xs text-muted-foreground">Bipe o código para adicionar +1 automaticamente</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { setQuickInsert((v) => !v); setQuery(""); setError(""); setMessage(""); }} className={`relative h-6 w-11 rounded-full transition-colors ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${quickInsert ? "translate-x-5" : "translate-x-0.5"}`} /></button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
             <div className="relative flex gap-2">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input id="stock-product-search" value={query}
                   onChange={(e) => { setQuery(e.target.value); setError(""); }}
-                  placeholder="Código de barras, nome ou REF"
+                  onKeyDown={handleScannerKeyDown}
+                  placeholder={quickInsert ? "Bipe o código de barras e pressione Enter" : "Código de barras, nome ou REF"}
                   autoComplete="off"
                   className="field w-full pl-10 text-foreground" />
               </div>
