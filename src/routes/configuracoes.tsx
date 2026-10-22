@@ -48,6 +48,7 @@ function Configuracoes() {
   const settings = useStore((s) => s.settings);
   const [name, setName] = useState(settings.companyName);
   const [companyCnpj, setCompanyCnpj] = useState(settings.companyCnpj ?? "");
+  const [companyCnpjLoading, setCompanyCnpjLoading] = useState(true);
   const [companyPhone, setCompanyPhone] = useState(settings.companyPhone ?? "");
   const [companyStreet, setCompanyStreet] = useState(settings.companyStreet ?? "");
   const [companyNumber, setCompanyNumber] = useState(settings.companyNumber ?? "");
@@ -147,14 +148,31 @@ function Configuracoes() {
   useEffect(() => {
     let active = true;
     const loadCompanyCnpj = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("CNPJ").eq("id", user.id).maybeSingle();
-      if (active && profile?.CNPJ) setCompanyCnpj(String(profile.CNPJ));
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        if (!user) {
+          if (active) setCompanyCnpj(String(settings.companyCnpj ?? ""));
+          return;
+        }
+        // A coluna no banco é "cnpj" (minúscula), igual à usada pelo login.
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("cnpj")
+          .eq("id", user.id)
+          .maybeSingle();
+        if (profileError) throw profileError;
+        if (active) setCompanyCnpj(String(profile?.cnpj ?? settings.companyCnpj ?? ""));
+      } catch {
+        // Evita deixar o campo preso em "Carregando" se a consulta falhar.
+        if (active) setCompanyCnpj(String(settings.companyCnpj ?? ""));
+      } finally {
+        if (active) setCompanyCnpjLoading(false);
+      }
     };
     void loadCompanyCnpj();
     return () => { active = false; };
-  }, []);
+  }, [settings.companyCnpj]);
 
   useEffect(() => {
     setName(settings.companyName);
@@ -512,7 +530,7 @@ function Configuracoes() {
                     </label>
                     <label className="flex flex-col gap-1.5">
                       <span className="label-mono">CNPJ da empresa (não editável)</span>
-                      <input value={companyCnpj} readOnly aria-readonly="true" placeholder="Carregando CNPJ cadastrado..." className="field cursor-not-allowed bg-secondary/60 text-sm text-muted-foreground" />
+                      <input value={companyCnpj} readOnly aria-readonly="true" placeholder={companyCnpjLoading ? "Carregando CNPJ cadastrado..." : "CNPJ não encontrado no cadastro"} className="field cursor-not-allowed bg-secondary/60 text-sm text-muted-foreground" />
                     </label>
                     <label className="flex flex-col gap-1.5">
                       <span className="label-mono">Telefone da empresa</span>
