@@ -55,7 +55,7 @@ function Estoque() {
 
   const list = useMemo(() => {
     const n = norm(q);
-    return products.filter((p) => (!onlyLow || p.stock <= p.minStock) && (!n || norm(p.name).includes(n) || p.code.includes(n) || norm(p.category).includes(n)));
+    return products.filter((p) => (!onlyLow || p.stock <= p.minStock) && (!n || norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n)));
   }, [products, q, onlyLow]);
   const lowCount = products.filter((p) => p.stock <= p.minStock).length;
   const value = products.reduce((s, p) => s + p.price * Math.max(0, p.stock), 0);
