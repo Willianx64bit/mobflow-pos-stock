@@ -48,6 +48,7 @@ function Configuracoes() {
   const settings = useStore((s) => s.settings);
   const [name, setName] = useState(settings.companyName);
   const [companyCnpj, setCompanyCnpj] = useState(settings.companyCnpj ?? "");
+  const [companyPhone, setCompanyPhone] = useState(settings.companyPhone ?? "");
   const [companyStreet, setCompanyStreet] = useState(settings.companyStreet ?? "");
   const [companyNumber, setCompanyNumber] = useState(settings.companyNumber ?? "");
   const [companyCep, setCompanyCep] = useState(settings.companyCep ?? "");
@@ -144,8 +145,20 @@ function Configuracoes() {
   }, [navigate]);
 
   useEffect(() => {
+    let active = true;
+    const loadCompanyCnpj = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from("profiles").select("CNPJ").eq("id", user.id).maybeSingle();
+      if (active && profile?.CNPJ) setCompanyCnpj(String(profile.CNPJ));
+    };
+    void loadCompanyCnpj();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     setName(settings.companyName);
-    setCompanyCnpj(settings.companyCnpj ?? "");
+    setCompanyPhone(settings.companyPhone ?? "");
     setCompanyStreet(settings.companyStreet ?? "");
     setCompanyNumber(settings.companyNumber ?? "");
     setCompanyCep(settings.companyCep ?? "");
@@ -280,7 +293,7 @@ function Configuracoes() {
   };
 
   const save = () => {
-    actions.updateSettings({ ...settings, companyName: name.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
+    actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -499,7 +512,11 @@ function Configuracoes() {
                     </label>
                     <label className="flex flex-col gap-1.5">
                       <span className="label-mono">CNPJ da empresa (não editável)</span>
-                      <input value={companyCnpj} readOnly aria-readonly="true" placeholder="CNPJ cadastrado na criação da empresa" className="field cursor-not-allowed bg-secondary/60 text-sm text-muted-foreground" />
+                      <input value={companyCnpj} readOnly aria-readonly="true" placeholder="Carregando CNPJ cadastrado..." className="field cursor-not-allowed bg-secondary/60 text-sm text-muted-foreground" />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="label-mono">Telefone da empresa</span>
+                      <input value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} placeholder="(00) 00000-0000" inputMode="tel" className="field text-sm text-foreground" />
                     </label>
                     <div className="grid gap-3 sm:grid-cols-2">
                       <label className="flex flex-col gap-1.5 sm:col-span-2"><span className="label-mono">Rua / Avenida</span><input value={companyStreet} onChange={(e) => setCompanyStreet(e.target.value)} placeholder="Nome da rua ou avenida" className="field text-sm text-foreground" /></label>
