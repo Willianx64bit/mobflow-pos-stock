@@ -119,7 +119,9 @@ type DanfePreviewProps = {
 };
 
 function DanfePreview({ number, supplier, supplierCnpj, items, products }: DanfePreviewProps) {
-  const today = new Date().toLocaleDateString("pt-BR");
+  const now = new Date();
+  const today = now.toLocaleDateString("pt-BR");
+  const currentTime = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   const total = items.reduce((sum, item) => {
     const product = products.find(p => p.id === item.productId);
     return sum + item.expected * Number(product?.cost ?? 0);
@@ -141,6 +143,9 @@ function DanfePreview({ number, supplier, supplierCnpj, items, products }: Danfe
     </div>
     <div className="grid grid-cols-2 gap-0 md:grid-cols-4">
       {field("Natureza da operação", "Entrada de mercadoria")}
+      {field("Data de emissão", today)}
+      {field("Data de entrada/saída", today)}
+      {field("Hora da saída", currentTime)}
       {field("Data de recebimento", today)}
       {field("Chave de acesso", "")}
       {field("Protocolo de autorização", "")}
@@ -166,8 +171,8 @@ function DanfePreview({ number, supplier, supplierCnpj, items, products }: Danfe
     </div>
     <div className="mt-2 grid grid-cols-2 gap-0 md:grid-cols-4">
       {field("Transportador", "")}
-      {field("Quantidade volumes", "0")}
-      {field("Espécie", "")}
+      {field("Quantidade volumes", items.length)}
+      {field("Espécie", items.length ? "Produtos" : "")}
       {field("Peso bruto / líquido", "")}
     </div>
     <div className="mt-2 grid grid-cols-1 gap-0 sm:grid-cols-2">
