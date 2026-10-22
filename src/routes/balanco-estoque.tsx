@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
 
@@ -120,6 +121,19 @@ function BalancoEstoque() {
     setEditingProductId(null);
   };
 
+
+  const downloadImportTemplate = () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([["CÓDIGO", "QUANTIDADE"]]);
+    worksheet["!cols"] = [{ wch: 20 }, { wch: 18 }];
+    worksheet["!ref"] = "A1:B1000";
+    for (let row = 2; row <= 1000; row++) {
+      worksheet[`A${row}`] = { t: "n", z: "0" };
+      worksheet[`B${row}`] = { t: "n", z: "0.###" };
+    }
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Importação");
+    XLSX.writeFile(workbook, "modelo-importacao-produtos.xlsx");
+  };
   const fmtDate = (date: string) => {
     const parsed = new Date(date);
     return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleString("pt-BR");
@@ -178,7 +192,7 @@ function BalancoEstoque() {
                 <button type="button" onClick={() => { setStep(1); setError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold">Voltar</button>
               </div>
           <div className="mt-6">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm font-semibold text-heading">Inserir rápido</p><p className="text-xs text-muted-foreground">Bipe o código para adicionar +1 automaticamente</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} className={`relative h-6 w-11 rounded-full transition-colors ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${quickInsert ? "translate-x-5" : "translate-x-0.5"}`} /></button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm font-semibold text-heading">Inserir rápido</p><p className="text-xs text-muted-foreground">Bipe o código para adicionar +1 automaticamente</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} className={`relative h-6 w-11 rounded-full transition-colors ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-5 w-5 rounded-full bg-background shadow transition-transform ${quickInsert ? "translate-x-5" : "translate-x-0.5"}`} /></button></div><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><div><p className="text-sm font-semibold text-heading">Planilha de importação</p><p className="text-xs text-muted-foreground">Modelo vazio com as colunas CÓDIGO e QUANTIDADE.</p></div><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
             <div className="relative flex gap-2">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
