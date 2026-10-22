@@ -27,33 +27,17 @@ function BaixaProdutos() {
   {drafts.map((d) => {
     const p = products.find((x) => x.id === d.productId);
     if (!p) return null;
+    return <div key={p.id} className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3"><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold"><span className="font-mono text-xs text-muted-foreground">{p.code}</span> — {p.name}</div><div className="mt-1 text-sm text-muted-foreground">Quantidade: <b>{d.quantity || "—"} {p.unit}</b></div></div><button onClick={() => setEditingId(p.id)} aria-label={`Editar ${p.name}`} className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button><button onClick={() => setDrafts((old) => old.filter((x) => x.productId !== p.id))} aria-label="Remover" className="rounded-lg p-2"><Trash2 className="h-4 w-4" /></button></div>;
+  })}
+  {editingId && (() => {
+    const d = drafts.find((x) => x.productId === editingId);
+    const p = products.find((x) => x.id === editingId);
+    if (!d || !p) return null;
     const q = Number(d.quantity.replace(",", "."));
     const cost = costMode === "compra" ? (p.cost ?? 0) : costMode === "venda" ? p.price : ((p.cost ?? 0) + p.price) / 2;
-    return (
-      <div key={p.id} className="mb-3 rounded-xl border border-border bg-background px-3 py-3">
-        {editingId === p.id ? (
-          <div className="space-y-3">
-            <b className="block">{p.name}</b>
-            <p className="text-xs text-muted-foreground">Código: {p.code}</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div><label className="mb-1 block text-xs font-semibold">Quantidade para baixar</label><input type="number" min="0" max={p.stock} step={p.unit === "kg" ? "0.001" : "1"} value={d.quantity} onChange={(e) => setDrafts((old) => old.map((x) => x.productId === p.id ? { ...x, quantity: e.target.value } : x))} className="field w-full" /></div>
-              <div><label className="mb-1 block text-xs font-semibold">Custo unitário</label><input value={money(cost)} readOnly className="field w-full opacity-80" /></div>
-              <div><label className="mb-1 block text-xs font-semibold">Venda</label><input value={money(p.price)} readOnly className="field w-full opacity-80" /></div>
-            </div>
-            <p className="text-xs text-muted-foreground">Estoque atual: {p.stock} {p.unit}{d.quantity && q > 0 ? " · Total: " + money(cost * q) : ""}</p>
-            <button onClick={() => { if (!d.quantity.trim() || !Number.isFinite(q) || q <= 0 || q > p.stock || (p.unit !== "kg" && !Number.isInteger(q))) { setError("Informe uma quantidade válida dentro do estoque disponível."); return; } setError(""); setEditingId(null); }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 font-bold text-primary-foreground"><Save className="h-4 w-4" />Salvar</button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold"><span className="font-mono text-xs text-muted-foreground">{p.code}</span> — {p.name}</div><div className="mt-1 text-sm text-muted-foreground">Quantidade: <b>{d.quantity || "—"} {p.unit}</b></div></div>
-            <button onClick={() => setEditingId(p.id)} aria-label="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button>
-            <button onClick={() => setDrafts((old) => old.filter((x) => x.productId !== p.id))} aria-label="Remover" className="rounded-lg p-2"><Trash2 className="h-4 w-4" /></button>
-          </div>
-        )}
-      </div>
-    );
-  })}
- {error&&<p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}<div className="mt-5 flex gap-3"><button onClick={()=>setStep(1)} className="rounded-xl bg-secondary px-4 py-3 font-semibold">Voltar</button><button disabled={saving||!drafts.length} onClick={finalize} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">{saving?"Finalizando...":"Finalizar ✔️"}</button></div></div>}
+    return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditingId(null); setError(""); }}><div role="dialog" aria-modal="true" aria-labelledby="writeoff-product-title" className="w-full max-w-lg rounded-2xl border border-border bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><div><h3 id="writeoff-product-title" className="text-lg font-bold text-heading">Editar produto da baixa</h3><p className="mt-1 text-sm text-muted-foreground">{p.name} · Código: {p.code}</p></div><button onClick={() => { setEditingId(null); setError(""); }} aria-label="Fechar formulário" className="rounded-lg px-3 py-1 text-xl text-muted-foreground hover:bg-secondary">×</button></div><div className="space-y-4"><div><label className="mb-1 block text-sm font-semibold">Quantidade para baixar</label><input autoFocus type="number" min="0" max={p.stock} step={p.unit === "kg" ? "0.001" : "1"} value={d.quantity} onChange={(e) => { setDrafts((old) => old.map((x) => x.productId === p.id ? { ...x, quantity: e.target.value } : x)); setError(""); }} className="field w-full" placeholder={p.unit === "kg" ? "Ex.: 0,500" : "Informe a quantidade"} /></div><div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-xs font-semibold">Custo unitário</label><input value={money(cost)} readOnly className="field w-full opacity-80" /></div><div><label className="mb-1 block text-xs font-semibold">Preço de venda</label><input value={money(p.price)} readOnly className="field w-full opacity-80" /></div></div><p className="text-xs text-muted-foreground">Estoque disponível: {p.stock} {p.unit}{d.quantity && q > 0 ? " · Total da baixa: " + money(cost * q) : ""}</p>{error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}<div className="flex gap-3 pt-1"><button onClick={() => { setEditingId(null); setError(""); }} className="flex-1 rounded-xl bg-secondary py-3 font-semibold">Cancelar</button><button onClick={() => { if (!d.quantity.trim() || !Number.isFinite(q) || q <= 0 || q > p.stock || (p.unit !== "kg" && !Number.isInteger(q))) { setError("Informe uma quantidade válida dentro do estoque disponível."); return; } setError(""); setEditingId(null); }} className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground"><Save className="h-4 w-4" />Salvar</button></div></div></div></div>;
+  })()}
+  {error&&<p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}<div className="mt-5 flex gap-3"><button onClick={()=>setStep(1)} className="rounded-xl bg-secondary px-4 py-3 font-semibold">Voltar</button><button disabled={saving||!drafts.length} onClick={finalize} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">{saving?"Finalizando...":"Finalizar ✔️"}</button></div></div>}
  {message&&<div role="status" className="mt-4 flex gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><CheckCircle2 className="h-4 w-4"/>{message}</div>}</section>
  <section className="glass p-5 md:p-6"><h2 className="font-display text-xl">HISTÓRICO DE BAIXAS</h2>{history.length===0?<p className="mt-3 text-sm text-muted-foreground">Nenhuma baixa registrada ainda.</p>:history.map(e=><details key={e.id} className="mt-3 rounded-xl border border-border bg-background p-4"><summary className="cursor-pointer font-semibold">{e.number} · {e.reason} · {new Date(e.date).toLocaleString("pt-BR")}</summary><p className="mt-2 text-sm">Responsável: {e.operator||"—"}{e.donationDestination?" · Doação para: "+e.donationDestination:""}</p>{e.items.map(i=><p key={i.productId} className="mt-2 text-sm">{i.name} — {i.quantity} {i.unit} · {money(i.totalCost)} · Estoque {i.previousStock} → {i.newStock}</p>)}<p className="mt-3 text-right font-bold">Total: {money(e.items.reduce((s,i)=>s+i.totalCost,0))}</p></details>)}</section>
  </main></div>
