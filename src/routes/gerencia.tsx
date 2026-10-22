@@ -338,7 +338,7 @@ function Gerencia() {
           username,
           displayName: firstDisplayName.trim() || username,
           password: firstPassword,
-          permissions: ["PDV", "Conferência", "Validade", "Fiado", "Gerência"],
+          permissions: ["PDV", "Operações", "Validade", "Fiado", "Gerência"],
         },
       });
       if (invokeError || !data?.ok) {
