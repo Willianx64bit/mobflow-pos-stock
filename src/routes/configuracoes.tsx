@@ -47,6 +47,7 @@ function Configuracoes() {
   const navigate = useNavigate();
   const settings = useStore((s) => s.settings);
   const [name, setName] = useState(settings.companyName);
+  const [companyCnpj, setCompanyCnpj] = useState(settings.companyCnpj ?? "");
   const [logo, setLogo] = useState(settings.companyLogo ?? "");
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
@@ -264,7 +265,7 @@ function Configuracoes() {
   };
 
   const save = () => {
-    actions.updateSettings({ companyName: name.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
+    actions.updateSettings({ companyName: name.trim(), companyCnpj: companyCnpj.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -480,6 +481,8 @@ function Configuracoes() {
                     <label className="flex flex-col gap-1.5">
                       <span className="label-mono">Nome da empresa</span>
                       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" className="field text-sm text-foreground" />
+                       <span className="label-mono mt-3 block">CNPJ da empresa</span>
+                       <input value={companyCnpj} onChange={(e) => setCompanyCnpj(e.target.value)} placeholder="00.000.000/0000-00" className="field text-sm text-foreground" />
                     </label>
                     <label className="block cursor-pointer">
                       <span className="label-mono">Logo da empresa</span>
