@@ -314,7 +314,7 @@ function BalancoEstoque() {
                             <th className="px-3 py-3 font-semibold">Código</th>
                             <th className="px-3 py-3 font-semibold">Produto</th>
                             <th className="px-3 py-3 text-right font-semibold">Qtd. anterior</th>
-                            <th className="px-3 py-3 font-semibold">Operação realizada</th>
+                            <th className="px-3 py-3 font-semibold">Operação ({entry.items.every((item) => item.mode === "somar") ? "Somar" : entry.items.every((item) => item.mode === "definir") ? "Definir" : "Individual"})</th>
                             <th className="px-3 py-3 text-right font-semibold">Variação</th>
                             <th className="px-3 py-3 text-right font-semibold">Saldo final</th>
                           </tr>
@@ -333,8 +333,7 @@ function BalancoEstoque() {
                                 </td>
                                 <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{item.previousStock} {unitLabel}</td>
                                 <td className="px-3 py-3">
-                                  <div className="font-semibold">{item.mode === "somar" ? "Somar" : "Definir"}</div>
-                                  <div className="mt-1 text-muted-foreground">{item.mode === "somar" ? `Quantidade: ${item.quantity} ${unitLabel}` : `Novo saldo: ${item.quantity} ${unitLabel}`}</div>
+                                  <div className="text-muted-foreground">{item.mode === "somar" ? item.quantity : item.quantity} {unitLabel}</div>
                                 </td>
                                 <td className={`whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums ${variation > 0 ? "text-emerald-600" : variation < 0 ? "text-destructive" : "text-muted-foreground"}`}>
                                   {variation > 0 ? "+" : ""}{variation} {unitLabel}
