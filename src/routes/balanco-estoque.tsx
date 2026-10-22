@@ -144,9 +144,17 @@ function BalancoEstoque() {
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input id="stock-product-search" value={query}
-                  onChange={(e) => { setQuery(e.target.value); setError(""); }}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setQuery(value);
+                    setError("");
+                    if (quickInsert && value.trim()) {
+                      const scannedProduct = products.find((p) => p.code.trim().toLocaleLowerCase() === value.trim().toLocaleLowerCase());
+                      if (scannedProduct) addProduct(scannedProduct);
+                    }
+                  }}
                   onKeyDown={handleScannerKeyDown}
-                  placeholder={quickInsert ? "Bipe o código de barras e pressione Enter" : "Código de barras, nome ou REF"}
+                  placeholder={quickInsert ? "Digite ou bipe o código de barras" : "Código de barras, nome ou REF"}
                   autoComplete="off"
                   className="field w-full pl-10 text-foreground" />
               </div>
