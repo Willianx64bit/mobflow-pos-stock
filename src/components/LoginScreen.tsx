@@ -169,7 +169,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
       sessionStorage.setItem("mobflow-role", data.profile?.role || (mode === "pdv" ? "pdv" : "manager"));
       sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
-      sessionStorage.setItem("mobflow-permissions", JSON.stringify(data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
+      const savedPermissions = data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
+      const normalizedPermissions = Array.from(new Set(savedPermissions.map((p: string) => p === "Conferência" ? "Operações" : p)));
+      sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
       const firstManagerLogin = mode === "empresa" && data.firstManagerLogin === true;
       if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
       onLogin({ firstManagerLogin });
