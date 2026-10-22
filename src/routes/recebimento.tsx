@@ -88,6 +88,7 @@ function Recebimento() {
         {items.length > 0 && <div className="rounded-xl ring-1 ring-border divide-y divide-border/50">
           {items.map(i => { const p = products.find(x => x.id === i.productId)!; return <div key={i.productId} className="flex items-center gap-3 px-3 py-2 text-sm"><span className="flex-1 text-foreground">{p.name}</span><span className="font-mono">{i.expected} {p.unit === "kg" ? "kg" : "un."}</span><button type="button" onClick={() => setItems(items.filter(x => x.productId !== i.productId))} className="text-destructive">×</button></div>; })}
         </div>}
+        <DanfePreview number={number} supplier={supplier} supplierCnpj={supplierCnpj} items={items} products={products} />
         <button disabled={!items.length} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">Salvar nota para conferência</button>
       </form>}
     </section>
@@ -108,6 +109,75 @@ function Recebimento() {
     </section>
   </div>;
 }
+
+type DanfePreviewProps = {
+  number: string;
+  supplier: string;
+  supplierCnpj: string;
+  items: { productId: string; expected: number }[];
+  products: { id: string; name: string; code: string; unit?: string; cost?: number; price?: number }[];
+};
+
+function DanfePreview({ number, supplier, supplierCnpj, items, products }: DanfePreviewProps) {
+  const today = new Date().toLocaleDateString("pt-BR");
+  const total = items.reduce((sum, item) => {
+    const product = products.find(p => p.id === item.productId);
+    return sum + item.expected * Number(product?.cost ?? 0);
+  }, 0);
+  const field = (label: string, value: string | number = "", className = "") => (
+    <div className={`min-h-10 border border-black/70 p-1.5 ${className}`}>
+      <div className="text-[9px] uppercase tracking-wide text-gray-600">{label}</div>
+      <div className="min-h-4 text-xs font-semibold text-black">{value === "" ? " " : value}</div>
+    </div>
+  );
+  return <section className="mt-5 rounded-xl border border-border bg-white p-3 text-black">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div><div className="text-sm font-bold tracking-wide">PRÉ-VISUALIZAÇÃO — MODELO DANFE</div><div className="text-[10px] text-gray-600">Documento auxiliar de recebimento · não substitui DANFE fiscal oficial</div></div>
+      <button type="button" onClick={() => window.print()} className="rounded-lg border border-gray-400 px-3 py-1.5 text-xs font-bold text-black">Imprimir / Salvar PDF</button>
+    </div>
+    <div className="grid grid-cols-1 gap-0 sm:grid-cols-[1fr_180px]">
+      <div className="border border-black/70 p-2"><div className="text-[9px] uppercase text-gray-600">Recebimento / fornecedor</div><div className="text-sm font-bold">{supplier || " "}</div><div className="text-xs">CNPJ: {supplierCnpj || " "}</div></div>
+      <div className="border border-black/70 p-2"><div className="text-[9px] uppercase text-gray-600">Documento</div><div className="text-sm font-bold">NF-e Nº {number || " "}</div><div className="text-xs">Entrada: {today}</div></div>
+    </div>
+    <div className="grid grid-cols-2 gap-0 md:grid-cols-4">
+      {field("Natureza da operação", "Entrada de mercadoria")}
+      {field("Data de recebimento", today)}
+      {field("Chave de acesso", "")}
+      {field("Protocolo de autorização", "")}
+    </div>
+    <div className="mt-2 grid grid-cols-2 gap-0 md:grid-cols-4">
+      {field("Base cálculo ICMS", "0,00")}
+      {field("Valor ICMS", "0,00")}
+      {field("Base ICMS ST", "0,00")}
+      {field("Valor ICMS ST", "0,00")}
+      {field("Valor total produtos", total.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}))}
+      {field("Valor do frete", "0,00")}
+      {field("Desconto", "0,00")}
+      {field("Valor total da nota", total.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}))}
+    </div>
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full min-w-[620px] border-collapse text-xs">
+        <thead><tr>{["Cód.","Descrição dos produtos / serviços","Unid.","Quantidade","Valor unitário","Valor total"].map(label=><th key={label} className="border border-black/70 p-1 text-left text-[9px] uppercase">{label}</th>)}</tr></thead>
+        <tbody>{items.map(item => { const p = products.find(x=>x.id===item.productId); const unitValue=Number(p?.cost ?? 0); return <tr key={item.productId}>
+          <td className="border border-black/70 p-1">{p?.code || ""}</td><td className="border border-black/70 p-1">{p?.name || ""}</td><td className="border border-black/70 p-1">{p?.unit || "un."}</td><td className="border border-black/70 p-1 text-right">{item.expected}</td><td className="border border-black/70 p-1 text-right">{unitValue.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td><td className="border border-black/70 p-1 text-right">{(item.expected*unitValue).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        </tr>;})}
+        {!items.length && <tr><td colSpan={6} className="border border-black/70 p-4 text-center text-gray-500">Adicione produtos para preencher esta tabela automaticamente.</td></tr>}</tbody>
+      </table>
+    </div>
+    <div className="mt-2 grid grid-cols-2 gap-0 md:grid-cols-4">
+      {field("Transportador", "")}
+      {field("Quantidade volumes", "0")}
+      {field("Espécie", "")}
+      {field("Peso bruto / líquido", "")}
+    </div>
+    <div className="mt-2 grid grid-cols-1 gap-0 sm:grid-cols-2">
+      {field("Dados adicionais / observações", "")}
+      {field("Reservado ao fisco", "")}
+    </div>
+    <p className="mt-2 text-[10px] text-gray-600">Os campos disponíveis no MobFlow são preenchidos automaticamente. Campos fiscais sem dados importados permanecem vazios ou zerados; confirme os valores com o XML/DANFE original do fornecedor.</p>
+  </section>;
+}
+
 function expiryInfo(expiry?: string) {
   if (!expiry) return null;
   const value = expiry.trim();
