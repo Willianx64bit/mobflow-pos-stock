@@ -33,7 +33,7 @@ function Recebimento() {
 
   const productSuggestions = products.filter(p => {
     const term = productSearch.trim().toLowerCase();
-    return !term || p.name.toLowerCase().includes(term) || p.code.includes(term);
+    return !term || p.name.toLowerCase().includes(term) || (p.code.includes(term) || (p.barcodes ?? []).some(code => code.includes(term)));
   }).slice(0, 8);
 
   const addItem = () => {
