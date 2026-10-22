@@ -123,8 +123,8 @@ function BalancoEstoque() {
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <main className="mx-auto w-full max-w-5xl space-y-5">
-        <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
-          <ArrowLeft className="h-4 w-4" /> Voltar para Gerência
+        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else { navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+          <ArrowLeft className="h-4 w-4" /> {showForm && step === 2 ? "Voltar para operação" : "Voltar para Operações"}
         </button>
         {showForm ? (
         <section className="glass p-5 md:p-6">
