@@ -48,6 +48,13 @@ function Configuracoes() {
   const settings = useStore((s) => s.settings);
   const [name, setName] = useState(settings.companyName);
   const [companyCnpj, setCompanyCnpj] = useState(settings.companyCnpj ?? "");
+  const [companyStreet, setCompanyStreet] = useState(settings.companyStreet ?? "");
+  const [companyNumber, setCompanyNumber] = useState(settings.companyNumber ?? "");
+  const [companyCep, setCompanyCep] = useState(settings.companyCep ?? "");
+  const [companyComplement, setCompanyComplement] = useState(settings.companyComplement ?? "");
+  const [companyNeighborhood, setCompanyNeighborhood] = useState(settings.companyNeighborhood ?? "");
+  const [companyCity, setCompanyCity] = useState(settings.companyCity ?? "");
+  const [companyState, setCompanyState] = useState(settings.companyState ?? "");
   const [logo, setLogo] = useState(settings.companyLogo ?? "");
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
@@ -138,6 +145,14 @@ function Configuracoes() {
 
   useEffect(() => {
     setName(settings.companyName);
+    setCompanyCnpj(settings.companyCnpj ?? "");
+    setCompanyStreet(settings.companyStreet ?? "");
+    setCompanyNumber(settings.companyNumber ?? "");
+    setCompanyCep(settings.companyCep ?? "");
+    setCompanyComplement(settings.companyComplement ?? "");
+    setCompanyNeighborhood(settings.companyNeighborhood ?? "");
+    setCompanyCity(settings.companyCity ?? "");
+    setCompanyState(settings.companyState ?? "");
     setLogo(settings.companyLogo ?? "");
     setPixKey(settings.pixKey ?? "");
     setPixKeyType(settings.pixKeyType ?? "aleatoria");
@@ -265,7 +280,7 @@ function Configuracoes() {
   };
 
   const save = () => {
-    actions.updateSettings({ companyName: name.trim(), companyCnpj: companyCnpj.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
+    actions.updateSettings({ ...settings, companyName: name.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
     setSaved(true);
     setTimeout(() => setSaved(false), 1800);
   };
@@ -481,9 +496,20 @@ function Configuracoes() {
                     <label className="flex flex-col gap-1.5">
                       <span className="label-mono">Nome da empresa</span>
                       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome da empresa" className="field text-sm text-foreground" />
-                       <span className="label-mono mt-3 block">CNPJ da empresa</span>
-                       <input value={companyCnpj} onChange={(e) => setCompanyCnpj(e.target.value)} placeholder="00.000.000/0000-00" className="field text-sm text-foreground" />
                     </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="label-mono">CNPJ da empresa (não editável)</span>
+                      <input value={companyCnpj} readOnly aria-readonly="true" placeholder="CNPJ cadastrado na criação da empresa" className="field cursor-not-allowed bg-secondary/60 text-sm text-muted-foreground" />
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="flex flex-col gap-1.5 sm:col-span-2"><span className="label-mono">Rua / Avenida</span><input value={companyStreet} onChange={(e) => setCompanyStreet(e.target.value)} placeholder="Nome da rua ou avenida" className="field text-sm text-foreground" /></label>
+                      <label className="flex flex-col gap-1.5"><span className="label-mono">Número</span><input value={companyNumber} onChange={(e) => setCompanyNumber(e.target.value)} placeholder="Número" className="field text-sm text-foreground" /></label>
+                      <label className="flex flex-col gap-1.5"><span className="label-mono">CEP</span><input value={companyCep} placeholder="00000-000" maxLength={9} onChange={(e) => setCompanyCep(e.target.value.replace(/[^0-9-]/g, "").slice(0, 9))} className="field text-sm text-foreground" /></label>
+                      <label className="flex flex-col gap-1.5"><span className="label-mono">Complemento</span><input value={companyComplement} onChange={(e) => setCompanyComplement(e.target.value)} placeholder="Sala, loja, etc. (opcional)" className="field text-sm text-foreground" /></label>
+                      <label className="flex flex-col gap-1.5"><span className="label-mono">Bairro</span><input value={companyNeighborhood} onChange={(e) => setCompanyNeighborhood(e.target.value)} placeholder="Bairro" className="field text-sm text-foreground" /></label>
+                      <label className="flex flex-col gap-1.5"><span className="label-mono">Cidade</span><input value={companyCity} onChange={(e) => setCompanyCity(e.target.value)} placeholder="Cidade" className="field text-sm text-foreground" /></label>
+                      <label className="flex flex-col gap-1.5"><span className="label-mono">Estado (UF)</span><input value={companyState} onChange={(e) => setCompanyState(e.target.value.toUpperCase().slice(0, 2))} placeholder="SP" maxLength={2} className="field text-sm text-foreground" /></label>
+                    </div>
                     <label className="block cursor-pointer">
                       <span className="label-mono">Logo da empresa</span>
                       <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(até 5 MB)</span></div>
