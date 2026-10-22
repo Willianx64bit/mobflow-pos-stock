@@ -43,8 +43,12 @@ function BalancoEstoque() {
   }, [products, query]);
 
   const addProduct = (product: Product) => {
-    if (drafts.some((d) => d.productId === product.id)) {
-      setError("Esse produto já está na lista de ajustes.");
+    const existing = drafts.find((d) => d.productId === product.id);
+    if (existing) {
+      setEditingProductId(product.id);
+      setQuery("");
+      setError("");
+      setMessage("");
       return;
     }
     setDrafts((old) => [...old, { productId: product.id, mode: operation, quantity: "" }]);
