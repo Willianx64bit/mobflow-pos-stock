@@ -22,6 +22,13 @@ const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix", "Fiado"];
 
 function PDV() {
   const products = useStore((s) => s.products);
+  useEffect(() => {
+    let permissions: string[] = [];
+    try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]").map((p: string) => p === "Conferência" ? "Operações" : p); } catch {}
+    if (sessionStorage.getItem("mobflow-pdv-authorized") === "1" && permissions.includes("Operações") && !permissions.includes("PDV")) {
+      window.location.replace("/operacoes");
+    }
+  }, []);
   const sales = useStore((s) => s.sales);
   const settings = useStore((s) => s.settings);
   const cart = useStore((s) => s.cart);
