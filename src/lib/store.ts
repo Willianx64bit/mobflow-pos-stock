@@ -59,7 +59,8 @@ const emptyState = (): State => ({
   receiving: [],
   manualExpiries: [],
   stockAdjustments: [],
-  promotions: [],
+  stockWriteoffs: [],
+  promotions: [] ,
   suppliers: [],
   settings: { companyName: "" },
 });
@@ -140,7 +141,8 @@ function normalizeState() {
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
   state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
   state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
-  state.stockAdjustments = Array.isArray(state.stockAdjustments) ? state.stockAdjustments : [];\n  state.stockWriteoffs = Array.isArray(state.stockWriteoffs) ? state.stockWriteoffs : [];
+  state.stockAdjustments = Array.isArray(state.stockAdjustments) ? state.stockAdjustments : [];
+  state.stockWriteoffs = Array.isArray(state.stockWriteoffs) ? state.stockWriteoffs : [];\n  state.stockWriteoffs = Array.isArray(state.stockWriteoffs) ? state.stockWriteoffs : [];
   state.promotions = Array.isArray(state.promotions) ? state.promotions : [];
   const legacyManual = state.receiving.filter((n) => n.source === "manual");
   if (legacyManual.length) {
@@ -399,6 +401,7 @@ export const actions = {
       receiving: [],
       manualExpiries: [],
       stockAdjustments: [],
+      stockWriteoffs: [],
       promotions: [],
       suppliers: [],
       settings: { companyName: "" },
