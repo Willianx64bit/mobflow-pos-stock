@@ -9,6 +9,13 @@ export function downloadTemplate() {
     ["Código", "Descrição", "Quantidade", "Preço (opcional)"],
   ]);
   ws["!cols"] = [{ wch: 18 }, { wch: 32 }, { wch: 12 }, { wch: 16 }];
+  // Keep the code column as text so codes are not interpreted as formulas or decimals.
+  ws["!ref"] = "A1:D1000";
+  for (let row = 2; row <= 1000; row++) {
+    ws[`A${row}`] = { t: "s", v: "", z: "@" };
+    ws[`C${row}`] = { t: "n", z: "0.###" };
+    ws[`D${row}`] = { t: "n", z: "0.00" };
+  }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Produtos");
   XLSX.writeFile(wb, "modelo-importacao-mobflow.xlsx");
