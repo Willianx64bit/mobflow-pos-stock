@@ -9,7 +9,7 @@ import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, Us
 
 const tabs = [
   { to: "/", label: "PDV", key: "F2", icon: "pdv" },
-  { to: "/conferencia", label: "Conferência", key: "F7", icon: "conference" },
+  { to: "/operacoes", label: "Operações", key: "F7", icon: "operations" },
   { to: "/validade", label: "Validade dos produtos", key: "", icon: "expiry" },
   { to: "/fiado", label: "Fiado", key: "", icon: "credit" },
   { to: "/gerencia", label: "Acesso Gerência", key: "", icon: "management" },
@@ -74,7 +74,7 @@ export function AppHeader() {
       const tab = tabs.find((item) => item.key && item.key === e.key);
       if (!tab) return;
       e.preventDefault();
-      const required: Record<string, string> = { "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+      const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
       if (!permissions.includes(required[tab.to] ?? "")) {
         window.alert("Seu usuário não tem permissão para acessar esta área.");
         return;
@@ -98,7 +98,7 @@ export function AppHeader() {
   }, []);
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
-    const required: Record<string, string> = { "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+    const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
     if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
@@ -157,8 +157,8 @@ export function AppHeader() {
                 try { return JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[]; }
                 catch { return []; }
               })();
-              if (!userPermissions.includes("PDV") && userPermissions.includes("Conferência")) {
-                navigate({ to: "/conferencia" });
+              if (!userPermissions.includes("PDV") && userPermissions.includes("Operações")) {
+                navigate({ to: "/operacoes" });
               } else {
                 navigate({ to: "/" });
               }
@@ -188,7 +188,7 @@ export function AppHeader() {
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/conferencia": "Conferência", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "conference" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span>{t.key && <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>}</button>)}
+              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span>{t.key && <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>}</button>)}
             </nav>
             <div className="p-2 border-t border-border space-y-1">
               <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>
