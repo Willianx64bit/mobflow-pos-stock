@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale } from "lucide-react";
+import { ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale, LockKeyhole } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/operacoes")({
   head: () => ({ meta: [{ title: "MobFlow — Operações" }] }),
@@ -9,6 +10,18 @@ export const Route = createFileRoute("/operacoes")({
 
 function Operacoes() {
   const navigate = useNavigate();
+  const [hasManagementAccess, setHasManagementAccess] = useState(false);
+  useEffect(() => {
+    const readPermissions = () => {
+      try {
+        const permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[];
+        setHasManagementAccess(permissions.includes("Gerência"));
+      } catch { setHasManagementAccess(false); }
+    };
+    readPermissions();
+    window.addEventListener("mobflow-pdv-auth-changed", readPermissions);
+    return () => window.removeEventListener("mobflow-pdv-auth-changed", readPermissions);
+  }, []);
   const items = [
     { title: "Conferência", description: "Conferir os produtos recebidos e as notas pendentes.", icon: ClipboardCheck, ready: true },
     { title: "Baixa de produtos", description: "Registrar saídas, perdas ou produtos danificados.", icon: PackageMinus, ready: true },
@@ -27,6 +40,7 @@ function Operacoes() {
             </div>
           </div>
         </section>
+        {hasManagementAccess && <div className="flex justify-center"><button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-green-700 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-green-800"><LockKeyhole className="h-4 w-4" /> Voltar para Gerência</button></div>}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => {
             const Icon = item.icon;
