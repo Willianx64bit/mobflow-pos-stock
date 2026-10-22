@@ -1,4 +1,4 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -10,6 +10,7 @@ export const Route = createFileRoute("/conferencia")({
 });
 
 function Conferencia() {
+  const navigate = useNavigate();
   const notes = useStore((s) => s.receiving ?? []);
   const products = useStore((s) => s.products);
   const search = useSearch({ from: "/conferencia" }) as { nota?: string };
@@ -19,6 +20,12 @@ function Conferencia() {
   const note = notes.find(n => n.id === open);
 
   useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);
+
+  useEffect(() => {
+    let permissions: string[] = [];
+    try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch {}
+    if (!permissions.includes("Operações") && !permissions.includes("Gerência")) navigate({ to: "/" });
+  }, [navigate]);
 
   if (note) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />{note.status === "pendente" ? <Session noteId={note.id} onBack={() => setOpen(null)} /> : <ConferenceMirror note={note} products={products} onBack={() => setOpen(null)} />}</div>;
 
