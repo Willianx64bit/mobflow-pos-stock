@@ -22,12 +22,12 @@ function Operacoes() {
           <ArrowLeft className="h-4 w-4" /> Voltar à Gerência
         </button>
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-7">
-          <div className="flex items-center gap-3">
-            <div className="grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><ClipboardList className="h-6 w-6" /></div>
-            <div>
-              <h1 className="font-display text-2xl text-heading md:text-3xl">OPERAÇÕES</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Acesse as rotinas de movimentação e controle de estoque.</p>
+          <div className="flex flex-col items-center justify-center gap-3 text-center">
+            <div className="flex items-center justify-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><ClipboardList className="h-6 w-6" /></div>
+              <h1 className="font-display text-3xl font-extrabold text-heading md:text-4xl">OPERAÇÕES</h1>
             </div>
+            <p className="text-base text-muted-foreground md:text-lg">Acesse as rotinas de movimentação e controle de estoque.</p>
           </div>
         </section>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
