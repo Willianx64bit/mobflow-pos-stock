@@ -4,7 +4,7 @@ import { Camera, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
-import { actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -222,7 +222,7 @@ function PDV() {
         scanTimer.current = null;
       }
       const value = q.trim();
-      if (/^\d{6,}$/.test(value) && products.some((p) => p.code === value)) {
+      if (/^\d{6,}$/.test(value) && products.some((p) => productHasBarcode(p, value))) {
         e.preventDefault();
         if (quick) {
           scanAdd(value);
