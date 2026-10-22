@@ -27,7 +27,6 @@ function Operacoes() {
               <div className="grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><ClipboardList className="h-6 w-6" /></div>
               <h1 className="font-display text-3xl font-extrabold text-heading md:text-4xl">OPERAÇÕES</h1>
             </div>
-            <p className="text-base text-muted-foreground md:text-lg">Acesse as rotinas de movimentação e controle de estoque.</p>
           </div>
         </section>
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
