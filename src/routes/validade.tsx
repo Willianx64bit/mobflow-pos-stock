@@ -148,7 +148,7 @@ function ValidadeProdutos() {
                 <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
                   {products.filter((p) => {
                     const query = productSearch.trim().toLocaleLowerCase("pt-BR");
-                    return !query || p.name.toLocaleLowerCase("pt-BR").includes(query) || p.code.toLocaleLowerCase("pt-BR").includes(query);
+                    return !query || p.name.toLocaleLowerCase("pt-BR").includes(query) || (p.code.toLocaleLowerCase("pt-BR").includes(query) || (p.barcodes ?? []).some((code) => code.toLocaleLowerCase("pt-BR").includes(query)));
                   }).slice(0, 50).map((p) => (
                     <button
                       type="button"
