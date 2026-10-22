@@ -151,6 +151,13 @@ function BalancoEstoque() {
             </div>
 
           {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          <div className="mt-6">
+            <label htmlFor="stock-adjust-reason" className="mb-2 block text-sm font-semibold text-heading">Motivo do ajuste <span className="text-destructive">*</span></label>
+            <textarea id="stock-adjust-reason" value={reason} onChange={(e) => { setReason(e.target.value); setError(""); }}
+              placeholder="Ex.: contagem física, perda, avaria, correção de cadastro..." rows={3} required
+              className="field w-full resize-y text-foreground" />
+          </div>
+
               <button type="button" onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); setStep(2); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Próximo: selecionar produtos</button>
             </div>
           ) : (
@@ -253,13 +260,6 @@ function BalancoEstoque() {
               </div>
             );
           })()}
-
-          <div className="mt-6">
-            <label htmlFor="stock-adjust-reason" className="mb-2 block text-sm font-semibold text-heading">Motivo do ajuste <span className="text-destructive">*</span></label>
-            <textarea id="stock-adjust-reason" value={reason} onChange={(e) => { setReason(e.target.value); setError(""); }}
-              placeholder="Ex.: contagem física, perda, avaria, correção de cadastro..." rows={3} required
-              className="field w-full resize-y text-foreground" />
-          </div>
 
           {step === 2 && error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
           {step === 2 && message && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{message}</div>}
