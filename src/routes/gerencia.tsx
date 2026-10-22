@@ -8,12 +8,12 @@ import { verifyManagerPassword } from "@/lib/manager-auth";
 import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent, Scale, Workflow } from "lucide-react";
 
 const managementTabs = [
-  { to: "/estoque", label: "Estoque", icon: "stock" },
-  { to: "/operacoes", label: "Operações", icon: "operations" },
-  { to: "/vendas", label: "Vendas", icon: "sales" },
-  { to: "/recebimento", label: "Recebimento", icon: "receiving" },
-  { to: "/configuracoes", label: "Configurações", icon: "settings" },
   { to: "/promocoes", label: "Promoções", icon: "promotions" },
+  { to: "/estoque", label: "Estoque", icon: "stock" },
+  { to: "/recebimento", label: "Recebimento", icon: "receiving" },
+  { to: "/vendas", label: "Vendas", icon: "sales" },
+  { to: "/operacoes", label: "Operações", icon: "operations" },
+  { to: "/configuracoes", label: "Configurações", icon: "settings" },
 ] as const;
 
 const localDateKey = (d = new Date()) => {
@@ -472,7 +472,7 @@ function Gerencia() {
             </div>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {managementTabs.map((tab) => (
             <button key={tab.to} onClick={() => {
               if (tab.to === "/promocoes") {
@@ -482,8 +482,8 @@ function Gerencia() {
               } else {
                 navigate({ to: tab.to });
               }
-            }} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:ring-primary/50">
-              <div className="text-2xl text-green-600">{tab.icon === "settings" ? <Settings className="h-6 w-6" /> : tab.icon === "stock" ? <Package className="h-6 w-6" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-6 w-6" /> : tab.icon === "receiving" ? <Truck className="h-6 w-6" /> : tab.icon === "promotions" ? <Percent className="h-6 w-6" /> : tab.icon === "balance" ? <Scale className="h-6 w-6" /> : tab.icon === "operations" ? <Workflow className="h-6 w-6" /> : null}</div><div className="mt-3 font-bold text-heading">{tab.label}</div>
+            }} className="group flex min-h-36 flex-col items-center justify-center rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-border transition-all duration-200 ease-out hover:-translate-y-2 hover:shadow-lg hover:ring-primary/60 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:translate-y-0 sm:min-h-40">
+              <div className="mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">{tab.icon === "settings" ? <Settings className="h-7 w-7" /> : tab.icon === "stock" ? <Package className="h-7 w-7" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-7 w-7" /> : tab.icon === "receiving" ? <Truck className="h-7 w-7" /> : tab.icon === "promotions" ? <Percent className="h-7 w-7" /> : tab.icon === "balance" ? <Scale className="h-7 w-7" /> : tab.icon === "operations" ? <Workflow className="h-7 w-7" /> : null}</div><div className="text-base font-extrabold text-heading">{tab.label}</div>
             </button>
           ))}
         </div>
