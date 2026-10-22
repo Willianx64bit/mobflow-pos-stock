@@ -23,7 +23,11 @@ function Conferencia() {
 
   useEffect(() => {
     let permissions: string[] = [];
-    try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch {}
+    try {
+      const stored = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[];
+      permissions = Array.from(new Set(stored.map((p) => p === "Conferência" ? "Operações" : p)));
+      sessionStorage.setItem("mobflow-permissions", JSON.stringify(permissions));
+    } catch {}
     if (!permissions.includes("Operações") && !permissions.includes("Gerência")) navigate({ to: "/" });
   }, [navigate]);
 
