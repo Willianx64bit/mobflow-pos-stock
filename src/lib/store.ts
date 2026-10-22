@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 
-export type Product = { id: string; code: string; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
+export type Product = { id: string; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
@@ -503,7 +503,7 @@ export const actions = {
     set({ conferences: state.conferences.map((c) => (c.id === id ? fn(c) : c)) });
   },
   countCode(confId: string, code: string, qty = 1): Product | null {
-    const p = state.products.find((x) => x.code === code.trim());
+    const p = state.products.find((x) => productHasBarcode(x, code));
     actions.patchConference(confId, (c) => p
       ? { ...c, counts: { ...c.counts, [p.id]: Math.max(0, (c.counts[p.id] ?? 0) + qty) } }
       : { ...c, unknown: c.unknown.includes(code) ? c.unknown : [...c.unknown, code] });
@@ -767,3 +767,8 @@ export function buildPixPayload(key: string, amount: number, merchantName = "MOB
 
 export const brl = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+export const productHasBarcode = (product: Pick<Product, "code" | "barcodes">, code: string) => {
+  const value = code.trim();
+  return !!value && (product.code.trim() === value || (product.barcodes ?? []).some((barcode) => barcode.trim() === value));
+};
