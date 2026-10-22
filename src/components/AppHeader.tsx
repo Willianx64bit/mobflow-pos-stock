@@ -131,7 +131,7 @@ export function AppHeader() {
 
   return createPortal(
     <>
-      {(pathname === "/" || pathname === "/conferencia") && (
+      {(pathname === "/" || pathname === "/operacoes") && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
             <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
