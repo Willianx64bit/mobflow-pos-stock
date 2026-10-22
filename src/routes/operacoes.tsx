@@ -10,7 +10,7 @@ export const Route = createFileRoute("/operacoes")({
 function Operacoes() {
   const navigate = useNavigate();
   const items = [
-    { title: "Baixa de produtos", description: "Registrar saídas, perdas ou produtos danificados.", icon: PackageMinus, ready: false },
+    { title: "Baixa de produtos", description: "Registrar saídas, perdas ou produtos danificados.", icon: PackageMinus, ready: true },
     { title: "Transferência", description: "Transferir quantidades entre locais ou estoques.", icon: ArrowLeftRight, ready: false },
     { title: "Balanço de estoque", description: "Conferir quantidades e ajustar o saldo dos produtos.", icon: Scale, ready: true },
   ];
@@ -34,7 +34,7 @@ function Operacoes() {
           {items.map((item) => {
             const Icon = item.icon;
             return (
-              <button key={item.title} type="button" onClick={() => item.ready ? navigate({ to: "/balanco-estoque" }) : window.alert(item.title + " será configurada na próxima etapa.")} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:-translate-y-0.5 hover:ring-primary/50">
+              <button key={item.title} type="button" onClick={() => item.title === "Baixa de produtos" ? navigate({ to: "/baixa-produtos" }) : item.ready ? navigate({ to: "/balanco-estoque" }) : window.alert(item.title + " será configurada na próxima etapa.")} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:-translate-y-0.5 hover:ring-primary/50">
                 <div className="flex items-center justify-between gap-3">
                   <div className="grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><Icon className="h-6 w-6" /></div>
                   {!item.ready && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">Em preparação</span>}
