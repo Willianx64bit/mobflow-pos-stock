@@ -158,53 +158,49 @@ function BalancoEstoque() {
                 {drafts.map((draft) => {
                   const product = products.find((p) => p.id === draft.productId);
                   if (!product) return null;
-                  const value = draft.quantity.trim() ? Number(draft.quantity.replace(",", ".")) : NaN;
-                  const next = Number.isFinite(value) && value >= 0 ? (draft.mode === "somar" ? product.stock + value : value) : null;
                   return (
-                    <div key={draft.productId} className="rounded-xl border border-border bg-background px-3 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-semibold text-heading"><span className="font-mono text-xs text-muted-foreground">{product.code}</span> — {product.name}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">Quantidade: <strong className="text-heading">{draft.quantity || "—"} {product.unit === "kg" ? "kg" : "un."}</strong></div>
-                        </div>
-                        <button type="button" onClick={() => setEditingProductId(product.id)} aria-label={`Editar ${product.name}`} title="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
+                    <div key={draft.productId} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-heading"><span className="font-mono text-xs text-muted-foreground">{product.code}</span> — {product.name}</div>
+                        <div className="mt-1 text-sm text-muted-foreground">Quantidade: <strong className="text-heading">{draft.quantity || "—"} {product.unit === "kg" ? "kg" : "un."}</strong></div>
                       </div>
-                      {editingProductId === product.id ? (
-                        <div className="mt-3 grid gap-3">
-                          <div className="font-semibold text-heading">{product.name}</div>
-                          <div className="grid gap-3 sm:grid-cols-3">
-                            <div><label className="mb-1 block text-xs font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label><input type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity} onChange={(e) => updateDraft(product.id, { quantity: e.target.value })} placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full text-foreground" /></div>
-                            <div><label className="mb-1 block text-xs font-semibold text-heading">Custo</label><input value={String(product.cost ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div>
-                            <div><label className="mb-1 block text-xs font-semibold text-heading">Venda</label><input value={String(product.price ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div>
-                          </div>
-                          <button type="button" onClick={() => {
-                            const raw = draft.quantity.trim();
-                            const amount = Number(raw.replace(",", "."));
-                            if (!raw || !Number.isFinite(amount) || amount < 0 || (product.unit !== "kg" && !Number.isInteger(amount))) {
-                              setError(product.unit !== "kg" && raw && Number.isFinite(amount) ? "Informe um número inteiro para este produto." : "Informe uma quantidade válida antes de salvar o produto.");
-                              return;
-                            }
-                            setError("");
-                            setEditingProductId(null);
-                          }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">
-                            <Save className="h-4 w-4" /> Salvar
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-4 rounded-lg bg-secondary/60 px-3 py-3 text-sm text-muted-foreground">
-                          {draft.quantity.trim() ? (
-                            <> {draft.mode === "somar" ? "Quantidade a somar" : "Novo saldo definido"}: <strong className="text-heading">{draft.quantity} {product.unit === "kg" ? "kg" : "un."}</strong>
-                              {next !== null && <div className="mt-1">Saldo após ajuste: <strong className="text-heading">{next} {product.unit === "kg" ? "kg" : "un."}</strong></div>}
-                            </>
-                          ) : <span>Quantidade ainda não informada.</span>}
-                        </div>
-                      )}
+                      <button type="button" onClick={() => setEditingProductId(product.id)} aria-label={`Editar ${product.name}`} title="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   );
                 })}
               </div>
             )}
           </div>
+
+          {editingProductId && (() => {
+            const draft = drafts.find((d) => d.productId === editingProductId);
+            const product = products.find((p) => p.id === editingProductId);
+            if (!draft || !product) return null;
+            const raw = draft.quantity.trim();
+            const value = raw ? Number(raw.replace(",", ".")) : NaN;
+            const next = Number.isFinite(value) && value >= 0 ? (draft.mode === "somar" ? product.stock + value : value) : null;
+            return (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditingProductId(null); setError(""); }}>
+                <div role="dialog" aria-modal="true" aria-labelledby="stock-product-title" className="w-full max-w-lg rounded-2xl border border-border bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                  <div className="mb-4 flex items-start justify-between gap-3">
+                    <div><h3 id="stock-product-title" className="text-lg font-bold text-heading">Editar produto do balanço</h3><p className="mt-1 text-sm text-muted-foreground">{product.name} · Código: {product.code}</p></div>
+                    <button type="button" onClick={() => { setEditingProductId(null); setError(""); }} aria-label="Fechar formulário" className="rounded-lg px-3 py-1 text-xl text-muted-foreground hover:bg-secondary">×</button>
+                  </div>
+                  <div className="space-y-4">
+                    <div><label className="mb-1 block text-sm font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label><input autoFocus type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity} onChange={(e) => updateDraft(product.id, { quantity: e.target.value })} placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full text-foreground" /></div>
+                    <div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-xs font-semibold text-heading">Custo</label><input value={String(product.cost ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div><div><label className="mb-1 block text-xs font-semibold text-heading">Venda</label><input value={String(product.price ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div></div>
+                    <p className="text-xs text-muted-foreground">Saldo atual: {product.stock} {product.unit === "kg" ? "kg" : "un."}{next !== null ? " · Saldo após ajuste: " + next + " " + (product.unit === "kg" ? "kg" : "un.") : ""}</p>
+                    {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+                    <div className="flex gap-3 pt-1">
+                      <button type="button" onClick={() => { setEditingProductId(null); setError(""); }} className="flex-1 rounded-xl bg-secondary py-3 font-semibold">Cancelar</button>
+                      <button type="button" onClick={() => { if (!raw || !Number.isFinite(value) || value < 0 || (product.unit !== "kg" && !Number.isInteger(value))) { setError(product.unit !== "kg" && raw && Number.isFinite(value) ? "Informe um número inteiro para este produto." : "Informe uma quantidade válida antes de salvar."); return; } setError(""); setEditingProductId(null); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground"><Save className="h-4 w-4" />Salvar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="mt-6">
             <label htmlFor="stock-adjust-reason" className="mb-2 block text-sm font-semibold text-heading">Motivo do ajuste <span className="text-destructive">*</span></label>
