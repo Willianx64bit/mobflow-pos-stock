@@ -2,14 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, PackageMinus, Search, Trash2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, PackageMinus, Search, Trash2, CheckCircle2, Pencil, Save } from "lucide-react";
 
 export const Route = createFileRoute("/baixa-produtos")({ head: () => ({ meta: [{ title: "MobFlow — Baixa de produtos" }] }), component: BaixaProdutos });
 function BaixaProdutos() {
  const navigate=useNavigate(), products=useStore(s=>s.products), history=useStore(s=>s.stockWriteoffs??[]);
- const [step,setStep]=useState(1), [reason,setReason]=useState<"Perda"|"Consumo"|"Doação">("Perda"), [destination,setDestination]=useState(""), [costMode,setCostMode]=useState<"compra"|"venda"|"media">("compra"), [query,setQuery]=useState(""), [drafts,setDrafts]=useState<{productId:string;quantity:string}[]>([]), [error,setError]=useState(""), [message,setMessage]=useState(""), [saving,setSaving]=useState(false);
+ const [step,setStep]=useState(1), [reason,setReason]=useState<"Perda"|"Consumo"|"Doação">("Perda"), [destination,setDestination]=useState(""), [costMode,setCostMode]=useState<"compra"|"venda"|"media">("compra"), [query,setQuery]=useState(""), [drafts,setDrafts]=useState<{productId:string;quantity:string}[]>([]), [error,setError]=useState(""), [message,setMessage]=useState(""), [saving,setSaving]=useState(false), [editingId,setEditingId]=useState<string|null>(null);
  const results=useMemo(()=>{const q=query.trim().toLowerCase();return q?products.filter(p=>p.code.toLowerCase().includes(q)||p.name.toLowerCase().includes(q)||(p.ref??"").toLowerCase().includes(q)).slice(0,8):[]},[products,query]);
- const add=(p:Product)=>{if(drafts.some(d=>d.productId===p.id)){setError("Produto já adicionado.");return}setDrafts(old=>[...old,{productId:p.id,quantity:""}]);setQuery("");setError("")};
+ const add=(p:Product)=>{if(drafts.some(d=>d.productId===p.id)){setError("Produto já adicionado.");return}setDrafts(old=>[...old,{productId:p.id,quantity:""}]);setEditingId(p.id);setQuery("");setError("")};
  const money=(n:number)=>"R$ "+brl(n);
  const finalize=()=>{if(saving)return;if(!drafts.length){setError("Adicione pelo menos um produto.");return}for(const d of drafts){const p=products.find(x=>x.id===d.productId),q=Number(d.quantity.replace(",","."));if(!p||!d.quantity.trim()||!Number.isFinite(q)||q<=0||q>p.stock||(p.unit!=="kg"&&!Number.isInteger(q))){setError("Confira as quantidades e o estoque disponível.");return}}setSaving(true);const result=actions.applyStockWriteoff({reason,donationDestination:reason==="Doação"?destination:undefined,costMode,items:drafts.map(d=>({productId:d.productId,quantity:Number(d.quantity.replace(",","."))}))});setSaving(false);if(!result){setError("Não foi possível registrar a baixa. Confira os dados.");return}setMessage("Baixa "+result.number+" finalizada com sucesso.");setDrafts([]);setDestination("");setStep(1);setError("")};
  return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader/><main className="mx-auto w-full max-w-5xl space-y-5 pt-12">
