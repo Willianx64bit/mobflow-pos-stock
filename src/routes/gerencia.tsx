@@ -56,7 +56,7 @@ function Gerencia() {
   useEffect(() => {
     let permissions: string[] = [];
     try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch {}
-    if (permissions.includes("Operações")) {
+    if (permissions.includes("Operações") && !permissions.includes("Gerência")) {
       navigate({ to: "/operacoes", replace: true });
       return;
     }
