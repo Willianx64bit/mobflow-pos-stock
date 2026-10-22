@@ -42,7 +42,7 @@ function Promotions() {
   const selected = products.find((p) => p.id === productId);
   const results = useMemo(() => {
     const q = norm(search.trim());
-    return products.filter((p) => !q || norm(p.name).includes(q) || p.code.includes(q)).slice(0, 30);
+    return products.filter((p) => !q || norm(p.name).includes(q) || (p.code.includes(q) || (p.barcodes ?? []).some((code) => code.includes(q)))).slice(0, 30);
   }, [products, search]);
 
   const resetForm = () => {
