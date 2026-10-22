@@ -306,14 +306,43 @@ function BalancoEstoque() {
                       <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">{entry.items.length} produto(s)</span>
                     </div>
                   </summary>
-                  <div className="mt-4 space-y-2 border-t border-border pt-3">
-                    {entry.items.map((item) => (
-                      <div key={item.productId} className="rounded-lg bg-secondary/40 p-3">
-                        <div className="font-semibold text-foreground">{item.name}</div>
-                        <div className="mt-1 font-mono text-xs text-muted-foreground">Código: {item.code} · REF: {item.ref || "—"}</div>
-                        <div className="mt-2 text-sm text-muted-foreground">{item.mode === "somar" ? `Somou ${item.quantity}` : `Definiu saldo para ${item.quantity}`} · {item.previousStock} → <strong className="text-heading">{item.newStock} {item.unit === "kg" ? "kg" : "un."}</strong></div>
-                      </div>
-                    ))}
+                  <div className="mt-4 border-t border-border pt-3">
+                    <div className="overflow-x-auto rounded-xl border border-border">
+                      <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                        <thead className="bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground">
+                          <tr>
+                            <th className="px-3 py-3 font-semibold">Código</th>
+                            <th className="px-3 py-3 font-semibold">Produto</th>
+                            <th className="px-3 py-3 text-right font-semibold">Qtd. anterior</th>
+                            <th className="px-3 py-3 font-semibold">Operação realizada</th>
+                            <th className="px-3 py-3 text-right font-semibold">Variação</th>
+                            <th className="px-3 py-3 text-right font-semibold">Saldo final</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entry.items.map((item) => {
+                            const difference = item.newStock - item.previousStock;
+                            const unitLabel = item.unit === "kg" ? "kg" : "un.";
+                            const variation = item.mode === "somar" ? Number(item.quantity) : difference;
+                            return (
+                              <tr key={item.productId} className="border-t border-border/70 align-top">
+                                <td className="whitespace-nowrap px-3 py-3 font-mono text-xs">{item.code}</td>
+                                <td className="px-3 py-3">
+                                  <div className="font-semibold text-foreground">{item.name}</div>
+                                  {item.ref ? <div className="mt-1 text-xs text-muted-foreground">REF: {item.ref}</div> : null}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">{item.previousStock} {unitLabel}</td>
+                                <td className="px-3 py-3">{item.mode === "somar" ? `Somou ${item.quantity} ${unitLabel}` : `Definiu saldo para ${item.newStock} ${unitLabel}`}</td>
+                                <td className={`whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums ${variation > 0 ? "text-emerald-600" : variation < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                                  {variation > 0 ? "+" : ""}{variation} {unitLabel}
+                                </td>
+                                <td className="whitespace-nowrap px-3 py-3 text-right font-bold tabular-nums">{item.newStock} {unitLabel}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </details>
               ))}
