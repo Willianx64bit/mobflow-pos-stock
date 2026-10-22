@@ -69,7 +69,7 @@ function Configuracoes() {
   const [userName, setUserName] = useState("");
   const [userUsername, setUserUsername] = useState("");
   const [userPassword, setUserPassword] = useState("");
-  const [newUserPermissions, setNewUserPermissions] = useState<string[]>(["PDV", "Conferência"]);
+  const [newUserPermissions, setNewUserPermissions] = useState<string[]>(["PDV", "Operações"]);
   const [userMessage, setUserMessage] = useState("");
   const [userError, setUserError] = useState("");
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
@@ -165,7 +165,7 @@ function Configuracoes() {
     setUserName("");
     setUserUsername("");
     setUserPassword("");
-    setNewUserPermissions(["PDV", "Conferência"]);
+    setNewUserPermissions(["PDV", "Operações"]);
     setUserMessage("Usuário criado com sucesso.");
     await loadPdvUsers();
     setCreatingPdvUser(false);
@@ -376,8 +376,8 @@ function Configuracoes() {
                     </div>
                     <div className="mt-3 rounded-xl border border-border/60 bg-background/70 p-3">
                       <div className="mb-2 text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>
-                      <div className="flex flex-wrap gap-3">{["PDV", "Conferência", "Validade", "Fiado", "Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-sm text-foreground"><input type="checkbox" checked={newUserPermissions.includes(area)} onChange={e => setNewUserPermissions(current => e.target.checked ? [...current, area] : current.filter(permission => permission !== area))} className="accent-primary" />{area}</label>)}</div>
-                      <p className="mt-2 text-xs text-muted-foreground">Para um conferente usar somente a Conferência, marque apenas essa opção. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
+                      <div className="flex flex-wrap gap-3">{["PDV", "Operações", "Validade", "Fiado", "Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-sm text-foreground"><input type="checkbox" checked={newUserPermissions.includes(area)} onChange={e => setNewUserPermissions(current => e.target.checked ? [...current, area] : current.filter(permission => permission !== area))} className="accent-primary" />{area}</label>)}</div>
+                      <p className="mt-2 text-xs text-muted-foreground">Para um conferente usar somente a Operações, marque apenas essa opção. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
                     </div>
                     <button type="button" onClick={() => void createPdvUser()} disabled={creatingPdvUser || userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">{creatingPdvUser ? "Aguarde, criando usuário..." : "Criar usuário do PDV"}</button>
                   </div>
@@ -391,7 +391,13 @@ function Configuracoes() {
                     <div key={user.id} className="flex flex-wrap items-center gap-2 border-b border-border/40 py-3 last:border-0">
                       <div className="min-w-40 flex-1"><div className="font-semibold text-foreground">{user.display_name || user.username}</div><div className="font-mono text-[11px] text-muted-foreground">@{user.username}</div></div>
                       <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold">{user.active ? "Ativo" : "Desativado"}</span>
-                      <div className="w-full rounded-xl bg-background/70 p-3 mt-2"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>{savingPermissionsUserId === user.id && <span role="status" className="text-xs font-semibold text-primary">Salvando permissões… aguarde</span>}</div><div className="flex flex-wrap gap-3">{["PDV","Conferência","Validade","Fiado","Gerência"].map(area => <label key={area} className={`flex items-center gap-1.5 text-xs text-foreground ${savingPermissionsUserId === user.id ? "opacity-60" : ""}`}><input type="checkbox" checked={(user.permissions ?? ["PDV","Conferência"]).includes(area)} disabled={!!savingPermissionsUserId || !!togglingUserId || !!deletingUserId} onChange={e => void saveUserPermissions(user, e.target.checked ? [...(user.permissions ?? ["PDV","Conferência"]), area] : (user.permissions ?? ["PDV","Conferência"]).filter(p => p !== area))} className="accent-primary" />{area}</label>)}</div><p className="mt-2 text-xs text-muted-foreground">A permissão Gerência libera a tentativa de entrada, mas a senha da Gerência continua obrigatória.</p></div><button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
+                      <div className="w-full rounded-xl bg-background/70 p-3 mt-2"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>{savingPermissionsUserId === user.id && <span role="status" className="text-xs font-semibold text-primary">Salvando permissões… aguarde</span>}</div><div className="flex flex-wrap gap-3">{["PDV","Operações","Validade","Fiado","Gerência"].map(area => <label key={area} className={`flex items-center gap-1.5 text-xs text-foreground ${savingPermissionsUserId === user.id ? "opacity-60" : ""}`}><input type="checkbox" checked={((user.permissions ?? ["PDV","Operações"]).map(p => p === "Conferência" ? "Operações" : p)).includes(area)} disabled={!!savingPermissionsUserId || !!togglingUserId || !!deletingUserId} onChange={e => {
+                        const current = Array.from(new Set((user.permissions ?? ["PDV", "Operações"]).map(p => p === "Conferência" ? "Operações" : p)));
+                        const next = e.target.checked
+                          ? [...current.filter(p => p !== area && !(area === "Operações" && p === "Gerência") && !(area === "Gerência" && p === "Operações")), area]
+                          : current.filter(p => p !== area);
+                        void saveUserPermissions(user, next);
+                      }} className="accent-primary" />{area}</label>)}</div><p className="mt-2 text-xs text-muted-foreground">A permissão Gerência libera a tentativa de entrada, mas a senha da Gerência continua obrigatória.</p></div><button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
                       <button onClick={() => void togglePdvUser(user)} disabled={togglingUserId === user.id || !!savingPermissionsUserId || !!deletingUserId} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground disabled:opacity-50">{togglingUserId === user.id ? "Aguarde..." : user.active ? "Desativar" : "Ativar"}</button>
                       <button onClick={() => void deletePdvUser(user)} disabled={deletingUserId === user.id} className="rounded-lg border border-destructive/30 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">{deletingUserId === user.id ? "Excluindo..." : "Excluir"}</button>
                     </div>
