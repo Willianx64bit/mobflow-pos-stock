@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type Product, type ReceivingNote } from "@/lib/store";
+import { productHasBarcode, actions, useStore, type Product, type ReceivingNote } from "@/lib/store";
 
 export const Route = createFileRoute("/conferencia")({
   head: () => ({ meta: [{ title: "MobFlow — Conferência" }, { name: "description", content: "Conferência das notas aguardando recebimento." }] }),
@@ -237,7 +237,7 @@ function BarcodeScanner({ products, onProduct, onClose }: {
             const codes = await detector.detect(videoRef.current);
             const value = codes?.[0]?.rawValue?.trim();
             if (value) {
-              const p = products.find(x => x.code === value);
+              const p = products.find(x => productHasBarcode(x, value));
               if (p) { onProduct(p); return; }
               setError(`Código ${value} não encontrado no cadastro de produtos.`);
             }
@@ -255,7 +255,7 @@ function BarcodeScanner({ products, onProduct, onClose }: {
 
   const findManual = () => {
     const code = manualCode.trim();
-    const p = products.find(x => x.code === code);
+    const p = products.find(x => productHasBarcode(x, code));
     if (p) onProduct(p);
     else setError("Produto não encontrado no cadastro de produtos.");
   };
