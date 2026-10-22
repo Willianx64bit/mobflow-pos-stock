@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update_permissions") {
-      const permissions = Array.isArray(body.permissions) ? [...new Set(body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))))] : null;
+      const permissions = Array.isArray(body.permissions) ? [...new Set(body.permissions.filter((p: unknown) => ["PDV", "Operações", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))).map((p: string) => p === "Conferência" ? "Operações" : p))] : null;
       if (!permissions) return json({ error: "Informe as permissões de acesso do usuário." }, 400);
       if (target.id === manager.id && Array.isArray(manager.permissions) && manager.permissions.includes("Gerência") && !permissions.includes("Gerência")) {
         return json({ error: "Você não pode desativar a permissão Gerência do usuário que está usando agora, pois pode perder o acesso total à empresa. As outras permissões podem ser alteradas normalmente." }, 403);
