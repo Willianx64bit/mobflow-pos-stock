@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     if (action === "create") {
       const username = String(body.username ?? "").trim().toUpperCase();
       const displayName = String(body.displayName ?? "").trim() || username;
-      let permissions = Array.isArray(body.permissions) ? body.permissions.filter((p: unknown) => ["PDV", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))) : ["PDV", "Conferência"];
+      let permissions = Array.isArray(body.permissions) ? [...new Set(body.permissions.filter((p: unknown) => ["PDV", "Operações", "Conferência", "Validade", "Fiado", "Gerência"].includes(String(p))).map((p: string) => p === "Conferência" ? "Operações" : p))] : ["PDV", "Operações"];
 
       // The first operator created for a company automatically receives Gerência
       // so the company is not locked out during initial setup.
@@ -244,9 +244,6 @@ Deno.serve(async (req) => {
       if (!permissions) return json({ error: "Informe as permissões de acesso do usuário." }, 400);
       if (target.id === manager.id && Array.isArray(manager.permissions) && manager.permissions.includes("Gerência") && !permissions.includes("Gerência")) {
         return json({ error: "Você não pode desativar a permissão Gerência do usuário que está usando agora, pois pode perder o acesso total à empresa. As outras permissões podem ser alteradas normalmente." }, 403);
-      }
-      if (permissions.includes("Gerência") && manager.role !== "manager") {
-        return json({ error: "Somente a conta principal da empresa pode conceder a permissão Gerência. Este usuário tem acesso à Gerência, mas não é a conta principal." }, 403);
       }
       const { error } = await admin.from("profiles").update({ permissions }).eq("id", userId);
       if (error) return json({ error: "Não foi possível salvar as permissões." }, 500);
