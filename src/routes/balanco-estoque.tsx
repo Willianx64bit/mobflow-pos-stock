@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type Product } from "@/lib/store";
+import { productHasBarcode, actions, useStore, type Product } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
@@ -45,7 +45,7 @@ function BalancoEstoque() {
     const q = query.trim().toLocaleLowerCase();
     if (!q) return [];
     return products.filter((p) =>
-      p.code.toLocaleLowerCase().includes(q) ||
+      (p.code.toLocaleLowerCase().includes(q) || (p.barcodes ?? []).some(code => code.toLocaleLowerCase().includes(q))) ||
       p.name.toLocaleLowerCase().includes(q) ||
       (p.ref ?? "").toLocaleLowerCase().includes(q)
     ).slice(0, 8);
@@ -83,7 +83,7 @@ function BalancoEstoque() {
     e.preventDefault();
     const code = query.trim().toLocaleLowerCase();
     if (!code) return;
-    const product = products.find((p) => p.code.trim().toLocaleLowerCase() === code);
+    const product = products.find((p) => productHasBarcode(p, code));
     if (product) addProduct(product);
     else { setError(`Produto não encontrado para o código ${query.trim()}.`); setMessage(""); }
   };
@@ -202,7 +202,7 @@ function BalancoEstoque() {
                     setQuery(value);
                     setError("");
                     if (quickInsert && value.trim()) {
-                      const scannedProduct = products.find((p) => p.code.trim().toLocaleLowerCase() === value.trim().toLocaleLowerCase());
+                      const scannedProduct = products.find((p) => productHasBarcode(p, value.trim()));
                       if (scannedProduct) addProduct(scannedProduct);
                     }
                   }}
