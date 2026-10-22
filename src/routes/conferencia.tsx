@@ -31,12 +31,12 @@ function Conferencia() {
     if (!permissions.includes("Operações") && !permissions.includes("Gerência")) navigate({ to: "/" });
   }, [navigate]);
 
-  if (note) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />{note.status === "pendente" ? <Session noteId={note.id} onBack={() => setOpen(null)} /> : <ConferenceMirror note={note} products={products} onBack={() => setOpen(null)} />}</div>;
+  if (note) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />{note.status === "pendente" ? <Session noteId={note.id} onBack={() => setOpen(null)} /> : <ConferenceMirror note={note} products={products} onBack={() => navigate({ to: "/operacoes" })} />}</div>;
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
     <section className="glass p-4">
-      <div className="font-display text-2xl tracking-[.12em] text-heading mb-1">CONFERÊNCIA</div>
-      <div className="label-mono mb-4">Notas pendentes de recebimento</div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><div className="font-display text-2xl tracking-[.12em] text-heading mb-1">CONFERÊNCIA</div><div className="label-mono">Notas pendentes de recebimento</div></div><button type="button" onClick={() => navigate({ to: "/operacoes" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">← Voltar para Operações</button></div>
+      
       {!pending.length && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">nenhuma nota pendente</p>}
       <div className="divide-y divide-border/50">
         {pending.map(n => <button key={n.id} onClick={() => setOpen(n.id)} className="w-full text-left py-4 flex flex-wrap items-center gap-3 hover:bg-accent/30 rounded-lg px-2">
@@ -74,7 +74,7 @@ function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; pro
   };
   const decisionLabel = (id: string) => note.decisions?.[id] === "aceitar" ? "Aceito" : note.decisions?.[id] === "devolver" ? "Devolver" : "Sem decisão";
   return <section className="glass p-4">
-    <div className="flex flex-wrap items-center gap-3 mb-4"><button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button><div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier} · Visualização da conferência</div></div><span className="rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.actionCompleted ? "Finalizado" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span></div>
+    <div className="flex flex-wrap items-center gap-3 mb-4"><button onClick={() => navigate({ to: "/operacoes" })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar para Operações</button><div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier} · Visualização da conferência</div></div><span className="rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.actionCompleted ? "Finalizado" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span></div>
     <p className="mb-3 rounded-lg bg-secondary/50 p-3 text-sm text-muted-foreground">Esta tela é para consulta das quantidades e decisões registradas no Recebimento.</p>
     {needsAction && <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3"><p className="mb-3 text-sm text-amber-800">Confirme aqui quando a ação de devolução dos produtos tiver sido realizada.</p><button onClick={() => { if (confirm("Confirmar que a ação de devolução foi realizada?")) { const completed = actions.finishReceivingAction(note.id); if (completed) onBack(); } }} className="w-full rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold">Ação realizada · Finalizar</button></div>}
     <div className="overflow-x-auto"><table className="w-full text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Esperado</th><th className="text-right">Recebido</th><th className="text-right">Decisão</th></tr></thead><tbody className="divide-y divide-border/50">
