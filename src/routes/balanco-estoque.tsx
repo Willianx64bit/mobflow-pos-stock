@@ -123,6 +123,9 @@ function BalancoEstoque() {
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <main className="mx-auto w-full max-w-5xl space-y-5">
+        <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+          <ArrowLeft className="h-4 w-4" /> Voltar para Gerência
+        </button>
         {showForm ? (
         <section className="glass p-5 md:p-6">
           <div className="mb-4 flex justify-end">
@@ -130,9 +133,6 @@ function BalancoEstoque() {
               <X className="h-4 w-4" /> Fechar
             </button>
           </div>
-          <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="mb-5 inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
-            <ArrowLeft className="h-4 w-4" /> Voltar para Gerência
-          </button>
           <div className="flex items-center gap-3">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary"><Scale className="h-6 w-6" /></div>
             <div>
