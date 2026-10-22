@@ -376,8 +376,10 @@ function Configuracoes() {
                     </div>
                     <div className="mt-3 rounded-xl border border-border/60 bg-background/70 p-3">
                       <div className="mb-2 text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>
-                      <div className="flex flex-wrap gap-3">{["PDV", "Operações", "Validade", "Fiado", "Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-sm text-foreground"><input type="checkbox" checked={newUserPermissions.includes(area)} onChange={e => setNewUserPermissions(current => e.target.checked ? [...current, area] : current.filter(permission => permission !== area))} className="accent-primary" />{area}</label>)}</div>
-                      <p className="mt-2 text-xs text-muted-foreground">Para um conferente usar somente a Operações, marque apenas essa opção. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
+                      <div className="flex flex-wrap gap-3">{["PDV", "Operações", "Validade", "Fiado", "Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-sm text-foreground"><input type="checkbox" checked={newUserPermissions.includes(area)} onChange={e => setNewUserPermissions(current => e.target.checked
+                          ? [...current.filter(permission => permission !== area && !(area === "Operações" && permission === "Gerência") && !(area === "Gerência" && permission === "Operações")), area]
+                          : current.filter(permission => permission !== area))} className="accent-primary" />{area}</label>)}</div>
+                      <p className="mt-2 text-xs text-muted-foreground">Quem tiver acesso a Operações poderá usar todas as rotinas dessa área e não terá acesso à Gerência. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
                     </div>
                     <button type="button" onClick={() => void createPdvUser()} disabled={creatingPdvUser || userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">{creatingPdvUser ? "Aguarde, criando usuário..." : "Criar usuário do PDV"}</button>
                   </div>
