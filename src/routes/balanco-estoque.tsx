@@ -161,23 +161,21 @@ function BalancoEstoque() {
                   const value = draft.quantity.trim() ? Number(draft.quantity.replace(",", ".")) : NaN;
                   const next = Number.isFinite(value) && value >= 0 ? (draft.mode === "somar" ? product.stock + value : value) : null;
                   return (
-                    <div key={draft.productId} className="rounded-xl border border-border bg-background p-4">
-                      <div className="flex items-start gap-3">
-                        {product.photo ? <img src={product.photo} alt="" className="h-12 w-12 rounded-lg object-cover" /> : <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary"><PackagePlus className="h-5 w-5 text-muted-foreground" /></div>}
+                    <div key={draft.productId} className="rounded-xl border border-border bg-background px-3 py-3">
+                      <div className="flex items-center gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-heading">{product.name}</div>
-                          <div className="mt-1 break-all font-mono text-xs text-muted-foreground">Código: {product.code} · REF: {product.ref || "—"}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">Saldo atual: <strong className="text-heading">{product.stock} {product.unit === "kg" ? "kg" : "un."}</strong></div>
+                          <div className="truncate text-sm font-semibold text-heading"><span className="font-mono text-xs text-muted-foreground">{product.code}</span> — {product.name}</div>
+                          <div className="mt-1 text-sm text-muted-foreground">Quantidade: <strong className="text-heading">{draft.quantity || "—"} {product.unit === "kg" ? "kg" : "un."}</strong></div>
                         </div>
                         <button type="button" onClick={() => setEditingProductId(product.id)} aria-label={`Editar ${product.name}`} title="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
                       </div>
                       {editingProductId === product.id ? (
-                        <div className="mt-4 grid gap-3">
-                          <div>
-                            <label className="mb-2 block text-xs font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label>
-                            <input type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity}
-                              onChange={(e) => updateDraft(product.id, { quantity: e.target.value })}
-                              placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full font-mono text-foreground" />
+                        <div className="mt-3 grid gap-3">
+                          <div className="font-semibold text-heading">{product.name}</div>
+                          <div className="grid gap-3 sm:grid-cols-3">
+                            <div><label className="mb-1 block text-xs font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label><input type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity} onChange={(e) => updateDraft(product.id, { quantity: e.target.value })} placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full text-foreground" /></div>
+                            <div><label className="mb-1 block text-xs font-semibold text-heading">Custo</label><input value={String(product.cost ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div>
+                            <div><label className="mb-1 block text-xs font-semibold text-heading">Venda</label><input value={String(product.price ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div>
                           </div>
                           <button type="button" onClick={() => {
                             const raw = draft.quantity.trim();
@@ -189,7 +187,7 @@ function BalancoEstoque() {
                             setError("");
                             setEditingProductId(null);
                           }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground">
-                            <Save className="h-4 w-4" /> Salvar produto
+                            <Save className="h-4 w-4" /> Salvar
                           </button>
                         </div>
                       ) : (
