@@ -132,7 +132,7 @@ function PDV() {
     if (!normalized) return false;
     if (lastScanRef.current?.code === normalized && now - lastScanRef.current.at < 500) return true;
     lastScanRef.current = { code: normalized, at: now };
-    const p = products.find((x) => x.code === normalized);
+    const p = products.find((x) => productHasBarcode(x, normalized));
     if (p) { requestAdd(p); return true; }
     setFlash(`código não cadastrado: ${normalized}`);
     return false;
@@ -144,14 +144,14 @@ function PDV() {
     const value = v.trim();
     if (!/^\d{6,}$/.test(value)) return;
     scanTimer.current = setTimeout(() => {
-      if (products.some((p) => p.code === value)) { scanAdd(value); setQ(""); }
+      if (products.some((p) => productHasBarcode(p, value))) { scanAdd(value); setQ(""); }
     }, 120);
   };
 
   const results = useMemo(() => {
     const n = norm(q.trim());
     if (!n) return products;
-    return products.filter((p) => norm(p.name).includes(n) || p.code.includes(n) || norm(p.category).includes(n));
+    return products.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
   }, [q, products]);
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
@@ -239,7 +239,7 @@ function PDV() {
       e.preventDefault();
       const m = q.match(/^(\d+)\*(.*)$/);
       const term = (m ? m[2] : q) ?? "";
-      const exact = products.find((p) => p.code === term.trim());
+      const exact = products.find((p) => productHasBarcode(p, term.trim()));
       const target = exact ?? results[sel];
       if (target) { if (m && target.unit === "un") { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
