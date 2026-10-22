@@ -31,7 +31,13 @@ function BalancoEstoque() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
+    let permissions: string[] = [];
+    try {
+      permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]")
+        .map((p: string) => p === "Conferência" ? "Operações" : p);
+    } catch {}
+    const operationsOnly = permissions.includes("Operações") && !permissions.includes("PDV") && !permissions.includes("Gerência");
+    if (sessionStorage.getItem("mobflow-management") !== "1" && !operationsOnly) navigate({ to: "/gerencia" });
   }, [navigate]);
 
   const results = useMemo(() => {
