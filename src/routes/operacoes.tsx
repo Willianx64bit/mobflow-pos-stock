@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { ArrowLeft, ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale } from "lucide-react";
+import { ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale } from "lucide-react";
 
 export const Route = createFileRoute("/operacoes")({
   head: () => ({ meta: [{ title: "MobFlow — Operações" }] }),
@@ -19,9 +19,6 @@ function Operacoes() {
     <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
       <AppHeader />
       <main className="mx-auto max-w-5xl space-y-6 pt-16">
-        <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-heading ring-1 ring-border hover:bg-accent">
-          <ArrowLeft className="h-4 w-4" /> Voltar à Gerência
-        </button>
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-7">
           <div className="flex flex-col items-center justify-center gap-3 text-center">
             <div className="flex items-center justify-center gap-3">
