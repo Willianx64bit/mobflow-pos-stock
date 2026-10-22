@@ -112,7 +112,8 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     conferences: mergeById(local.conferences, remote.conferences),
     receiving: mergeById(local.receiving, remote.receiving),
     manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
-    stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),\n    stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
+    stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
+    stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
     promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
     suppliers: (() => {
       const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
