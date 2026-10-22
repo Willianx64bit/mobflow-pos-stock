@@ -40,7 +40,7 @@ export function AppHeader() {
     setDarkMode(localStorage.getItem("mobflow-theme") === "dark");
     setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
     setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
-    try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || '["PDV"]')); } catch { setPermissions(["PDV"]); }
+    try { const saved = JSON.parse(sessionStorage.getItem("mobflow-permissions") || '["PDV"]') as string[]; setPermissions(Array.from(new Set(saved.map((p) => p === "Conferência" ? "Operações" : p)))); } catch { setPermissions(["PDV"]); }
     setMounted(true);
   }, []);
 
@@ -75,6 +75,7 @@ export function AppHeader() {
       if (!tab) return;
       e.preventDefault();
       const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+      if (permissions.includes("Operações") && !permissions.includes("PDV") && tab.to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
       if (!permissions.includes(required[tab.to] ?? "")) {
         window.alert("Seu usuário não tem permissão para acessar esta área.");
         return;
@@ -91,7 +92,7 @@ export function AppHeader() {
     const sync = () => {
       setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
       setUsername(sessionStorage.getItem("mobflow-username") || "Usuário");
-    try { setPermissions(JSON.parse(sessionStorage.getItem("mobflow-permissions") || '["PDV"]')); } catch { setPermissions(["PDV"]); }
+    try { const saved = JSON.parse(sessionStorage.getItem("mobflow-permissions") || '["PDV"]') as string[]; setPermissions(Array.from(new Set(saved.map((p) => p === "Conferência" ? "Operações" : p)))); } catch { setPermissions(["PDV"]); }
     };
     window.addEventListener("mobflow-pdv-auth-changed", sync);
     return () => window.removeEventListener("mobflow-pdv-auth-changed", sync);
@@ -99,6 +100,7 @@ export function AppHeader() {
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
     const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+    if (permissions.includes("Operações") && !permissions.includes("PDV") && to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
     if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
@@ -154,8 +156,12 @@ export function AppHeader() {
               localStorage.setItem("mobflow-sidebar", "closed");
               setOpen(false);
               const userPermissions = (() => {
-                try { return JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[]; }
-                catch { return []; }
+                try {
+                  const saved = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[];
+                  const normalized = Array.from(new Set(saved.map((p) => p === "Conferência" ? "Operações" : p)));
+                  sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalized));
+                  return normalized;
+                } catch { return []; }
               })();
               if (!userPermissions.includes("PDV") && userPermissions.includes("Operações")) {
                 navigate({ to: "/operacoes" });
