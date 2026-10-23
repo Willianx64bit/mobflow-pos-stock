@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type BusinessContact } from "@/lib/store";
+import { actions, useStore, formatCpfCnpj, normalizeDocument, type BusinessContact } from "@/lib/store";
 import { ArrowLeft, Plus, Search, Trash2, Users, Truck } from "lucide-react";
 
 export const Route = createFileRoute("/fornecedores-clientes")({
@@ -19,11 +19,20 @@ function FornecedoresClientes() {
   const [editing, setEditing] = useState<BusinessContact | null>(null);
   const [form, setForm] = useState<Omit<BusinessContact, "id">>(blank("Fornecedor"));
   const [showForm, setShowForm] = useState(false);
-  const filtered = useMemo(() => contacts.filter(c => c.type === type && (!search.trim() || [c.name,c.document,c.phone].some(v => (v ?? "").toLowerCase().includes(search.trim().toLowerCase())))), [contacts,type,search]);
+  const filtered = useMemo(() => {
+    const q = search.trim();
+    const textQuery = q.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+    const digitsQuery = normalizeDocument(q);
+    return contacts.filter(c => c.type === type && (!q || [c.name,c.document,c.phone].some(v => {
+      const value = String(v ?? "");
+      return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().includes(textQuery) ||
+        (digitsQuery.length > 0 && normalizeDocument(value).includes(digitsQuery));
+    })));
+  }, [contacts,type,search]);
   const startNew = () => { setEditing(null); setForm(blank(type)); setShowForm(true); };
   const edit = (c: BusinessContact) => { setEditing(c); setForm({ type: c.type, name: c.name, document: c.document ?? "", phone: c.phone ?? "", cep: c.cep ?? "", street: c.street ?? "", number: c.number ?? "", neighborhood: c.neighborhood ?? "", city: c.city ?? "", state: c.state ?? "" }); setShowForm(true); };
   const save = (e: React.FormEvent) => { e.preventDefault(); if (!form.name.trim()) return; actions.saveContact({ ...form, type, ...(editing ? { id: editing.id } : {}) }); setShowForm(false); setEditing(null); };
-  const field = (key: keyof Omit<BusinessContact,"id"|"type">, label: string, placeholder = label) => <label className="block space-y-1 text-sm font-medium" key={key}><span>{label}</span><input value={form[key] ?? ""} onChange={e => setForm(v => ({ ...v, [key]: e.target.value }))} placeholder={placeholder} className="field w-full" /></label>;
+  const field = (key: keyof Omit<BusinessContact,"id"|"type">, label: string, placeholder = label) => <label className="block space-y-1 text-sm font-medium" key={key}><span>{label}</span><input value={key === "document" ? formatCpfCnpj(form[key] ?? "") : (form[key] ?? "")} onChange={e => setForm(v => ({ ...v, [key]: key === "document" ? formatCpfCnpj(e.target.value) : e.target.value }))} inputMode={key === "document" || key === "phone" || key === "cep" ? "numeric" : undefined} maxLength={key === "document" ? 18 : key === "cep" ? 9 : undefined} placeholder={key === "document" ? "CPF 000.000.000-00 ou CNPJ 00.000.000/0000-00" : placeholder} className="field w-full" /></label>;
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><main className="mx-auto max-w-5xl space-y-5 pt-12">
     <section className="glass p-5 md:p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><button onClick={() => navigate({to:"/operacoes"})} className="mb-3 inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold"><ArrowLeft className="h-4 w-4"/> Operações</button><h1 className="font-display text-2xl font-extrabold text-heading md:text-3xl">FORNECEDORES E CLIENTES</h1><p className="mt-1 text-sm text-muted-foreground">Cadastre os dados uma vez e reutilize no recebimento e nas doações.</p></div><button onClick={startNew} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground"><Plus className="h-4 w-4"/> Novo</button></div>
       <div className="mt-5 grid grid-cols-2 gap-3"><button onClick={() => {setType("Fornecedor");setSearch("");setShowForm(false)}} className={`rounded-xl border p-4 text-left transition ${type==="Fornecedor"?"border-primary bg-primary/10":"border-border bg-background"}`}><Truck className="mb-2 h-6 w-6"/><div className="font-bold">Fornecedores</div><div className="text-sm text-muted-foreground">{contacts.filter(c=>c.type==="Fornecedor").length} cadastrados</div></button><button onClick={() => {setType("Cliente");setSearch("");setShowForm(false)}} className={`rounded-xl border p-4 text-left transition ${type==="Cliente"?"border-primary bg-primary/10":"border-border bg-background"}`}><Users className="mb-2 h-6 w-6"/><div className="font-bold">Clientes</div><div className="text-sm text-muted-foreground">{contacts.filter(c=>c.type==="Cliente").length} cadastrados</div></button></div>
