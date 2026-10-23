@@ -283,29 +283,29 @@ function PDV() {
             {flash && <span className={`font-mono text-[11px] ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-5 gap-2.5 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+          <div className="grid grid-cols-3 gap-3 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
             {results.map((p, i) => {
               const out = p.stock <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
+                  className={`text-left rounded-xl bg-muted ring-1 p-3 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
-                  <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-[11px] uppercase tracking-[.15em] text-muted-foreground">
+                  <div className="aspect-square rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-sm uppercase tracking-[.15em] text-muted-foreground">
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
-                  <div className="mt-2 text-[13px] font-semibold text-foreground line-clamp-1">{p.name}</div>
+                  <div className="mt-3 text-base md:text-lg font-bold text-foreground line-clamp-2 min-h-[2.75rem] leading-snug">{p.name}</div>
                   <div className="mt-auto pt-2 text-center">
                     {effectivePrice(p) < p.price ? (
                       <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
-                        <span className="text-xl font-bold leading-none text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
+                        <span className="text-base text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
+                        <span className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className="text-xl font-bold leading-none text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
+                      <div className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
-                    <div className={`mt-1 font-mono text-[11px] ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`mt-2 font-mono text-sm md:text-base font-semibold ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
                     </div>
                   </div>
@@ -330,7 +330,7 @@ function PDV() {
                   <div className="font-mono text-[12px] xl:text-[13px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
-                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">−</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">−</button>
                   <input
                     value={qtyDrafts[p.id] ?? (p.unit === "kg" ? brl(qty) : String(qty))}
                     disabled={!pdvAuthorized} onChange={(e) => setQtyDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/[^0-9,.]/g, "") }))}
@@ -352,10 +352,10 @@ function PDV() {
                     }}
                     inputMode="decimal"
                     aria-label={`Quantidade de ${p.name}`}
-                    className="w-16 bg-transparent text-center font-mono text-[15px] text-foreground outline-none"
+                    className="w-20 bg-transparent text-center font-mono text-lg font-bold text-foreground outline-none"
                   />
-                  <span className="font-mono text-[11px] text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
-                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-6 w-6 rounded-md grid place-items-center text-subtle hover:bg-accent">+</button>
+                  <span className="font-mono text-sm font-semibold text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">+</button>
                 </div>
                 <button disabled={!pdvAuthorized} onClick={() => actions.removeFromCart(p.id)} className="text-muted-foreground hover:text-destructive text-sm" aria-label="Remover">×</button>
               </div>
