@@ -14,7 +14,7 @@ function BaixaProdutos() {
  const contacts=useStore(s=>s.contacts??[]);
  const [contactSearch,setContactSearch]=useState(""), [showContactSuggestions,setShowContactSuggestions]=useState(false);
  const contactQuery=contactSearch.trim();
- const normalizedContactQuery=contactQuery.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();
+ const normalizedContactQuery=contactQuery.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
  const normalizedContactDigits=normalizeDocument(contactQuery);
  const contactSuggestions=contacts.filter(c=>c.type==="Cliente"&&(!contactQuery||[c.name,c.document,c.phone].some(v=>{const value=String(v??"");const normalized=value.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase();const digits=normalizeDocument(value);return normalized.includes(normalizedContactQuery)||(normalizedContactDigits.length>0&&digits.includes(normalizedContactDigits));}))).slice(0,8);
  const chooseDonationContact=(c:BusinessContact)=>{setRecipientName(c.name);setRecipientDocument(formatCpfCnpj(c.document??""));setRecipientPhone(c.phone??"");setRecipientCep(c.cep??"");setRecipientStreet(c.street??"");setRecipientNumber(c.number??"");setRecipientNeighborhood(c.neighborhood??"");setRecipientCity(c.city??"");setRecipientState(c.state??"");setDestination(c.name);setContactSearch(c.name);setShowContactSuggestions(false);};
