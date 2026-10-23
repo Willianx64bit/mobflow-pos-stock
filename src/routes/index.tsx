@@ -283,29 +283,29 @@ function PDV() {
             {flash && <span className={`font-mono text-[11px] ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+          <div className="grid grid-cols-3 gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
             {results.map((p, i) => {
               const out = p.stock <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-3 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
+                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
                 >
-                  <div className="aspect-square rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-sm uppercase tracking-[.15em] text-muted-foreground">
+                  <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground">
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
-                  <div className="mt-3 text-base md:text-lg font-bold text-foreground line-clamp-2 min-h-[2.75rem] leading-snug">{p.name}</div>
+                  <div className="mt-2 text-sm md:text-base font-semibold text-foreground line-clamp-2 min-h-[2.5rem] leading-snug">{p.name}</div>
                   <div className="mt-auto pt-2 text-center">
                     {effectivePrice(p) < p.price ? (
                       <div className="flex flex-col items-center gap-1">
-                        <span className="text-base text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
-                        <span className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
+                        <span className="text-xs md:text-sm text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
+                        <span className="text-lg md:text-xl font-bold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
                       <div className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
-                    <div className={`mt-2 font-mono text-sm md:text-base font-semibold ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
                     </div>
                   </div>
