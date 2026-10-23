@@ -10,6 +10,7 @@ export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
+export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
 export type ReceivingExtra = { productId: string; name: string; received: number; expiry?: string; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
@@ -45,7 +46,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-type State = { products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -115,7 +116,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
     stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
     promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
-    suppliers: (() => {
+    contacts: (() => { const map = new Map((remote.contacts ?? []).map((c) => [c.id, c])); for (const c of local.contacts ?? []) if (!map.has(c.id)) map.set(c.id, c); return Array.from(map.values()); })(),\n    suppliers: (() => {
       const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
       for (const s of local.suppliers) if (!map.has(s.name.toLowerCase())) map.set(s.name.toLowerCase(), s);
       return Array.from(map.values());
@@ -136,7 +137,7 @@ function load() {
   } catch {}
 }
 function normalizeState() {
-  state.products = Array.isArray(state.products) ? state.products : [];
+  state.contacts = Array.isArray(state.contacts) ? state.contacts : [];\n  state.products = Array.isArray(state.products) ? state.products : [];
   state.cart = Array.isArray(state.cart) ? state.cart : [];
   state.sales = Array.isArray(state.sales) ? state.sales : [];
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
@@ -310,7 +311,7 @@ export function effectivePrice(product: Product, at = new Date()): number {
   return promotion ? promotion.promoPrice : product.price;
 }
 
-export const actions = {
+export const actions = {\n  saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {\n    const id = contact.id || uid();\n    const value: BusinessContact = { ...contact, id, name: contact.name.trim() };\n    const existing = (state.contacts ?? []).some((c) => c.id === id);\n    set({ contacts: existing ? state.contacts.map((c) => c.id === id ? value : c) : [value, ...(state.contacts ?? [])] });\n    return id;\n  },\n  deleteContact(id: string) { set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) }); },
   addToCart(productId: string, qty = 1) {
     const p = state.products.find((x) => x.id === productId);
     if (!p) return;
