@@ -72,6 +72,12 @@ function BaixaProdutos() {
    <div className="border-r border-black p-2"><div className="text-[9px] uppercase">Data / hora</div><div className="min-h-8 text-xs"> </div></div>
    <div className="p-2"><div className="text-[9px] uppercase">Assinatura</div><div className="min-h-8 text-xs"> </div></div>
   </div>
+  <div className="grid grid-cols-2 border-t border-black sm:grid-cols-4">
+   <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Natureza da operação</div><div className="text-xs font-semibold">Baixa por {completedNote.reason}</div></div>
+   <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Data da operação</div><div className="text-xs font-semibold">{new Date(completedNote.date).toLocaleDateString("pt-BR")}</div></div>
+   <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Hora</div><div className="text-xs font-semibold">{new Date(completedNote.date).toLocaleTimeString("pt-BR")}</div></div>
+   <div className="border-b border-black p-1.5"><div className="text-[9px] uppercase">Chave de acesso</div><div className="min-h-4 text-xs"> </div></div>
+  </div>
   <div className="border-b border-black p-2">
    <div className="mb-1 text-[9px] uppercase">Identificação do emitente</div>
    <div className="grid grid-cols-2 gap-0 sm:grid-cols-4">
@@ -85,12 +91,6 @@ function BaixaProdutos() {
     <div className="border border-black p-1"><div className="text-[9px] uppercase">Município / cidade</div><div className="text-xs">{completedNote.companyCity||""}</div></div>
     <div className="border border-black p-1"><div className="text-[9px] uppercase">Estado (UF)</div><div className="text-xs">{completedNote.companyState||""}</div></div>
    </div>
-  </div>
-  <div className="grid grid-cols-2 border-t border-black sm:grid-cols-4">
-   <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Natureza da operação</div><div className="text-xs font-semibold">Baixa por {completedNote.reason}</div></div>
-   <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Data da operação</div><div className="text-xs font-semibold">{new Date(completedNote.date).toLocaleDateString("pt-BR")}</div></div>
-   <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Hora</div><div className="text-xs font-semibold">{new Date(completedNote.date).toLocaleTimeString("pt-BR")}</div></div>
-   <div className="border-b border-black p-1.5"><div className="text-[9px] uppercase">Chave de acesso</div><div className="min-h-4 text-xs"> </div></div>
   </div>
   <div className="border-t border-black p-2">
    <div className="mb-1 text-[9px] uppercase">Identificação do destinatário / beneficiário</div>
