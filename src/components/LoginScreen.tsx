@@ -322,15 +322,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }
 
   return (
-    <div className="grid min-h-[100dvh] place-items-center bg-[#0b1726] px-4 py-6">
+    <div className="grid min-h-[100dvh] place-items-center bg-slate-50 px-4 py-8 md:px-8 md:py-10">
       <style>{`@keyframes mobflowLoginReveal { 0% { opacity: 0; transform: translateX(26px) scale(.975); filter: blur(7px); } 65% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } } @media (prefers-reduced-motion: reduce) { .mobflow-login-reveal { animation: none !important; } }`}</style>
-      <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-white/10 bg-[#14263a] p-6 shadow-2xl shadow-black/30 sm:p-8 ${mode === "empresa" ? "max-w-md lg:max-w-2xl lg:p-12 xl:max-w-3xl" : "max-w-md"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+      <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 sm:p-8 ${mode === "empresa" ? "max-w-xl lg:max-w-3xl lg:p-12" : "max-w-xl lg:max-w-2xl lg:p-12"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
         {mode === "pdv" && !onClose && (
-          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#20364b] px-2.5 py-2 text-xs font-semibold text-slate-300 transition-colors hover:bg-[#1b3048] hover:text-white" aria-label="Sair da conta" title="Sair da conta">
+          <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
           </button>
         )}
-        {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-slate-300 hover:bg-[#1b3048] hover:text-white"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
+        {mode === "pdv" && onClose && <button type="button" onClick={onClose} aria-label="Fechar login do PDV" title="Fechar" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"><span aria-hidden="true" className="text-2xl leading-none">×</span></button>}
         {showAccountLogoutConfirm && mode === "pdv" && !onClose && (
           <div className="fixed inset-0 z-[120] grid place-items-center bg-black/45 p-4 backdrop-blur-sm" onClick={() => setShowAccountLogoutConfirm(false)}>
             <div className="w-full max-w-sm rounded-2xl bg-popover p-6 text-center shadow-2xl ring-1 ring-border" onClick={(e) => e.stopPropagation()}>
@@ -344,8 +344,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </div>
           </div>
         )}
-        <div className={`mx-auto w-full rounded-xl bg-[#f8fafc] px-3 py-2.5 text-center shadow-sm ${mode === "empresa" ? "max-w-[320px] lg:max-w-[420px]" : "max-w-[320px]"}`}>
-          <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className={`mx-auto block h-auto w-full object-contain ${mode === "empresa" ? "max-w-[280px] lg:max-w-[380px]" : "max-w-[280px]"}`} />
+        <div className={`mx-auto w-full rounded-xl bg-white px-3 py-2.5 text-center ${mode === "empresa" ? "max-w-[360px] lg:max-w-[520px]" : "max-w-[360px] lg:max-w-[480px]"}`}>
+          <img src="/mobflow-logo.svg" alt="MobFlow — PDV e estoque" className={`mx-auto block h-auto w-full object-contain ${mode === "empresa" ? "max-w-[320px] lg:max-w-[480px]" : "max-w-[320px] lg:max-w-[440px]"}`} />
         </div>
 
         {mode === "pdv" && (
@@ -357,24 +357,24 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
                 {(companySettings.companyName || "M").trim().charAt(0).toUpperCase()}
               </div>
             )}
-            <h2 className="mt-4 font-display text-2xl tracking-[.06em] text-white">{companySettings.companyName || "Sua empresa"}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Acesso de usuário</p>
+            <h2 className="mt-4 font-display text-2xl lg:text-3xl tracking-[.06em] text-slate-900">{companySettings.companyName || "Sua empresa"}</h2>
+            <p className="mt-1 text-sm lg:text-base text-slate-500">Acesso de usuário</p>
           </div>
         )}
 
         <div className="mt-8 text-center">
-          <h1 className={`font-display tracking-[.1em] text-white ${mode === "empresa" ? "text-xl lg:text-3xl" : "text-xl"}`}>{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
-          <p className={`mt-1 text-slate-400 ${mode === "empresa" ? "text-sm lg:text-base" : "text-sm"}`}>{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className={`font-display tracking-[.1em] text-slate-900 ${mode === "empresa" ? "text-2xl lg:text-4xl" : "text-2xl lg:text-4xl"}`}>{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
+          <p className={`mt-1 text-slate-600 ${mode === "empresa" ? "text-base lg:text-lg" : "text-base lg:text-lg"}`}>{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="off">
           <div>
-            <label className="label-mono mb-1.5 block !text-slate-400">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-white/10 !bg-[#20364b] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" autoFocus />
+            <label className="label-mono mb-1.5 block !text-slate-600">Usuário</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" autoFocus />
           </div>
 
           <div>
-            <label className="label-mono block mb-1.5">Senha</label>
+            <label className="label-mono block mb-1.5 !text-slate-600">Senha</label>
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-white/10 !bg-[#20364b] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" />
           </div>
 
@@ -383,11 +383,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode !== "pdv" && (
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full text-foreground" required />
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full !border-slate-300 !bg-white text-foreground lg:py-3.5 lg:text-base" required />
             </div>
           )}
 
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-slate-300">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm lg:text-base text-slate-600">
             <input type="checkbox" checked={mode === "pdv" ? false : rememberLogin} disabled={mode === "pdv"} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
@@ -397,7 +397,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </button>
           {mode === "empresa" && !onClose && (
             <>
-              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-white/15 bg-transparent py-3.5 font-bold text-slate-100 transition-colors hover:bg-white/5">
+              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-slate-300 bg-white py-3.5 lg:py-4 font-bold text-slate-700 transition-colors hover:bg-slate-50">
                 Criar conta
               </button>
               <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/20">
@@ -406,13 +406,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             </>
           )}
           {mode === "pdv" && onClose && (
-            <button type="button" onClick={onClose} className="w-full rounded-xl border border-white/15 bg-transparent py-3 font-semibold text-slate-300 transition-colors hover:bg-white/5 hover:text-white">
+            <button type="button" onClick={onClose} className="w-full rounded-xl border border-slate-300 bg-white py-3 font-semibold text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900">
               Cancelar
             </button>
           )}
         </form>
 
-        <p className="mt-5 text-center font-mono text-[10px] text-slate-500">Acesso restrito · informe as credenciais cadastradas</p>
+        <p className="mt-6 text-center font-mono text-xs text-slate-500">Acesso restrito · informe as credenciais cadastradas</p>
 
 
 
