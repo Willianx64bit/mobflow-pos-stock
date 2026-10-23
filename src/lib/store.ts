@@ -29,7 +29,7 @@ export type ReceivingNote = {
 export type StockAdjustmentItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; mode: "somar" | "definir"; quantity: number; previousStock: number; newStock: number };
 export type StockAdjustment = { id: string; date: string; reason: string; operator?: string; items: StockAdjustmentItem[] };
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
-export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[] };
+export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
 export type Conference = {
   id: string;
   name: string;
@@ -492,6 +492,11 @@ export const actions = {
     });
     set({ products, stockWriteoffs: [entry, ...existing] });
     return entry;
+  },
+  attachStockWriteoffDocument(id: string, document: unknown) {
+    if (!(state.stockWriteoffs ?? []).some((item) => item.id === id)) return false;
+    set({ stockWriteoffs: (state.stockWriteoffs ?? []).map((item) => item.id === id ? { ...item, document } : item) });
+    return true;
   },
   deleteProduct(id: string) { set({ products: state.products.filter((x) => x.id !== id), cart: state.cart.filter((c) => c.productId !== id) }); },
   newConference(name: string): string {
