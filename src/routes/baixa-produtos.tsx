@@ -73,7 +73,18 @@ function BaixaProdutos() {
    <div className="p-2"><div className="text-[9px] uppercase">Assinatura</div><div className="min-h-8 text-xs"> </div></div>
   </div>
   <div className="border-b border-black p-2">
-   <div className="text-[9px] uppercase">Identificação do emitente</div><div className="text-base font-bold">{completedNote.companyName||"Empresa"}</div><div className="text-xs">CNPJ: {completedNote.issuerCnpj||""}</div><div className="text-xs">Telefone: {completedNote.companyPhone||""}</div><div className="text-xs">{[completedNote.companyStreet,completedNote.companyNumber,completedNote.companyNeighborhood,completedNote.companyCep,completedNote.companyCity,completedNote.companyState].filter(Boolean).join(", ")}</div>
+   <div className="mb-1 text-[9px] uppercase">Identificação do emitente</div>
+   <div className="grid grid-cols-2 gap-0 sm:grid-cols-4">
+    <div className="col-span-2 border border-black p-1 sm:col-span-2"><div className="text-[9px] uppercase">Nome da empresa</div><div className="text-xs font-bold">{completedNote.companyName||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">CNPJ</div><div className="text-xs">{completedNote.issuerCnpj||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">Telefone</div><div className="text-xs">{completedNote.companyPhone||""}</div></div>
+    <div className="col-span-2 border border-black p-1 sm:col-span-2"><div className="text-[9px] uppercase">Rua</div><div className="text-xs">{completedNote.companyStreet||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">Número</div><div className="text-xs">{completedNote.companyNumber||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">Bairro</div><div className="text-xs">{completedNote.companyNeighborhood||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">CEP</div><div className="text-xs">{completedNote.companyCep||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">Município / cidade</div><div className="text-xs">{completedNote.companyCity||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">Estado (UF)</div><div className="text-xs">{completedNote.companyState||""}</div></div>
+   </div>
   </div>
   <div className="grid grid-cols-2 border-t border-black sm:grid-cols-4">
    <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Natureza da operação</div><div className="text-xs font-semibold">Baixa por {completedNote.reason}</div></div>
