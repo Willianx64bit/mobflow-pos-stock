@@ -31,6 +31,7 @@ export type StockAdjustmentItem = { productId: string; code: string; ref?: strin
 export type StockAdjustment = { id: string; date: string; reason: string; operator?: string; items: StockAdjustmentItem[] };
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
 export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
+export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
 export type Conference = {
   id: string;
   name: string;
@@ -46,7 +47,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -62,6 +63,7 @@ const emptyState = (): State => ({
   manualExpiries: [],
   stockAdjustments: [],
   stockWriteoffs: [],
+  stockTransfers: [],
   promotions: [],
   suppliers: [],
   settings: { companyName: "" },
@@ -84,7 +86,7 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], stockWriteoffs: local.stockWriteoffs ?? remote.stockWriteoffs ?? [], promotions: remote.promotions ?? local.promotions ?? [], suppliers: remote.suppliers };
+  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], stockWriteoffs: local.stockWriteoffs ?? remote.stockWriteoffs ?? [], stockTransfers: local.stockTransfers ?? remote.stockTransfers ?? [], promotions: remote.promotions ?? local.promotions ?? [], suppliers: remote.suppliers };
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
@@ -116,6 +118,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
     stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
     stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
+    stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []),
     promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
     contacts: (() => { const map = new Map((remote.contacts ?? []).map((c) => [c.id, c])); for (const c of local.contacts ?? []) if (!map.has(c.id)) map.set(c.id, c); return Array.from(map.values()); })(),
     suppliers: (() => {
@@ -148,6 +151,7 @@ function normalizeState() {
   state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
   state.stockAdjustments = Array.isArray(state.stockAdjustments) ? state.stockAdjustments : [];
   state.stockWriteoffs = Array.isArray(state.stockWriteoffs) ? state.stockWriteoffs : [];
+  state.stockTransfers = Array.isArray(state.stockTransfers) ? state.stockTransfers : [];
   state.promotions = Array.isArray(state.promotions) ? state.promotions : [];
   const legacyManual = state.receiving.filter((n) => n.source === "manual");
   if (legacyManual.length) {
@@ -424,6 +428,7 @@ export const actions = {
       manualExpiries: [],
       stockAdjustments: [],
       stockWriteoffs: [],
+      stockTransfers: [],
       promotions: [],
       suppliers: [],
       settings: { companyName: "" },
@@ -514,6 +519,14 @@ export const actions = {
     set({ products, stockWriteoffs: [entry, ...existing] });
     return entry;
   },
+  applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
+    if (!input.destinationName.trim() || !input.items.length) return false;
+    const prepared = input.items.map((item) => { const p = state.products.find((x) => x.id === item.productId); if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null; const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity; if (quantity > p.stock) return null; const purchase = Math.max(0, p.cost ?? 0); const sale = Math.max(0, p.price ?? 0); const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2; return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 }; });
+    if (prepared.some((x) => x === null)) return false; const items = prepared as StockWriteoffItem[]; const existing = state.stockTransfers ?? [];
+    const entry: StockTransfer = { id: uid(), number: "TR: " + String(existing.length + 1).padStart(5, "0"), date: new Date().toISOString(), reason: "Transferência de produtos, Vendas", destinationName: input.destinationName.trim(), destinationDocument: input.destinationDocument?.trim() || undefined, destinationPhone: input.destinationPhone?.trim() || undefined, destinationStreet: input.destinationStreet?.trim() || undefined, destinationNumber: input.destinationNumber?.trim() || undefined, destinationCep: input.destinationCep?.trim() || undefined, destinationNeighborhood: input.destinationNeighborhood?.trim() || undefined, destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined, costMode: input.costMode, operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined, items };
+    const products = state.products.map((p) => { const item = items.find((x) => x.productId === p.id); return item ? { ...p, stock: item.newStock } : p; }); set({ products, stockTransfers: [entry, ...existing] }); return entry;
+  },
+  attachStockTransferDocument(id: string, document: unknown) { if (!(state.stockTransfers ?? []).some((item) => item.id === id)) return false; set({ stockTransfers: (state.stockTransfers ?? []).map((item) => item.id === id ? { ...item, document } : item) }); return true; },
   attachStockWriteoffDocument(id: string, document: unknown) {
     if (!(state.stockWriteoffs ?? []).some((item) => item.id === id)) return false;
     set({ stockWriteoffs: (state.stockWriteoffs ?? []).map((item) => item.id === id ? { ...item, document } : item) });
