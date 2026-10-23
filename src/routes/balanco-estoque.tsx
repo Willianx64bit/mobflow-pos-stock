@@ -296,9 +296,14 @@ function BalancoEstoque() {
 
           {step === 2 && error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
           {step === 2 && message && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{message}</div>}
-          {step === 2 && <button type="button" onClick={saveBatch} disabled={saving || drafts.length === 0} className="mt-5 w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
-            {saving ? "Registrando balanço..." : `Confirmar balanço de ${drafts.length} produto(s)`}
-          </button>}
+          {step === 2 && <div className="mt-5 flex gap-3">
+            <button type="button" onClick={() => { setStep(1); setError(""); setMessage(""); }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 font-semibold text-secondary-foreground hover:bg-accent">
+              <ArrowLeft className="h-4 w-4" /> Voltar
+            </button>
+            <button type="button" onClick={saveBatch} disabled={saving || drafts.length === 0} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+              {saving ? "Registrando balanço..." : `Confirmar balanço de ${drafts.length} produto(s)`}
+            </button>
+          </div>}
         </section>
         ) : (
           <div className="glass flex items-center justify-between gap-4 p-5 md:p-6">
