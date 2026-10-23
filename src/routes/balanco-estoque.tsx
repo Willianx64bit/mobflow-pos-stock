@@ -323,11 +323,14 @@ function BalancoEstoque() {
               <p className="text-sm text-muted-foreground">Registros salvos com data, operador, motivo e saldos alterados.</p>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-            <label className="block text-sm font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full" /></label>
-            <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
-            <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold">Limpar filtro</button>
-          </div>
+          <details className="mt-4 rounded-xl border border-border bg-secondary/30 p-3">
+            <summary className="cursor-pointer select-none text-sm font-semibold text-heading">Filtrar por período <span className="font-normal text-muted-foreground">(toque para abrir)</span></summary>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <label className="block text-sm font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full" /></label>
+              <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
+              <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold">Limpar filtro</button>
+            </div>
+          </details>
           {history.length === 0 ? (
             <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum balanço registrado ainda.</p>
           ) : filteredHistory.length === 0 ? (
