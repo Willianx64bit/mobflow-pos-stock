@@ -68,9 +68,13 @@ function BaixaProdutos() {
    <div className="text-center text-[9px]">MODELO DE DOCUMENTO AUXILIAR</div>
    <div className="mt-1 text-right text-sm font-extrabold">{completedNote.number}</div>
   </div>
-  <div className="grid grid-cols-1 border-b border-black sm:grid-cols-[1fr_180px]">
-   <div className="p-2"><div className="text-[9px] uppercase">Identificação do emitente</div><div className="text-base font-bold">{completedNote.companyName||"Empresa"}</div><div className="text-xs">CNPJ: {completedNote.issuerCnpj||""}</div><div className="text-xs">Telefone: {completedNote.companyPhone||""}</div><div className="text-xs">{[completedNote.companyStreet,completedNote.companyNumber,completedNote.companyNeighborhood,completedNote.companyCep,completedNote.companyCity,completedNote.companyState].filter(Boolean).join(", ")}</div></div>
-   <div className="border-t border-black p-2 sm:border-l sm:border-t-0"><div className="text-[9px] uppercase">Número da nota</div><div className="text-center text-base font-extrabold">{completedNote.number}</div></div>
+  <div className="grid grid-cols-3 border-b border-black">
+   <div className="border-r border-black p-2"><div className="text-[9px] uppercase">Data</div><div className="min-h-5 text-xs"> </div></div>
+   <div className="border-r border-black p-2"><div className="text-[9px] uppercase">Hora</div><div className="min-h-5 text-xs"> </div></div>
+   <div className="p-2"><div className="text-[9px] uppercase">Assinatura</div><div className="min-h-5 text-xs"> </div></div>
+  </div>
+  <div className="border-b border-black p-2">
+   <div className="text-[9px] uppercase">Identificação do emitente</div><div className="text-base font-bold">{completedNote.companyName||"Empresa"}</div><div className="text-xs">CNPJ: {completedNote.issuerCnpj||""}</div><div className="text-xs">Telefone: {completedNote.companyPhone||""}</div><div className="text-xs">{[completedNote.companyStreet,completedNote.companyNumber,completedNote.companyNeighborhood,completedNote.companyCep,completedNote.companyCity,completedNote.companyState].filter(Boolean).join(", ")}</div>
   </div>
   <div className="grid grid-cols-2 border-t border-black sm:grid-cols-4">
    <div className="border-b border-r border-black p-1.5"><div className="text-[9px] uppercase">Natureza da operação</div><div className="text-xs font-semibold">Baixa por {completedNote.reason}</div></div>
