@@ -26,7 +26,8 @@ function Operacoes() {
     { title: "Conferência", description: "Conferir os produtos recebidos e as notas pendentes.", icon: ClipboardCheck, ready: true },
     { title: "Baixa de produtos", description: "Registrar saídas, perdas ou produtos danificados.", icon: PackageMinus, ready: true },
     { title: "Transferência", description: "Transferir quantidades entre locais ou estoques.", icon: ArrowLeftRight, ready: false },
-    { title: "Balanço de estoque", description: "Conferir quantidades e ajustar o saldo dos produtos.", icon: Scale, ready: true },\n    { title: "Fornecedores e Clientes", description: "Cadastre e consulte fornecedores e clientes para reutilizar seus dados nas operações.", icon: Users, ready: true },
+    { title: "Balanço de estoque", description: "Conferir quantidades e ajustar o saldo dos produtos.", icon: Scale, ready: true },
+    { title: "Fornecedores e Clientes", description: "Cadastre e consulte fornecedores e clientes para reutilizar seus dados nas operações.", icon: Users, ready: true },
   ];
   return (
     <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
