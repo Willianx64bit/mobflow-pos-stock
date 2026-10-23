@@ -195,9 +195,9 @@ function BalancoEstoque() {
             </div>
           ) : (
             <>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div><h2 className="font-semibold text-heading">2. Produtos do balanço</h2><p className="text-sm text-muted-foreground">Operação: {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p></div>
-                <button type="button" onClick={() => { setStep(1); setError(""); }} className="rounded-xl bg-secondary px-3 py-2 text-sm font-semibold">Voltar</button>
+              <div className="mb-4">
+                <h2 className="font-semibold text-heading">2. Produtos do balanço</h2>
+                <p className="text-sm text-muted-foreground">Operação: {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
               </div>
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm font-semibold text-heading">Inserir rápido</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`} /></button></div><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><div><p className="text-sm font-semibold text-heading">Planilha de importação</p><p className="text-xs text-muted-foreground">Modelo vazio com as colunas CÓDIGO e QUANTIDADE.</p></div><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
