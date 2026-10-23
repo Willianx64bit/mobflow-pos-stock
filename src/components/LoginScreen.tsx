@@ -375,7 +375,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
           <div>
             <label className="label-mono block mb-1.5 !text-slate-600">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-white/10 !bg-[#20364b] !text-slate-100 placeholder:!text-slate-400 focus:!border-primary" />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" />
           </div>
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
