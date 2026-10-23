@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type ReceivingNote } from "@/lib/store";
+import { actions, useStore, type ReceivingNote, type BusinessContact } from "@/lib/store";
 
 export const Route = createFileRoute("/recebimento")({
   head: () => ({ meta: [{ title: "MobFlow — Recebimento" }, { name: "description", content: "Cadastro e aprovação de notas recebidas." }] }),
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/recebimento")({
 function Recebimento() {
   const products = useStore((s) => s.products);
   const notes = useStore((s) => s.receiving ?? []);
-  const suppliers = useStore((s) => s.suppliers ?? []);
+  const suppliers = useStore((s) => s.suppliers ?? []);\n  const contacts = useStore((s) => s.contacts ?? []);
   const navigate = useNavigate();
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -25,7 +25,7 @@ function Recebimento() {
   const [productSearch, setProductSearch] = useState("");
   const [qty, setQty] = useState("");
   const [items, setItems] = useState<{ productId: string; expected: number }[]>([]);
-  const supplierSuggestions = useMemo(() => { const term = supplier.trim().toLowerCase(); return suppliers.filter(s => !term || s.name.toLowerCase().includes(term)).slice(0, 8); }, [suppliers, supplier]);
+  const supplierSuggestions = useMemo(() => { const term = supplier.trim().toLowerCase(); const saved = contacts.filter(c => c.type === "Fornecedor" && (!term || [c.name,c.document,c.phone].some(v => (v ?? "").toLowerCase().includes(term)))).map(c => ({ name: c.name, cnpj: c.document || "", id: c.id })); const legacy = suppliers.filter(s => !term || s.name.toLowerCase().includes(term)).map(s => ({ name: s.name, cnpj: s.cnpj || "", id: s.name })); return [...saved, ...legacy.filter(s => !saved.some(c => c.name.toLowerCase() === s.name.toLowerCase()))].slice(0, 8); }, [contacts, suppliers, supplier]);
   const formatCnpj = (value: string) => { const d = value.replace(/\D/g, "").slice(0, 14); return d.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1/$2").replace(/(\d{4})(\d{1,2})$/, "$1-$2"); };
 
   const selected = notes.find(n => n.id === search.nota);
