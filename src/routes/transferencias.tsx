@@ -90,7 +90,6 @@ function Transferencias() {
     <div className="mt-1 text-sm font-semibold">Telefone: {completedNote.companyPhone||settings?.companyPhone||"—"} <span className="mx-2">|</span> CNPJ: {completedNote.issuerCnpj||companyCnpj||"Não cadastrado"}</div>
    </div>
    <div className="text-center text-2xl font-extrabold tracking-wide">DANFE</div>
-   <div className="text-center text-sm font-semibold">DOCUMENTO AUXILIAR DE BAIXA DE ESTOQUE</div>
    <div className="mt-2 text-center text-xl font-extrabold">{String(completedNote.number).startsWith("NF:")?String(completedNote.number):"NF: "+completedNote.number}</div>
   </div>
   <div className="grid grid-cols-[1fr_2fr] border-b border-black">
