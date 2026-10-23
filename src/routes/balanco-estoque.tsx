@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { productHasBarcode, actions, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
 
@@ -324,7 +324,7 @@ function BalancoEstoque() {
             </div>
           </div>
           <details className="mt-4 rounded-xl border border-border bg-secondary/30 p-3">
-            <summary className="cursor-pointer select-none text-sm font-semibold text-heading">Filtrar por período <span className="font-normal text-muted-foreground">(toque para abrir)</span></summary>
+            <summary className="flex cursor-pointer select-none items-center gap-2 text-sm font-semibold text-heading"><Filter className="h-4 w-4" />Filtro</summary>
             <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
               <label className="block text-sm font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full" /></label>
               <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
