@@ -477,10 +477,10 @@ export const actions = {
     if (prepared.some((x) => x === null)) return false;
     const items = prepared as StockWriteoff["items"];
     const existing = state.stockWriteoffs ?? [];
-    const sequence = existing.length + 1;
+    const sequence = existing.length + 10;
     const now = new Date();
     const entry: StockWriteoff = {
-      id: uid(), number: `BX-${now.getFullYear()}-${String(sequence).padStart(5, "0")}`,
+      id: uid(), number: `NF: ${String(sequence).padStart(5, "0")}`,
       date: now.toISOString(), reason, donationDestination: reason === "Doação" ? input.donationDestination?.trim() : undefined,
       costMode: input.costMode,
       operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined,
