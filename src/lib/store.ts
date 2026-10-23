@@ -254,10 +254,15 @@ export async function hydrateStore() {
   if (hydrating) return hydrating;
   hydrating = (async () => {
     load();
+    // Preserve contacts saved locally for this same account if the cloud snapshot
+    // predates the contacts feature. Never merge another company's local data.
+    const localOwner = typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null;
+    const localContacts = localOwner && localOwner === cloudAccountId ? [...(state.contacts ?? [])] : [...(state.contacts ?? [])];
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
     const accountId = profile?.account_id ?? user.id;
+    const sameOwner = localOwner === accountId;
     cloudAccountId = accountId;
     const { data, error } = await supabase
       .from("app_state")
@@ -266,7 +271,11 @@ export async function hydrateStore() {
       .maybeSingle();
 
     if (!error && data?.state) {
-      state = { ...emptyState(), ...data.state };
+      const remoteContacts = Array.isArray((data.state as State).contacts) ? (data.state as State).contacts : [];
+      const mergedContacts = sameOwner
+        ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remote => remote.id === local.id))]
+        : remoteContacts;
+      state = { ...emptyState(), ...data.state, contacts: mergedContacts };
       state.settings = { ...emptyState().settings, ...(data.state as State).settings };
       lastCloudUpdatedAt = data.updated_at ?? null;
       lastSyncedState = cloneState(data.state as State);
