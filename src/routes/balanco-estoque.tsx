@@ -138,6 +138,14 @@ function BalancoEstoque() {
     const parsed = new Date(date);
     return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleString("pt-BR");
   };
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const filteredHistory = useMemo(() => history.filter((entry) => {
+    const parsed = new Date(entry.date);
+    if (Number.isNaN(parsed.getTime())) return false;
+    const day = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,"0")}-${String(parsed.getDate()).padStart(2,"0")}`;
+    return (!historyFrom || day >= historyFrom) && (!historyTo || day <= historyTo);
+  }), [history, historyFrom, historyTo]);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -310,11 +318,18 @@ function BalancoEstoque() {
               <p className="text-sm text-muted-foreground">Registros salvos com data, operador, motivo e saldos alterados.</p>
             </div>
           </div>
+          <div className="mt-4 grid gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <label className="block text-sm font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full" /></label>
+            <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
+            <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold">Limpar filtro</button>
+          </div>
           {history.length === 0 ? (
             <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum balanço registrado ainda.</p>
+          ) : filteredHistory.length === 0 ? (
+            <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum balanço encontrado nesse período.</p>
           ) : (
             <div className="mt-4 space-y-3">
-              {history.map((entry) => (
+              {filteredHistory.map((entry) => (
                 <details key={entry.id} className="rounded-xl border border-border bg-background p-4">
                   <summary className="cursor-pointer list-none">
                     <div className="flex flex-wrap items-start justify-between gap-3">
