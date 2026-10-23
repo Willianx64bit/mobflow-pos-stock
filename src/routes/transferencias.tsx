@@ -91,7 +91,7 @@ function Transferencias() {
    </div>
    <div className="text-center text-2xl font-extrabold tracking-wide">DANFE</div>
    <div className="text-center text-sm font-semibold">DOCUMENTO AUXILIAR DE BAIXA DE ESTOQUE</div>
-   <div className="mt-2 text-center text-xl font-extrabold">NF: {String(completedNote.number).startsWith("NF:")?String(completedNote.number).slice(3):completedNote.number}</div>
+   <div className="mt-2 text-center text-xl font-extrabold">{String(completedNote.number).startsWith("NF:")?String(completedNote.number):"NF: "+completedNote.number}</div>
   </div>
   <div className="grid grid-cols-[1fr_2fr] border-b border-black">
    <div className="border-r border-black p-2"><div className="text-[9px] uppercase">Data / hora</div><div className="min-h-8 text-xs"> </div></div>
