@@ -11,7 +11,8 @@ export const Route = createFileRoute("/recebimento")({
 function Recebimento() {
   const products = useStore((s) => s.products);
   const notes = useStore((s) => s.receiving ?? []);
-  const suppliers = useStore((s) => s.suppliers ?? []);\n  const contacts = useStore((s) => s.contacts ?? []);
+  const suppliers = useStore((s) => s.suppliers ?? []);
+  const contacts = useStore((s) => s.contacts ?? []);
   const navigate = useNavigate();
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
