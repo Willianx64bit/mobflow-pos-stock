@@ -66,10 +66,14 @@ function BaixaProdutos() {
 <div className="rounded-xl bg-secondary/60 p-4"><div className="flex justify-between text-sm"><span>Subtotal</span><b>{money(draftSubtotal)}</b></div><div className="mt-1 flex justify-between text-sm"><span>Desconto</span><b>{money(draftDiscount)}{discountType==="%"?(" ("+Math.min(enteredDiscount,100)+"%)"):""}</b></div><div className="mt-2 flex justify-between border-t border-border pt-2"><span className="font-bold">Valor da nota antes de confirmar</span><b className="text-lg">{money(Math.max(0,draftSubtotal-draftDiscount))}</b></div></div><div className="flex gap-3"><button onClick={()=>setStep(2)} className="rounded-xl bg-secondary px-4 py-3 font-semibold">Voltar</button><button disabled={saving||!drafts.length} onClick={finalize} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">{saving?"Finalizando...":"Finalizar baixa e gerar nota"}</button></div></div>}
  {message&&<div role="status" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><span className="flex items-center gap-2"><CheckCircle2 className="h-4 w-4"/>{message}</span>{completedNote&&<button type="button" onClick={()=>window.print()} className="rounded-lg bg-primary px-4 py-2 font-bold text-primary-foreground">Imprimir nota da operação</button>}</div>}{completedNote&&<section className="writeoff-note mt-5 min-h-[280mm] bg-white p-3 text-black sm:p-5">
  <div className="border-2 border-black">
-  <div className="border-b-2 border-black p-2">
-   <div className="text-center text-lg font-extrabold">DANFE</div>
-   <div className="text-center text-[9px]">MODELO DE DOCUMENTO AUXILIAR</div>
-   <div className="mt-1 text-right text-sm font-extrabold">{completedNote.number}</div>
+  <div className="border-b-2 border-black p-3">
+   <div className="mb-2 rounded border border-black px-3 py-2 text-center">
+    <div className="text-base font-extrabold">{completedNote.companyName||companyName||"EMPRESA"}</div>
+    <div className="mt-1 text-sm font-semibold">Telefone: {completedNote.companyPhone||settings?.companyPhone||"—"} <span className="mx-2">|</span> CNPJ: {completedNote.issuerCnpj||companyCnpj||"Não cadastrado"}</div>
+   </div>
+   <div className="text-center text-2xl font-extrabold tracking-wide">DANFE</div>
+   <div className="text-center text-sm font-semibold">DOCUMENTO AUXILIAR DE BAIXA DE ESTOQUE</div>
+   <div className="mt-2 text-center text-xl font-extrabold">NF: {String(completedNote.number).startsWith("NF:")?String(completedNote.number).slice(3):completedNote.number}</div>
   </div>
   <div className="grid grid-cols-[1fr_2fr] border-b border-black">
    <div className="border-r border-black p-2"><div className="text-[9px] uppercase">Data / hora</div><div className="min-h-8 text-xs"> </div></div>
