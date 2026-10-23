@@ -116,7 +116,8 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
     stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
     promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
-    contacts: (() => { const map = new Map((remote.contacts ?? []).map((c) => [c.id, c])); for (const c of local.contacts ?? []) if (!map.has(c.id)) map.set(c.id, c); return Array.from(map.values()); })(),\n    suppliers: (() => {
+    contacts: (() => { const map = new Map((remote.contacts ?? []).map((c) => [c.id, c])); for (const c of local.contacts ?? []) if (!map.has(c.id)) map.set(c.id, c); return Array.from(map.values()); })(),
+    suppliers: (() => {
       const map = new Map(remote.suppliers.map((s) => [s.name.toLowerCase(), s]));
       for (const s of local.suppliers) if (!map.has(s.name.toLowerCase())) map.set(s.name.toLowerCase(), s);
       return Array.from(map.values());
@@ -137,7 +138,8 @@ function load() {
   } catch {}
 }
 function normalizeState() {
-  state.contacts = Array.isArray(state.contacts) ? state.contacts : [];\n  state.products = Array.isArray(state.products) ? state.products : [];
+  state.contacts = Array.isArray(state.contacts) ? state.contacts : [];
+  state.products = Array.isArray(state.products) ? state.products : [];
   state.cart = Array.isArray(state.cart) ? state.cart : [];
   state.sales = Array.isArray(state.sales) ? state.sales : [];
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
@@ -311,7 +313,15 @@ export function effectivePrice(product: Product, at = new Date()): number {
   return promotion ? promotion.promoPrice : product.price;
 }
 
-export const actions = {\n  saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {\n    const id = contact.id || uid();\n    const value: BusinessContact = { ...contact, id, name: contact.name.trim() };\n    const existing = (state.contacts ?? []).some((c) => c.id === id);\n    set({ contacts: existing ? state.contacts.map((c) => c.id === id ? value : c) : [value, ...(state.contacts ?? [])] });\n    return id;\n  },\n  deleteContact(id: string) { set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) }); },
+export const actions = {
+  saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
+    const id = contact.id || uid();
+    const value: BusinessContact = { ...contact, id, name: contact.name.trim() };
+    const existing = (state.contacts ?? []).some((c) => c.id === id);
+    set({ contacts: existing ? state.contacts.map((c) => c.id === id ? value : c) : [value, ...(state.contacts ?? [])] });
+    return id;
+  },
+  deleteContact(id: string) { set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) }); },
   addToCart(productId: string, qty = 1) {
     const p = state.products.find((x) => x.id === productId);
     if (!p) return;
