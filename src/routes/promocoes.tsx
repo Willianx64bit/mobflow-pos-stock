@@ -48,6 +48,7 @@ function Promotions() {
   }, [products, search]);
 
   const resetForm = () => {
+    if (saving) return;
     setEditingId(undefined); setProductId(""); setSearch(""); setPromoPrice(""); setStartsAt(""); setEndsAt(""); setError(""); setFormOpen(false);
   };
   const edit = (promo: Promotion) => {
@@ -70,11 +71,16 @@ function Promotions() {
     if (!promoPrice.trim() || !Number.isFinite(price) || price < 0) { setError("Informe um preço promocional válido."); return; }
     if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) { setError("A data e hora final devem ser posteriores ao início."); return; }
     setSaving(true);
-    await new Promise((resolve) => window.setTimeout(resolve, 2000));
-    const ok = actions.savePromotion({ id: editingId, productId, promoPrice: price, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt) });
-    setSaving(false);
-    if (!ok) { setError("Não foi possível salvar. Confira o produto, preço e período."); return; }
-    resetForm();
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+      const ok = actions.savePromotion({ id: editingId, productId, promoPrice: price, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt) });
+      if (!ok) { setError("Não foi possível salvar. Confira o produto, preço e período."); return; }
+      setEditingId(undefined); setProductId(""); setSearch(""); setPromoPrice(""); setStartsAt(""); setEndsAt(""); setError(""); setFormOpen(false);
+    } catch {
+      setError("Ocorreu um erro ao salvar a promoção. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   };
   const status = (promo: Promotion) => {
     const now = Date.now();
@@ -97,7 +103,7 @@ function Promotions() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-bold text-heading">{editingId ? "Editar promoção" : formOpen ? "Cadastro de promoção" : "Promoções cadastradas"}</h2>
             {!formOpen && <button type="button" onClick={() => { resetForm(); setFormOpen(true); }} className="rounded-xl bg-primary px-4 py-2.5 font-bold text-primary-foreground">+ Nova promoção</button>}
-            {formOpen && <button type="button" onClick={resetForm} className="rounded-xl bg-secondary px-4 py-2.5 font-medium text-secondary-foreground">Cancelar</button>}
+            {formOpen && <button type="button" disabled={saving} onClick={resetForm} className="rounded-xl bg-secondary px-4 py-2.5 font-medium text-secondary-foreground disabled:cursor-wait disabled:opacity-50">Cancelar</button>}
           </div>
           {formOpen && (
           <div className="mt-4 space-y-4">
@@ -113,7 +119,7 @@ function Promotions() {
               <div><label className="text-sm font-medium text-heading">Fim da promoção (dia/mês e hora)</label><input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="field mt-1 w-full text-foreground" /></div>
             </div>
             {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-            <div className="flex gap-2"><button disabled={saving} onClick={() => { void save(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-80">{saving ? <><Loader2 className="h-5 w-5 animate-spin"/>{editingId ? "Salvando alterações..." : "Criando promoção..."}</> : editingId ? "Salvar alterações" : "Criar promoção"}</button>{editingId && <button onClick={resetForm} className="rounded-xl bg-secondary px-5 py-3 font-medium text-secondary-foreground">Cancelar</button>}</div>
+            <div className="flex gap-2"><button disabled={saving} onClick={() => { void save(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-80">{saving ? <><Loader2 className="h-5 w-5 animate-spin"/>{editingId ? "Salvando alterações..." : "Criando promoção..."}</> : editingId ? "Salvar alterações" : "Criar promoção"}</button>{editingId && <button disabled={saving} onClick={resetForm} className="rounded-xl bg-secondary px-5 py-3 font-medium text-secondary-foreground disabled:cursor-wait disabled:opacity-50">Cancelar</button>}</div>
           </div>
 
           )}
