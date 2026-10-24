@@ -642,6 +642,22 @@ export const actions = {
     set({ conferences: [c, ...(state.conferences ?? [])] });
     return c.id;
   },
+  saveReceivingConferenceDraft(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
+    const note = (state.receiving ?? []).find((n) => n.id === receivingId);
+    if (!note || note.status !== "pendente") return;
+    let conference = state.conferences.find((c) => c.receivingId === receivingId && c.status === "aberta");
+    if (!conference) {
+      conference = {
+        id: uid(), name: `Nota ${note.number} · ${note.supplier}`, date: new Date().toISOString(),
+        status: "aberta", counts: {}, unknown: [], extraCounts: {}, extraExpiries: {}, receivingId,
+      };
+      set({ conferences: [conference, ...(state.conferences ?? [])] });
+    }
+    set({ conferences: state.conferences.map((c) => c.id === conference!.id ? {
+      ...c, counts: { ...counts }, expiries: { ...expiries },
+      extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries },
+    } : c) });
+  },
   saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);
     if (!note || note.status !== "pendente") return false;
