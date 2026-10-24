@@ -42,7 +42,7 @@ function Gerencia() {
   const products = useStore((s) => s.products);
   const sales = useStore((s) => s.sales);
   const receiving = useStore((s) => s.receiving ?? []);
-  const hasPendingReceivingAction = receiving.some((note) => note.status !== "pendente" && Object.values(note.decisions ?? {}).includes("devolver") && !note.actionCompleted);
+  const hasPendingReceivingAction = receiving.some((note) => note.status === "analisando" || (note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") && !note.actionCompleted));
   const manualExpiries = useStore((s) => s.manualExpiries ?? []);
   const [unlocked, setUnlocked] = useState(() => sessionStorage.getItem("mobflow-management") === "1");
   const [password, setPassword] = useState("");
