@@ -23,6 +23,7 @@ function Recebimento() {
   const [supplier, setSupplier] = useState("");
   const [supplierCnpj, setSupplierCnpj] = useState("");
   const [showNewNote, setShowNewNote] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
@@ -71,11 +72,17 @@ function Recebimento() {
     setProductSearch("");
   };
 
-  const save = (e: FormEvent) => {
+  const save = async (e: FormEvent) => {
     e.preventDefault();
-    if (!items.length) return;
-    actions.createReceiving(number, supplier, supplierCnpj || undefined, items);
-    setNumber(""); setSupplier(""); setSupplierCnpj(""); setProductId(""); setQty(""); setItems([]); setShowNewNote(false);
+    if (!items.length || savingNote) return;
+    setSavingNote(true);
+    try {
+      actions.createReceiving(number, supplier, supplierCnpj || undefined, items);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      setNumber(""); setSupplier(""); setSupplierCnpj(""); setProductId(""); setQty(""); setItems([]); setShowNewNote(false);
+    } finally {
+      setSavingNote(false);
+    }
   };
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
@@ -110,11 +117,11 @@ function Recebimento() {
         {items.length > 0 && <div className="rounded-xl ring-1 ring-border divide-y divide-border/50">
           {items.map(i => { const p = products.find(x => x.id === i.productId)!; return <div key={i.productId} className="flex items-center gap-3 px-3 py-2 text-sm"><span className="flex-1 text-foreground">{p.name}</span><span className="font-mono">{i.expected} {p.unit === "kg" ? "kg" : "un."}</span><button type="button" onClick={() => setItems(items.filter(x => x.productId !== i.productId))} className="text-destructive">×</button></div>; })}
         </div>}
-        <button disabled={!items.length} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">Salvar nota para conferência</button>
+        <button type="submit" disabled={!items.length || savingNote} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">{savingNote ? "Salvando nota para conferência..." : "Salvar nota para conferência"}</button>
       </form>}
     </section>
 
-    <section className="glass p-4 mt-4">
+    {!showNewNote && <section className="glass p-4 mt-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><h2 className="font-display text-xl text-heading">Histórico de notas</h2></div><button type="button" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4" />{showFilters ? "Fechar" : "Filtrar"}</button></div>
       {showFilters && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div><label className="mb-1 block text-xs font-semibold">Data inicial</label><input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="field w-full" /></div>
@@ -134,7 +141,7 @@ function Recebimento() {
           {n.status === "rejeitado" && <span className="text-[11px] text-muted-foreground">estoque não alterado</span>}
         </div>)}
       </div>
-    </section>
+    </section>}
   </div>;
 }
 
