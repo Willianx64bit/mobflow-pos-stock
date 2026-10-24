@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Filter, Search } from "lucide-react";
+import { ChevronDown, Filter, Search, History } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, printReceipt, useStore } from "@/lib/store";
 
