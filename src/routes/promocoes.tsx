@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, norm, useStore, type Promotion } from "@/lib/store";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/promocoes")({
   head: () => ({ meta: [{ title: "MobFlow — Promoções" }] }),
@@ -30,6 +31,7 @@ function Promotions() {
   const [editingId, setEditingId] = useState<string | undefined>();
   const [error, setError] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -60,13 +62,17 @@ function Promotions() {
     setError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
     setError("");
     if (!selected) { setError("Selecione um produto da lista."); return; }
     const price = Number(promoPrice.replace(",", "."));
     if (!promoPrice.trim() || !Number.isFinite(price) || price < 0) { setError("Informe um preço promocional válido."); return; }
     if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) { setError("A data e hora final devem ser posteriores ao início."); return; }
+    setSaving(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
     const ok = actions.savePromotion({ id: editingId, productId, promoPrice: price, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt) });
+    setSaving(false);
     if (!ok) { setError("Não foi possível salvar. Confira o produto, preço e período."); return; }
     resetForm();
   };
@@ -107,18 +113,18 @@ function Promotions() {
               <div><label className="text-sm font-medium text-heading">Fim da promoção (dia/mês e hora)</label><input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="field mt-1 w-full text-foreground" /></div>
             </div>
             {error && <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-            <div className="flex gap-2"><button onClick={save} className="rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">{editingId ? "Salvar alterações" : "Criar promoção"}</button>{editingId && <button onClick={resetForm} className="rounded-xl bg-secondary px-5 py-3 font-medium text-secondary-foreground">Cancelar</button>}</div>
+            <div className="flex gap-2"><button disabled={saving} onClick={() => { void save(); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-80">{saving ? <><Loader2 className="h-5 w-5 animate-spin"/>{editingId ? "Salvando alterações..." : "Criando promoção..."}</> : editingId ? "Salvar alterações" : "Criar promoção"}</button>{editingId && <button onClick={resetForm} className="rounded-xl bg-secondary px-5 py-3 font-medium text-secondary-foreground">Cancelar</button>}</div>
           </div>
 
           )}
         </section>
-        <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
+        {!formOpen && <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
           <h2 className="font-bold text-heading">Promoções cadastradas</h2>
           {promotions.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhuma promoção cadastrada.</p> : <div className="mt-3 divide-y divide-border">{[...promotions].sort((a,b) => new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime()).map((promo) => {
             const product = products.find((p) => p.id === promo.productId);
             return <div key={promo.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="font-semibold text-heading">{promo.productName}</div><div className="text-sm text-muted-foreground">Atual: R$ {brl(product?.price ?? promo.originalPrice)} · Promoção: R$ {brl(promo.promoPrice)}</div><div className="text-xs text-muted-foreground">{new Date(promo.startsAt).toLocaleString("pt-BR")} até {new Date(promo.endsAt).toLocaleString("pt-BR")}</div><div className="mt-1 text-xs font-semibold">{status(promo)}</div></div><button onClick={() => edit(promo)} className="rounded-lg border border-border px-3 py-2 text-sm">Editar</button><button onClick={() => { if (window.confirm("Excluir esta promoção?")) actions.deletePromotion(promo.id); }} className="rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive">Excluir</button></div>;
           })}</div>}
-        </section>
+        </section>}
       </main>
     </div>
   );
