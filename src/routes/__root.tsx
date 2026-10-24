@@ -137,15 +137,15 @@ function RootComponent() {
     previousPath.current = pathname;
     if (loadingTimer.current) clearTimeout(loadingTimer.current);
 
-    // Não exibir o carregamento global nas telas da Gerência: essas telas já
-    // possuem seu próprio estado de carregamento e o overlay causava atraso duplicado.
-    const managementScreens = ["/gerencia", "/promocoes", "/estoque", "/recebimento", "/vendas", "/operacoes", "/configuracoes"];
-    const isManagementNavigation = managementScreens.includes(pathname) || managementScreens.includes(previous);
+    // Promoções pede senha própria, então não precisa do carregamento padrão.
+    // Nas demais telas, inclusive Estoque, Recebimento, Vendas e Configurações,
+    // manter o carregamento padrão ao entrar.
+    const enteringPromotions = pathname === "/promocoes";
 
-    // Ao voltar de uma tela de operação para o menu Operações, também não exibir overlay.
+    // Ao voltar de uma tela de operação para o menu Operações, não exibir overlay.
     const operationScreens = ["/baixa-produtos", "/transferencias", "/balanco-estoque", "/conferencia", "/fornecedores-clientes"];
     const returningToOperations = pathname === "/operacoes" && operationScreens.includes(previous);
-    if (isManagementNavigation || returningToOperations) {
+    if (enteringPromotions || returningToOperations) {
       setShowRouteLoading(false);
       loadingTimer.current = null;
       return;
