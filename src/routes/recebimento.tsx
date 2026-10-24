@@ -348,7 +348,7 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
         <input value={qty} onChange={e => setQty(e.target.value.replace(/[^0-9,.]/g, ""))} inputMode="decimal" placeholder="Quantidade" className="field text-sm text-foreground" />
         <button type="button" onClick={addProduct} disabled={!productId || !qty} className="rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold disabled:opacity-40">+ Adicionar</button>
       </div>
-      
+      <div className="mt-2 text-[11px] text-muted-foreground">Pode incluir produtos depois de salvar, enquanto a conferência ainda não foi finalizada.</div>
     </div>}
     
     {note.status === "analisando" && <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
