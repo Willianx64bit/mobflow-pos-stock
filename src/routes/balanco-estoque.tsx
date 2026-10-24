@@ -266,7 +266,7 @@ function BalancoEstoque() {
 
 
             </>
-          )}
+          ) : null}
           {editingProductId && (() => {
             const draft = drafts.find((d) => d.productId === editingProductId);
             const product = products.find((p) => p.id === editingProductId);
