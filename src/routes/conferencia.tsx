@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Clock3, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { Camera, CheckCircle2, Clock3, AlertTriangle, Pencil, Trash2, Filter, History } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { productHasBarcode, actions, useStore, type Product, type ReceivingNote } from "@/lib/store";
 
@@ -15,11 +15,35 @@ function Conferencia() {
   const products = useStore((s) => s.products);
   const search = useSearch({ from: "/conferencia" }) as { nota?: string };
   const [open, setOpen] = useState<string | null>(search.nota ?? null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyCompletion, setHistoryCompletion] = useState("Todos");
   const pending = notes.filter(n => n.status === "pendente");
   const history = notes.filter(n => n.status !== "pendente");
   const note = notes.find(n => n.id === open);
 
   useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);
+  const historyStatus = (n: ReceivingNote) => {
+    const decisions = n.decisions ?? {};
+    const needsAction = !!n.stockReleased && Object.values(decisions).includes("devolver") && !n.actionCompleted;
+    const released = !!n.stockReleased && !needsAction;
+    const allLines = [...n.items, ...(n.extras ?? [])];
+    const hasQuantityDifference = n.items.some(item => Number(item.received ?? 0) !== Number(item.expected)) || (n.extras ?? []).some(item => Number(item.received ?? 0) > 0);
+    const hasDivergence = hasQuantityDifference || Object.values(decisions).includes("devolver") || n.status === "rejeitado";
+    const finished = !!n.actionCompleted || released;
+    return needsAction ? "Ação necessária" : finished ? (hasDivergence ? "Finalizado com divergência" : "Finalizado") : n.status === "analisando" ? "Analisando" : "Pendente";
+  };
+  const filteredHistory = history.filter(n => {
+    const rawDate = String(n.date ?? "").slice(0, 10);
+    const matchesFrom = !historyFrom || (!!rawDate && rawDate >= historyFrom);
+    const matchesTo = !historyTo || (!!rawDate && rawDate <= historyTo);
+    const status = historyStatus(n);
+    const matchesCompletion = historyCompletion === "Todos" ||
+      (historyCompletion === "Finalizados" && (status === "Finalizado" || status === "Finalizado com divergência")) ||
+      status === historyCompletion;
+    return matchesFrom && matchesTo && matchesCompletion;
+  });
 
   useEffect(() => {
     let permissions: string[] = [];
@@ -47,19 +71,20 @@ function Conferencia() {
       </div>
     </section>
     <section className="glass p-4 mt-4">
-      <div className="font-display text-xl tracking-[.1em] text-heading mb-1">HISTÓRICO DE CONFERÊNCIAS</div>
-      <div className="label-mono mb-3">Andamento das notas já conferidas</div>
-      {!history.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">nenhuma conferência finalizada</p>}
-      <div className="divide-y divide-border/50">{history.map(n => {
-        const decisions = n.decisions ?? {};
-        const needsAction = !!n.stockReleased && Object.values(decisions).includes("devolver") && !n.actionCompleted;
-        const released = !!n.stockReleased && !needsAction;
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5"/></div><div><div className="font-display text-xl tracking-[.1em] text-heading">HISTÓRICO DE CONFERÊNCIAS</div><div className="label-mono mt-1">Andamento das notas já conferidas</div></div></div>
+        <button type="button" onClick={() => setFiltersOpen(v => !v)} aria-expanded={filtersOpen} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4"/>{filtersOpen ? "Fechar" : "Filtrar"}</button>
+      </div>
+      {filtersOpen && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div><label className="mb-1 block text-xs font-semibold">Data inicial</label><input type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} className="field w-full"/></div>
+        <div><label className="mb-1 block text-xs font-semibold">Data final</label><input type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} className="field w-full"/></div>
+        <div><label className="mb-1 block text-xs font-semibold">Conclusão</label><select value={historyCompletion} onChange={e => setHistoryCompletion(e.target.value)} className="field w-full"><option>Todos</option><option>Finalizados</option><option>Finalizado</option><option>Finalizado com divergência</option><option>Ação necessária</option><option>Analisando</option><option>Pendente</option></select></div>
+        <div className="sm:col-span-2 lg:col-span-3 flex justify-end"><button type="button" onClick={() => {setHistoryFrom("");setHistoryTo("");setHistoryCompletion("Todos");}} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Limpar filtros</button></div>
+      </div>}
+      {!filteredHistory.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{history.length ? "Nenhuma conferência encontrada com esses filtros." : "nenhuma conferência finalizada"}</p>}
+      <div className="divide-y divide-border/50">{filteredHistory.map(n => {
         const allLines = [...n.items, ...(n.extras ?? [])];
-        const hasQuantityDifference = n.items.some(item => Number(item.received ?? 0) !== Number(item.expected)) || (n.extras ?? []).some(item => Number(item.received ?? 0) > 0);
-        const hasDecisionDifference = Object.values(decisions).includes("devolver") || n.status === "rejeitado";
-        const hasDivergence = hasQuantityDifference || hasDecisionDifference;
-        const finished = !!n.actionCompleted || released;
-        const label = needsAction ? "Ação necessária" : finished ? (hasDivergence ? "Finalizado com divergência" : "Finalizado") : n.status === "analisando" ? "Analisando" : "Pendente";
+        const label = historyStatus(n);
         const completedStyle = label === "Finalizado" ? "bg-emerald-500/15 text-emerald-700" : label === "Finalizado com divergência" || label === "Ação necessária" ? "bg-amber-500/15 text-amber-800" : "bg-secondary text-secondary-foreground";
         return <div key={n.id} className="w-full py-4 px-2">
           <div className="flex flex-wrap items-center gap-2">
