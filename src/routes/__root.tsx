@@ -4,11 +4,12 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -100,9 +101,53 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function RouteLoadingScreen() {
+  return (
+    <div role="status" aria-live="polite" className="fixed inset-0 z-[9999] grid place-items-center bg-background/95 backdrop-blur-[2px]">
+      <div className="flex flex-col items-center gap-3 rounded-2xl px-8 py-7 text-center">
+        <div className="flex items-baseline gap-1.5 text-xl font-semibold tracking-wide text-foreground">
+          <span>Carregando</span>
+          <span className="mf-loading-dot mf-loading-dot-1">.</span>
+          <span className="mf-loading-dot mf-loading-dot-2">.</span>
+          <span className="mf-loading-dot mf-loading-dot-3">.</span>
+        </div>
+      </div>
+      <style>{`
+        @keyframes mf-dot-blink { 0%, 20% { opacity: .2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } 80%, 100% { opacity: .2; transform: translateY(0); } }
+        .mf-loading-dot { animation: mf-dot-blink 1s infinite ease-in-out; }
+        .mf-loading-dot-2 { animation-delay: .16s; }
+        .mf-loading-dot-3 { animation-delay: .32s; }
+        @media (prefers-reduced-motion: reduce) { .mf-loading-dot { animation: none; opacity: 1; } }
+      `}</style>
+    </div>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const previousPath = useRef(pathname);
+  const loadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showRouteLoading, setShowRouteLoading] = useState(false);
+
+  useEffect(() => {
+    if (previousPath.current === pathname) return;
+    previousPath.current = pathname;
+    if (loadingTimer.current) clearTimeout(loadingTimer.current);
+    setShowRouteLoading(true);
+    loadingTimer.current = setTimeout(() => {
+      setShowRouteLoading(false);
+      loadingTimer.current = null;
+    }, 1600);
+    return () => {
+      if (loadingTimer.current) clearTimeout(loadingTimer.current);
+    };
+  }, [pathname]);
+
+  useEffect(() => () => {
+    if (loadingTimer.current) clearTimeout(loadingTimer.current);
+  }, []);
   const [checkingSession, setCheckingSession] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [userLoginRequired, setUserLoginRequired] = useState(false);
@@ -237,7 +282,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <><Outlet />{showRouteLoading && <RouteLoadingScreen />}</>
     </QueryClientProvider>
   );
 }
