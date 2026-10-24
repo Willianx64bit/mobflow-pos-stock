@@ -33,6 +33,7 @@ function Recebimento() {
   const [filterEnd, setFilterEnd] = useState("");
   const [filterNumber, setFilterNumber] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterStatus, setFilterStatus] = useState("todos");
   const [productId, setProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [quickInsert, setQuickInsert] = useState(false);
@@ -54,6 +55,20 @@ function Recebimento() {
     return [...saved, ...legacy.filter(s => !saved.some(c => c.name.toLowerCase() === s.name.toLowerCase()))].slice(0, 8);
   }, [contacts, suppliers, supplier]);
 
+  const receivingLabel = (n: ReceivingNote) => {
+    if (n.status === "pendente" || n.status === "analisando") return n.status === "analisando" ? "Em conferência" : "Pendente";
+    const keys = [...n.items.map(i => i.productId), ...(n.extras ?? []).map(i => i.productId)];
+    const decisions = n.decisions ?? {};
+    if (n.status === "rejeitado" || (keys.length > 0 && keys.every(key => decisions[key] === "devolver"))) return "Recusado";
+    if (n.stockReleased && keys.length > 0 && keys.every(key => decisions[key] === "aceitar")) {
+      const quantitiesCorrect = n.items.every(i => Number(i.received ?? 0) === Number(i.expected)) && (n.extras ?? []).length === 0;
+      return quantitiesCorrect ? "Aceito correto" : "Aceito com divergências";
+    }
+    if (n.stockReleased && Object.values(decisions).includes("devolver")) return "Aceito com divergências";
+    if (n.status === "divergente" || n.status === "conferido") return "Ação pendente";
+    return n.status;
+  };
+
   const filteredNotes = useMemo(() => {
     const numberTerm = filterNumber.trim().toLowerCase();
     const supplierTerm = filterSupplier.trim().toLowerCase();
@@ -65,9 +80,11 @@ function Recebimento() {
       const supplierDigits = supplierTerm.replace(/\D/g, "");
       const matchesSupplierName = !supplierTerm || n.supplier.toLowerCase().includes(supplierTerm);
       const matchesSupplierCnpj = !supplierDigits || (n.supplierCnpj ?? "").replace(/\D/g, "").includes(supplierDigits);
-      return matchesSupplierName || matchesSupplierCnpj;
+      if (!(matchesSupplierName || matchesSupplierCnpj)) return false;
+      if (filterStatus !== "todos" && receivingLabel(n) !== filterStatus) return false;
+      return true;
     });
-  }, [notes, filterStart, filterEnd, filterNumber, filterSupplier]);
+  }, [notes, filterStart, filterEnd, filterNumber, filterSupplier, filterStatus]);
 
   const productSuggestions = useMemo(() => {
     const term = productSearch.trim().toLowerCase();
@@ -262,13 +279,14 @@ function Recebimento() {
         <div><label className="mb-1 block text-xs font-semibold">Data final</label><input type="date" value={filterEnd} min={filterStart || undefined} onChange={e => setFilterEnd(e.target.value)} className="field w-full" /></div>
         <div><label className="mb-1 block text-xs font-semibold">Número da NF</label><input value={filterNumber} onChange={e => setFilterNumber(e.target.value)} placeholder="Número da NF" className="field w-full" /></div>
         <div><label className="mb-1 block text-xs font-semibold">Fornecedor</label><input value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} placeholder="Nome ou CNPJ do fornecedor" className="field w-full" /></div>
-        <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); }} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold">Limpar filtros</button></div>
+        <div><label className="mb-1 block text-xs font-semibold">Situação</label><select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="field w-full"><option value="todos">Todas as situações</option><option value="Aceito correto">Aceito correto</option><option value="Aceito com divergências">Aceito com divergências</option><option value="Recusado">Recusado</option><option value="Pendente">Pendente</option><option value="Em conferência">Em conferência</option><option value="Ação pendente">Ação pendente</option></select></div>
+        <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); setFilterStatus("todos"); }} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold">Limpar filtros</button></div>
       </div>}
       <div className="divide-y divide-border/50">
         {!filteredNotes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{notes.length ? "nenhuma nota corresponde aos filtros" : "nenhuma nota cadastrada"}</p>}
         {filteredNotes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier}{n.supplierCnpj ? ` · ${n.supplierCnpj}` : ""} · ${n.items.length} produtos${n.extras?.length ? ` · ${n.extras.length} extras` : ""}</div></div>
-          <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${n.status === "divergente" ? "bg-destructive/15 text-destructive" : n.status === "aceito" || n.status === "conferido" ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"}`}>{n.status}</span>
+          <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${receivingLabel(n) === "Aceito correto" ? "bg-emerald-500/15 text-emerald-700" : receivingLabel(n) === "Aceito com divergências" || receivingLabel(n) === "Ação pendente" ? "bg-amber-300/30 text-amber-800" : receivingLabel(n) === "Recusado" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground"}`}>{receivingLabel(n)}</span>
           <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
           {n.status === "pendente" && <button onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-semibold">Conferir</button>}
           {(n.status === "divergente" || n.status === "conferido") && <div className="flex gap-2"><button onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-bold disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button onClick={() => actions.rejectReceiving(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Rejeitar</button>}</div>}
