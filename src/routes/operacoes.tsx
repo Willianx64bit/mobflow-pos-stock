@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale, LockKeyhole, Users } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useStore } from "@/lib/store";
 
 export const Route = createFileRoute("/operacoes")({
   head: () => ({ meta: [{ title: "MobFlow — Operações" }] }),
@@ -10,6 +11,8 @@ export const Route = createFileRoute("/operacoes")({
 
 function Operacoes() {
   const navigate = useNavigate();
+  const receiving = useStore((s) => s.receiving ?? []);
+  const hasActionToDo = receiving.some((note) => note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") && !note.actionCompleted);
   const [hasManagementAccess, setHasManagementAccess] = useState(false);
   useEffect(() => {
     const readPermissions = () => {
@@ -48,7 +51,9 @@ function Operacoes() {
             return (
               <button key={item.title} type="button" onClick={() => item.title === "Conferência" ? navigate({ to: "/conferencia" }) : item.title === "Baixa de produtos" ? navigate({ to: "/baixa-produtos" }) : item.title === "Transferência" ? navigate({ to: "/transferencias" }) : item.title === "Balanço de estoque" ? navigate({ to: "/balanco-estoque" }) : item.title === "Fornecedores e Clientes" ? navigate({ to: "/fornecedores-clientes" }) : window.alert(item.title + " será configurada na próxima etapa.")} className="rounded-2xl bg-white p-5 text-left ring-1 ring-border transition hover:-translate-y-0.5 hover:ring-primary/50">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><Icon className="h-6 w-6" /></div>
+                  <div className="relative grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><Icon className="h-6 w-6" />
+                    {item.title === "Conferência" && hasActionToDo && <span className="absolute left-14 top-0 whitespace-nowrap rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">AÇÃO A SER FEITA</span>}
+                  </div>
                   {!item.ready && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">Em preparação</span>}
                 </div>
                 <h2 className="mt-4 font-bold text-heading">{item.title}</h2>
