@@ -88,17 +88,26 @@ function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; pro
 function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const note = useStore(s => s.receiving.find(n => n.id === noteId));
   const products = useStore(s => s.products);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [extraCounts, setExtraCounts] = useState<Record<string, number>>({});
+  const draft = useStore(s => s.conferences.find(c => c.receivingId === noteId && c.status === "aberta"));
+  const [counts, setCounts] = useState<Record<string, number>>(() => draft?.counts ?? {});
+  const [extraCounts, setExtraCounts] = useState<Record<string, number>>(() => draft?.extraCounts ?? {});
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [finishError, setFinishError] = useState(false);
   const [reopenCamera, setReopenCamera] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
   const [editingQuantity, setEditingQuantity] = useState(false);
   const [confirmClearProduct, setConfirmClearProduct] = useState<typeof products[number] | null>(null);
   const [productExpiry, setProductExpiry] = useState("");
-  const [expiries, setExpiries] = useState<Record<string, string>>({});
-  const [extraExpiries, setExtraExpiries] = useState<Record<string, string>>({});
+  const [expiries, setExpiries] = useState<Record<string, string>>(() => draft?.expiries ?? {});
+  const [extraExpiries, setExtraExpiries] = useState<Record<string, string>>(() => draft?.extraExpiries ?? {});
+
+  useEffect(() => {
+    if (!note) return;
+    actions.saveReceivingConferenceDraft(noteId, counts, expiries, extraCounts, extraExpiries);
+  }, [noteId, note?.id, counts, expiries, extraCounts, extraExpiries]);
 
   if (!note) return null;
 
@@ -171,9 +180,16 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   };
 
   const finish = () => {
-    const saved = actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
-    if (saved) onBack();
-    else alert("Não foi possível salvar a conferência. Os dados continuam nesta tela; tente novamente.");
+    if (finishing) return;
+    setFinishing(true);
+    window.setTimeout(() => {
+      const saved = actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
+      setFinishing(false);
+      setConfirmFinish(false);
+      if (saved) onBack();
+      else setConfirmFinish(false);
+      if (!saved) setFinishError(true);
+    }, 2200);
   };
 
   return <section className="glass p-4">
@@ -219,7 +235,18 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
 
     {Object.values(extraCounts).some(q => q > 0) && <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800"><b>Produtos extras registrados:</b> eles serão enviados para Recebimento para avaliação do responsável.</div>}
     <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver divergência.</div>
-    <button onClick={() => confirm("Finalizar esta conferência?") && finish()} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Finalizar conferência</button>
+    <button onClick={() => { setFinishError(false); setConfirmFinish(true); }} disabled={finishing} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-60">{finishing ? "Salvando conferência..." : "Finalizar conferência"}</button>
+    {finishError && <p className="mt-2 text-sm text-destructive">Não foi possível salvar a conferência. Os produtos coletados continuam salvos; tente novamente.</p>}
+    {confirmFinish && <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="finish-conference-title">
+      <div className="w-full max-w-md rounded-2xl bg-background p-5 shadow-xl ring-1 ring-border">
+        <div id="finish-conference-title" className="mb-2 text-lg font-bold text-foreground">Finalizar conferência?</div>
+        <p className="text-sm text-muted-foreground">Confirma que terminou a coleta dos produtos desta nota?</p>
+        <div className="mt-5 flex gap-3">
+          <button type="button" disabled={finishing} onClick={() => setConfirmFinish(false)} className="flex-1 rounded-xl bg-secondary px-4 py-3 font-semibold text-secondary-foreground ring-1 ring-border disabled:opacity-60">Cancelar</button>
+          <button type="button" disabled={finishing} onClick={finish} className="flex-1 rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:opacity-60">{finishing ? "Salvando..." : "Confirmar"}</button>
+        </div>
+      </div>
+    </div>
 
     {cameraOpen && <BarcodeScanner products={products} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
 
