@@ -27,7 +27,7 @@ function BalancoEstoque() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [operation, setOperation] = useState<"somar" | "definir">("somar");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
@@ -94,7 +94,7 @@ function BalancoEstoque() {
     setMessage("");
   };
 
-  const saveBatch = () => {
+  const saveBatch = async () => {
     if (saving) return;
     if (!reason.trim()) { setError("O motivo do ajuste é obrigatório."); return; }
     if (!drafts.length) { setError("Adicione pelo menos um produto ao balanço."); return; }
@@ -109,6 +109,7 @@ function BalancoEstoque() {
     }
     setSaving(true);
     setError("");
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
     const result = actions.applyStockAdjustmentBatch({ reason: reason.trim(), items: payload });
     setSaving(false);
     if (!result) { setError("Não foi possível registrar o balanço. Confira os produtos e tente novamente."); return; }
@@ -151,8 +152,8 @@ function BalancoEstoque() {
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <main className="mx-auto w-full max-w-5xl space-y-5">
-        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else { navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
-          <ArrowLeft className="h-4 w-4" /> {showForm && step === 2 ? "Voltar para operação" : "Voltar para Operações"}
+        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else if (showForm && step === 3) { setStep(2); setError(""); setMessage(""); } else { navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+          <ArrowLeft className="h-4 w-4" /> {showForm && step === 2 ? "Voltar para operação" : showForm && step === 3 ? "Voltar para produtos" : "Voltar para Operações"}
         </button>
         {showForm ? (
         <section className="glass p-5 md:p-6">
@@ -171,6 +172,7 @@ function BalancoEstoque() {
           <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm font-semibold">
             <span className={`rounded-full px-4 py-2 ${step === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>1. Motivo e operação</span>
             <span className={`rounded-full px-4 py-2 ${step === 2 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>2. Produtos</span>
+            <span className={`rounded-full px-4 py-2 ${step === 3 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>3. Confirmação</span>
           </div>
 
           {step === 1 ? (
@@ -193,7 +195,7 @@ function BalancoEstoque() {
 
               <button type="button" onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); setStep(2); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Próximo: selecionar produtos</button>
             </div>
-          ) : (
+          ) : step === 2 ? (
             <>
               <div className="mb-4">
                 <h2 className="font-semibold text-heading">2. Produtos do balanço</h2>
@@ -300,9 +302,58 @@ function BalancoEstoque() {
             <button type="button" onClick={() => { setStep(1); setError(""); setMessage(""); }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 font-semibold text-secondary-foreground hover:bg-accent">
               <ArrowLeft className="h-4 w-4" /> Voltar
             </button>
-            <button type="button" onClick={saveBatch} disabled={saving || drafts.length === 0} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
-              {saving ? "Registrando balanço..." : `Confirmar balanço de ${drafts.length} produto(s)`}
+            <button type="button" onClick={() => {
+              if (!drafts.length) { setError("Adicione pelo menos um produto ao balanço."); return; }
+              for (const draft of drafts) {
+                const product = products.find((p) => p.id === draft.productId);
+                const value = Number(draft.quantity.trim().replace(",", "."));
+                if (!draft.quantity.trim() || !product || !Number.isFinite(value) || value < 0 || (product.unit !== "kg" && !Number.isInteger(value))) {
+                  setError("Confira as quantidades de todos os produtos antes de continuar."); return;
+                }
+              }
+              setError(""); setMessage(""); setStep(3);
+            }} disabled={saving || drafts.length === 0} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+              Continuar para confirmação
             </button>
+          </div>}
+          {step === 3 && <div className="mt-6 space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-heading">3. Confirmação do balanço</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Confira as diferenças de estoque e os valores calculados pelo custo cadastrado antes de confirmar.</p>
+              <p className="mt-2 rounded-xl bg-secondary/60 p-3 text-sm"><b>Motivo:</b> {reason} · <b>Operação:</b> {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[680px] border-collapse text-sm">
+                <thead className="bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground"><tr>
+                  <th className="px-3 py-3 text-left">Produto</th><th className="px-3 py-3 text-center">Saldo atual</th><th className="px-3 py-3 text-center">Qtd. informada</th><th className="px-3 py-3 text-center">Diferença</th><th className="px-3 py-3 text-right">Valor de custo</th>
+                </tr></thead>
+                <tbody>{drafts.map((draft) => {
+                  const product = products.find((p) => p.id === draft.productId);
+                  if (!product) return null;
+                  const value = Number(draft.quantity.trim().replace(",", ".")) || 0;
+                  const nextStock = draft.mode === "somar" ? product.stock + value : value;
+                  const difference = nextStock - product.stock;
+                  const costValue = Math.abs(difference) * (Number(product.cost) || 0);
+                  const unit = product.unit === "kg" ? "kg" : "un.";
+                  const color = difference > 0 ? "text-emerald-600" : difference < 0 ? "text-red-600" : "text-muted-foreground";
+                  return <tr key={draft.productId} className="border-t border-border/70">
+                    <td className="px-3 py-3"><b>{product.name}</b><div className="text-xs text-muted-foreground">Código: {product.code}</div></td>
+                    <td className="px-3 py-3 text-center">{product.stock} {unit}</td>
+                    <td className="px-3 py-3 text-center">{value} {unit}</td>
+                    <td className={"px-3 py-3 text-center font-bold " + color}>{difference > 0 ? "+" : ""}{difference} {unit}<div className="text-xs font-medium">{difference > 0 ? "Entrada" : difference < 0 ? "Saída" : "Sem alteração"}</div></td>
+                    <td className={"px-3 py-3 text-right font-bold tabular-nums " + color}>{difference < 0 ? "−" : difference > 0 ? "+" : ""}R$ {costValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  </tr>;
+                })}</tbody>
+              </table>
+            </div>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row">
+              <button type="button" onClick={() => { setStep(2); setError(""); setMessage(""); }} disabled={saving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 font-semibold text-secondary-foreground"><ArrowLeft className="h-4 w-4" />Voltar para produtos</button>
+              <button type="button" onClick={saveBatch} disabled={saving || drafts.length === 0} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-60">
+                {saving ? <span className="inline-flex items-center justify-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />Processando balanço...</span> : "Confirmar balanço"}
+              </button>
+            </div>
+            {saving && <p role="status" className="text-center text-sm text-muted-foreground">Processando informações e atualizando o estoque. Aguarde...</p>}
+            {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
           </div>}
         </section>
         ) : (
