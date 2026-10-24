@@ -94,6 +94,8 @@ function BalancoEstoque() {
     setMessage("");
   };
 
+  const advanceStep = async (next: 2 | 3) => { setError(""); setMessage(""); await new Promise((resolve) => window.setTimeout(resolve, 2000)); setStep(next); };
+
   const saveBatch = async () => {
     if (saving) return;
     if (!reason.trim()) { setError("O motivo do ajuste é obrigatório."); return; }
@@ -152,13 +154,13 @@ function BalancoEstoque() {
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <main className="mx-auto w-full max-w-5xl space-y-5">
-        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else if (showForm && step === 3) { setStep(2); setError(""); setMessage(""); } else { navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else if (showForm && step === 3) { setStep(2); setError(""); setMessage(""); } else { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setQuickInsert(false); setEditingProductId(null); setError(""); setMessage(""); setQuery(""); navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
           <ArrowLeft className="h-4 w-4" /> {showForm && step === 2 ? "Voltar para operação" : showForm && step === 3 ? "Voltar para produtos" : "Voltar para Operações"}
         </button>
         {showForm ? (
         <section className="glass p-5 md:p-6">
           <div className="mb-4 flex justify-end">
-            <button type="button" onClick={() => { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+            <button type="button" onClick={() => { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setQuickInsert(false); setEditingProductId(null); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
               <X className="h-4 w-4" /> Fechar
             </button>
           </div>
@@ -193,7 +195,7 @@ function BalancoEstoque() {
               className="field w-full resize-y text-foreground" />
           </div>
 
-              <button type="button" onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); setStep(2); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Próximo: selecionar produtos</button>
+              <button type="button" onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); void advanceStep(2); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Próximo: selecionar produtos</button>
             </div>
           ) : step === 2 ? (
             <>
@@ -311,7 +313,7 @@ function BalancoEstoque() {
                   setError("Confira as quantidades de todos os produtos antes de continuar."); return;
                 }
               }
-              setError(""); setMessage(""); setStep(3);
+              setError(""); void advanceStep(3);
             }} disabled={saving || drafts.length === 0} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
               Continuar para confirmação
             </button>
