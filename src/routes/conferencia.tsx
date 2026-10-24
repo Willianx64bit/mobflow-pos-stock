@@ -150,10 +150,14 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const saveProductQty = () => {
     if (!selectedProduct) return;
     const n = Number(productQty.replace(",", "."));
-    if (!Number.isFinite(n) || n <= 0) return;
+    if (!Number.isFinite(n) || n < 0 || (!editingQuantity && n === 0)) return;
     const isExtra = !note.items.some(i => i.productId === selectedProduct.id);
     if (isExtra) {
-      setExtraCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
+      setExtraCounts(c => {
+        const next = { ...c, [selectedProduct.id]: editingQuantity ? n : (c[selectedProduct.id] ?? 0) + n };
+        if (editingQuantity && n === 0) delete next[selectedProduct.id];
+        return next;
+      });
       if (productExpiry) setExtraExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
     } else {
       setCounts(c => ({ ...c, [selectedProduct.id]: editingQuantity ? n : (c[selectedProduct.id] ?? 0) + n }));
@@ -208,7 +212,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
               <td className="text-right"><button type="button" onClick={() => product && openProduct(product)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Abrir</button></td>
             </tr>;
           })}
-          {products.filter(p => (extraCounts[p.id] ?? 0) > 0 && !note.items.some(i => i.productId === p.id)).map(p => <tr key={"extra-" + p.id} className="bg-amber-500/5"><td className="py-3"><div className="text-foreground font-medium">{p.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p.code}</div><span className="inline-flex mt-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Produto não está na nota</span></td><td className="text-right font-mono">—</td><td className="text-right font-mono font-semibold">{extraCounts[p.id]} {p.unit === "kg" ? "kg" : "un."}</td><td className="text-right"><button type="button" onClick={() => openProduct(p)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Adicionar</button></td></tr>)}
+          {products.filter(p => (extraCounts[p.id] ?? 0) > 0 && !note.items.some(i => i.productId === p.id)).map(p => <tr key={"extra-" + p.id} className="bg-amber-500/5"><td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => editProductQty(p)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><div className="text-foreground font-medium">{p.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p.code}</div><span className="inline-flex mt-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Produto não está na nota</span><button type="button" onClick={() => clearProductCollection(p)} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td><td className="text-right font-mono">—</td><td className="text-right font-mono font-semibold">{extraCounts[p.id]} {p.unit === "kg" ? "kg" : "un."}</td><td className="text-right"><button type="button" onClick={() => openProduct(p)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Adicionar</button></td></tr>)}
         </tbody>
       </table>
     </div>
@@ -248,7 +252,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
         <div className="label-mono mt-4 mb-2">Validade (opcional)</div>
         <input type="text" inputMode="numeric" maxLength={10} value={productExpiry} onChange={e => { const d = e.target.value.replace(/\D/g, "").slice(0, 8); setProductExpiry(d.replace(/^(\d{2})(\d)/, "$1/$2").replace(/^(\d{2}\/\d{2})(\d)/, "$1/$2")); }} className="field w-full text-foreground text-lg font-mono" placeholder="DD/MM/AAAA" />
         <div className="mt-1 text-[10px] text-muted-foreground">Digite 10102026 para preencher 10/10/2026. Não é obrigatório.</div>
-        <button onClick={saveProductQty} disabled={!productQty || !Number.isFinite(Number(productQty.replace(",", "."))) || Number(productQty.replace(",", ".")) < 0 || (!editingQuantity && Number(productQty.replace(",", ".")) === 0)} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">{editingQuantity ? "Salvar quantidade" : "+ Somar quantidade"}</button>
+        <button onClick={saveProductQty} disabled={productQty === "" || !Number.isFinite(Number(productQty.replace(",", "."))) || Number(productQty.replace(",", ".")) < 0 || (!editingQuantity && Number(productQty.replace(",", ".")) === 0)} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">{editingQuantity ? "Salvar quantidade" : "+ Somar quantidade"}</button>
       </div>
     </div>}
   </section>;
