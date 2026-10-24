@@ -28,6 +28,7 @@ function Recebimento() {
   const [filterEnd, setFilterEnd] = useState("");
   const [filterNumber, setFilterNumber] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterCnpj, setFilterCnpj] = useState("");
   const [productId, setProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [qty, setQty] = useState("");
@@ -38,15 +39,17 @@ function Recebimento() {
   const filteredNotes = useMemo(() => {
     const numberTerm = filterNumber.trim().toLowerCase();
     const supplierTerm = filterSupplier.trim().toLowerCase();
+    const cnpjTerm = filterCnpj.replace(/\\D/g, "");
     return notes.filter(n => {
       const noteDate = (n.date || "").slice(0, 10);
       if (filterStart && (!noteDate || noteDate < filterStart)) return false;
       if (filterEnd && (!noteDate || noteDate > filterEnd)) return false;
       if (numberTerm && !String(n.number).toLowerCase().includes(numberTerm)) return false;
       if (supplierTerm && !n.supplier.toLowerCase().includes(supplierTerm)) return false;
+      if (cnpjTerm && !(n.supplierCnpj ?? "").replace(/\\D/g, "").includes(cnpjTerm)) return false;
       return true;
     });
-  }, [notes, filterStart, filterEnd, filterNumber, filterSupplier]);
+  }, [notes, filterStart, filterEnd, filterNumber, filterSupplier, filterCnpj]);
 
   const selected = notes.find(n => n.id === search.nota);
   if (selected) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} /></div>;
@@ -112,16 +115,14 @@ function Recebimento() {
     </section>
 
     <section className="glass p-4 mt-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2"><History size={17} className="text-muted-foreground" /><div className="label-mono">Histórico de notas</div></div>
-        <button type="button" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent"><Filter size={16} /> Filtrar</button>
-      </div>
-      {showFilters && <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl bg-secondary/40 p-3 ring-1 ring-border sm:grid-cols-2 lg:grid-cols-4">
-        <label className="space-y-1 text-xs text-muted-foreground"><span>Período — de</span><input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="field w-full text-sm text-foreground" /></label>
-        <label className="space-y-1 text-xs text-muted-foreground"><span>Período — até</span><input type="date" value={filterEnd} min={filterStart || undefined} onChange={e => setFilterEnd(e.target.value)} className="field w-full text-sm text-foreground" /></label>
-        <label className="space-y-1 text-xs text-muted-foreground"><span>Número da NF</span><input value={filterNumber} onChange={e => setFilterNumber(e.target.value)} placeholder="Número da NF" className="field w-full text-sm text-foreground" /></label>
-        <label className="space-y-1 text-xs text-muted-foreground"><span>Fornecedor</span><input value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} placeholder="Nome do fornecedor" className="field w-full text-sm text-foreground" /></label>
-        <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); }} className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">Limpar filtros</button></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><h2 className="font-display text-xl text-heading">Histórico de notas</h2></div><button type="button" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4" />{showFilters ? "Fechar" : "Filtrar"}</button></div>
+      {showFilters && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div><label className="mb-1 block text-xs font-semibold">Data inicial</label><input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="field w-full" /></div>
+        <div><label className="mb-1 block text-xs font-semibold">Data final</label><input type="date" value={filterEnd} min={filterStart || undefined} onChange={e => setFilterEnd(e.target.value)} className="field w-full" /></div>
+        <div><label className="mb-1 block text-xs font-semibold">Número da NF</label><input value={filterNumber} onChange={e => setFilterNumber(e.target.value)} placeholder="Número da NF" className="field w-full" /></div>
+        <div><label className="mb-1 block text-xs font-semibold">Fornecedor</label><input value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} placeholder="Fornecedor" className="field w-full" /></div>
+        <div><label className="mb-1 block text-xs font-semibold">CNPJ</label><input inputMode="numeric" value={filterCnpj} onChange={e => setFilterCnpj(e.target.value.replace(/\\D/g, "").slice(0, 14))} placeholder="CNPJ do fornecedor" className="field w-full" /></div>
+        <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); setFilterCnpj(""); }} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold">Limpar filtros</button></div>
       </div>}
       <div className="divide-y divide-border/50">
         {!filteredNotes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{notes.length ? "nenhuma nota corresponde aos filtros" : "nenhuma nota cadastrada"}</p>}
