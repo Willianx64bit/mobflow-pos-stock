@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { productHasBarcode, actions, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter, Loader2 } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
 
@@ -26,6 +26,7 @@ function BalancoEstoque() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [transitioningTo, setTransitioningTo] = useState<2 | 3 | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [operation, setOperation] = useState<"somar" | "definir">("somar");
@@ -94,7 +95,7 @@ function BalancoEstoque() {
     setMessage("");
   };
 
-  const advanceStep = async (next: 2 | 3) => { setError(""); setMessage(""); await new Promise((resolve) => window.setTimeout(resolve, 2000)); setStep(next); };
+  const advanceStep = async (next: 2 | 3) => { if (transitioningTo !== null) return; setTransitioningTo(next); setError(""); setMessage(""); await new Promise((resolve) => window.setTimeout(resolve, 2000)); setStep(next); setTransitioningTo(null); };
 
   const saveBatch = async () => {
     if (saving) return;
@@ -195,7 +196,7 @@ function BalancoEstoque() {
               className="field w-full resize-y text-foreground" />
           </div>
 
-              <button type="button" onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); void advanceStep(2); }} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground">Próximo: selecionar produtos</button>
+              <button type="button" disabled={transitioningTo!==null} onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); void advanceStep(2); }} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-80">{transitioningTo===2?<><Loader2 className="h-5 w-5 animate-spin"/>Carregando próxima etapa...</>:"Próximo: selecionar produtos"}</button>
             </div>
           ) : step === 2 ? (
             <>
@@ -314,8 +315,8 @@ function BalancoEstoque() {
                 }
               }
               setError(""); void advanceStep(3);
-            }} disabled={saving || drafts.length === 0} className="flex-1 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
-              Continuar para confirmação
+            }} disabled={saving || drafts.length === 0 || transitioningTo!==null} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-80">
+              {transitioningTo===3?<><Loader2 className="h-5 w-5 animate-spin"/>Carregando próxima etapa...</>:"Continuar para confirmação"}
             </button>
           </div>}
           {step === 3 && <div className="mt-6 space-y-4">
