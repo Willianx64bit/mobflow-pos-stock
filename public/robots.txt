@@ -12,3 +12,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://mobflow-pos-stock.vercel.app/sitemap.xml
