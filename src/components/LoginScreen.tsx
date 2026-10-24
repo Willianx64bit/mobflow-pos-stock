@@ -58,14 +58,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     return () => { cancelled = true; };
   }, [mode, showSignup, signupResult]);
 
-  // O login do operador deve sempre começar vazio, sem reaproveitar/autopreencher credenciais da empresa.
+  // Ao alternar entre login da empresa e do usuário, limpa as credenciais,
+  // mas preserva a preferência "Salvar login" para ambos os acessos.
   useEffect(() => {
-    if (mode === "pdv") {
-      setUsername("");
-      setPassword("");
-      setError("");
-      setRememberLogin(false);
-    }
+    setUsername("");
+    setPassword("");
+    setError("");
+    setRememberLogin(localStorage.getItem(REMEMBER_KEY) === "1");
   }, [mode]);
 
   const logoutAccount = async () => {
@@ -388,7 +387,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
 
           <label className="flex cursor-pointer select-none items-center gap-2 text-sm lg:text-base text-slate-600">
-            <input type="checkbox" checked={mode === "pdv" ? false : rememberLogin} disabled={mode === "pdv"} onChange={(e) => setRememberLogin(e.target.checked)} className="h-4 w-4 accent-primary" />
+            <input type="checkbox" checked={rememberLogin} onChange={(e) => { setRememberLogin(e.target.checked); localStorage.setItem(REMEMBER_KEY, e.target.checked ? "1" : "0"); }} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
 
