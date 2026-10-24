@@ -353,7 +353,7 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
     
     {note.status === "analisando" && <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <p className="text-sm text-muted-foreground">Nota grande? Marque todos os produtos como aceitos de uma vez.</p>
-      <button type="button" onClick={() => { [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)].forEach(key => actions.setReceivingDecision(note.id, key, "aceitar")); }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700">✓ ACEITAR TUDO</button>
+      <button type="button" onClick={() => { if (confirm("Marcar todos os produtos e extras desta nota como ACEITAR? Você ainda poderá alterar decisões individuais antes de finalizar.")) { [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)].forEach(key => actions.setReceivingDecision(note.id, key, "aceitar")); } }} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700">✓ ACEITAR TUDO</button>
     </div>}
     <div className="overflow-x-auto">
       <table className="w-full min-w-[900px] table-auto text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2 pr-4">Produto</th><th className="px-3 py-2 text-right whitespace-nowrap">Esperado</th><th className="px-3 py-2 text-right whitespace-nowrap">Recebido</th><th className="px-4 py-2 text-right whitespace-nowrap">Diferença</th><th className="pl-4 pr-3 py-2 text-left whitespace-nowrap">Validade</th><th className="pl-3 py-2 text-right whitespace-nowrap">Decisão</th></tr></thead>
