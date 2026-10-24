@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type ReceivingNote } from "@/lib/store";
-import { Filter, History, Search, Loader2 } from "lucide-react";
+import { actions, useStore, productHasBarcode, type ReceivingNote, type Product } from "@/lib/store";
+import { Filter, History, Search, Loader2, Download, Pencil, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/recebimento")({
   head: () => ({ meta: [{ title: "MobFlow — Recebimento" }, { name: "description", content: "Cadastro e aprovação de notas recebidas." }] }),
@@ -34,6 +35,9 @@ function Recebimento() {
   const [filterSupplier, setFilterSupplier] = useState("");
   const [productId, setProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [quickInsert, setQuickInsert] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [drafts, setDrafts] = useState<{ productId: string; quantity: string }[]>([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -71,10 +75,74 @@ function Recebimento() {
   }, [products, productSearch]);
 
   const addProduct = (id: string) => {
-    setDrafts(old => old.some(d => d.productId === id) ? old : [...old, { productId: id, quantity: "" }]);
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+    const existing = drafts.find(d => d.productId === id);
+    if (quickInsert) {
+      const next = (existing ? Number(existing.quantity.replace(",", ".")) || 0 : 0) + 1;
+      setDrafts(old => existing ? old.map(d => d.productId === id ? { ...d, quantity: String(next) } : d) : [...old, { productId: id, quantity: "1" }]);
+      setMessage("Adicionado +1 " + product.name);
+    } else if (existing) {
+      setEditingId(id);
+    } else {
+      setDrafts(old => [...old, { productId: id, quantity: "" }]);
+      setEditingId(id);
+    }
     setProductSearch("");
     setProductId("");
     setError("");
+  };
+  const handleScannerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter" || !quickInsert) return;
+    e.preventDefault();
+    const code = productSearch.trim();
+    if (!code) return;
+    const product = products.find(p => productHasBarcode(p, code));
+    if (product) addProduct(product.id);
+    else { setError("Produto não encontrado para o código " + code + "."); setMessage(""); }
+  };
+  const downloadImportTemplate = () => {
+    const worksheet = XLSX.utils.aoa_to_sheet([["CÓDIGO", "QUANTIDADE"]]);
+    worksheet["!cols"] = [{ wch: 20 }, { wch: 18 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Importação");
+    XLSX.writeFile(workbook, "modelo-importacao-produtos.xlsx");
+  };
+  const importProducts = async (file?: File) => {
+    if (!file) return;
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      const rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+      const imported: { productId: string; quantity: string }[] = [];
+      const missing: string[] = [];
+      for (const row of rows) {
+        const codeKey = Object.keys(row).find(k => k.trim().toUpperCase() === "CÓDIGO" || k.trim().toUpperCase() === "CODIGO" || k.trim().toUpperCase() === "CÓDIGO DE BARRAS");
+        const qtyKey = Object.keys(row).find(k => k.trim().toUpperCase() === "QUANTIDADE" || k.trim().toUpperCase() === "QTD");
+        const code = String(codeKey ? row[codeKey] : "").trim().replace(/\.0$/, "");
+        const quantity = Number(String(qtyKey ? row[qtyKey] : "").replace(",", "."));
+        if (!code && !quantity) continue;
+        const product = products.find(p => p.code === code || (p.barcodes ?? []).some(b => b === code) || (p.ref ?? "") === code);
+        if (!product || !Number.isFinite(quantity) || quantity <= 0 || (product.unit !== "kg" && !Number.isInteger(quantity))) { missing.push(code || "(linha sem código)"); continue; }
+        const existing = imported.find(d => d.productId === product.id);
+        if (existing) existing.quantity = String((Number(existing.quantity) || 0) + quantity);
+        else imported.push({ productId: product.id, quantity: String(quantity) });
+      }
+      setDrafts(old => {
+        const merged = [...old];
+        for (const item of imported) {
+          const existing = merged.find(d => d.productId === item.productId);
+          if (existing) existing.quantity = String((Number(existing.quantity.replace(",", ".")) || 0) + Number(item.quantity));
+          else merged.push(item);
+        }
+        return merged;
+      });
+      setMessage(imported.length ? `Importados ${imported.length} produto(s) da planilha.` : "");
+      setError(missing.length ? `Não foi possível importar ${missing.length} linha(s): ${missing.slice(0, 5).join(", ")}.` : "");
+    } catch {
+      setError("Não foi possível ler a planilha. Use o modelo disponibilizado nesta tela.");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
   };
   const updateQuantity = (id: string, quantity: string) => {
     setDrafts(old => old.map(d => d.productId === id ? { ...d, quantity: quantity.replace(/[^0-9,.]/g, "") } : d));
@@ -92,7 +160,7 @@ function Recebimento() {
   const goBack = () => { setStep(step === 3 ? 2 : 1); setError(""); setMessage(""); };
   const resetForm = () => {
     setNumber(""); setSupplier(""); setSupplierCnpj(""); setProductId(""); setProductSearch("");
-    setDrafts([]); setStep(1); setShowNewNote(false); setShowSupplierSuggestions(false);
+    setDrafts([]); setStep(1); setShowNewNote(false); setShowSupplierSuggestions(false); setQuickInsert(false); setEditingId(null);
     setError(""); setMessage(""); setSavingNote(false); setTransitioningTo(null);
   };
   const productTotals = drafts.map(d => {
@@ -165,13 +233,18 @@ function Recebimento() {
 
         {step === 2 && <div className="space-y-4">
           <div className="rounded-xl bg-secondary/60 p-3 text-sm">Fornecedor: <b>{supplier}</b> · CNPJ: <b>{supplierCnpj || "—"}</b></div>
-          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={productSearch} onChange={e => { setProductSearch(e.target.value); setProductId(""); }} placeholder="Pesquisar produto, código de barras ou REF" autoComplete="off" className="field w-full pl-10 text-sm text-foreground" /></div>
-          {productSearch && <div className="overflow-hidden rounded-xl border border-border bg-background">{productSuggestions.map(p => <button key={p.id} type="button" onClick={() => addProduct(p.id)} className="flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left last:border-0 hover:bg-accent"><span className="min-w-0 flex-1"><b className="block text-foreground">{p.name}</b><small className="text-muted-foreground">Código: {p.code} · REF: {p.ref || "—"}</small></span><span className="text-sm text-muted-foreground">Custo: R$ {(p.cost ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><b className="text-primary">+ Adicionar</b></button>)}{productSuggestions.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum produto encontrado.</p>}</div>}
-          <div className="flex items-center justify-between"><h2 className="font-semibold text-heading">Produtos da nota ({drafts.length})</h2><span className="text-sm text-muted-foreground">Informe a quantidade esperada</span></div>
-          {drafts.length === 0 && <p className="rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Pesquise e selecione os produtos da nota.</p>}
-          <div className="space-y-3">{drafts.map(d => { const p = products.find(x => x.id === d.productId); if (!p) return null; const q = Number(d.quantity.replace(",", ".")) || 0; return <div key={d.productId} className="rounded-xl border border-border bg-background p-3"><div className="flex flex-wrap items-start gap-3"><div className="min-w-0 flex-1"><b className="block text-foreground">{p.name}</b><small className="text-muted-foreground">Código: {p.code} · Estoque atual: {p.stock}</small></div><button type="button" onClick={() => setDrafts(old => old.filter(x => x.productId !== d.productId))} className="rounded-lg bg-secondary px-3 py-2 text-sm text-destructive">Remover</button></div><div className="mt-3 grid grid-cols-2 gap-3"><div><label className="mb-1 block text-xs font-semibold">Quantidade</label><input value={d.quantity} onChange={e => updateQuantity(d.productId, e.target.value)} inputMode="decimal" placeholder={p.unit === "kg" ? "Quantidade em kg" : "Quantidade inteira"} className="field w-full" /></div><div><label className="mb-1 block text-xs font-semibold">Custo unitário</label><div className="field flex w-full items-center">R$ {(p.cost ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div></div><div className="mt-2 text-right text-sm font-semibold">Subtotal: R$ {(q * (p.cost ?? 0)).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>; })}</div>
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><p className="text-sm font-semibold">Inserir rápido</p><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { setQuickInsert(v => !v); setProductSearch(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`}/></button></div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><p className="text-sm font-semibold">Planilha de importação</p><div className="flex flex-wrap gap-2"><input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => void importProducts(e.target.files?.[0])}/><button type="button" onClick={() => importInputRef.current?.click()} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-secondary-foreground">Importar planilha</button><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div></div>
+          <label className="mb-2 block text-sm font-semibold">Adicionar produto</label>
+          <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input value={productSearch} onChange={e => setProductSearch(e.target.value)} onKeyDown={handleScannerKeyDown} placeholder={quickInsert ? "Digite ou bipe o código de barras" : "Código de barras, nome ou REF"} autoComplete="off" className="field w-full pl-10 text-sm text-foreground"/></div>
+          {productSearch && <div className="mt-2 overflow-hidden rounded-xl border border-border bg-background">{productSuggestions.map(p => <button key={p.id} type="button" onClick={() => addProduct(p.id)} className="flex w-full items-center gap-3 border-b border-border px-3 py-3 text-left last:border-0 hover:bg-accent"><span className="min-w-0 flex-1"><b className="block text-foreground">{p.name}</b><small className="text-muted-foreground">Código: {p.code} · REF: {p.ref || "—"}</small></span><span className="text-sm text-muted-foreground">Estoque: {p.stock}</span><b className="text-primary">+ Adicionar</b></button>)}{productSuggestions.length === 0 && <p className="p-3 text-sm text-muted-foreground">Nenhum produto encontrado.</p>}</div>}
+          <h2 className="mb-3 mt-6 font-semibold text-heading">Produtos da nota ({drafts.length})</h2>
+          {drafts.map(d => { const p = products.find(x => x.id === d.productId); if (!p) return null; return <div key={p.id} className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3"><div className="min-w-0 flex-1"><div className="truncate text-sm font-semibold text-foreground"><span className="font-mono text-xs text-muted-foreground">{p.code}</span> — {p.name}</div><div className="mt-1 text-sm text-muted-foreground">Quantidade: <b>{d.quantity || "—"} {p.unit}</b></div></div><button type="button" onClick={() => setEditingId(p.id)} aria-label={`Editar ${p.name}`} className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4"/></button><button type="button" onClick={() => setDrafts(old => old.filter(x => x.productId !== p.id))} aria-label="Remover" className="rounded-lg p-2"><Trash2 className="h-4 w-4"/></button></div>; })}
+          {editingId && (() => { const d = drafts.find(x => x.productId === editingId); const p = products.find(x => x.id === editingId); if (!d || !p) return null; return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditingId(null); setError(""); }}><div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-2xl border border-border bg-background p-5 shadow-2xl" onClick={e => e.stopPropagation()}><div className="mb-4 flex items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-heading">Editar produto da nota</h3><p className="mt-1 text-sm text-muted-foreground">{p.name} · Código: {p.code}</p></div><button type="button" onClick={() => setEditingId(null)} className="rounded-lg px-3 py-1 text-xl text-muted-foreground hover:bg-secondary">×</button></div><div><label className="mb-1 block text-sm font-semibold">Quantidade esperada</label><input autoFocus inputMode="decimal" value={d.quantity} onChange={e => updateQuantity(p.id, e.target.value)} className="field w-full" placeholder={p.unit === "kg" ? "Ex.: 0,500" : "Informe a quantidade"}/></div><div className="mt-4 flex justify-end"><button type="button" onClick={() => setEditingId(null)} className="rounded-xl bg-primary px-5 py-2.5 font-bold text-primary-foreground">Salvar quantidade</button></div></div></div>; })()}
+          <div className="mt-4 rounded-xl bg-secondary/50 p-3 text-sm">Total estimado: <b>R$ {subtotal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b></div>
+          {message && <p role="status" className="rounded-xl bg-primary/10 p-3 text-sm text-primary">{message}</p>}
           {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-          <div className="flex gap-2"><button type="button" onClick={goBack} disabled={transitioningTo !== null} className="flex-1 rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Voltar</button><button type="button" disabled={transitioningTo !== null} onClick={() => { if (!drafts.length) { setError("Adicione pelo menos um produto."); return; } if (drafts.some(d => !d.quantity.trim() || !(Number(d.quantity.replace(",", ".")) > 0))) { setError("Informe uma quantidade válida para todos os produtos."); return; } setError(""); void advanceStep(3); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-80">{transitioningTo === 3 ? <><Loader2 className="h-5 w-5 animate-spin" />Carregando confirmação...</> : "Continuar para confirmação"}</button></div>
+          <div className="flex gap-2"><button type="button" onClick={goBack} disabled={transitioningTo !== null} className="flex-1 rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Voltar</button><button type="button" disabled={transitioningTo !== null} onClick={() => { if (!drafts.length) { setError("Adicione pelo menos um produto."); return; } if (drafts.some(d => !d.quantity.trim() || !(Number(d.quantity.replace(",", ".")) > 0))) { setError("Informe uma quantidade válida para todos os produtos."); return; } setError(""); void advanceStep(3); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-80">{transitioningTo === 3 ? <><Loader2 className="h-5 w-5 animate-spin"/>Carregando confirmação...</> : "Continuar para confirmação"}</button></div>
         </div>}
 
         {step === 3 && <div className="space-y-4">
