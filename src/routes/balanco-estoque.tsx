@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { productHasBarcode, actions, useStore, type Product } from "@/lib/store";
-import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter, Loader2, History } from "lucide-react";
+import { ArrowLeft, CheckCircle2, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter, Loader2, History } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
 
@@ -382,7 +382,8 @@ function BalancoEstoque() {
               <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
               <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold">Limpar filtro</button>
             </div>
-          </details>
+            </details>
+            </div>
           {history.length === 0 ? (
             <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum balanço registrado ainda.</p>
           ) : filteredHistory.length === 0 ? (
