@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, useStore, type ReceivingNote, type BusinessContact } from "@/lib/store";
+import { actions, useStore, type ReceivingNote } from "@/lib/store";
+import { Filter, History } from "lucide-react";
 
 export const Route = createFileRoute("/recebimento")({
   head: () => ({ meta: [{ title: "MobFlow — Recebimento" }, { name: "description", content: "Cadastro e aprovação de notas recebidas." }] }),
@@ -22,12 +23,30 @@ function Recebimento() {
   const [supplier, setSupplier] = useState("");
   const [supplierCnpj, setSupplierCnpj] = useState("");
   const [showNewNote, setShowNewNote] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterStart, setFilterStart] = useState("");
+  const [filterEnd, setFilterEnd] = useState("");
+  const [filterNumber, setFilterNumber] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
   const [productId, setProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [qty, setQty] = useState("");
   const [items, setItems] = useState<{ productId: string; expected: number }[]>([]);
   const supplierSuggestions = useMemo(() => { const term = supplier.trim().toLowerCase(); const saved = contacts.filter(c => c.type === "Fornecedor" && (!term || [c.name,c.document,c.phone].some(v => (v ?? "").toLowerCase().includes(term)))).map(c => ({ name: c.name, cnpj: c.document || "", id: c.id })); const legacy = suppliers.filter(s => !term || s.name.toLowerCase().includes(term)).map(s => ({ name: s.name, cnpj: s.cnpj || "", id: s.name })); return [...saved, ...legacy.filter(s => !saved.some(c => c.name.toLowerCase() === s.name.toLowerCase()))].slice(0, 8); }, [contacts, suppliers, supplier]);
   const formatCnpj = (value: string) => { const d = value.replace(/\D/g, "").slice(0, 14); return d.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1/$2").replace(/(\d{4})(\d{1,2})$/, "$1-$2"); };
+
+  const filteredNotes = useMemo(() => {
+    const numberTerm = filterNumber.trim().toLowerCase();
+    const supplierTerm = filterSupplier.trim().toLowerCase();
+    return notes.filter(n => {
+      const noteDate = (n.date || "").slice(0, 10);
+      if (filterStart && (!noteDate || noteDate < filterStart)) return false;
+      if (filterEnd && (!noteDate || noteDate > filterEnd)) return false;
+      if (numberTerm && !String(n.number).toLowerCase().includes(numberTerm)) return false;
+      if (supplierTerm && !n.supplier.toLowerCase().includes(supplierTerm)) return false;
+      return true;
+    });
+  }, [notes, filterStart, filterEnd, filterNumber, filterSupplier]);
 
   const selected = notes.find(n => n.id === search.nota);
   if (selected) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} /></div>;
@@ -65,7 +84,6 @@ function Recebimento() {
           <button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button>
         </div>
       </div>
-      {!showNewNote && <p className="text-sm text-muted-foreground">Cadastre uma nova nota somente quando precisar. As notas já recebidas ficam abaixo.</p>}
       {showNewNote && <form onSubmit={save} className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <input value={number} onChange={e => setNumber(e.target.value)} placeholder="Número da nota" required className="field text-sm text-foreground" />
@@ -94,10 +112,20 @@ function Recebimento() {
     </section>
 
     <section className="glass p-4 mt-4">
-      <div className="label-mono mb-3">Notas recebidas</div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2"><History size={17} className="text-muted-foreground" /><div className="label-mono">Histórico de notas</div></div>
+        <button type="button" onClick={() => setShowFilters(v => !v)} aria-expanded={showFilters} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent"><Filter size={16} /> Filtrar</button>
+      </div>
+      {showFilters && <div className="mb-4 grid grid-cols-1 gap-3 rounded-xl bg-secondary/40 p-3 ring-1 ring-border sm:grid-cols-2 lg:grid-cols-4">
+        <label className="space-y-1 text-xs text-muted-foreground"><span>Período — de</span><input type="date" value={filterStart} onChange={e => setFilterStart(e.target.value)} className="field w-full text-sm text-foreground" /></label>
+        <label className="space-y-1 text-xs text-muted-foreground"><span>Período — até</span><input type="date" value={filterEnd} min={filterStart || undefined} onChange={e => setFilterEnd(e.target.value)} className="field w-full text-sm text-foreground" /></label>
+        <label className="space-y-1 text-xs text-muted-foreground"><span>Número da NF</span><input value={filterNumber} onChange={e => setFilterNumber(e.target.value)} placeholder="Número da NF" className="field w-full text-sm text-foreground" /></label>
+        <label className="space-y-1 text-xs text-muted-foreground"><span>Fornecedor</span><input value={filterSupplier} onChange={e => setFilterSupplier(e.target.value)} placeholder="Nome do fornecedor" className="field w-full text-sm text-foreground" /></label>
+        <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); }} className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent">Limpar filtros</button></div>
+      </div>}
       <div className="divide-y divide-border/50">
-        {!notes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">nenhuma nota cadastrada</p>}
-        {notes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
+        {!filteredNotes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{notes.length ? "nenhuma nota corresponde aos filtros" : "nenhuma nota cadastrada"}</p>}
+        {filteredNotes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier}{n.supplierCnpj ? ` · ${n.supplierCnpj}` : ""} · {n.items.length} produtos{n.extras?.length ? ` · ${n.extras.length} extras` : ""}</div></div>
           <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${n.status === "divergente" ? "bg-destructive/15 text-destructive" : n.status === "aceito" || n.status === "conferido" ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"}`}>{n.status}</span>
           <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
