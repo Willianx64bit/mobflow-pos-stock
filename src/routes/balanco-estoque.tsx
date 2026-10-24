@@ -363,7 +363,7 @@ function BalancoEstoque() {
           <div className="glass flex items-center justify-between gap-4 p-5 md:p-6">
             <div>
               <h1 className="font-display text-xl tracking-wide text-heading md:text-2xl">BALANÇO DE ESTOQUE</h1>
-              <p className="mt-1 text-sm text-muted-foreground">O formulário está fechado. Toque em Novo + para iniciar um balanço.</p>
+              
             </div>
             <button type="button" onClick={() => { setShowForm(true); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setError(""); setMessage(""); setQuery(""); }} className="shrink-0 rounded-xl bg-primary px-5 py-3 font-bold text-primary-foreground">Novo +</button>
           </div>
@@ -374,7 +374,7 @@ function BalancoEstoque() {
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><ClipboardList className="h-5 w-5" /></div>
             <div>
               <h2 className="font-display text-xl text-heading">HISTÓRICO DE AJUSTES</h2>
-              <p className="text-sm text-muted-foreground">Registros salvos com data, operador, motivo e saldos alterados.</p>
+              
             </div>
           </div>
           <details className="mt-4 rounded-xl border border-border bg-secondary/30 p-3">
