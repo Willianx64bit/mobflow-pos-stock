@@ -143,7 +143,7 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
   const [decisionError, setDecisionError] = useState("");
   const productSuggestions = products.filter(p => {
     const term = productSearch.trim().toLowerCase();
-    return !term || p.name.toLowerCase().includes(term) || p.code.includes(term);
+    return !term || p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term) || (p.barcodes ?? []).some(code => code.toLowerCase().includes(term));
   }).slice(0, 8);
   const addProduct = () => {
     const n = Number(qty.replace(",", "."));
