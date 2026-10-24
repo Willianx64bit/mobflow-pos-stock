@@ -95,6 +95,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
   const [editingQuantity, setEditingQuantity] = useState(false);
+  const [confirmClearProduct, setConfirmClearProduct] = useState<typeof products[number] | null>(null);
   const [productExpiry, setProductExpiry] = useState("");
   const [expiries, setExpiries] = useState<Record<string, string>>({});
   const [extraExpiries, setExtraExpiries] = useState<Record<string, string>>({});
@@ -123,7 +124,12 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   };
 
   const clearProductCollection = (product: typeof products[number]) => {
-    if (!confirm(`Apagar toda a coleta de "${product.name}"? A quantidade e a validade registradas serão removidas.`)) return;
+    setConfirmClearProduct(product);
+  };
+
+  const confirmClearCollection = () => {
+    const product = confirmClearProduct;
+    if (!product) return;
     const isExtra = !note.items.some(i => i.productId === product.id);
     if (isExtra) {
       setExtraCounts(c => { const next = { ...c }; delete next[product.id]; return next; });
@@ -138,6 +144,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
       setProductExpiry("");
       setEditingQuantity(false);
     }
+    setConfirmClearProduct(null);
   };
 
   const saveProductQty = () => {
@@ -211,6 +218,17 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     <button onClick={() => confirm("Finalizar esta conferência?") && finish()} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3">Finalizar conferência</button>
 
     {cameraOpen && <BarcodeScanner products={products} onClose={() => setCameraOpen(false)} onProduct={(p) => { setCameraOpen(false); openProduct(p); }} />}
+
+    {confirmClearProduct && <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="clear-collection-title">
+      <div className="w-full max-w-md rounded-2xl bg-background p-5 shadow-xl ring-1 ring-border">
+        <div className="mb-2 text-lg font-bold text-foreground" id="clear-collection-title">Apagar coleta?</div>
+        <p className="text-sm text-muted-foreground">Deseja apagar toda a coleta de <span className="font-semibold text-foreground">{confirmClearProduct.name}</span>? A quantidade e a validade registradas serão removidas.</p>
+        <div className="mt-5 flex gap-3">
+          <button type="button" onClick={() => setConfirmClearProduct(null)} className="flex-1 rounded-xl bg-secondary px-4 py-3 font-semibold text-secondary-foreground ring-1 ring-border">Cancelar</button>
+          <button type="button" onClick={confirmClearCollection} className="flex-1 rounded-xl bg-destructive px-4 py-3 font-bold text-destructive-foreground">Apagar coleta</button>
+        </div>
+      </div>
+    </div>}
 
     {selectedProduct && <div className="mfb-product-modal fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-border p-5 shadow-xl">
