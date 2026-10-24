@@ -370,16 +370,14 @@ function BalancoEstoque() {
         )}
 
         {!showForm && <section className="glass p-5 md:p-6">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><ClipboardList className="h-5 w-5" /></div>
-            <div>
-              <h2 className="font-display text-xl text-heading">HISTÓRICO DE AJUSTES</h2>
-              
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div>
+              <h2 className="font-display text-xl text-heading">Histórico de ajustes</h2>
             </div>
-          </div>
-          <details className="mt-4 rounded-xl border border-border bg-secondary/30 p-3">
-            <summary className="flex cursor-pointer select-none items-center gap-2 text-sm font-semibold text-heading"><Filter className="h-4 w-4" />Filtro</summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <details className="rounded-xl border border-border bg-secondary/30 px-3 py-2">
+            <summary className="flex cursor-pointer select-none items-center gap-2 text-sm font-semibold text-heading"><Filter className="h-4 w-4" />Filtrar</summary>
+            <div className="mt-3 grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
               <label className="block text-sm font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full" /></label>
               <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
               <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold">Limpar filtro</button>
