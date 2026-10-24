@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
+import { Camera, CheckCircle2, Clock3, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { productHasBarcode, actions, useStore, type Product, type ReceivingNote } from "@/lib/store";
 
@@ -94,6 +94,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   const [reopenCamera, setReopenCamera] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [productQty, setProductQty] = useState("");
+  const [editingQuantity, setEditingQuantity] = useState(false);
   const [productExpiry, setProductExpiry] = useState("");
   const [expiries, setExpiries] = useState<Record<string, string>>({});
   const [extraExpiries, setExtraExpiries] = useState<Record<string, string>>({});
@@ -121,7 +122,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
       setExtraCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
       if (productExpiry) setExtraExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
     } else {
-      setCounts(c => ({ ...c, [selectedProduct.id]: (c[selectedProduct.id] ?? 0) + n }));
+      setCounts(c => ({ ...c, [selectedProduct.id]: editingQuantity ? n : (c[selectedProduct.id] ?? 0) + n }));
       if (productExpiry) setExpiries(prev => ({ ...prev, [selectedProduct.id]: productExpiry }));
     }
     setSelectedProduct(null);
@@ -159,7 +160,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
           {note.items.map(i => {
             const product = products.find(p => p.id === i.productId);
             return <tr key={i.productId}>
-              <td className="py-3"><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button></td>
+              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => product && editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button><button type="button" onClick={() => product && clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
               <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
               <td className="text-right">
                 <div className="font-mono font-semibold">{counts[i.productId] ?? 0} {i.unit === "kg" ? "kg" : "un."}</div>
@@ -196,12 +197,12 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
           <div className="text-2xl font-bold text-foreground">{(note.items.some(i => i.productId === selectedProduct.id) ? counts[selectedProduct.id] : extraCounts[selectedProduct.id]) ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
           <div className="text-[11px] text-muted-foreground mt-1">Esperado nesta nota: {note.items.find(i => i.productId === selectedProduct.id)?.expected ?? "não consta"} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
         </div>
-        <div className="label-mono mb-2">Quantidade desta coleta</div>
+        <div className="label-mono mb-2">{editingQuantity ? "Editar quantidade coletada" : "Quantidade desta coleta"}</div>
         <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="Ex.: 20" />
         <div className="label-mono mt-4 mb-2">Validade (opcional)</div>
         <input type="text" inputMode="numeric" maxLength={10} value={productExpiry} onChange={e => { const d = e.target.value.replace(/\D/g, "").slice(0, 8); setProductExpiry(d.replace(/^(\d{2})(\d)/, "$1/$2").replace(/^(\d{2}\/\d{2})(\d)/, "$1/$2")); }} className="field w-full text-foreground text-lg font-mono" placeholder="DD/MM/AAAA" />
         <div className="mt-1 text-[10px] text-muted-foreground">Digite 10102026 para preencher 10/10/2026. Não é obrigatório.</div>
-        <button onClick={saveProductQty} disabled={!productQty} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">+ Somar quantidade</button>
+        <button onClick={saveProductQty} disabled={!productQty || !Number.isFinite(Number(productQty.replace(",", "."))) || Number(productQty.replace(",", ".")) < 0 || (!editingQuantity && Number(productQty.replace(",", ".")) === 0)} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-40">{editingQuantity ? "Salvar quantidade" : "+ Somar quantidade"}</button>
       </div>
     </div>}
   </section>;
