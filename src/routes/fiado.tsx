@@ -24,7 +24,22 @@ function Fiado() {
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [pendingChange, setPendingChange] = useState<(() => void) | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmDialogMessage, setConfirmDialogMessage] = useState("");
+  const [pendingConfirmation, setPendingConfirmation] = useState<(() => void) | null>(null);
   const formatMoneyInput = (value: string) => { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  const requestFiadoConfirmation = (message: string, change: () => void) => {
+    setConfirmDialogMessage(message);
+    setPendingConfirmation(() => change);
+    setConfirmDialogOpen(true);
+  };
+  const continueFiadoConfirmation = () => {
+    const change = pendingConfirmation;
+    setConfirmDialogOpen(false);
+    setPendingConfirmation(null);
+    if (change) confirmFiadoChange(change);
+  };
+
   const confirmFiadoChange = (change: () => void) => {
     if (authorizing) return;
     setPendingChange(() => change);
@@ -109,7 +124,7 @@ function Fiado() {
                       <div className="text-right"><div className={`font-display text-2xl ${customerPending ? "text-destructive" : "text-green-600"}`}>R$ {brl(total)}</div><div className="text-[11px] text-muted-foreground">saldo restante</div></div>
                       <button onClick={() => setSelectedCustomer(customer)} className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20"><UserRound className="mr-1 inline h-4 w-4 text-green-600" />Ver cliente</button>
                       <button onClick={() => printFiadoBalance(customer, customerSales)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent"><Printer className="mr-1 inline h-4 w-4 text-green-600" />Imprimir saldo</button>
-                      <button onClick={() => { if (window.confirm(`Remover ${customer} da aba Fiado? As vendas e os lucros continuarão registrados em Vendas.`)) void confirmFiadoChange(() => { actions.hideFiadoCustomer(customer); if (selectedCustomer === customer) setSelectedCustomer(null); }); }} disabled={authorizing} className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 disabled:opacity-50"><Trash2 className="mr-1 inline h-4 w-4" />Excluir do Fiado</button>
+                      <button onClick={() => { requestFiadoConfirmation(`Remover ${customer} da aba Fiado? As vendas e os lucros continuarão registrados em Vendas.`, () => { actions.hideFiadoCustomer(customer); if (selectedCustomer === customer) setSelectedCustomer(null); }); }} disabled={authorizing} className="rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/20 disabled:opacity-50"><Trash2 className="mr-1 inline h-4 w-4" />Excluir do Fiado</button>
                     </div>
                   </div>
                 );
@@ -124,7 +139,7 @@ function Fiado() {
                 <div><div className="label-mono">DETALHES DO CLIENTE</div><div className="mt-1 flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${selectedPaid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{selectedPaid ? "Pago" : "Pendente"}</span><h1 className="font-display text-3xl tracking-[.06em] text-heading">{selectedCustomer}</h1></div><p className="mt-2 text-sm text-muted-foreground">{selectedSales.length} compra(s) no histórico · Total comprado: R$ {brl(selectedTotal)}</p></div>
                 <div className="text-right"><div className="label-mono">SALDO RESTANTE</div><div className={`font-display text-4xl ${selectedPaid ? "text-green-600" : "text-destructive"}`}>R$ {brl(selectedBalance)}</div><div className="mt-2 flex flex-wrap justify-end gap-2">
                     <button onClick={() => printFiadoBalance(selectedCustomer, selectedSales)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent"><Printer className="mr-1 inline h-4 w-4 text-green-600" />Imprimir saldo</button>
-                    {selectedBalance > 0 && <button disabled={authorizing} onClick={() => { if (!window.confirm(`Quitar todas as compras pendentes de ${selectedCustomer}, no total de R$ ${brl(selectedBalance)}?`)) return; void confirmFiadoChange(() => { selectedSales.forEach(s => { const due = remaining(s); if (due > 0) actions.addFiadoPayment(s.id, due); }); setPaymentValue(""); }); }} className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50">{authorizing ? "Confirmando..." : "✓ Quitar tudo"}</button>}
+                    {selectedBalance > 0 && <button disabled={authorizing} onClick={() => { requestFiadoConfirmation(`Quitar todas as compras pendentes de ${selectedCustomer}, no total de R$ ${brl(selectedBalance)}?`, () => { selectedSales.forEach(s => { const due = remaining(s); if (due > 0) actions.addFiadoPayment(s.id, due); }); setPaymentValue(""); }); }} className="rounded-lg bg-green-600 px-4 py-2 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50">{authorizing ? "Confirmando..." : "✓ Quitar tudo"}</button>}
                   </div></div>
               </div>
             </section>
@@ -145,6 +160,19 @@ function Fiado() {
           </>
         )}
 
+      {confirmDialogOpen && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md glass p-6 shadow-2xl">
+            <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-amber-500/10"><LockKeyhole className="h-5 w-5 text-amber-600" /></div>
+            <h2 className="text-xl font-bold text-heading">Confirmar ação</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{confirmDialogMessage}</p>
+            <div className="mt-5 flex gap-2">
+              <button type="button" onClick={() => { setConfirmDialogOpen(false); setPendingConfirmation(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+              <button type="button" onClick={continueFiadoConfirmation} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Continuar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {passwordModalOpen && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
           <form onSubmit={(e) => { e.preventDefault(); void submitFiadoPassword(); }} className="w-full max-w-md glass p-6 shadow-2xl">
