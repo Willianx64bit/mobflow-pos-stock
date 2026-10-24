@@ -133,8 +133,19 @@ function RootComponent() {
 
   useEffect(() => {
     if (previousPath.current === pathname) return;
+    const previous = previousPath.current;
     previousPath.current = pathname;
     if (loadingTimer.current) clearTimeout(loadingTimer.current);
+
+    // Ao voltar de uma tela de operação para o menu Operações, não exibir o overlay.
+    const operationScreens = ["/baixa-produtos", "/transferencias", "/balanco-estoque", "/conferencia", "/fornecedores-clientes"];
+    const returningToOperations = pathname === "/operacoes" && operationScreens.includes(previous);
+    if (returningToOperations) {
+      setShowRouteLoading(false);
+      loadingTimer.current = null;
+      return;
+    }
+
     setShowRouteLoading(true);
     loadingTimer.current = setTimeout(() => {
       setShowRouteLoading(false);
