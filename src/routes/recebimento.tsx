@@ -144,9 +144,9 @@ function Recebimento() {
 
       {showNewNote && <div className="space-y-4">
         <div className="flex flex-wrap justify-center gap-2 text-sm font-semibold">
-          <span className={\`rounded-full px-4 py-2 \${step === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}\`}>1. Fornecedor</span>
-          <span className={\`rounded-full px-4 py-2 \${step === 2 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}\`}>2. Produtos</span>
-          <span className={\`rounded-full px-4 py-2 \${step === 3 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}\`}>3. Confirmação</span>
+          <span className={`rounded-full px-4 py-2 ${step === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>1. Fornecedor</span>
+          <span className={`rounded-full px-4 py-2 ${step === 2 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>2. Produtos</span>
+          <span className={`rounded-full px-4 py-2 ${step === 3 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>3. Confirmação</span>
         </div>
 
         {step === 1 && <div className="space-y-4">
@@ -196,8 +196,8 @@ function Recebimento() {
       <div className="divide-y divide-border/50">
         {!filteredNotes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{notes.length ? "nenhuma nota corresponde aos filtros" : "nenhuma nota cadastrada"}</p>}
         {filteredNotes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier}{n.supplierCnpj ? \` · \${n.supplierCnpj}\` : ""} · \${n.items.length} produtos\${n.extras?.length ? \` · \${n.extras.length} extras\` : ""}</div></div>
-          <span className={\`font-mono text-[11px] rounded-md px-2 py-1 \${n.status === "divergente" ? "bg-destructive/15 text-destructive" : n.status === "aceito" || n.status === "conferido" ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"}\`}>{n.status}</span>
+          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier}{n.supplierCnpj ? ` · ${n.supplierCnpj}` : ""} · ${n.items.length} produtos${n.extras?.length ? ` · ${n.extras.length} extras` : ""}</div></div>
+          <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${n.status === "divergente" ? "bg-destructive/15 text-destructive" : n.status === "aceito" || n.status === "conferido" ? "bg-primary/15 text-primary" : "bg-secondary text-secondary-foreground"}`}>{n.status}</span>
           <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
           {n.status === "pendente" && <button onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-semibold">Conferir</button>}
           {(n.status === "divergente" || n.status === "conferido") && <div className="flex gap-2"><button onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-bold disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button onClick={() => actions.rejectReceiving(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Rejeitar</button>}</div>}
