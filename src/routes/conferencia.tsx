@@ -107,10 +107,37 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   };
 
   const openProduct = (product: typeof products[number]) => {
+    setEditingQuantity(false);
     setSelectedProduct(product);
     setProductQty("");
     const isExtra = !note.items.some(i => i.productId === product.id);
     setProductExpiry((isExtra ? extraExpiries : expiries)[product.id] ?? "");
+  };
+
+  const editProductQty = (product: typeof products[number]) => {
+    const isExtra = !note.items.some(i => i.productId === product.id);
+    setEditingQuantity(true);
+    setSelectedProduct(product);
+    setProductQty(String((isExtra ? extraCounts : counts)[product.id] ?? 0));
+    setProductExpiry((isExtra ? extraExpiries : expiries)[product.id] ?? "");
+  };
+
+  const clearProductCollection = (product: typeof products[number]) => {
+    if (!confirm(`Apagar toda a coleta de "${product.name}"? A quantidade e a validade registradas serão removidas.`)) return;
+    const isExtra = !note.items.some(i => i.productId === product.id);
+    if (isExtra) {
+      setExtraCounts(c => { const next = { ...c }; delete next[product.id]; return next; });
+      setExtraExpiries(c => { const next = { ...c }; delete next[product.id]; return next; });
+    } else {
+      setCounts(c => ({ ...c, [product.id]: 0 }));
+      setExpiries(c => { const next = { ...c }; delete next[product.id]; return next; });
+    }
+    if (selectedProduct?.id === product.id) {
+      setSelectedProduct(null);
+      setProductQty("");
+      setProductExpiry("");
+      setEditingQuantity(false);
+    }
   };
 
   const saveProductQty = () => {
@@ -128,6 +155,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     setSelectedProduct(null);
     setProductQty("");
     setProductExpiry("");
+    setEditingQuantity(false);
     if (reopenCamera) setCameraOpen(true);
   };
 
