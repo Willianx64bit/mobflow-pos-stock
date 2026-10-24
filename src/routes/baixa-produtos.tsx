@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { supabase } from "@/lib/supabase";
 import { productHasBarcode, actions, brl, useStore, formatCpfCnpj, normalizeDocument, type Product, type BusinessContact } from "@/lib/store";
-import { ArrowLeft, PackageMinus, Search, Trash2, CheckCircle2, Pencil, Save, Download, Loader2, ClipboardList, Filter, History } from "lucide-react";
+import { ArrowLeft, PackageMinus, Search, Trash2, CheckCircle2, Pencil, Save, Download, Loader2, Filter, History } from "lucide-react";
 
 export const Route = createFileRoute("/baixa-produtos")({ head: () => ({ meta: [{ title: "MobFlow — Baixa de produtos" }] }), component: BaixaProdutos });
 function BaixaProdutos() {
