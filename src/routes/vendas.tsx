@@ -61,11 +61,9 @@ function Vendas() {
       </div>
       <section className="glass p-4">
         <div className="flex justify-end mb-3"><button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button></div>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div><div className="label-mono">Histórico de vendas</div><p className="mt-1 text-sm text-muted-foreground">Pesquise vendas por código do comprovante, produto ou cliente.</p></div>
-          <button type="button" onClick={() => setFiltersOpen(open => !open)} aria-expanded={filtersOpen} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent">
-            <Filter className="h-4 w-4" /> Filtros {filtersOpen ? <ChevronDown className="h-4 w-4 rotate-180" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-2"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><ClipboardList className="h-5 w-5" /></div><button type="button" onClick={() => setFiltersOpen(open => !open)} aria-expanded={filtersOpen} className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2 py-1 text-xs font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-3.5 w-3.5" />{filtersOpen ? "Fechar" : "Filtro"}</button><div className="label-mono">Histórico de vendas</div></div>
+          <p className="mt-1 text-sm text-muted-foreground">Pesquise vendas por código do comprovante, produto ou cliente.</p>
         </div>
         {filtersOpen && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-xs font-medium text-muted-foreground sm:col-span-2">Buscar venda, código do comprovante, produto ou cliente
