@@ -204,8 +204,8 @@ function Recebimento() {
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div>
         <div className="flex items-center gap-2">
-          {!showNewNote && <button type="button" onClick={() => { resetForm(); setShowNewNote(true); }} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">+ Nova nota</button>}
-          <button type="button" onClick={() => { if (showNewNote) resetForm(); else navigate({ to: "/gerencia" }); }} className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">← Voltar</button>
+          {!showNewNote && <button type="button" onClick={() => { resetForm(); setShowNewNote(true); }} className="rounded-xl bg-primary px-6 py-3 text-base font-bold text-primary-foreground shadow-sm hover:opacity-90">+ Nova nota</button>}
+          {!showNewNote && <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">← Voltar</button>}
         </div>
       </div>
 
