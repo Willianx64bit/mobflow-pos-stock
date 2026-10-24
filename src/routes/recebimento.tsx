@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, type ReceivingNote } from "@/lib/store";
 import { Filter, History, Search, Loader2 } from "lucide-react";
@@ -41,7 +41,7 @@ function Recebimento() {
 
   const formatCnpj = (value: string) => {
     const d = value.replace(/\D/g, "").slice(0, 14);
-    return d.replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+    return d.replace(/(\d{2})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1/$2").replace(/(\d{4})(\d{1,2})$/, "$1-$2");
   };
   const supplierSuggestions = useMemo(() => {
     const term = supplier.trim().toLowerCase();
