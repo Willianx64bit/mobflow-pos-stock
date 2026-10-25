@@ -36,7 +36,7 @@ function OperacaoCaixa() {
     <div className="rounded-xl border border-border bg-secondary/20 p-3 sm:p-4">
       <div className="mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><div><h2 className="font-display text-lg text-heading">Histórico de operação de caixa</h2><p className="text-sm text-muted-foreground">Aberturas, fechamentos, sangrias e reforços registrados.</p></div></div>
+          <div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><div><h2 className="font-display text-lg text-heading">Histórico de operação de caixa</h2></div></div>
           <button type="button" onClick={() => setFiltersOpen(open => !open)} aria-expanded={filtersOpen} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4" />{filtersOpen ? "Fechar" : "Filtrar"}</button>
         </div>
       </div>
