@@ -321,9 +321,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }
 
   return (
-    <div className="grid min-h-[100dvh] place-items-center bg-slate-50 px-4 py-8 md:px-8 md:py-10">
+    <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-8 text-foreground md:px-8 md:py-10">
       <style>{`input.field, input.field[type="password"], input.field[type="text"] { background-color: #fff !important; color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; color-scheme: light; } input.field:-webkit-autofill, input.field:-webkit-autofill:hover, input.field:-webkit-autofill:focus, input.field:-webkit-autofill:active { -webkit-text-fill-color: #0f172a !important; -webkit-box-shadow: 0 0 0 1000px #fff inset !important; box-shadow: 0 0 0 1000px #fff inset !important; background-color: #fff !important; caret-color: #0f172a !important; color-scheme: light; } @keyframes mobflowLoginReveal { 0% { opacity: 0; transform: translateX(26px) scale(.975); filter: blur(7px); } 65% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } } @media (prefers-reduced-motion: reduce) { .mobflow-login-reveal { animation: none !important; } }`}</style>
-      <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/70 sm:p-8 ${mode === "empresa" ? "max-w-xl lg:max-w-3xl lg:p-12" : "max-w-xl lg:max-w-2xl lg:p-12"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+      <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-border bg-surface p-6 text-foreground shadow-xl shadow-black/10 sm:p-8 ${mode === "empresa" ? "max-w-xl lg:max-w-3xl lg:p-12" : "max-w-xl lg:max-w-2xl lg:p-12"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
         {mode === "pdv" && !onClose && (
           <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
@@ -362,14 +362,14 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         )}
 
         <div className="mt-8 text-center">
-          <h1 className={`font-display tracking-[.1em] text-slate-900 ${mode === "empresa" ? "text-2xl lg:text-4xl" : "text-2xl lg:text-4xl"}`}>{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
-          <p className={`mt-1 text-slate-600 ${mode === "empresa" ? "text-base lg:text-lg" : "text-base lg:text-lg"}`}>{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
+          <h1 className={`font-display tracking-[.1em] text-heading ${mode === "empresa" ? "text-2xl lg:text-4xl" : "text-2xl lg:text-4xl"}`}>{mode === "pdv" ? "LOGIN DO USUÁRIO" : "LOGIN DA EMPRESA"}</h1>
+          <p className={`mt-1 text-muted-foreground ${mode === "empresa" ? "text-base lg:text-lg" : "text-base lg:text-lg"}`}>{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
         <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="off">
           <div>
-            <label className="label-mono mb-1.5 block !text-slate-600">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" autoFocus />
+            <label className="label-mono mb-1.5 block !text-muted-foreground">Usuário</label>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
           </div>
 
           <div>
@@ -382,11 +382,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode !== "pdv" && (
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full !border-slate-300 !bg-white text-foreground lg:py-3.5 lg:text-base" required />
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full border border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" required />
             </div>
           )}
 
-          <label className="flex cursor-pointer select-none items-center gap-2 text-sm lg:text-base text-slate-600">
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm lg:text-base text-muted-foreground">
             <input type="checkbox" checked={rememberLogin} onChange={(e) => { setRememberLogin(e.target.checked); localStorage.setItem(REMEMBER_KEY, e.target.checked ? "1" : "0"); }} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
@@ -411,7 +411,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
         </form>
 
-        <p className="mt-6 text-center font-mono text-xs text-slate-500">Acesso restrito · informe as credenciais cadastradas</p>
+        <p className="mt-6 text-center font-mono text-xs text-muted-foreground">Acesso restrito · informe as credenciais cadastradas</p>
 
 
 
