@@ -5,7 +5,7 @@ import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", key: "F2", icon: "pdv" },
@@ -20,6 +20,7 @@ export function AppHeader() {
   const [time, setTime] = useState("");
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  const [cashMenuOpen, setCashMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
   const [darkMode, setDarkMode] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
@@ -105,6 +106,15 @@ export function AppHeader() {
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to });
+  };
+
+  const selectCashAction = (action: "abrir" | "fechar") => {
+    if (!permissions.includes("PDV")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
+    sessionStorage.setItem("mobflow-cash-action", action);
+    window.dispatchEvent(new CustomEvent("mobflow-cash-action", { detail: action }));
+    localStorage.setItem("mobflow-sidebar", "closed");
+    setOpen(false);
+    navigate({ to: "/caixa" });
   };
 
   const toggleSidebar = () => setOpen((value) => {
@@ -195,6 +205,17 @@ export function AppHeader() {
             </div>
             <nav className="flex-1 px-2 space-y-1">
               {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span>{t.key && <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>}</button>)}
+              {permissions.includes("PDV") && <div className="mt-1">
+                <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
+                  <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
+                  <span className="flex-1 text-left">Abertura/Fechamento</span>
+                  <ChevronDown className={"h-4 w-4 transition-transform " + (cashMenuOpen ? "rotate-180" : "")} />
+                </button>
+                {cashMenuOpen && <div className="ml-8 mt-1 space-y-1 border-l border-border pl-2">
+                  <button type="button" onClick={() => selectCashAction("abrir")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Abrir caixa</button>
+                  <button type="button" onClick={() => selectCashAction("fechar")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Fechar caixa</button>
+                </div>}
+              </div>}
             </nav>
             <div className="p-2 border-t border-border space-y-1">
               <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>
