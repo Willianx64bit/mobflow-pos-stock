@@ -5,7 +5,7 @@ import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", key: "F2", icon: "pdv" },
@@ -212,10 +212,10 @@ export function AppHeader() {
                   <ChevronDown className={"h-4 w-4 transition-transform " + (cashMenuOpen ? "rotate-180" : "")} />
                 </button>
                 {cashMenuOpen && <div className="ml-8 mt-1 space-y-1 border-l border-border pl-2">
-                  <button type="button" onClick={() => selectCashAction("abrir")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Abertura</button>
-                  <button type="button" onClick={() => selectCashAction("fechar")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Fechamento</button>
-                  <button type="button" onClick={() => selectCashAction("movimentacao")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Sangria/Reforço</button>
-                  <button type="button" onClick={() => selectCashAction("historico")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Histórico</button>
+                  <button type="button" onClick={() => selectCashAction("abrir")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><DoorOpen className="h-4 w-4 shrink-0 text-green-600" />Abertura</button>
+                  <button type="button" onClick={() => selectCashAction("fechar")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><DoorClosed className="h-4 w-4 shrink-0 text-green-600" />Fechamento</button>
+                  <button type="button" onClick={() => selectCashAction("movimentacao")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><ArrowLeftRight className="h-4 w-4 shrink-0 text-green-600" />Sangria/Reforço</button>
+                  <button type="button" onClick={() => selectCashAction("historico")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><History className="h-4 w-4 shrink-0 text-green-600" />Histórico</button>
                 </div>}
               </div>}
             </nav>
