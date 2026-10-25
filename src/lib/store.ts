@@ -7,7 +7,7 @@ export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
-export type Sale = { id: string; date: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
+export type Sale = { id: string; date: string; cashSessionId?: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
@@ -32,6 +32,8 @@ export type StockAdjustment = { id: string; date: string; reason: string; operat
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
 export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
 export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
+type CashSession = { id: string; openedAt: string; openedBy: string; openingAmount: number; status: "open" | "closed"; closedAt?: string; closedBy?: string; countedCash?: number; expectedCash?: number; difference?: number; note?: string };
+export type CashMovement = { id: string; sessionId: string; type: "sangria" | "reforco"; amount: number; reason: string; operator: string; date: string };
 export type Conference = {
   id: string;
   name: string;
@@ -47,7 +49,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -58,6 +60,8 @@ const emptyState = (): State => ({
   products: [],
   cart: [],
   sales: [],
+  cashSessions: [],
+  cashMovements: [],
   conferences: [],
   receiving: [],
   manualExpiries: [],
@@ -86,7 +90,7 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], stockWriteoffs: local.stockWriteoffs ?? remote.stockWriteoffs ?? [], stockTransfers: local.stockTransfers ?? remote.stockTransfers ?? [], promotions: remote.promotions ?? local.promotions ?? [], suppliers: remote.suppliers };
+  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], stockWriteoffs: local.stockWriteoffs ?? remote.stockWriteoffs ?? [], stockTransfers: local.stockTransfers ?? remote.stockTransfers ?? [], promotions: remote.promotions ?? local.promotions ?? [], cashSessions: local.cashSessions ?? remote.cashSessions ?? [], cashMovements: local.cashMovements ?? remote.cashMovements ?? [], suppliers: remote.suppliers };
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
@@ -113,6 +117,8 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     ...remote,
     products,
     sales: mergeById(local.sales, remote.sales),
+    cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []),
+    cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []),
     conferences: mergeById(local.conferences, remote.conferences),
     receiving: mergeById(local.receiving, remote.receiving),
     manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
@@ -146,6 +152,8 @@ function normalizeState() {
   state.products = Array.isArray(state.products) ? state.products : [];
   state.cart = Array.isArray(state.cart) ? state.cart : [];
   state.sales = Array.isArray(state.sales) ? state.sales : [];
+  state.cashSessions = Array.isArray(state.cashSessions) ? state.cashSessions : [];
+  state.cashMovements = Array.isArray(state.cashMovements) ? state.cashMovements : [];
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
   state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
   state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
@@ -371,7 +379,8 @@ export const actions = {
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = payment === "Fiado" ? 0 : total - costTotal;
     const seller = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() : undefined;
-    const sale: Sale = { id: uid(), date: new Date().toISOString(), items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller: seller || undefined, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
+    const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && session.openedBy === (seller || ""));
+    const sale: Sale = { id: uid(), date: new Date().toISOString(), cashSessionId: activeCash?.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller: seller || undefined, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
