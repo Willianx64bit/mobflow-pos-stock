@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, LockKeyhole, ReceiptText } from "lucide-react";
+import { Camera, Loader2, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
@@ -64,6 +64,8 @@ function PDV() {
   const [cam, setCam] = useState(false);
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isConfirmingPix, setIsConfirmingPix] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
@@ -163,16 +165,25 @@ function PDV() {
   const recv = Number(received.replace(",", ".")) || 0;
 
   const finish = () => {
-    if (!lines.length) return;
+    if (!lines.length || isFinalizing || isConfirmingPix) return;
     if (payment === "Fiado" && !customer.trim()) { setFlash("Informe o cliente para vender fiado"); return; }
     if (payment === "Dinheiro" && recv && recv < total) return;
     if (payment === "Pix") {
       const key = settings.pixKey?.trim();
       if (!key) { setFlash("Cadastre a chave Pix em Gerência → Configurações"); return; }
-      setPixPayload(buildPixPayload(key, total, settings.companyName || "MOBFLOW"));
+      const payload = buildPixPayload(key, total, settings.companyName || "MOBFLOW");
+      setIsFinalizing(true);
+      window.setTimeout(() => {
+        setPixPayload(payload);
+        setIsFinalizing(false);
+      }, 2000);
       return;
     }
-    completeSale();
+    setIsFinalizing(true);
+    window.setTimeout(() => {
+      try { completeSale(); }
+      finally { setIsFinalizing(false); }
+    }, 2000);
   };
 
   const completeSale = () => {
@@ -180,8 +191,22 @@ function PDV() {
     if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
   };
 
+  const confirmPixPayment = () => {
+    if (isConfirmingPix || isFinalizing) return;
+    setIsConfirmingPix(true);
+    window.setTimeout(() => {
+      try {
+        setPixPayload("");
+        completeSale();
+      } finally {
+        setIsConfirmingPix(false);
+      }
+    }, 2000);
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isFinalizing || isConfirmingPix) return;
       if (e.key === "Escape") {
         if (done) { setDone(null); setQ(""); search.current?.focus(); }
         else if (pixPayload) setPixPayload("");
@@ -191,8 +216,7 @@ function PDV() {
       }
       if (pixPayload && e.key === "Enter") {
         e.preventDefault();
-        setPixPayload("");
-        completeSale();
+        confirmPixPayment();
         return;
       }
       if (editing !== undefined || cam || pendingWeight || done || pixPayload) return;
@@ -439,16 +463,16 @@ function PDV() {
                 </div>
               </div>
             )}
-            <button ref={finishButton} onClick={() => { setPaymentShortcutArmed(false); finish(); }} disabled={!pdvAuthorized || !lines.length}
-              className="mt-4 w-full rounded-xl bg-primary text-primary-foreground font-bold text-[17px] py-4 flex items-center justify-center gap-2 hover:bg-primary/85 disabled:opacity-40">
-              Finalizar venda <kbd className="font-mono text-[11px] opacity-70">Enter</kbd>
+            <button ref={finishButton} onClick={() => { setPaymentShortcutArmed(false); finish(); }} disabled={!pdvAuthorized || !lines.length || isFinalizing || isConfirmingPix}
+              className="mt-4 w-full rounded-xl bg-primary text-primary-foreground font-bold text-[17px] py-4 flex items-center justify-center gap-2 hover:bg-primary/85 disabled:cursor-wait disabled:opacity-80">
+              {isFinalizing ? <><Loader2 className="h-5 w-5 animate-spin" />Carregando...</> : <>Finalizar venda <kbd className="font-mono text-[11px] opacity-70">Enter</kbd></>}
             </button>
           </div>
         </aside>
       </main>
 
       {pixPayload && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 backdrop-blur-sm p-4" onClick={() => setPixPayload("")}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 backdrop-blur-sm p-4" onClick={() => { if (!isConfirmingPix) setPixPayload(""); }}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-6 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="font-mono text-[11px] uppercase tracking-[.18em] text-primary">PAGAMENTO PIX</div>
             <h2 className="mt-2 font-display text-3xl tracking-[.08em] text-heading">ESCANEIE PARA PAGAR</h2>
@@ -463,8 +487,10 @@ function PDV() {
             <p className="mt-3 font-mono text-[10px] text-muted-foreground break-all">Chave: {settings.pixKey}</p>
             <p className="mt-2 text-xs text-muted-foreground">Depois que o cliente pagar, confirme manualmente para registrar a venda.</p>
             <div className="mt-4 flex gap-2">
-              <button onClick={() => setPixPayload("")} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground">Cancelar</button>
-              <button onClick={() => { setPixPayload(""); completeSale(); }} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground">✓ Confirmar pagamento <kbd className="ml-1 font-mono text-[10px] opacity-75">Enter</kbd></button>
+              <button disabled={isConfirmingPix} onClick={() => setPixPayload("")} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground disabled:opacity-50">Cancelar</button>
+              <button disabled={isConfirmingPix} onClick={confirmPixPayment} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground flex items-center justify-center gap-1 disabled:cursor-wait disabled:opacity-80">
+                {isConfirmingPix ? <><Loader2 className="h-4 w-4 animate-spin" />Carregando...</> : <>✓ Confirmar pagamento <kbd className="ml-1 font-mono text-[10px] opacity-75">Enter</kbd></>}
+              </button>
             </div>
           </div>
         </div>
