@@ -336,6 +336,36 @@ export function effectivePrice(product: Product, at = new Date()): number {
 }
 
 export const actions = {
+  openCashSession(openingAmount: number, note = "") {
+    const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
+    if (!operator || !Number.isFinite(openingAmount) || openingAmount < 0) return false;
+    if ((state.cashSessions ?? []).some((session) => session.status === "open" && session.openedBy === operator)) return false;
+    const session: CashSession = { id: uid(), openedAt: new Date().toISOString(), openedBy: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
+    set({ cashSessions: [session, ...(state.cashSessions ?? [])] });
+    return session.id;
+  },
+  addCashMovement(type: "sangria" | "reforco", amount: number, reason: string) {
+    const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
+    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
+    if (!session || !Number.isFinite(amount) || amount <= 0 || !reason.trim()) return false;
+    const movement: CashMovement = { id: uid(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
+    set({ cashMovements: [movement, ...(state.cashMovements ?? [])] });
+    return movement.id;
+  },
+  closeCashSession(countedCash: number, note = "") {
+    const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
+    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
+    if (!session || !Number.isFinite(countedCash) || countedCash < 0) return false;
+    const sessionSales = (state.sales ?? []).filter((sale) => sale.cashSessionId === session.id);
+    const cashSales = sessionSales.filter((sale) => sale.payment === "Dinheiro" && sale.paid !== false).reduce((sum, sale) => sum + sale.total, 0);
+    const movements = (state.cashMovements ?? []).filter((item) => item.sessionId === session.id);
+    const withdrawals = movements.filter((item) => item.type === "sangria").reduce((sum, item) => sum + item.amount, 0);
+    const additions = movements.filter((item) => item.type === "reforco").reduce((sum, item) => sum + item.amount, 0);
+    const expectedCash = Math.round((session.openingAmount + cashSales - withdrawals + additions) * 100) / 100;
+    const counted = Math.round(countedCash * 100) / 100;
+    set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) });
+    return { expectedCash, countedCash: counted, difference: Math.round((counted - expectedCash) * 100) / 100 };
+  },
   saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
     const id = contact.id || uid();
     const value: BusinessContact = { ...contact, id, name: contact.name.trim() };
