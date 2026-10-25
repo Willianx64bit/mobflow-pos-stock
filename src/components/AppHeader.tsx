@@ -108,7 +108,7 @@ export function AppHeader() {
     navigate({ to });
   };
 
-  const selectCashAction = (action: "abrir" | "fechar") => {
+  const selectCashAction = (action: "abrir" | "fechar" | "movimentacao" | "historico") => {
     if (!permissions.includes("PDV")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
     sessionStorage.setItem("mobflow-cash-action", action);
     window.dispatchEvent(new CustomEvent("mobflow-cash-action", { detail: action }));
@@ -208,12 +208,14 @@ export function AppHeader() {
               {permissions.includes("PDV") && <div className="mt-1">
                 <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
-                  <span className="flex-1 text-left">Abertura/Fechamento</span>
+                  <span className="flex-1 text-left">Caixa</span>
                   <ChevronDown className={"h-4 w-4 transition-transform " + (cashMenuOpen ? "rotate-180" : "")} />
                 </button>
                 {cashMenuOpen && <div className="ml-8 mt-1 space-y-1 border-l border-border pl-2">
-                  <button type="button" onClick={() => selectCashAction("abrir")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Abrir caixa</button>
-                  <button type="button" onClick={() => selectCashAction("fechar")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Fechar caixa</button>
+                  <button type="button" onClick={() => selectCashAction("abrir")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Abertura</button>
+                  <button type="button" onClick={() => selectCashAction("fechar")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Fechamento</button>
+                  <button type="button" onClick={() => selectCashAction("movimentacao")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Sangria/Reforço</button>
+                  <button type="button" onClick={() => selectCashAction("historico")} className="w-full rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground">Histórico</button>
                 </div>}
               </div>}
             </nav>
