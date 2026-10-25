@@ -18,7 +18,7 @@ function CashPage() {
   const sessions = useStore((s) => s.cashSessions ?? []);
   const movements = useStore((s) => s.cashMovements ?? []);
   const sales = useStore((s) => s.sales);
-  const [mode, setMode] = useState<Mode>(() => typeof window !== "undefined" && sessionStorage.getItem("mobflow-cash-action") === "fechar" ? "fechar" : "abrir");
+  const [mode, setMode] = useState<Mode>("abrir");
   const [opening, setOpening] = useState("150,00");
   const [counted, setCounted] = useState("");
   const [amount, setAmount] = useState("");
@@ -27,7 +27,7 @@ function CashPage() {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<{ expectedCash: number; countedCash: number; difference: number } | null>(null);
-  const username = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
+  const [username, setUsername] = useState("");
   const active = sessions.find((s) => s.status === "open" && s.openedBy === username);
   const myClosed = sessions.filter((s) => s.status === "closed" && (s.openedBy === username || s.closedBy === username)).slice(0, 8);
   const activeSales = useMemo(() => sales.filter((s) => s.cashSessionId === active?.id), [sales, active?.id]);
@@ -38,6 +38,8 @@ function CashPage() {
   const expected = active ? Math.round((active.openingAmount + cashSales - withdrawals + additions) * 100) / 100 : 0;
 
   useEffect(() => {
+    setMode(sessionStorage.getItem("mobflow-cash-action") === "fechar" ? "fechar" : "abrir");
+    setUsername(sessionStorage.getItem("mobflow-username")?.trim() || "");
     const permissions = (() => { try { return JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[]; } catch { return []; } })();
     if (sessionStorage.getItem("mobflow-pdv-authorized") !== "1" || !permissions.includes("PDV")) {
       window.alert("Apenas usuários com permissão de PDV podem acessar Abertura/Fechamento de Caixa.");
