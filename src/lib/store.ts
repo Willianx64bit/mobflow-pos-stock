@@ -821,15 +821,17 @@ export const formatCpf = (v: string) => {
 };
 
 export function printFiadoBalance(customer: string, sales: Sale[]) {
-  const open = sales.filter((s) => s.payment === "Fiado" && (s.customer || "").trim() === customer.trim()).map((s) => {
-    const paid = (s.payments ?? (s.paid ? [{ value: s.total, date: s.paidAt ?? s.date }] : [])).reduce((sum, p) => sum + p.value, 0);
-    return { sale: s, remaining: Math.max(0, s.total - paid) };
-  }).filter((x) => x.remaining > 0);
-  const total = open.reduce((sum, x) => sum + x.remaining, 0);
-  const rows = open.map(({ sale: s, remaining }) => `<tr><td>${new Date(s.date).toLocaleDateString("pt-BR")} · ${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right">R$ ${brl(remaining)}</td></tr>`).join("");
+  const accountSales = sales.filter((s) => s.payment === "Fiado" && (s.customer || "").trim() === customer.trim()).map((sale) => {
+    const paid = (sale.payments ?? (sale.paid ? [{ value: sale.total, date: sale.paidAt ?? sale.date }] : [])).reduce((sum, p) => sum + p.value, 0);
+    return { sale, paid: Math.min(sale.total, paid), remaining: Math.max(0, sale.total - paid) };
+  });
+  const total = accountSales.reduce((sum, x) => sum + x.sale.total, 0);
+  const totalPaid = accountSales.reduce((sum, x) => sum + x.paid, 0);
+  const totalRemaining = accountSales.reduce((sum, x) => sum + x.remaining, 0);
+  const rows = accountSales.map(({ sale: s, paid, remaining }) => `<tr><td colspan="2" style="padding-top:8px"><b>${new Date(s.date).toLocaleDateString("pt-BR")}</b><br/>${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td></tr><tr><td>Total da compra</td><td style="text-align:right">R$ ${brl(s.total)}</td></tr><tr><td>Valor pago</td><td style="text-align:right">R$ ${brl(paid)}</td></tr><tr><td>Saldo restante</td><td style="text-align:right">R$ ${brl(remaining)}</td></tr><tr><td colspan="2"><hr/></td></tr>`).join("");
   const w = window.open("", "_blank", "width=420,height=700");
   if (!w) return;
-  w.document.write(`<html><head><title>Saldo fiado - ${customer}</title><style>body{font-family:monospace;font-size:12px;width:320px;margin:12px auto}h1{text-align:center;font-size:18px}hr{border:0;border-top:1px dashed #000}table{width:100%}td{padding:4px 0;vertical-align:top}.c{text-align:center}</style></head><body><h1>CONTA FIADO</h1><p class="c">${customer}</p><hr/><table>${rows}</table><hr/><p><b>SALDO EM ABERTO: R$ ${brl(total)}</b></p><p class="c">Não é documento fiscal</p><script>window.onload=()=>window.print()</script></body></html>`);
+  w.document.write(`<html><head><title>Saldo fiado - ${customer}</title><style>body{font-family:monospace;font-size:12px;width:320px;margin:12px auto}h1{text-align:center;font-size:18px}hr{border:0;border-top:1px dashed #000}table{width:100%;border-collapse:collapse}td{padding:4px 0;vertical-align:top}.c{text-align:center}.sum td{font-weight:bold;padding-top:5px}</style></head><body><h1>CONTA FIADO</h1><p class="c">${customer}</p><hr/><table>${rows}<tr class="sum"><td>Total comprado</td><td style="text-align:right">R$ ${brl(total)}</td></tr><tr class="sum"><td>Total já pago</td><td style="text-align:right">R$ ${brl(totalPaid)}</td></tr><tr class="sum"><td>Saldo em aberto</td><td style="text-align:right">R$ ${brl(totalRemaining)}</td></tr></table><hr/><p class="c">Comprovante de saldo — não é documento fiscal</p><script>window.onload=()=>window.print()</script></body></html>`);
   w.document.close();
 }
 
