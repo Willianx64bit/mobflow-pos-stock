@@ -56,6 +56,24 @@ function ValidadeProdutos() {
     return new Date(year, month - 1, day).getTime();
   };
 
+  const formatExpiryInput = (value: string) => {
+    const digits = value.replace(/\\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  };
+
+  const expiryInputToISO = (value: string) => {
+    const match = /^(\\d{2})\\/(\\d{2})\\/(\\d{4})$/.exec(value);
+    if (!match) return "";
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return "";
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  };
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -90,14 +108,17 @@ function ValidadeProdutos() {
         <div className="label-mono mb-4">Produtos com validade cadastrada</div>
 
         <button type="button" onClick={() => {
-          if (showAdd && editingNoteId) {
+          if (showAdd && !editingNoteId) {
+            setShowAdd(false);
+          } else {
             setEditingNoteId(null);
             setProductId("");
             setProductSearch("");
             setExpiryDate("");
             setQuantity("1");
+            setProductPickerOpen(false);
+            setShowAdd(true);
           }
-          setShowAdd((v) => !v);
           setFormError("");
         }} className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">
           <Plus className="h-4 w-4 text-green-600" /> Adicionar validade manualmente
@@ -108,13 +129,14 @@ function ValidadeProdutos() {
             e.preventDefault();
             setFormError("");
             const qty = Number(quantity.replace(",", "."));
-            if (!productId || !expiryDate || !Number.isFinite(qty) || qty <= 0 || qty > availableQuantity) {
+            const expiryISO = expiryInputToISO(expiryDate);
+            if (!productId || !expiryISO || !Number.isFinite(qty) || qty <= 0 || qty > availableQuantity) {
               setFormError("Selecione o produto, informe a validade e uma quantidade dentro do estoque disponível.");
               return;
             }
             const result = editingNoteId
-              ? actions.updateManualExpiry(editingNoteId, productId, expiryDate, qty)
-              : actions.addManualExpiry(productId, expiryDate, qty);
+              ? actions.updateManualExpiry(editingNoteId, productId, expiryISO, qty)
+              : actions.addManualExpiry(productId, expiryISO, qty);
             if (result) {
               setShowAdd(false);
               setEditingNoteId(null);
@@ -172,8 +194,18 @@ function ValidadeProdutos() {
               )}
               {productId && <p className="mt-1 text-xs text-muted-foreground">Produto selecionado.</p>}
             </div>
-            <label className="block text-sm font-medium">Data de validade
-              <input required type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground" />
+            <label className="block text-sm font-medium">Data de validade (DD/MM/AAAA)
+              <input
+                required
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="DD/MM/AAAA"
+                maxLength={10}
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(formatExpiryInput(e.target.value))}
+                className="mt-1 w-full rounded-lg border border-border bg-background p-3 text-foreground"
+              />
             </label>
             <label className="block text-sm font-medium">Quantidade com esta validade
               {selectedProduct && <span className="ml-2 text-xs font-normal text-muted-foreground">Disponível para distribuir: {availableQuantity} {selectedProduct.unit === "kg" ? "kg" : "un."} · Estoque total: {selectedProduct.stock} {selectedProduct.unit === "kg" ? "kg" : "un."}</span>}
@@ -187,7 +219,7 @@ function ValidadeProdutos() {
           </form>
         )}
 
-        <div className="mb-4">
+        {!showAdd && <div className="mb-4">
           <label className="label-mono block mb-2">Ordenar validade</label>
           <div className="grid grid-cols-3 gap-2">
             <button type="button" onClick={() => setOrder("shortest")} aria-pressed={order === "shortest"} className={`rounded-xl border px-2 py-2.5 text-sm font-semibold transition-colors ${order === "shortest" ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground"}`}>
@@ -207,10 +239,10 @@ function ValidadeProdutos() {
                 ? "Mostrando primeiro os produtos com validade mais longa."
                 : "Mostrando somente produtos com a validade já vencida."}
           </p>
-        </div>
+        </div>}
 
-        {!sortedEntries.length && <p className="py-10 text-center text-sm text-muted-foreground">{order === "expired" ? "Nenhum produto vencido encontrado." : "Nenhum produto com validade cadastrada ainda."}</p>}
-        <div className="space-y-3">
+        {!showAdd && !sortedEntries.length && <p className="py-10 text-center text-sm text-muted-foreground">{order === "expired" ? "Nenhum produto vencido encontrado." : "Nenhum produto com validade cadastrada ainda."}</p>}
+        {!showAdd && <div className="space-y-3">
           {sortedEntries.map((item, index) => {
             const product = products.find((p) => p.id === item.productId);
             const status = getStatus(item.expiry!);
@@ -254,7 +286,7 @@ function ValidadeProdutos() {
               </div>
             );
           })}
-        </div>
+        </div>}
       </section>
     </div>
   );
