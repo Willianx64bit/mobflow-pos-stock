@@ -229,7 +229,6 @@ function PDV() {
         if (done) { setDone(null); setQ(""); search.current?.focus(); }
         else if (pixPayload) setPixPayload("");
         else if (pendingWeight) setPendingWeight(null);
-        else if (cam) setCam(false);
         return;
       }
       if (pixPayload && e.key === "Enter") {
@@ -237,7 +236,7 @@ function PDV() {
         confirmPixPayment();
         return;
       }
-      if (editing !== undefined || cam || pendingWeight || done || pixPayload) return;
+      if (editing !== undefined || pendingWeight || done || pixPayload) return;
       const target = e.target as HTMLElement | null;
       const typing = !!target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable);
       if (e.key === "F2") { e.preventDefault(); setPayment("Dinheiro"); setPaymentShortcutArmed(true); window.setTimeout(() => receivedInput.current?.focus(), 0); }
