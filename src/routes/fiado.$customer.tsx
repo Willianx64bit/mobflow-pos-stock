@@ -65,30 +65,30 @@ function FiadoCliente() {
               const draft = paymentDrafts[s.id] ?? "";
               return (
                 <article key={s.id} className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
-                  <div className="overflow-x-auto rounded-xl border border-border/70">
-                    <table className="w-full min-w-[520px] text-sm">
+                  <div className="w-full rounded-xl border border-border/70">
+                    <table className="w-full table-fixed text-xs sm:text-sm">
                       <thead className="bg-secondary/70 text-left text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>
-                          <th className="px-3 py-3 font-bold">Data/hora</th>
-                          <th className="px-3 py-3 font-bold">Produtos</th>
-                          <th className="px-3 py-3 text-right font-bold">Quantidade</th>
-                          <th className="px-3 py-3 text-right font-bold">Valor</th>
+                          <th className="w-[27%] px-1.5 py-2 font-bold sm:px-3 sm:py-3">Data/hora</th>
+                          <th className="w-[33%] px-1.5 py-2 font-bold sm:px-3 sm:py-3">Produtos</th>
+                          <th className="w-[20%] px-1.5 py-2 text-right font-bold sm:px-3 sm:py-3">Quantidade</th>
+                          <th className="w-[20%] px-1.5 py-2 text-right font-bold sm:px-3 sm:py-3">Valor</th>
                         </tr>
                       </thead>
                       <tbody>
                         {s.items.map((item, index) => (
                           <tr key={index} className="border-t border-border/60">
-                            <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
-                            <td className="px-3 py-3 font-medium text-heading">{item.name}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right">{item.qty} {item.unit === "kg" ? "kg" : "un"}</td>
-                            <td className="whitespace-nowrap px-3 py-3 text-right font-semibold">R$ {brl(item.price * item.qty)}</td>
+                            <td className="break-words px-1.5 py-2 text-muted-foreground sm:px-3 sm:py-3">{new Date(s.date).toLocaleDateString("pt-BR")}<span className="block">{new Date(s.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></td>
+                            <td className="break-words px-1.5 py-2 font-medium text-heading sm:px-3 sm:py-3">{item.name}</td>
+                            <td className="break-words px-1.5 py-2 text-right sm:px-3 sm:py-3">{item.qty} {item.unit === "kg" ? "kg" : "un"}</td>
+                            <td className="break-words px-1.5 py-2 text-right font-semibold sm:px-3 sm:py-3">R$ {brl(item.price * item.qty)}</td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 border-border bg-secondary/40">
-                          <td colSpan={3} className="px-3 py-3 text-right font-bold text-heading">Total da compra</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-right font-display text-lg font-bold text-heading">R$ {brl(s.total)}</td>
+                          <td colSpan={3} className="px-1.5 py-2 text-right font-bold text-heading sm:px-3 sm:py-3">Total da compra</td>
+                          <td className="break-words px-1.5 py-2 text-right font-display text-sm font-bold text-heading sm:px-3 sm:py-3 sm:text-lg">R$ {brl(s.total)}</td>
                         </tr>
                       </tfoot>
                     </table>
