@@ -136,8 +136,7 @@ function Fiado() {
             <section className="glass p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div><div className="label-mono">DETALHES DO CLIENTE</div><div className="mt-1 flex items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${selectedPaid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{selectedPaid ? "Pago" : "Pendente"}</span><h1 className="font-display text-3xl tracking-[.06em] text-heading">{selectedCustomer}</h1></div></div>
-                <div className="text-right"><div className="label-mono">SALDO RESTANTE</div><div className={`font-display text-4xl ${selectedPaid ? "text-green-600" : "text-destructive"}`}>R$ {brl(selectedBalance)}</div><div className="mt-2 flex flex-wrap justify-end gap-2">
-
+                <div className="text-right"><div className="label-mono">SALDO RESTANTE</div><div className={`font-display text-4xl ${selectedPaid ? "text-green-600" : "text-destructive"}`}>R$ {brl(selectedBalance)}</div><div className="mt-2 flex flex-wrap justify-end gap-2"><button onClick={() => printFiadoBalance(selectedCustomer, selectedSales)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent"><Printer className="mr-1 inline h-4 w-4 text-green-600" />Imprimir saldo</button>
                   </div></div>
               </div>
             </section>
