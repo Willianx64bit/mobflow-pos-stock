@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Loader2, LockKeyhole, ReceiptText } from "lucide-react";
+import { Loader2, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { CameraScanner } from "@/components/CameraScanner";
 import { ProductForm } from "@/components/ProductForm";
 import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
@@ -62,7 +61,6 @@ function PDV() {
   const [discountType, setDiscountType] = useState<"R$" | "%">("R$");
   const [discountInput, setDiscountInput] = useState("");
   const [quick, setQuick] = useState(false);
-  const [cam, setCam] = useState(false);
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
   const [isFinalizing, setIsFinalizing] = useState(false);
@@ -145,9 +143,25 @@ function PDV() {
     if (!quick) return;
     if (scanTimer.current) clearTimeout(scanTimer.current);
     const value = v.trim();
-    if (!/^\d{6,}$/.test(value)) return;
+    // Aceita quantidade antes do código: 3* + bipe, ou 3*CODIGODEBARRAS.
+    const multiplied = value.match(/^(\d+)\*(\d{6,})$/);
+    const barcode = multiplied ? multiplied[2] : value;
+    if (!/^\d{6,}$/.test(barcode)) return;
     scanTimer.current = setTimeout(() => {
-      if (products.some((p) => productHasBarcode(p, value))) { scanAdd(value); setQ(""); }
+      const p = products.find((item) => productHasBarcode(item, barcode));
+      if (!p) return;
+      if (multiplied) {
+        const qty = Number(multiplied[1]);
+        if (qty > 0 && Number.isSafeInteger(qty) && p.unit === "un" && pdvAuthorized) {
+          actions.addToCart(p.id, qty);
+          setFlash("+" + qty + " " + p.name);
+        } else if (p.unit === "kg") {
+          setFlash("Multiplicador disponível apenas para produtos por unidade");
+        }
+      } else {
+        scanAdd(barcode);
+      }
+      setQ("");
     }, 120);
   };
 
@@ -250,13 +264,26 @@ function PDV() {
         scanTimer.current = null;
       }
       const value = q.trim();
-      if (/^\d{6,}$/.test(value) && products.some((p) => productHasBarcode(p, value))) {
+      const multipliedScan = quick ? value.match(/^(\d+)\*(\d{6,})$/) : null;
+      const scanCode = multipliedScan ? multipliedScan[2] : value;
+      if (/^\d{6,}$/.test(scanCode) && products.some((p) => productHasBarcode(p, scanCode))) {
         e.preventDefault();
         if (quick) {
-          scanAdd(value);
+          if (multipliedScan) {
+            const p = products.find((item) => productHasBarcode(item, scanCode));
+            const qty = Number(multipliedScan[1]);
+            if (p && qty > 0 && Number.isSafeInteger(qty) && p.unit === "un") {
+              actions.addToCart(p.id, qty);
+              setFlash("+" + qty + " " + p.name);
+            } else if (p && p.unit === "kg") {
+              setFlash("Multiplicador disponível apenas para produtos por unidade");
+            }
+          } else {
+            scanAdd(scanCode);
+          }
           setQ("");
         } else {
-          setFlash(`código pesquisado: ${value}`);
+          setFlash("bipe rápido desligado: código pesquisado, não adicionado");
         }
         return;
       }
@@ -301,7 +328,6 @@ function PDV() {
                 {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
               </span>
             </div>
-            <button disabled={!pdvAuthorized} onClick={() => setCam(true)} className="rounded-xl bg-secondary ring-1 ring-border px-3 text-sm text-secondary-foreground hover:text-foreground" aria-label="Ler com câmera"><Camera className="h-5 w-5" /></button>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
@@ -520,7 +546,6 @@ function PDV() {
           </div>
         </div>
       )}
-      {cam && <CameraScanner title="Bipar produtos" onCode={(code) => { if (quick) scanAdd(code); else { setQ(code.trim()); setFlash(`código pesquisado: ${code.trim()}`); setCam(false); search.current?.focus(); } }} onClose={() => setCam(false)} />}
       {pendingWeight && (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setPendingWeight(null)}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-5" onClick={(e) => e.stopPropagation()}>
