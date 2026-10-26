@@ -268,7 +268,7 @@ function ValidadeProdutos() {
                       setEditingNoteId(item.noteId);
                       setProductId(item.productId);
                       setProductSearch(`${item.name} (${products.find((p) => p.id === item.productId)?.code ?? ""})`);
-                      setExpiryDate(year && month && day ? `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}` : "");
+                      setExpiryDate(year && month && day ? `${day.padStart(2, "0")}/${month.padStart(2, "0")}/${year}` : "");
                       setQuantity(String(item.received ?? item.expected ?? 1));
                       setFormError("");
                       setShowAdd(true);
