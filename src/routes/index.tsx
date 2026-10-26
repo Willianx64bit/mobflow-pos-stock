@@ -324,6 +324,7 @@ function PDV() {
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
                   <div className="mt-2 text-sm md:text-base font-semibold text-foreground line-clamp-2 min-h-[2.5rem] leading-snug">{p.name}</div>
+                  <div className="mt-0.5 truncate font-mono text-[9px] md:text-[10px] text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
                   <div className="mt-auto pt-2 text-center">
                     {effectivePrice(p) < p.price ? (
                       <div className="flex flex-col items-center gap-1">
