@@ -76,7 +76,8 @@ export function AppHeader() {
       if (!tab) return;
       e.preventDefault();
       const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
-      if (permissions.includes("Operações") && !permissions.includes("PDV") && tab.to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
+      const operationsOnly = permissions.includes("Operações") && !permissions.some((permission) => permission !== "Operações");
+      if (operationsOnly && tab.to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
       if (!permissions.includes(required[tab.to] ?? "")) {
         window.alert("Seu usuário não tem permissão para acessar esta área.");
         return;
@@ -101,7 +102,8 @@ export function AppHeader() {
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
     const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
-    if (permissions.includes("Operações") && !permissions.includes("PDV") && to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
+    const operationsOnly = permissions.includes("Operações") && !permissions.some((permission) => permission !== "Operações");
+    if (operationsOnly && to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
     if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
