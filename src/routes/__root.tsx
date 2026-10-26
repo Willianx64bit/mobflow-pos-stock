@@ -217,7 +217,9 @@ function RootComponent() {
 
         sessionStorage.setItem("mobflow-role", profile.role);
         sessionStorage.setItem("mobflow-username", profile.username);
-        sessionStorage.setItem("mobflow-permissions", JSON.stringify(Array.isArray(profile.permissions) ? profile.permissions : (profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"])));
+        const savedPermissions = Array.isArray(profile.permissions) ? profile.permissions : (profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
+        const normalizedPermissions = Array.from(new Set(savedPermissions.map((permission: string) => permission === "Conferência" ? "Operações" : permission)));
+        sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
 
         if (profile.role === "pdv") {
           sessionStorage.setItem("mobflow-pdv-authorized", "1");
@@ -238,8 +240,8 @@ function RootComponent() {
           if (firstSetupPending && profile.role === "manager") {
             void router.navigate({ to: "/gerencia" });
           } else if (profile.role === "pdv" && router.state.location.pathname === "/") {
-            const userPermissions = Array.isArray(profile.permissions) ? profile.permissions : ["PDV", "Conferência"];
-            if (!userPermissions.includes("PDV") && userPermissions.includes("Conferência")) void router.navigate({ to: "/conferencia" });
+            const userPermissions = Array.isArray(profile.permissions) ? profile.permissions.map((permission: string) => permission === "Conferência" ? "Operações" : permission) : ["PDV", "Operações"];
+            if (!userPermissions.includes("PDV") && userPermissions.includes("Operações")) void router.navigate({ to: "/operacoes" });
           }
         }
       } catch (error) {
@@ -285,7 +287,7 @@ function RootComponent() {
             if (role === "pdv") {
               let permissions: string[] = [];
               try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch { permissions = []; }
-              if (!permissions.includes("PDV") && permissions.includes("Conferência")) await router.navigate({ to: "/conferencia" });
+              if (!permissions.includes("PDV") && permissions.includes("Operações")) await router.navigate({ to: "/operacoes" });
             }
           }
         }}
