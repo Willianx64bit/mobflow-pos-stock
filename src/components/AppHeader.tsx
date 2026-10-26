@@ -8,11 +8,11 @@ import { createPortal } from "react-dom";
 import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History } from "lucide-react";
 
 const tabs = [
-  { to: "/", label: "PDV", key: "F2", icon: "pdv" },
-  { to: "/operacoes", label: "Operações", key: "F7", icon: "operations" },
-  { to: "/validade", label: "Validade dos produtos", key: "", icon: "expiry" },
-  { to: "/fiado", label: "Fiado", key: "", icon: "credit" },
-  { to: "/gerencia", label: "Acesso Gerência", key: "", icon: "management" },
+  { to: "/", label: "PDV", icon: "pdv" },
+  { to: "/operacoes", label: "Operações", icon: "operations" },
+  { to: "/validade", label: "Validade dos produtos", icon: "expiry" },
+  { to: "/fiado", label: "Fiado", icon: "credit" },
+  { to: "/gerencia", label: "Acesso Gerência", icon: "management" },
 ] as const;
 
 export function AppHeader() {
@@ -71,24 +71,7 @@ export function AppHeader() {
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
     tick();
-    const onKey = (e: KeyboardEvent) => {
-      const tab = tabs.find((item) => item.key && item.key === e.key);
-      if (!tab) return;
-      e.preventDefault();
-      const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
-      const operationsOnly = permissions.includes("Operações") && !permissions.some((permission) => permission !== "Operações");
-      if (operationsOnly && tab.to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
-      if (!permissions.includes(required[tab.to] ?? "")) {
-        window.alert("Seu usuário não tem permissão para acessar esta área.");
-        return;
-      }
-      navigate({ to: tab.to });
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [navigate, permissions]);
+  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -206,7 +189,7 @@ export function AppHeader() {
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span>{t.key && <kbd className="font-mono text-[10px] opacity-60">{t.key}</kbd>}</button>)}
+              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span></button>)}
               {permissions.includes("PDV") && <div className="mt-1">
                 <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
