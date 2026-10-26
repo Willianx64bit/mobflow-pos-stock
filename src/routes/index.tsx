@@ -32,6 +32,7 @@ function PDV() {
   const sales = useStore((s) => s.sales);
   const settings = useStore((s) => s.settings);
   const cart = useStore((s) => s.cart);
+  const cashSessions = useStore((s) => s.cashSessions ?? []);
   useStore((s) => s.promotions ?? []);
   const [, setPriceClock] = useState(0);
   useEffect(() => { const timer = setInterval(() => setPriceClock((v) => v + 1), 15000); return () => clearInterval(timer); }, []);
@@ -166,6 +167,9 @@ function PDV() {
 
   const finish = () => {
     if (!lines.length || isFinalizing || isConfirmingPix) return;
+    const operator = sessionStorage.getItem("mobflow-username")?.trim() || "";
+    const hasOpenCash = !!operator && cashSessions.some((session) => session.status === "open" && session.openedBy === operator);
+    if (!hasOpenCash) { setFlash("Abra o caixa antes de finalizar a venda. Você pode continuar pesquisando e adicionando produtos."); return; }
     if (payment === "Fiado" && !customer.trim()) { setFlash("Informe o cliente para vender fiado"); return; }
     if (payment === "Dinheiro" && recv && recv < total) return;
     if (payment === "Pix") {
