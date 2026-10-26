@@ -832,7 +832,7 @@ export function printFiadoBalance(customer: string, sales: Sale[]) {
   const customerName = latestSale?.customer || customer;
   const customerCpf = accountSales.find((x) => x.sale.cpf)?.sale.cpf;
   const seller = latestSale?.seller;
-  const rows = accountSales.map(({ sale: s }) => `<tr><td colspan="2" style="padding-top:8px;font-weight:bold">${new Date(s.date).toLocaleDateString("pt-BR")} às ${new Date(s.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td></tr><tr><td>${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right;white-space:nowrap">R$ ${brl(s.total)}</td></tr>`).join("");
+  const rows = accountSales.map(({ sale: s }) => `<tr><td colspan="2" style="padding-top:8px;font-weight:bold">${new Date(s.date).toLocaleDateString("pt-BR")} às ${new Date(s.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td></tr>${s.items.map((i) => `<tr><td>${i.qty}× ${i.name}</td><td style="text-align:right;white-space:nowrap">R$ ${brl(i.price * i.qty)}</td></tr>`).join("")}<tr><td colspan="2" style="padding-bottom:4px"><hr/></td></tr>`).join("");
   const w = window.open("", "_blank", "width=380,height=640");
   if (!w) return;
   w.document.write(`<html><head><title>Conta fiado - ${customerName}</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:12px auto}h1{text-align:center;font-size:18px;margin:0}hr{border:0;border-top:1px dashed #000}table{width:100%;border-collapse:collapse}td{padding:4px 0;vertical-align:top}td:last-child{padding-left:8px}.c{text-align:center}p{margin:4px 0}.sum td{font-weight:bold;padding-top:6px}</style></head><body>
