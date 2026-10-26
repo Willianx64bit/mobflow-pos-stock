@@ -28,7 +28,6 @@ function FiadoCliente() {
   const remaining = (s: Sale) => Math.max(0, s.total - paidTotal(s));
   const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0);
   const paid = balance <= 0;
-  const totalPurchased = customerSales.reduce((sum, s) => sum + s.total, 0);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -44,7 +43,6 @@ function FiadoCliente() {
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${paid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{paid ? "Pago" : "Pendente"}</span>
                 <h1 className="font-display text-3xl tracking-[.06em] text-heading">{customer}</h1>
               </div>
-              <p className="mt-2 text-sm text-muted-foreground">{customerSales.length} compra(s) no histórico · Total comprado: R$ {brl(totalPurchased)}</p>
             </div>
             <div className="text-right">
               <div className="label-mono">SALDO RESTANTE</div>
@@ -67,16 +65,37 @@ function FiadoCliente() {
               const draft = paymentDrafts[s.id] ?? "";
               return (
                 <article key={s.id} className="rounded-2xl border border-border/70 bg-secondary/30 p-4">
-                  <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-                    <div>
-                      <div className="text-sm font-semibold text-heading">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
-                      <div className="mt-2 text-sm text-muted-foreground">{s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</div>
-                    </div>
-                    <div className="text-left md:text-right">
-                      <div className="font-display text-2xl text-heading">R$ {brl(s.total)}</div>
-                      <div className="mt-1 text-sm text-muted-foreground">Pago: <strong>R$ {brl(paidAmount)}</strong></div>
-                      <div className={`text-sm font-bold ${due > 0 ? "text-orange-600" : "text-green-600"}`}>Saldo: R$ {brl(due)}</div>
-                    </div>
+                  <div className="overflow-x-auto rounded-xl border border-border/70">
+                    <table className="w-full min-w-[520px] text-sm">
+                      <thead className="bg-secondary/70 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-3 font-bold">Data/hora</th>
+                          <th className="px-3 py-3 font-bold">Produtos</th>
+                          <th className="px-3 py-3 text-right font-bold">Quantidade</th>
+                          <th className="px-3 py-3 text-right font-bold">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {s.items.map((item, index) => (
+                          <tr key={index} className="border-t border-border/60">
+                            <td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</td>
+                            <td className="px-3 py-3 font-medium text-heading">{item.name}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-right">{item.qty} {item.unit === "kg" ? "kg" : "un"}</td>
+                            <td className="whitespace-nowrap px-3 py-3 text-right font-semibold">R$ {brl(item.price * item.qty)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-border bg-secondary/40">
+                          <td colSpan={3} className="px-3 py-3 text-right font-bold text-heading">Total da compra</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right font-display text-lg font-bold text-heading">R$ {brl(s.total)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <div className="mt-3 flex flex-wrap justify-end gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                    <span>Pago: <strong className="text-heading">R$ {brl(paidAmount)}</strong></span>
+                    <span className={`font-bold ${due > 0 ? "text-orange-600" : "text-green-600"}`}>Falta pagar: R$ {brl(due)}</span>
                   </div>
 
                   {due > 0 && (
