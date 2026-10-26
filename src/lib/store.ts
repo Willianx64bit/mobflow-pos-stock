@@ -824,15 +824,19 @@ export function printFiadoBalance(customer: string, sales: Sale[]) {
   const accountSales = sales.filter((s) => s.payment === "Fiado" && (s.customer || "").trim() === customer.trim()).map((sale) => {
     const paid = (sale.payments ?? (sale.paid ? [{ value: sale.total, date: sale.paidAt ?? sale.date }] : [])).reduce((sum, p) => sum + p.value, 0);
     return { sale, paid: Math.min(sale.total, paid), remaining: Math.max(0, sale.total - paid) };
-  });
+  }).sort((a, b) => +new Date(a.sale.date) - +new Date(b.sale.date));
   const total = accountSales.reduce((sum, x) => sum + x.sale.total, 0);
   const totalPaid = accountSales.reduce((sum, x) => sum + x.paid, 0);
   const totalRemaining = accountSales.reduce((sum, x) => sum + x.remaining, 0);
-  const rows = accountSales.map(({ sale: s }) => `<tr><td>${new Date(s.date).toLocaleDateString("pt-BR")} — ${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right;white-space:nowrap">R$ ${brl(s.total)}</td></tr>`).join("");
+  const latestSale = accountSales[accountSales.length - 1]?.sale;
+  const customerName = latestSale?.customer || customer;
+  const customerCpf = accountSales.find((x) => x.sale.cpf)?.sale.cpf;
+  const seller = latestSale?.seller;
+  const rows = accountSales.map(({ sale: s }) => `<tr><td colspan="2" style="padding-top:8px;font-weight:bold">${new Date(s.date).toLocaleDateString("pt-BR")} às ${new Date(s.date).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</td></tr><tr><td>${s.items.map((i) => `${i.qty}× ${i.name}`).join(", ")}</td><td style="text-align:right;white-space:nowrap">R$ ${brl(s.total)}</td></tr>`).join("");
   const w = window.open("", "_blank", "width=380,height=640");
   if (!w) return;
-  w.document.write(`<html><head><title>Conta fiado - ${customer}</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:12px auto}h1{text-align:center;font-size:18px;margin:0}hr{border:0;border-top:1px dashed #000}table{width:100%;border-collapse:collapse}td{padding:4px 0;vertical-align:top}td:last-child{padding-left:8px}.c{text-align:center}p{margin:4px 0}.sum td{font-weight:bold;padding-top:6px}</style></head><body>
-<h1>CONTA FIADO</h1><p class="c">${customer}</p><p class="c">${new Date().toLocaleDateString("pt-BR")}</p><hr/>
+  w.document.write(`<html><head><title>Conta fiado - ${customerName}</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:12px auto}h1{text-align:center;font-size:18px;margin:0}hr{border:0;border-top:1px dashed #000}table{width:100%;border-collapse:collapse}td{padding:4px 0;vertical-align:top}td:last-child{padding-left:8px}.c{text-align:center}p{margin:4px 0}.sum td{font-weight:bold;padding-top:6px}</style></head><body>
+<h1>CONTA FIADO</h1><p class="c">Cliente: ${customerName}</p>${customerCpf ? `<p class="c">CPF: ${customerCpf}</p>` : ""}${seller ? `<p class="c">Vendedor: ${seller}</p>` : ""}<hr/>
 <table>${rows}</table><hr/>
 <table><tr><td>Total comprado</td><td style="text-align:right">R$ ${brl(total)}</td></tr><tr><td>Já pago</td><td style="text-align:right">R$ ${brl(totalPaid)}</td></tr><tr class="sum"><td>SALDO EM ABERTO</td><td style="text-align:right">R$ ${brl(totalRemaining)}</td></tr></table>
 <hr/><p class="c">Comprovante de saldo — não é documento fiscal</p><script>window.onload=()=>window.print()</script></body></html>`);
