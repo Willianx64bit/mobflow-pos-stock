@@ -197,7 +197,7 @@ function startRealtime(accountId: string) {
       // the base snapshot here: only a successful persistence write may do that.
       // Otherwise the pending local stock delta can disappear or be counted twice.
       state = mergeConcurrentState(lastSyncedState, state, remote);
-      const localHasPendingChanges = lastSyncedState !== null && JSON.stringify(state) !== JSON.stringify(remote);
+      const localHasPendingChanges = lastSyncedState !== null && JSON.stringify({ ...state, cart: remote.cart }) !== JSON.stringify(remote);
       if (!localHasPendingChanges) {
         lastSyncedState = cloneState(remote);
         lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
