@@ -399,6 +399,7 @@ export async function hydrateStore() {
       state.settings = { ...emptyState().settings, ...(state.settings ?? {}) };
       lastCloudUpdatedAt = data.updated_at ?? null;
       lastSyncedState = cloneState(remoteState);
+      try { localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(remoteState)); } catch {}
     } else if (!error) {
       // Conta sem dados na nuvem é uma empresa nova: não reutilizar dados
       // de demonstração nem o armazenamento local de outra conta.
