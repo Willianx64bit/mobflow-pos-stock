@@ -243,8 +243,8 @@ function persistState() {
           .eq("owner_id", cloudAccountId)
           .maybeSingle();
         if (latest.error || !latest.data?.state) {
-          // Keep the request pending for the worker's finalizer to retry later.
-          persistRequested = true;
+          // Network/database unavailable: keep the local snapshot; a later
+          // user action will trigger another persistence attempt.
           break;
         }
         const remote = latest.data.state as State;
