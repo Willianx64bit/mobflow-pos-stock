@@ -205,7 +205,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         },
       });
       if (error || !data?.ok) {
-        let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";        if (error && !data?.error && error.context && typeof error.context.json === "function") {
+        let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";
+        if (error && !data?.error && error.context && typeof error.context.json === "function") {
           try { const detail = await error.context.json(); if (detail?.error) message = detail.error; } catch { /* mantém a mensagem padrão */ }
         }
         throw new Error(message);
@@ -404,7 +405,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode === "empresa" && !onClose && (
             <>
               <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-slate-300 bg-white py-3.5 lg:py-4 font-bold text-slate-700 transition-colors hover:bg-slate-50">
-                Criar conta              </button>
+                Criar conta
+              </button>
               <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/20">
                 Saiba mais sobre o MobFlow
               </a>
