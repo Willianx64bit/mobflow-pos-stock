@@ -95,6 +95,31 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
     return Array.from(map.values());
   };
+  // Identify stock-changing operations created independently on each side
+  // since the last confirmed snapshot. Equal resulting stock values do NOT
+  // prove that the same operation was applied: a sale of 2 and a write-off
+  // of 2 can both turn stock 10 into 8 and must combine to stock 6.
+  const stockOperationIdsSince = (candidate: State): Set<string> => {
+    const ids = new Set<string>();
+    const collectNew = (key: "sales" | "stockWriteoffs" | "stockTransfers" | "stockAdjustments") => {
+      const previousIds = new Set(((base?.[key] ?? []) as { id: string }[]).map((item) => item.id));
+      for (const item of ((candidate[key] ?? []) as { id: string }[])) {
+        if (!previousIds.has(item.id)) ids.add(key + ":" + item.id);
+      }
+    };
+    collectNew("sales");
+    collectNew("stockWriteoffs");
+    collectNew("stockTransfers");
+    collectNew("stockAdjustments");
+    const previousReceiving = new Map((base?.receiving ?? []).map((item) => [item.id, item]));
+    for (const item of candidate.receiving ?? []) {
+      const previous = previousReceiving.get(item.id);
+      if (item.stockReleased && !previous?.stockReleased) ids.add("receiving:" + item.id);
+    }
+    return ids;
+  };
+  const hasIndependentStockOperations = (left: Set<string>, right: Set<string>) =>
+    [...left].some((id) => !right.has(id)) && [...right].some((id) => !left.has(id));
   // If hydration/realtime races before the first confirmed cloud snapshot,
   // still preserve operation records created on either device. Never let a
   // remote snapshot erase a locally completed sale or stock movement.
@@ -121,10 +146,14 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     const localStockChanged = lp.stock !== bp.stock;
     const remoteStockChanged = rp.stock !== bp.stock;
     if (localStockChanged && remoteStockChanged) {
-      // The same stock update can arrive through both local state and Realtime.
-      // If both sides already have the same value, use the server value instead
-      // of applying the identical delta twice.
-      if (lp.stock === rp.stock) return rp;
+      if (lp.stock === rp.stock) {
+        // Realtime may echo the exact same operation, or two independent
+        // operations may coincidentally produce the same quantity. Deduplicate
+        // the former by operation ID; preserve both deltas in the latter case.
+        const localOperations = stockOperationIdsSince(local);
+        const remoteOperations = stockOperationIdsSince(remote);
+        if (!hasIndependentStockOperations(localOperations, remoteOperations)) return rp;
+      }
       return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
     }
     if (localStockChanged && !remoteStockChanged) return lp;
