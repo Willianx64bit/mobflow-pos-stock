@@ -88,6 +88,8 @@ let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let syncRecoveryListenersInstalled = false;
+let syncPollTimer: ReturnType<typeof setInterval> | null = null;
+let refreshingCloudSnapshot = false;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -287,6 +289,41 @@ function startRealtime(accountId: string) {
     });
 }
 
+async function refreshCloudSnapshot() {
+  if (typeof window === "undefined" || !cloudReady || !cloudAccountId || refreshingCloudSnapshot ||
+      document.visibilityState !== "visible" || !navigator.onLine) return;
+  refreshingCloudSnapshot = true;
+  try {
+    const { data, error } = await supabase.from("app_state")
+      .select("state,updated_at")
+      .eq("owner_id", cloudAccountId)
+      .maybeSingle();
+    if (error || !data?.state || !data.updated_at || data.updated_at === lastCloudUpdatedAt) return;
+    const remote = { ...emptyState(), ...(data.state as Partial<State>) } as State;
+    const hadPendingChanges = localStorage.getItem(PENDING_SYNC_KEY) === "1";
+    state = mergeConcurrentState(lastSyncedState, state, remote);
+    lastCloudUpdatedAt = data.updated_at;
+    lastSyncedState = cloneState(remote);
+    state.settings = { ...emptyState().settings, ...(state.settings ?? {}) };
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    const differs = stableStringify({ ...state, cart: remote.cart }) !== stableStringify(remote);
+    if (hadPendingChanges || differs) {
+      try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
+      void persistState();
+    } else {
+      try {
+        localStorage.removeItem(PENDING_SYNC_KEY);
+        localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(remote));
+      } catch {}
+    }
+    listeners.forEach((listener) => listener());
+  } catch (error) {
+    console.warn("MobFlow: atualização automática da nuvem será tentada novamente.", error);
+  } finally {
+    refreshingCloudSnapshot = false;
+  }
+}
+
 function persistState() {
   // Serialize writes in this tab and reconcile optimistic-lock conflicts with the
   // latest cloud snapshot. Never silently discard a failed write: merge records
@@ -438,13 +475,18 @@ export async function hydrateStore() {
     // Recover unsent changes when the phone returns online or the app becomes
     // visible again. This also covers WebViews that suspend realtime sockets.
     if (typeof window !== "undefined" && !syncRecoveryListenersInstalled) {
-      const retryPending = () => {
-        if (document.visibilityState === "visible" && localStorage.getItem(PENDING_SYNC_KEY) === "1") {
-          void persistState();
-        }
+      const recoverSync = () => {
+        if (document.visibilityState !== "visible") return;
+        void refreshCloudSnapshot();
+        if (localStorage.getItem(PENDING_SYNC_KEY) === "1") void persistState();
       };
-      window.addEventListener("online", retryPending);
-      document.addEventListener("visibilitychange", retryPending);
+      window.addEventListener("online", recoverSync);
+      window.addEventListener("focus", recoverSync);
+      document.addEventListener("visibilitychange", recoverSync);
+      // Realtime can be suspended by mobile browsers or fail for one session.
+      // Polling the same company row is a fallback for every role, including
+      // accounts that cannot keep a Realtime socket alive.
+      if (!syncPollTimer) syncPollTimer = setInterval(recoverSync, 10000);
       syncRecoveryListenersInstalled = true;
     }
     listeners.forEach((l) => l());
