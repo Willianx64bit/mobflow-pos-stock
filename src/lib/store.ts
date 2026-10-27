@@ -445,7 +445,7 @@ export async function forceSyncStore(): Promise<{ success: boolean; message: str
   try {
     load();
     if (hydrating) await hydrating;
-    else await hydrateStore();
+    else if (!cloudReady || !cloudAccountId) await hydrateStore();
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) return { success: false, message: "Sessão não encontrada. Entre novamente." };
