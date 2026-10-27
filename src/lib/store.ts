@@ -202,9 +202,9 @@ function startRealtime(accountId: string) {
 }
 
 function persistState() {
-  // Coalesce bursts of local changes into at most one follow-up write. The app
-  // state can contain product photos, so sending a multi-megabyte JSON snapshot
-  // for every scanned item or decision causes timeouts and stale writes.
+  // Serialize writes in this tab and reconcile optimistic-lock conflicts with the
+  // latest cloud snapshot. Never silently discard a failed write: merge records
+  // by ID and retry so a sale and a write-off created concurrently both survive.
   persistRequested = true;
   if (persistWorker) return persistQueue;
 
@@ -213,50 +213,59 @@ function persistState() {
       persistRequested = false;
       if (!cloudReady || typeof window === "undefined" || !cloudAccountId) break;
 
-      const snapshot = cloneState(state);
-      const expected = lastCloudUpdatedAt;
-      let result;
-      if (expected) {
-        result = await supabase.from("app_state")
-          .update({ state: snapshot, updated_at: new Date().toISOString() })
-          .eq("owner_id", cloudAccountId)
-          .eq("updated_at", expected)
-          .select("updated_at")
-          .maybeSingle();
-      } else {
-        result = await supabase.from("app_state")
-          .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
-          .select("updated_at")
-          .maybeSingle();
-      }
-      if (result.error) continue;
-      if (result.data?.updated_at) {
-        lastCloudUpdatedAt = result.data.updated_at;
-        lastSyncedState = cloneState(snapshot);
-        continue;
-      }
+      let saved = false;
+      for (let attempt = 0; attempt < 4 && !saved; attempt++) {
+        const snapshot = cloneState(state);
+        const expected = lastCloudUpdatedAt;
+        const write = expected
+          ? await supabase.from("app_state")
+              .update({ state: snapshot, updated_at: new Date().toISOString() })
+              .eq("owner_id", cloudAccountId)
+              .eq("updated_at", expected)
+              .select("updated_at")
+              .maybeSingle()
+          : await supabase.from("app_state")
+              .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
+              .select("updated_at")
+              .maybeSingle();
 
-      const { data } = await supabase.from("app_state").select("state,updated_at").eq("owner_id", cloudAccountId).maybeSingle();
-      if (!data?.state) continue;
-      state = mergeConcurrentState(lastSyncedState, state, data.state as State);
-      lastCloudUpdatedAt = data.updated_at ?? null;
-      lastSyncedState = cloneState(data.state as State);
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      const retry = cloneState(state);
-      const retryResult = await supabase.from("app_state")
-        .update({ state: retry, updated_at: new Date().toISOString() })
-        .eq("owner_id", cloudAccountId)
-        .eq("updated_at", lastCloudUpdatedAt)
-        .select("updated_at")
-        .maybeSingle();
-      if (retryResult.data?.updated_at) {
-        lastCloudUpdatedAt = retryResult.data.updated_at;
-        lastSyncedState = cloneState(retry);
+        if (!write.error && write.data?.updated_at) {
+          lastCloudUpdatedAt = write.data.updated_at;
+          lastSyncedState = cloneState(snapshot);
+          saved = true;
+          break;
+        }
+
+        // A missing row after an optimistic update means another tab/device
+        // saved first. Read the newest snapshot and merge both operation histories.
+        const latest = await supabase.from("app_state")
+          .select("state,updated_at")
+          .eq("owner_id", cloudAccountId)
+          .maybeSingle();
+        if (latest.error || !latest.data?.state) {
+          // Keep the request pending for the worker's finalizer to retry later.
+          persistRequested = true;
+          break;
+        }
+        const remote = latest.data.state as State;
+        state = mergeConcurrentState(lastSyncedState, state, remote);
+        lastCloudUpdatedAt = latest.data.updated_at ?? null;
+        lastSyncedState = cloneState(remote);
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      }
+      if (!saved) {
+        // Do not spin forever on an unavailable network. Keep the local state
+        // and let a subsequent state change trigger another cloud save.
+        break;
       }
     }
   })().catch(() => {}).finally(() => {
     persistWorker = null;
-    if (persistRequested) void persistState();
+    if (persistRequested) {
+      // Retry once the current worker has fully released its lock.
+      persistRequested = false;
+      void persistState();
+    }
   });
   persistQueue = persistWorker;
   return persistQueue;
