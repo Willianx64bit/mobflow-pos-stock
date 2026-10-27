@@ -7,7 +7,7 @@ export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
-export type Sale = { id: string; date: string; cashSessionId?: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
+export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
@@ -99,22 +99,27 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   // since the last confirmed snapshot. Equal resulting stock values do NOT
   // prove that the same operation was applied: a sale of 2 and a write-off
   // of 2 can both turn stock 10 into 8 and must combine to stock 6.
-  const stockOperationIdsSince = (candidate: State): Set<string> => {
+  const stockOperationIdsSince = (candidate: State, productId: string): Set<string> => {
     const ids = new Set<string>();
-    const collectNew = (key: "sales" | "stockWriteoffs" | "stockTransfers" | "stockAdjustments") => {
+    const previousSales = new Set((base?.sales ?? []).map((item) => item.id));
+    for (const item of candidate.sales ?? []) {
+      if (!previousSales.has(item.id) && item.items.some((line) => line.productId === productId)) ids.add("sales:" + item.id);
+    }
+    const collectNew = (key: "stockWriteoffs" | "stockTransfers" | "stockAdjustments") => {
       const previousIds = new Set(((base?.[key] ?? []) as { id: string }[]).map((item) => item.id));
-      for (const item of ((candidate[key] ?? []) as { id: string }[])) {
-        if (!previousIds.has(item.id)) ids.add(key + ":" + item.id);
+      for (const item of ((candidate[key] ?? []) as { id: string; items: { productId: string }[] }[])) {
+        if (!previousIds.has(item.id) && item.items.some((line) => line.productId === productId)) ids.add(key + ":" + item.id);
       }
     };
-    collectNew("sales");
     collectNew("stockWriteoffs");
     collectNew("stockTransfers");
     collectNew("stockAdjustments");
     const previousReceiving = new Map((base?.receiving ?? []).map((item) => [item.id, item]));
     for (const item of candidate.receiving ?? []) {
       const previous = previousReceiving.get(item.id);
-      if (item.stockReleased && !previous?.stockReleased) ids.add("receiving:" + item.id);
+      const acceptedProduct = item.decisions?.[productId] === "aceitar" &&
+        [...(item.items ?? []), ...(item.extras ?? [])].some((line) => line.productId === productId);
+      if (item.stockReleased && !previous?.stockReleased && acceptedProduct) ids.add("receiving:" + item.id);
     }
     return ids;
   };
@@ -150,8 +155,8 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
         // Realtime may echo the exact same operation, or two independent
         // operations may coincidentally produce the same quantity. Deduplicate
         // the former by operation ID; preserve both deltas in the latter case.
-        const localOperations = stockOperationIdsSince(local);
-        const remoteOperations = stockOperationIdsSince(remote);
+        const localOperations = stockOperationIdsSince(local, rp.id);
+        const remoteOperations = stockOperationIdsSince(remote, rp.id);
         if (!hasIndependentStockOperations(localOperations, remoteOperations)) return rp;
       }
       return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
@@ -473,7 +478,7 @@ export const actions = {
     if (!operator || !activeCash) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
-      return { name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
+      return { productId: c.productId, name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
