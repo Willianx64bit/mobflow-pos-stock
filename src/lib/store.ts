@@ -245,39 +245,41 @@ function persistState() {
       for (let attempt = 0; attempt < 4 && !saved; attempt++) {
         const snapshot = cloneState(state);
         const expected = lastCloudUpdatedAt;
-        const write = expected
-          ? await supabase.from("app_state")
-              .update({ state: snapshot, updated_at: new Date().toISOString() })
-              .eq("owner_id", cloudAccountId)
-              .eq("updated_at", expected)
-              .select("updated_at")
-              .maybeSingle()
-          : await supabase.from("app_state")
-              .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
-              .select("updated_at")
-              .maybeSingle();
+        const write = await supabase.rpc("mobflow_save_state", {
+          p_owner_id: cloudAccountId,
+          p_expected_updated_at: expected,
+          p_state: snapshot,
+        });
+        const result = !write.error && write.data && typeof write.data === "object"
+          ? write.data as { saved?: boolean; state?: State | null; updated_at?: string | null }
+          : null;
 
-        if (!write.error && write.data?.updated_at) {
-          lastCloudUpdatedAt = write.data.updated_at;
+        if (result?.saved && result.updated_at) {
+          lastCloudUpdatedAt = result.updated_at;
           lastSyncedState = cloneState(snapshot);
           saved = true;
           break;
         }
 
-        // A missing row after an optimistic update means another tab/device
-        // saved first. Read the newest snapshot and merge both operation histories.
-        const latest = await supabase.from("app_state")
-          .select("state,updated_at")
-          .eq("owner_id", cloudAccountId)
-          .maybeSingle();
-        if (latest.error || !latest.data?.state) {
-          // Network/database unavailable: keep the local snapshot; a later
-          // user action will trigger another persistence attempt.
-          break;
+        // The database function locks the account row and returns the latest
+        // committed snapshot when another device saved first. Merge operation
+        // histories, then retry against that exact version.
+        let remote = result?.state && typeof result.state === "object" ? result.state : null;
+        let remoteUpdatedAt = result?.updated_at ?? null;
+        if (!remote || !remoteUpdatedAt) {
+          const latest = await supabase.from("app_state")
+            .select("state,updated_at")
+            .eq("owner_id", cloudAccountId)
+            .maybeSingle();
+          if (latest.error || !latest.data?.state || !latest.data.updated_at) {
+            // Network/database unavailable: keep local state; don't claim it synced.
+            break;
+          }
+          remote = latest.data.state as State;
+          remoteUpdatedAt = latest.data.updated_at;
         }
-        const remote = latest.data.state as State;
         state = mergeConcurrentState(lastSyncedState, state, remote);
-        lastCloudUpdatedAt = latest.data.updated_at ?? null;
+        lastCloudUpdatedAt = remoteUpdatedAt;
         lastSyncedState = cloneState(remote);
         try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       }
