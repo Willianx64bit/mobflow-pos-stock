@@ -121,11 +121,11 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     const localStockChanged = lp.stock !== bp.stock;
     const remoteStockChanged = rp.stock !== bp.stock;
     if (localStockChanged && remoteStockChanged) {
-      // The same stock update can arrive through both local state and Realtime.
-      // If both sides already have the same value, use the server value instead
-      // of applying the identical delta twice.
+      // Different devices can independently change the same product. Keep the
+      // server snapshot as the authoritative stock value: additive merging here
+      // can double-apply a sale when Realtime echoes a write that is already saved.
       if (lp.stock === rp.stock) return rp;
-      return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
+      return rp;
     }
     if (localStockChanged && !remoteStockChanged) return lp;
     return rp;
