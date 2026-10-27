@@ -140,8 +140,6 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     }
     return ids;
   };
-  const hasIndependentStockOperations = (left: Set<string>, right: Set<string>) =>
-    [...left].some((id) => !right.has(id)) && [...right].some((id) => !left.has(id));
   // If hydration/realtime races before the first confirmed cloud snapshot,
   // still preserve operation records created on either device. Never let a
   // remote snapshot erase a locally completed sale or stock movement.
@@ -168,15 +166,37 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     const localStockChanged = lp.stock !== bp.stock;
     const remoteStockChanged = rp.stock !== bp.stock;
     if (localStockChanged && remoteStockChanged) {
-      if (lp.stock === rp.stock) {
-        // Realtime may echo the exact same operation, or two independent
-        // operations may coincidentally produce the same quantity. Deduplicate
-        // the former by operation ID; preserve both deltas in the latter case.
-        const localOperations = stockOperationIdsSince(local, rp.id);
-        const remoteOperations = stockOperationIdsSince(remote, rp.id);
-        if (!hasIndependentStockOperations(localOperations, remoteOperations)) return rp;
+      // The remote stock is the committed baseline. Apply only stock-changing
+      // operations present locally but absent remotely; adding both snapshots'
+      // deltas repeatedly makes stock oscillate or drift on each refresh.
+      const localOperations = stockOperationIdsSince(local, rp.id);
+      const remoteOperations = stockOperationIdsSince(remote, rp.id);
+      const localOnly = new Set([...localOperations].filter((id) => !remoteOperations.has(id)));
+      let localOnlyDelta = 0;
+
+      for (const sale of local.sales ?? []) {
+        if (!localOnly.has("sales:" + sale.id)) continue;
+        for (const item of sale.items ?? []) {
+          if (item.productId === rp.id) localOnlyDelta -= Number(item.qty) || 0;
+        }
       }
-      return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
+      for (const key of ["stockWriteoffs", "stockTransfers", "stockAdjustments"] as const) {
+        for (const operation of local[key] ?? []) {
+          if (!localOnly.has(key + ":" + operation.id)) continue;
+          for (const item of operation.items ?? []) {
+            if (item.productId === rp.id) {
+              localOnlyDelta += (Number(item.newStock) || 0) - (Number(item.previousStock) || 0);
+            }
+          }
+        }
+      }
+      for (const note of local.receiving ?? []) {
+        if (!localOnly.has("receiving:" + note.id) || !note.stockReleased || note.decisions?.[rp.id] !== "aceitar") continue;
+        for (const item of [...(note.items ?? []), ...(note.extras ?? [])]) {
+          if (item.productId === rp.id) localOnlyDelta += Number(item.received ?? item.expected) || 0;
+        }
+      }
+      return { ...rp, stock: Math.max(0, rp.stock + localOnlyDelta) };
     }
     if (localStockChanged && !remoteStockChanged) return lp;
     return rp;
