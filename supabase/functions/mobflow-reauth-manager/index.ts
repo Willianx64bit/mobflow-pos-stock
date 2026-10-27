@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (authError || !authData.user) return json({ error: "Sessão inválida." }, 401);
     const { data: profile, error: profileError } = await admin.from("profiles")
       .select("id,username,role,active,account_id,permissions").eq("id", authData.user.id).maybeSingle();
-    if (profileError || !profile || !profile.active || (profile.role !== "manager" && !(profile.role === "pdv" && Array.isArray(profile.permissions) && profile.permissions.includes("Gerência"))) || !profile.account_id) {
+    if (profileError || !profile || !profile.active || (profile.role !== "manager" && !(Array.isArray(profile.permissions) && profile.permissions.includes("Gerência"))) || !profile.account_id) {
       return json({ error: "Acesso de gerência necessário." }, 403);
     }
     const { data: security, error: securityError } = await admin.from("manager_security_by_account")
