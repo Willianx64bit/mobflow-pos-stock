@@ -192,9 +192,19 @@ function startRealtime(accountId: string) {
       const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
       if (!remoteState || typeof remoteState !== "object") return;
       const remote = remoteState as State;
+      // Realtime can arrive while this tab has an unsaved sale/write-off.
+      // Merge it against the last confirmed cloud snapshot, but do not advance
+      // the base snapshot here: only a successful persistence write may do that.
+      // Otherwise the pending local stock delta can disappear or be counted twice.
       state = mergeConcurrentState(lastSyncedState, state, remote);
-      lastSyncedState = cloneState(remote);
-      lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
+      const localHasPendingChanges = lastSyncedState !== null && JSON.stringify(state) !== JSON.stringify(remote);
+      if (!localHasPendingChanges) {
+        lastSyncedState = cloneState(remote);
+        lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
+      } else {
+        persistRequested = true;
+        void persistState();
+      }
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
     })
