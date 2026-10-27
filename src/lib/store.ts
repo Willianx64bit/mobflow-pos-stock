@@ -693,16 +693,26 @@ export const actions = {
   },
   removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }); },
   clearCart() { set({ cart: [] }); },
-  checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Sale | null {
+  async checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Promise<Sale | null> {
+    // Atualiza o snapshot da empresa antes de validar e descontar o estoque.
+    // Isso reduz o risco de finalizar uma venda com saldo antigo quando outro
+    // terminal da mesma empresa acabou de vender ou baixar o mesmo produto.
+    await refreshCloudSnapshot();
     if (!state.cart.length) return null;
     // Regra de segurança: nenhuma venda pode ser registrada sem caixa aberto para o operador atual.
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
     const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && session.openedBy === operator);
     if (!operator || !activeCash) return null;
-    const items = state.cart.map((c) => {
-      const p = state.products.find((x) => x.id === c.productId)!;
-      return { productId: c.productId, name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
+    // Nunca registrar uma venda parcial, com produto ausente ou quantidade acima
+    // do saldo mais recente conhecido deste terminal.
+    const cartSnapshot = state.cart.map((c) => ({ ...c }));
+    const prepared = cartSnapshot.map((c) => {
+      const p = state.products.find((x) => x.id === c.productId);
+      if (!p || !Number.isFinite(c.qty) || c.qty <= 0 || c.qty > p.stock) return null;
+      return { productId: p.id, name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
     });
+    if (prepared.some((item) => item === null)) return null;
+    const items = prepared as NonNullable<(typeof prepared)[number]>[];
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
     const total = Math.max(0, subtotal - discountValue);
@@ -711,8 +721,8 @@ export const actions = {
     const seller = operator;
     const sale: Sale = { id: uid(), date: new Date().toISOString(), cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
     const products = state.products.map((p) => {
-      const c = state.cart.find((x) => x.productId === p.id);
-      return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
+      const c = cartSnapshot.find((x) => x.productId === p.id);
+      return c ? { ...p, stock: Math.round((p.stock - c.qty) * 1000) / 1000 } : p;
     });
     set({ products, cart: [], sales: [sale, ...state.sales] });
     return sale;
