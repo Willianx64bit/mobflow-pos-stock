@@ -418,7 +418,10 @@ export async function hydrateStore() {
     startRealtime(accountId);
     if ((!data?.state && !error) || (sameOwner && pendingLocalSync)) {
       try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
-      await persistState();
+      // Do not block the first render on a cloud write/retry. Hydration has
+      // already loaded the merged state locally; persistence continues in the
+      // background and keeps the pending marker until the server confirms it.
+      void persistState();
     }
     // Recover unsent changes when the phone returns online or the app becomes
     // visible again. This also covers WebViews that suspend realtime sockets.
