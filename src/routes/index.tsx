@@ -199,23 +199,28 @@ function PDV() {
     }
     setIsFinalizing(true);
     window.setTimeout(() => {
-      try { completeSale(); }
-      finally { setIsFinalizing(false); }
+      void completeSale().catch(() => setFlash("Erro ao concluir a venda. Confira o estoque antes de tentar novamente.")).finally(() => setIsFinalizing(false));
     }, 2000);
   };
 
-  const completeSale = () => {
-    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
-    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
+  const completeSale = async () => {
+    const s = await actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
+    if (s) {
+      setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+    } else {
+      setFlash("Venda não concluída: confira o caixa aberto e o estoque atualizado. Nenhum comprovante foi gerado.");
+    }
   };
 
   const confirmPixPayment = () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       try {
         setPixPayload("");
-        completeSale();
+        await completeSale();
+      } catch {
+        setFlash("Erro ao concluir a venda. Confira o estoque antes de tentar novamente.");
       } finally {
         setIsConfirmingPix(false);
       }
