@@ -215,7 +215,7 @@ function PDV() {
   const confirmPixPayment = () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
       try {
         setPixPayload("");
         await completeSale();
