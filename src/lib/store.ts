@@ -87,6 +87,7 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
+let syncRecoveryListenersInstalled = false;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -421,16 +422,15 @@ export async function hydrateStore() {
     }
     // Recover unsent changes when the phone returns online or the app becomes
     // visible again. This also covers WebViews that suspend realtime sockets.
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && !syncRecoveryListenersInstalled) {
       const retryPending = () => {
         if (document.visibilityState === "visible" && localStorage.getItem(PENDING_SYNC_KEY) === "1") {
           void persistState();
         }
       };
-      window.removeEventListener("online", retryPending);
       window.addEventListener("online", retryPending);
-      document.removeEventListener("visibilitychange", retryPending);
       document.addEventListener("visibilitychange", retryPending);
+      syncRecoveryListenersInstalled = true;
     }
     listeners.forEach((l) => l());
   })().finally(() => { hydrating = null; });
