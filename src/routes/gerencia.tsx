@@ -160,7 +160,7 @@ function Gerencia() {
           return;
         }
         const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
-        if (securityStatusError || typeof securityStatus?.configured !== "boolean" || !["manager", "pdv"].includes(securityStatus?.role)) {
+        if (securityStatusError || typeof securityStatus?.configured !== "boolean") {
           throw new Error("Não foi possível verificar a permissão da Gerência.");
         }
         let needsFirstUser = false;
