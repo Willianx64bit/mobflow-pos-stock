@@ -92,6 +92,18 @@ const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
+// Compare JSON data independently of object-key insertion order. Cloud JSONB
+// and localStorage can return the same state with different key ordering.
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return "{" + Object.keys(object).sort().filter((key) => object[key] !== undefined)
+      .map((key) => JSON.stringify(key) + ":" + stableStringify(object[key])).join(",") + "}";
+  }
+  return JSON.stringify(value) ?? "null";
+};
+
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
   const mergeById = <T extends { id: string }>(left: T[] = [], right: T[] = []) => {
     const map = new Map(right.map((x) => [x.id, x]));
@@ -250,7 +262,7 @@ function startRealtime(accountId: string) {
       const remote = remoteState as State;
       state = mergeConcurrentState(lastSyncedState, state, remote);
       const hasPendingChanges = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "1";
-      const localDiffersFromRemote = JSON.stringify({ ...state, cart: remote.cart }) !== JSON.stringify(remote);
+      const localDiffersFromRemote = stableStringify({ ...state, cart: remote.cart }) !== stableStringify(remote);
       if (!hasPendingChanges && !localDiffersFromRemote) {
         lastSyncedState = cloneState(remote);
         lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
@@ -305,7 +317,7 @@ function persistState() {
           lastSyncedState = cloneState(snapshot);
           try {
             localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(snapshot));
-            if (JSON.stringify(state) === JSON.stringify(snapshot)) {
+            if (stableStringify(state) === stableStringify(snapshot)) {
               localStorage.removeItem(PENDING_SYNC_KEY);
             } else {
               persistRequested = true;
@@ -504,7 +516,7 @@ export async function forceSyncStore(): Promise<{ success: boolean; message: str
       // A shopping cart is device/session-local for reconciliation purposes;
       // never overwrite another terminal's cart just to force a data refresh.
       const matchesRemote = remoteState &&
-        JSON.stringify({ ...state, cart: remoteState.cart }) === JSON.stringify(remoteState);
+        stableStringify({ ...state, cart: remoteState.cart }) === stableStringify(remoteState);
 
       if (matchesRemote) {
         try {
@@ -537,7 +549,7 @@ export async function forceSyncStore(): Promise<{ success: boolean; message: str
             localStorage.setItem(KEY, JSON.stringify(state));
           } catch {}
           listeners.forEach((listener) => listener());
-          if (JSON.stringify({ ...state, cart: confirmedState.cart }) === JSON.stringify(confirmedState)) {
+          if (stableStringify({ ...state, cart: confirmedState.cart }) === stableStringify(confirmedState)) {
             return { success: true, message: "Dados da empresa sincronizados. Saldos atualizados." };
           }
         }
