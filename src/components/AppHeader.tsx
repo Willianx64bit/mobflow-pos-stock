@@ -1,11 +1,11 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { hydrateStore } from "@/lib/store";
+import { forceSyncStore, hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History, RefreshCw } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
@@ -29,6 +29,8 @@ export function AppHeader() {
   const [pdvAuthorized, setPdvAuthorized] = useState(false);
   const [username, setUsername] = useState("Usuário");
   const [permissions, setPermissions] = useState<string[]>(["PDV"]);
+  const [syncingCompany, setSyncingCompany] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<{ success: boolean; text: string } | null>(null);
   const settings = useStore((s) => s.settings);
 
   useEffect(() => {
@@ -100,6 +102,20 @@ export function AppHeader() {
     localStorage.setItem("mobflow-sidebar", "closed");
     setOpen(false);
     navigate({ to: "/caixa" });
+  };
+
+  const syncCompanyNow = async () => {
+    if (syncingCompany) return;
+    setSyncingCompany(true);
+    setSyncMessage({ success: true, text: "Buscando e conciliando dados da empresa..." });
+    try {
+      const result = await forceSyncStore();
+      setSyncMessage({ success: result.success, text: result.message });
+    } catch {
+      setSyncMessage({ success: false, text: "Falha na sincronização. Confira a conexão e tente novamente." });
+    } finally {
+      setSyncingCompany(false);
+    }
   };
 
   const toggleSidebar = () => setOpen((value) => {
@@ -190,6 +206,13 @@ export function AppHeader() {
             </div>
             <nav className="flex-1 px-2 space-y-1">
               {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span></button>)}
+              <div className="mt-2 border-t border-border pt-2">
+                <button type="button" onClick={syncCompanyNow} disabled={syncingCompany} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-wait disabled:opacity-70" aria-live="polite">
+                  <span className="flex w-6 shrink-0 justify-center text-green-600"><RefreshCw className={`h-5 w-5 ${syncingCompany ? "animate-spin" : ""}`} /></span>
+                  <span className="flex-1 text-left">{syncingCompany ? "Sincronizando dados..." : "Sincronizar dados"}</span>
+                </button>
+                {syncMessage && <p role="status" className={`px-3 pb-2 text-xs leading-relaxed ${syncMessage.success ? "text-green-600" : "text-red-500"}`}>{syncMessage.text}</p>}
+              </div>
               {permissions.includes("PDV") && <div className="mt-1">
                 <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
