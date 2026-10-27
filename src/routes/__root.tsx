@@ -198,7 +198,7 @@ function RootComponent() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role,username,active,permissions")
+          .select("role,username,active,permissions,account_id")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -227,7 +227,7 @@ function RootComponent() {
 
         localStorage.setItem("mobflow-authenticated", "1");
         try {
-          await hydrateStore();
+          await hydrateStore(profile.account_id ?? session.user.id);
         } catch (error) {
           console.error("MobFlow: falha ao carregar os dados da conta", error);
         }
