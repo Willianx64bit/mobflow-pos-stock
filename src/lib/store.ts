@@ -53,6 +53,8 @@ type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
+const PENDING_SYNC_KEY = "mobflow:pending-cloud-sync";
+const LAST_SYNCED_KEY = "mobflow:last-synced-state";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const emptyState = (): State => ({
@@ -85,6 +87,7 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
+let syncRecoveryListenersInstalled = false;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -235,32 +238,41 @@ function startRealtime(accountId: string) {
   realtimeChannel = supabase
     .channel(`mobflow-state:${accountId}`)
     .on("postgres_changes", {
-      event: "UPDATE",
+      event: "*",
       schema: "public",
       table: "app_state",
       filter: `owner_id=eq.${accountId}`,
     }, (payload) => {
-      const remoteState = (payload.new as Record<string, unknown> | undefined)?.["state"];
-      const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
+      const row = (payload.new ?? payload.old) as Record<string, unknown> | undefined;
+      const remoteState = row?.["state"];
+      const remoteUpdatedAt = row?.["updated_at"];
       if (!remoteState || typeof remoteState !== "object") return;
       const remote = remoteState as State;
-      // Realtime can arrive while this tab has an unsaved sale/write-off.
-      // Merge it against the last confirmed cloud snapshot, but do not advance
-      // the base snapshot here: only a successful persistence write may do that.
-      // Otherwise the pending local stock delta can disappear or be counted twice.
       state = mergeConcurrentState(lastSyncedState, state, remote);
-      const localHasPendingChanges = lastSyncedState !== null && JSON.stringify({ ...state, cart: remote.cart }) !== JSON.stringify(remote);
-      if (!localHasPendingChanges) {
+      const hasPendingChanges = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "1";
+      const localDiffersFromRemote = JSON.stringify({ ...state, cart: remote.cart }) !== JSON.stringify(remote);
+      if (!hasPendingChanges && !localDiffersFromRemote) {
         lastSyncedState = cloneState(remote);
         lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
+        try { localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(remote)); } catch {}
       } else {
+        try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
         persistRequested = true;
         void persistState();
       }
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
     })
-    .subscribe();
+    .subscribe((status) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        // Reconnect after transient mobile-network drops instead of leaving the
+        // app silently disconnected from changes made by other terminals.
+        realtimeOwnerId = null;
+        setTimeout(() => {
+          if (cloudAccountId && cloudAccountId === accountId) startRealtime(accountId);
+        }, 1500);
+      }
+    });
 }
 
 function persistState() {
@@ -291,6 +303,14 @@ function persistState() {
         if (result?.saved && result.updated_at) {
           lastCloudUpdatedAt = result.updated_at;
           lastSyncedState = cloneState(snapshot);
+          try {
+            localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(snapshot));
+            if (JSON.stringify(state) === JSON.stringify(snapshot)) {
+              localStorage.removeItem(PENDING_SYNC_KEY);
+            } else {
+              persistRequested = true;
+            }
+          } catch {}
           saved = true;
           break;
         }
@@ -306,7 +326,8 @@ function persistState() {
             .eq("owner_id", cloudAccountId)
             .maybeSingle();
           if (latest.error || !latest.data?.state || !latest.data.updated_at) {
-            // Network/database unavailable: keep local state; don't claim it synced.
+            // Keep the pending marker so a refresh or reconnect can retry safely.
+            try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
             break;
           }
           remote = latest.data.state as State;
@@ -342,7 +363,16 @@ export async function hydrateStore() {
     // Preserve contacts saved locally for this same account if the cloud snapshot
     // predates the contacts feature. Never merge another company's local data.
     const localOwner = typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null;
-    const localContacts = localOwner && localOwner === cloudAccountId ? [...(state.contacts ?? [])] : [...(state.contacts ?? [])];
+    const localSnapshot = cloneState(state);
+    const pendingLocalSync = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "1";
+    let storedBaseline: State | null = null;
+    if (typeof window !== "undefined") {
+      try {
+        const rawBaseline = localStorage.getItem(LAST_SYNCED_KEY);
+        if (rawBaseline) storedBaseline = JSON.parse(rawBaseline) as State;
+      } catch {}
+    }
+    const localContacts = [...(state.contacts ?? [])];
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
@@ -360,10 +390,17 @@ export async function hydrateStore() {
       const mergedContacts = sameOwner
         ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remote => remote.id === local.id))]
         : remoteContacts;
-      state = { ...emptyState(), ...data.state, contacts: mergedContacts };
-      state.settings = { ...emptyState().settings, ...(data.state as State).settings };
+      const remoteState = { ...emptyState(), ...data.state, contacts: remoteContacts } as State;
+      // If a previous cloud save failed, preserve its locally journaled changes
+      // and reconcile them with the latest cloud snapshot instead of discarding
+      // completed sales/write-offs during page reload.
+      state = sameOwner && pendingLocalSync
+        ? mergeConcurrentState(storedBaseline, localSnapshot, remoteState)
+        : { ...remoteState, contacts: mergedContacts };
+      state.settings = { ...emptyState().settings, ...(state.settings ?? {}) };
       lastCloudUpdatedAt = data.updated_at ?? null;
-      lastSyncedState = cloneState(data.state as State);
+      lastSyncedState = cloneState(remoteState);
+      try { localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(remoteState)); } catch {}
     } else if (!error) {
       // Conta sem dados na nuvem é uma empresa nova: não reutilizar dados
       // de demonstração nem o armazenamento local de outra conta.
@@ -379,7 +416,22 @@ export async function hydrateStore() {
     } catch {}
     cloudReady = true;
     startRealtime(accountId);
-    if (!data?.state && !error) await persistState();
+    if ((!data?.state && !error) || (sameOwner && pendingLocalSync)) {
+      try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
+      await persistState();
+    }
+    // Recover unsent changes when the phone returns online or the app becomes
+    // visible again. This also covers WebViews that suspend realtime sockets.
+    if (typeof window !== "undefined" && !syncRecoveryListenersInstalled) {
+      const retryPending = () => {
+        if (document.visibilityState === "visible" && localStorage.getItem(PENDING_SYNC_KEY) === "1") {
+          void persistState();
+        }
+      };
+      window.addEventListener("online", retryPending);
+      document.addEventListener("visibilitychange", retryPending);
+      syncRecoveryListenersInstalled = true;
+    }
     listeners.forEach((l) => l());
   })().finally(() => { hydrating = null; });
   return hydrating;
@@ -387,7 +439,10 @@ export async function hydrateStore() {
 
 function set(next: Partial<State>) {
   state = { ...state, ...next };
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(PENDING_SYNC_KEY, "1");
+  } catch {}
   if (cloudReady) void persistState();
   listeners.forEach((l) => l());
 }
