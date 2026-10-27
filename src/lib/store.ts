@@ -92,6 +92,18 @@ const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
+// Compare JSON data independently of object-key insertion order. Cloud JSONB
+// and localStorage can return the same state with different key ordering.
+const stableStringify = (value: unknown): string => {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return "{" + Object.keys(object).sort().filter((key) => object[key] !== undefined)
+      .map((key) => JSON.stringify(key) + ":" + stableStringify(object[key])).join(",") + "}";
+  }
+  return JSON.stringify(value) ?? "null";
+};
+
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
   const mergeById = <T extends { id: string }>(left: T[] = [], right: T[] = []) => {
     const map = new Map(right.map((x) => [x.id, x]));
@@ -250,7 +262,7 @@ function startRealtime(accountId: string) {
       const remote = remoteState as State;
       state = mergeConcurrentState(lastSyncedState, state, remote);
       const hasPendingChanges = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "1";
-      const localDiffersFromRemote = JSON.stringify({ ...state, cart: remote.cart }) !== JSON.stringify(remote);
+      const localDiffersFromRemote = stableStringify({ ...state, cart: remote.cart }) !== stableStringify(remote);
       if (!hasPendingChanges && !localDiffersFromRemote) {
         lastSyncedState = cloneState(remote);
         lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
@@ -305,7 +317,7 @@ function persistState() {
           lastSyncedState = cloneState(snapshot);
           try {
             localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(snapshot));
-            if (JSON.stringify(state) === JSON.stringify(snapshot)) {
+            if (stableStringify(state) === stableStringify(snapshot)) {
               localStorage.removeItem(PENDING_SYNC_KEY);
             } else {
               persistRequested = true;
@@ -438,6 +450,117 @@ export async function hydrateStore() {
     listeners.forEach((l) => l());
   })().finally(() => { hydrating = null; });
   return hydrating;
+}
+
+
+export async function forceSyncStore(): Promise<{ success: boolean; message: string }> {
+  try {
+    load();
+    if (hydrating) await hydrating;
+    else if (!cloudReady || !cloudAccountId) await hydrateStore();
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return { success: false, message: "Sessão não encontrada. Entre novamente." };
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("account_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profileError) return { success: false, message: "Não foi possível confirmar a empresa." };
+
+    const accountId = profile?.account_id ?? user.id;
+    if (cloudAccountId !== accountId || localStorage.getItem(OWNER_KEY) !== accountId) {
+      await hydrateStore();
+    }
+    if (cloudAccountId !== accountId || localStorage.getItem(OWNER_KEY) !== accountId) {
+      return { success: false, message: "Não foi possível confirmar os dados desta empresa. Entre novamente." };
+    }
+
+    // Re-read the authoritative company row, reconcile with the last confirmed
+    // baseline, and only write back if local operations are genuinely missing.
+    // The compare-and-save RPC protects against another terminal saving at once.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const localSnapshot = cloneState(state);
+      let baseline = lastSyncedState;
+      if (!baseline) {
+        try {
+          const raw = localStorage.getItem(LAST_SYNCED_KEY);
+          if (raw) baseline = JSON.parse(raw) as State;
+        } catch {}
+      }
+
+      const { data, error } = await supabase
+        .from("app_state")
+        .select("state,updated_at")
+        .eq("owner_id", accountId)
+        .maybeSingle();
+      if (error) return { success: false, message: "Falha ao consultar a nuvem. Tente novamente." };
+
+      const remoteState = data?.state
+        ? { ...emptyState(), ...(data.state as Partial<State>) } as State
+        : null;
+
+      if (remoteState) {
+        state = mergeConcurrentState(baseline, localSnapshot, remoteState);
+        lastCloudUpdatedAt = data?.updated_at ?? null;
+        lastSyncedState = cloneState(remoteState);
+      } else if (localStorage.getItem(OWNER_KEY) !== accountId) {
+        return { success: false, message: "A empresa ativa mudou. Entre novamente." };
+      }
+
+      normalizeState();
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      listeners.forEach((listener) => listener());
+
+      // A shopping cart is device/session-local for reconciliation purposes;
+      // never overwrite another terminal's cart just to force a data refresh.
+      const matchesRemote = remoteState &&
+        stableStringify({ ...state, cart: remoteState.cart }) === stableStringify(remoteState);
+
+      if (matchesRemote) {
+        try {
+          localStorage.removeItem(PENDING_SYNC_KEY);
+          localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(remoteState));
+        } catch {}
+        lastSyncedState = cloneState(remoteState);
+        return { success: true, message: "Dados da empresa sincronizados. Saldos atualizados." };
+      }
+
+      try { localStorage.setItem(PENDING_SYNC_KEY, "1"); } catch {}
+      await persistState();
+
+      // Do not report success just because the save function returned. Confirm
+      // that the pending marker cleared and the latest company row is readable.
+      if (localStorage.getItem(PENDING_SYNC_KEY) !== "1") {
+        const { data: confirmed, error: confirmError } = await supabase
+          .from("app_state")
+          .select("state,updated_at")
+          .eq("owner_id", accountId)
+          .maybeSingle();
+        if (!confirmError && confirmed?.state && confirmed.updated_at) {
+          const confirmedState = { ...emptyState(), ...(confirmed.state as Partial<State>) } as State;
+          const currentLocal = cloneState(state);
+          state = mergeConcurrentState(lastSyncedState, currentLocal, confirmedState);
+          lastCloudUpdatedAt = confirmed.updated_at;
+          lastSyncedState = cloneState(confirmedState);
+          try {
+            localStorage.setItem(LAST_SYNCED_KEY, JSON.stringify(confirmedState));
+            localStorage.setItem(KEY, JSON.stringify(state));
+          } catch {}
+          listeners.forEach((listener) => listener());
+          if (stableStringify({ ...state, cart: confirmedState.cart }) === stableStringify(confirmedState)) {
+            return { success: true, message: "Dados da empresa sincronizados. Saldos atualizados." };
+          }
+        }
+      }
+    }
+
+    return { success: false, message: "A sincronização ainda tem alterações pendentes. Confira a conexão e tente novamente." };
+  } catch (error) {
+    console.error("MobFlow: falha na sincronização manual", error);
+    return { success: false, message: "Não foi possível concluir a sincronização. Tente novamente." };
+  }
 }
 
 function set(next: Partial<State>) {
