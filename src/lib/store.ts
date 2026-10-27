@@ -90,11 +90,29 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], stockWriteoffs: local.stockWriteoffs ?? remote.stockWriteoffs ?? [], stockTransfers: local.stockTransfers ?? remote.stockTransfers ?? [], promotions: remote.promotions ?? local.promotions ?? [], cashSessions: local.cashSessions ?? remote.cashSessions ?? [], cashMovements: local.cashMovements ?? remote.cashMovements ?? [], suppliers: remote.suppliers };
-  const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
+  const mergeById = <T extends { id: string }>(left: T[] = [], right: T[] = []) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
     return Array.from(map.values());
+  };
+  // If hydration/realtime races before the first confirmed cloud snapshot,
+  // still preserve operation records created on either device. Never let a
+  // remote snapshot erase a locally completed sale or stock movement.
+  if (!base) return {
+    ...remote, ...local,
+    products: local.products,
+    sales: mergeById(local.sales ?? [], remote.sales ?? []),
+    conferences: mergeById(local.conferences ?? [], remote.conferences ?? []),
+    receiving: mergeById(local.receiving ?? [], remote.receiving ?? []),
+    manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
+    stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
+    stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
+    stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []),
+    promotions: mergeById(local.promotions ?? [], remote.promotions ?? []),
+    cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []),
+    cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []),
+    contacts: mergeById(local.contacts ?? [], remote.contacts ?? []),
+    suppliers: mergeById(local.suppliers ?? [], remote.suppliers ?? []),
   };
   const products = remote.products.map((rp) => {
     const bp = base.products.find((p) => p.id === rp.id);
