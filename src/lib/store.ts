@@ -89,7 +89,7 @@ let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let syncRecoveryListenersInstalled = false;
 let syncPollTimer: ReturnType<typeof setInterval> | null = null;
-let refreshingCloudSnapshot = false;
+let refreshingCloudSnapshotPromise: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -289,10 +289,9 @@ function startRealtime(accountId: string) {
     });
 }
 
-async function refreshCloudSnapshot() {
-  if (typeof window === "undefined" || !cloudReady || !cloudAccountId || refreshingCloudSnapshot ||
+async function refreshCloudSnapshotInternal() {
+  if (typeof window === "undefined" || !cloudReady || !cloudAccountId ||
       document.visibilityState !== "visible" || !navigator.onLine) return;
-  refreshingCloudSnapshot = true;
   try {
     const { data, error } = await supabase.from("app_state")
       .select("state,updated_at")
@@ -319,9 +318,17 @@ async function refreshCloudSnapshot() {
     listeners.forEach((listener) => listener());
   } catch (error) {
     console.warn("MobFlow: atualização automática da nuvem será tentada novamente.", error);
-  } finally {
-    refreshingCloudSnapshot = false;
   }
+}
+
+// If a timer/focus refresh is already running, stock actions must wait for that
+// same request instead of proceeding against a potentially stale local balance.
+function refreshCloudSnapshot(): Promise<void> {
+  if (refreshingCloudSnapshotPromise) return refreshingCloudSnapshotPromise;
+  refreshingCloudSnapshotPromise = refreshCloudSnapshotInternal().finally(() => {
+    refreshingCloudSnapshotPromise = null;
+  });
+  return refreshingCloudSnapshotPromise;
 }
 
 function persistState() {
@@ -405,7 +412,7 @@ function persistState() {
   return persistQueue;
 }
 
-export async function hydrateStore() {
+export async function hydrateStore(accountIdOverride?: string) {
   if (hydrating) return hydrating;
   hydrating = (async () => {
     load();
@@ -422,10 +429,13 @@ export async function hydrateStore() {
       } catch {}
     }
     const localContacts = [...(state.contacts ?? [])];
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
-    const accountId = profile?.account_id ?? user.id;
+    let accountId = accountIdOverride ?? "";
+    if (!accountId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
+      accountId = profile?.account_id ?? user.id;
+    }
     const sameOwner = localOwner === accountId;
     cloudAccountId = accountId;
     const { data, error } = await supabase
@@ -835,7 +845,9 @@ export const actions = {
     set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])] });
     return id;
   },
-  applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
+  async applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }): Promise<StockWriteoff | false> {
+    // Wait for any in-flight cloud refresh before reading the stock to write off.
+    await refreshCloudSnapshot();
     const reason = input.reason;
     if (!input.items.length || (reason === "Doação" && !input.donationDestination?.trim())) return false;
     const prepared = input.items.map((item) => {
