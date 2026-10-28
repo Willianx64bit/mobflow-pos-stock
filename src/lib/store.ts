@@ -89,6 +89,10 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
+let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
+let syncFallbackInFlight = false;
+// Incremented whenever a cloud event arrives while a persistence request is in flight.
+let realtimeRevision = 0;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -270,11 +274,49 @@ function normalizeState() {
     : { companyName: "" };
 }
 
+async function refreshFromCloud(accountId: string) {
+  if (
+    typeof window === "undefined" ||
+    !cloudReady ||
+    cloudAccountId !== accountId ||
+    syncFallbackInFlight ||
+    persistWorker
+  ) return;
+
+  syncFallbackInFlight = true;
+  try {
+    const { data, error } = await supabase
+      .from("app_state")
+      .select("state,updated_at")
+      .eq("owner_id", accountId)
+      .maybeSingle();
+
+    if (error || !data?.state || typeof data.state !== "object") return;
+    const remoteUpdatedAt = typeof data.updated_at === "string" ? data.updated_at : null;
+    if (!remoteUpdatedAt || remoteUpdatedAt === lastCloudUpdatedAt) return;
+
+    const remote = data.state as State;
+    state = mergeConcurrentState(lastSyncedState, state, remote);
+    lastSyncedState = cloneState(remote);
+    lastCloudUpdatedAt = remoteUpdatedAt;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    listeners.forEach((listener) => listener());
+  } catch {
+    // Realtime and the next fallback tick can recover from temporary network errors.
+  } finally {
+    syncFallbackInFlight = false;
+  }
+}
+
 function startRealtime(accountId: string) {
   if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
   if (realtimeChannel) {
     void supabase.removeChannel(realtimeChannel);
     realtimeChannel = null;
+  }
+  if (syncFallbackTimer) {
+    clearInterval(syncFallbackTimer);
+    syncFallbackTimer = null;
   }
   realtimeOwnerId = accountId;
   realtimeChannel = supabase
@@ -289,13 +331,24 @@ function startRealtime(accountId: string) {
       const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
       if (!remoteState || typeof remoteState !== "object") return;
       const remote = remoteState as State;
+      realtimeRevision += 1;
       state = mergeConcurrentState(lastSyncedState, state, remote);
       lastSyncedState = cloneState(remote);
       lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
     })
-    .subscribe();
+    .subscribe((status) => {
+      // Keep a fallback active even if Realtime disconnects or misses a change.
+      if (status === "SUBSCRIBED") void refreshFromCloud(accountId);
+    });
+
+  // Realtime is the fast path; polling recovers missed cross-user updates.
+  if (!syncFallbackTimer) {
+    syncFallbackTimer = setInterval(() => {
+      void refreshFromCloud(accountId);
+    }, 3000);
+  }
 }
 
 function persistState() {
@@ -312,6 +365,7 @@ function persistState() {
       if (!cloudReady || typeof window === "undefined" || !cloudAccountId) break;
 
       const snapshot = cloneState(state);
+      const revisionAtRequestStart = realtimeRevision;
       const expected = lastCloudUpdatedAt;
       let result;
       try {
@@ -339,8 +393,14 @@ function persistState() {
         break;
       }
       if (result.data?.updated_at) {
-        lastCloudUpdatedAt = result.data.updated_at;
-        lastSyncedState = cloneState(snapshot);
+        // A Realtime event may have delivered a newer cloud snapshot while this HTTP
+        // request was in flight. Do not replace that newer merge base with our older snapshot.
+        if (!lastCloudUpdatedAt || Date.parse(result.data.updated_at) >= Date.parse(lastCloudUpdatedAt)) {
+          lastCloudUpdatedAt = result.data.updated_at;
+        }
+        if (revisionAtRequestStart === realtimeRevision) {
+          lastSyncedState = cloneState(snapshot);
+        }
         attempts = 0;
         continue;
       }
@@ -366,6 +426,9 @@ function persistState() {
       lastCloudUpdatedAt = remoteResult.data.updated_at ?? null;
       lastSyncedState = cloneState(remoteResult.data.state as State);
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      // CAS conflict reconciliation changes the external store too; notify React now,
+      // otherwise the new stock may appear only after a page reload.
+      listeners.forEach((l) => l());
       persistRequested = true;
       attempts += 1;
     }
