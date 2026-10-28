@@ -71,7 +71,7 @@ begin
   from jsonb_array_elements(coalesce(v_state->'products', '[]'::jsonb)) as product(value);
 
   select coalesce(jsonb_agg(jsonb_build_object(
-    'id', 'receiving:' || p_receiving_id || ':' || product.value->>'id',
+    'id', 'receiving:' || p_receiving_id || ':' || (product.value->>'id'),
     'operationId', p_receiving_id,
     'date', v_now,
     'type', 'Recebimento',
