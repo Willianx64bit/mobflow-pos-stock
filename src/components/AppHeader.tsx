@@ -5,13 +5,14 @@ import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
   { to: "/operacoes", label: "Operações", icon: "operations" },
   { to: "/validade", label: "Validade dos produtos", icon: "expiry" },
   { to: "/fiado", label: "Fiado", icon: "credit" },
+  { to: "/historico-vendas", label: "Histórico de vendas", icon: "sales-history" },
   { to: "/gerencia", label: "Acesso Gerência", icon: "management" },
 ] as const;
 
@@ -84,7 +85,7 @@ export function AppHeader() {
   }, []);
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
-    const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" };
+    const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" };
     const operationsOnly = permissions.includes("Operações") && !permissions.some((permission) => permission !== "Operações");
     if (operationsOnly && to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
     if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
@@ -189,7 +190,7 @@ export function AppHeader() {
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
+              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
               {permissions.includes("PDV") && <div className="mt-1">
                 <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
