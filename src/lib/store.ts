@@ -86,9 +86,9 @@ let realtimeOwnerId: string | null = null;
 let cloudAccountId: string | null = null;
 let lastCloudUpdatedAt: string | null = null;
 let lastSyncedState: State | null = null;
-let persistQueue: Promise<void> = Promise.resolve();
+let persistQueue: Promise<boolean> = Promise.resolve(true);
 let persistRequested = false;
-let persistWorker: Promise<void> | null = null;
+let persistWorker: Promise<boolean> | null = null;
 let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
 let syncFallbackInFlight = false;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
@@ -363,17 +363,14 @@ function startRealtime(accountId: string) {
   if (!syncFallbackTimer) {
     syncFallbackTimer = setInterval(() => {
       void refreshFromCloud(accountId);
-    }, 3000);
-  }
-}
-
-function persistState() {
+    }, 3000function persistState(): Promise<boolean> {
   // Coalesce local changes, but never silently discard a failed cloud write.
   persistRequested = true;
   if (persistWorker) return persistQueue;
 
   persistWorker = (async () => {
     let attempts = 0;
+    let saved = false;
     const maxAttempts = 3;
 
     while (persistRequested && attempts < maxAttempts) {
@@ -417,6 +414,7 @@ function persistState() {
         if (revisionAtRequestStart === realtimeRevision) {
           lastSyncedState = cloneState(snapshot);
         }
+        saved = true;
         attempts = 0;
         continue;
       }
@@ -448,9 +446,11 @@ function persistState() {
       persistRequested = true;
       attempts += 1;
     }
+    return saved && !persistRequested;
   })().catch(() => {
     // Preserve a retry request even if an unexpected exception escapes.
     persistRequested = true;
+    return false;
   }).finally(() => {
     persistWorker = null;
     if (persistRequested && cloudReady && typeof window !== "undefined" && cloudAccountId) {
@@ -460,6 +460,12 @@ function persistState() {
   });
   persistQueue = persistWorker;
   return persistQueue;
+}
+
+// Checkout waits for the current queued snapshot to be confirmed by Supabase.
+export function confirmCloudSync(): Promise<boolean> {
+  if (!cloudReady || typeof window === "undefined" || !cloudAccountId) return Promise.resolve(false);
+  return persistState();
 }
 
 export async function hydrateStore() {
