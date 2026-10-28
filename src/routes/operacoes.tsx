@@ -44,7 +44,7 @@ function Operacoes() {
   return (
     <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
       <AppHeader />
-      <main className="mx-auto max-w-5xl space-y-6 pt-16">
+      <main className="mx-auto w-full max-w-screen-2xl space-y-8 px-1 pt-16 lg:px-4">
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-7">
           <div className="flex flex-col items-center justify-center gap-3 text-center">
             <div className="flex items-center justify-center gap-3">
@@ -54,19 +54,19 @@ function Operacoes() {
           </div>
         </section>
         {hasManagementAccess && <div className="flex justify-center"><button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-green-700 px-5 py-3 font-semibold text-white shadow-sm transition hover:bg-green-800"><LockKeyhole className="h-4 w-4" /> Voltar para Gerência</button></div>}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:gap-6 xl:grid-cols-3 2xl:gap-7">
           {items.map((item) => {
             const Icon = item.icon;
             return (
-              <button key={item.title} type="button" onClick={() => item.title === "Movimentações de estoque" ? navigate({ to: "/movimentacoes-estoque" }) : item.title === "Conferência" ? navigate({ to: "/conferencia" }) : item.title === "Baixa de produtos" ? navigate({ to: "/baixa-produtos" }) : item.title === "Transferência" ? navigate({ to: "/transferencias" }) : item.title === "Balanço de estoque" ? navigate({ to: "/balanco-estoque" }) : item.title === "Fornecedores e Clientes" ? navigate({ to: "/fornecedores-clientes" }) : window.alert(item.title + " será configurada na próxima etapa.")} className={`rounded-2xl bg-white p-5 text-left ring-1 transition hover:-translate-y-0.5 hover:ring-primary/50 ${item.title === "Movimentações de estoque" && showMovements ? "ring-2 ring-green-600" : "ring-border"}`}>
+              <button key={item.title} type="button" onClick={() => item.title === "Movimentações de estoque" ? navigate({ to: "/movimentacoes-estoque" }) : item.title === "Conferência" ? navigate({ to: "/conferencia" }) : item.title === "Baixa de produtos" ? navigate({ to: "/baixa-produtos" }) : item.title === "Transferência" ? navigate({ to: "/transferencias" }) : item.title === "Balanço de estoque" ? navigate({ to: "/balanco-estoque" }) : item.title === "Fornecedores e Clientes" ? navigate({ to: "/fornecedores-clientes" }) : window.alert(item.title + " será configurada na próxima etapa.")} className={`flex min-h-56 flex-col rounded-2xl bg-white p-6 text-left shadow-sm ring-1 transition duration-200 hover:-translate-y-1 hover:shadow-md hover:ring-primary/50 md:p-7 xl:min-h-64 xl:p-8 ${item.title === "Movimentações de estoque" && showMovements ? "ring-2 ring-green-600" : "ring-border"}`}>
                 <div className="flex items-center justify-between gap-3">
-                  <div className="relative grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><Icon className="h-6 w-6" />
+                  <div className="relative grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 md:h-16 md:w-16"><Icon className="h-7 w-7 md:h-8 md:w-8" />
                     {item.title === "Conferência" && hasActionToDo && <span className="absolute left-14 top-0 whitespace-nowrap rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">AÇÃO A SER FEITA</span>}
                   </div>
                   {!item.ready && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">Em preparação</span>}
                 </div>
-                <h2 className="mt-4 font-bold text-heading">{item.title}</h2>
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">{item.description}</p>
+                <h2 className="mt-5 text-lg font-bold leading-snug text-heading md:text-xl xl:text-2xl">{item.title}</h2>
+                <p className="mt-3 text-base leading-6 text-muted-foreground xl:text-lg xl:leading-7">{item.description}</p>
               </button>
             );
           })}
