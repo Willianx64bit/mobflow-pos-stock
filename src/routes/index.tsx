@@ -313,7 +313,7 @@ function PDV() {
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
           <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-3 field px-4 py-3">
+            <div className="flex-1 flex items-center gap-3 field px-4 py-4 border-2">
               <span className="font-mono text-[11px] text-primary">/</span>
               <input
                 ref={search}
@@ -321,19 +321,19 @@ function PDV() {
                 onChange={(e) => onChangeQ(e.target.value)}
                 onKeyDown={onSearchKey}
                 placeholder="Buscar nome, código ou bipar… (ex: 3*cafe)"
-                className="flex-1 min-w-0 bg-transparent outline-none text-[15px] text-foreground placeholder:text-muted-foreground"
+                className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
-              <span className="ml-auto font-mono text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
+              <span className="ml-auto font-mono text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
                 {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
               </span>
             </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-[12px] font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
-              <span className={`h-3 w-6 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-2 w-2 rounded-full bg-background transition-all ${quick ? "left-3.5" : "left-0.5"}`} /></span>
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
               Bipe rápido {quick ? "ligado" : "desligado"}
             </button>
-            {flash && <span className={`font-mono text-[11px] ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
+            {flash && <span className={`font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
           <div className="grid grid-cols-3 gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
@@ -348,8 +348,8 @@ function PDV() {
                   <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground">
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
-                  <div className="mt-2 text-sm md:text-base font-semibold text-foreground line-clamp-2 min-h-[2.5rem] leading-snug">{p.name}</div>
-                  <div className="mt-0.5 truncate font-mono text-[9px] md:text-[10px] text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
+                  <div className="mt-2 text-base md:text-lg font-semibold text-foreground line-clamp-2 min-h-[3rem] leading-snug">{p.name}</div>
+                  <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
                   <div className="mt-auto pt-2 text-center">
                     {effectivePrice(p) < p.price ? (
                       <div className="flex flex-col items-center gap-1">
@@ -380,8 +380,9 @@ function PDV() {
             {lines.map(({ p, qty }) => (
               <div key={p.id} className="py-4 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[15px] xl:text-[16px] font-semibold text-foreground truncate">{p.name}</div>
-                  <div className="font-mono text-[12px] xl:text-[13px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
+                  <div className="text-base xl:text-lg font-semibold text-foreground truncate">{p.name}</div>
+                  <div className="mt-0.5 font-mono text-sm xl:text-base font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
+                  <div className="font-mono text-[13px] xl:text-sm text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
                   <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">−</button>
