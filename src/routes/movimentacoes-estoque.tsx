@@ -22,7 +22,7 @@ function MovimentacoesEstoque() {
   const [selected, setSelected] = useState<StockMovement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const operationTypes = useMemo(() => [...new Set(movements.map((m) => m.type))].sort((a, b) => a.localeCompare(b, "pt-BR")), [movements]);
+  const operationTypes = useMemo(() => [...new Set(["Venda", "Transferência", "Baixa", "Balanço", "Recebimento", "Saída", "Ajuste de estoque", "Ajuste manual", "Cadastro", "Importação", ...movements.map((m) => m.type)])].sort((a, b) => a.localeCompare(b, "pt-BR")), [movements]);
   const filtered = useMemo(() => movements
     .filter((m) => operation === "Todas" || m.type === operation)
     .filter((m) => direction === "Todas" || (direction === "Entradas" ? m.delta > 0 : direction === "Saídas" ? m.delta < 0 : m.delta === 0))
