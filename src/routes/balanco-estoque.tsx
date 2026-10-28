@@ -38,8 +38,9 @@ function BalancoEstoque() {
       permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]")
         .map((p: string) => p === "Conferência" ? "Operações" : p);
     } catch {}
-    const operationsOnly = permissions.includes("Operações") && !permissions.includes("PDV") && !permissions.includes("Gerência");
-    if (sessionStorage.getItem("mobflow-management") !== "1" && !operationsOnly) navigate({ to: "/gerencia" });
+    // A permissão de Operações autoriza acesso direto, mesmo quando o usuário também possui outras permissões.
+    const hasOperationsPermission = permissions.includes("Operações");
+    if (sessionStorage.getItem("mobflow-management") !== "1" && !hasOperationsPermission) navigate({ to: "/gerencia" });
   }, [navigate]);
 
   const results = useMemo(() => {
