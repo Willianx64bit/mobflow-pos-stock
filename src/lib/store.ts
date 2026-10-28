@@ -49,7 +49,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string; details?: string };
+export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string; details?: string; legacy?: boolean };
 type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
@@ -105,7 +105,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   const baseMovementIds = new Set((base.stockMovements ?? []).map((movement) => movement.id));
   const newMovementDeltas = new Map<string, number>();
   for (const movement of stockMovements) {
-    if (baseMovementIds.has(movement.id)) continue;
+    if (movement.legacy || baseMovementIds.has(movement.id)) continue;
     newMovementDeltas.set(movement.productId, (newMovementDeltas.get(movement.productId) ?? 0) + movement.delta);
   }
   const products = remote.products.map((rp) => {
@@ -168,6 +168,68 @@ function normalizeState() {
   state.cart = Array.isArray(state.cart) ? state.cart : [];
   state.sales = Array.isArray(state.sales) ? state.sales : [];
   state.stockMovements = Array.isArray(state.stockMovements) ? state.stockMovements : [];
+  // Build a read-only bridge for historical operations created before the ledger existed.
+  // Legacy rows are explicitly marked so they never participate in stock delta reconciliation.
+  const knownMovementIds = new Set(state.stockMovements.map((movement) => movement.id));
+  const legacyCandidates: StockMovement[] = [];
+  for (const sale of state.sales) {
+    sale.items.forEach((item, index) => {
+      const product = state.products.find((p) => p.id === item.productId) ?? state.products.find((p) => p.name.trim().toLocaleLowerCase() === item.name.trim().toLocaleLowerCase());
+      const productId = product?.id ?? `legacy-product:${item.name.trim().toLocaleLowerCase()}`;
+      const id = `legacy:sale:${sale.id}:${productId}:${index}`;
+      if (knownMovementIds.has(id)) return;
+      legacyCandidates.push({ id, operationId: sale.id, date: sale.date, type: "Venda", productId, productCode: product?.code, productName: item.name, unit: item.unit === "kg" ? "kg" : product?.unit ?? "un", quantity: item.qty, totalValue: Math.round(item.price * item.qty * 100) / 100, stockBefore: 0, stockAfter: 0, delta: -item.qty, operator: sale.seller, details: `Venda histórica ${sale.id}`, legacy: true });
+    });
+  }
+  for (const adjustment of state.stockAdjustments) for (const item of adjustment.items) {
+    const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
+    if (knownMovementIds.has(id)) continue;
+    const delta = item.newStock - item.previousStock;
+    legacyCandidates.push({ id, operationId: adjustment.id, date: adjustment.date, type: /balanço/i.test(adjustment.reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(delta), totalValue: Math.round(Math.abs(delta) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta, operator: adjustment.operator, details: adjustment.reason, legacy: true });
+  }
+  for (const writeoff of state.stockWriteoffs) for (const item of writeoff.items) {
+    const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
+    if (knownMovementIds.has(id)) continue;
+    legacyCandidates.push({ id, operationId: writeoff.id, date: writeoff.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: writeoff.operator, details: `${writeoff.number} · ${writeoff.reason}`, legacy: true });
+  }
+  for (const transfer of state.stockTransfers) for (const item of transfer.items) {
+    const id = `legacy:transfer:${transfer.id}:${item.productId}`;
+    if (knownMovementIds.has(id)) continue;
+    legacyCandidates.push({ id, operationId: transfer.id, date: transfer.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: transfer.operator, details: `${transfer.number} · Destino: ${transfer.destinationName}`, legacy: true });
+  }
+  for (const note of state.receiving) {
+    if (!note.stockReleased) continue;
+    const lines = [...note.items, ...(note.extras ?? [])];
+    const totals = new Map<string, { quantity: number; name: string; unit: "un" | "kg" }>();
+    for (const line of lines) {
+      if (note.decisions && note.decisions[line.productId] === "devolver") continue;
+      const quantity = "received" in line ? (line.received ?? ("expected" in line ? line.expected : 0)) : 0;
+      if (quantity <= 0) continue;
+      const previous = totals.get(line.productId);
+      totals.set(line.productId, { quantity: (previous?.quantity ?? 0) + quantity, name: line.name, unit: line.unit });
+    }
+    for (const [productId, line] of totals) {
+      const id = `legacy:receiving:${note.id}:${productId}`;
+      if (knownMovementIds.has(id)) continue;
+      const product = state.products.find((p) => p.id === productId);
+      legacyCandidates.push({ id, operationId: note.id, date: note.date, type: "Recebimento", productId, productCode: product?.code, productName: line.name, unit: line.unit, quantity: line.quantity, totalValue: Math.round(line.quantity * (product?.price ?? 0) * 100) / 100, stockBefore: 0, stockAfter: 0, delta: line.quantity, details: `Nota ${note.number} · ${note.supplier}`, legacy: true });
+    }
+  }
+  // Reconstruct missing legacy stock snapshots backwards from the current product balance.
+  const legacyByProduct = new Map<string, StockMovement[]>();
+  for (const movement of legacyCandidates) legacyByProduct.set(movement.productId, [...(legacyByProduct.get(movement.productId) ?? []), movement]);
+  for (const [productId, movements] of legacyByProduct) {
+    const product = state.products.find((p) => p.id === productId);
+    let runningStock = product?.stock ?? 0;
+    for (const movement of movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())) {
+      if (movement.stockBefore === 0 && movement.stockAfter === 0) {
+        movement.stockAfter = runningStock;
+        movement.stockBefore = Math.max(0, Math.round((runningStock - movement.delta) * 1000) / 1000);
+      }
+      runningStock = Math.max(0, Math.round((runningStock - movement.delta) * 1000) / 1000);
+    }
+  }
+  state.stockMovements = [...legacyCandidates, ...state.stockMovements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   state.cashSessions = Array.isArray(state.cashSessions) ? state.cashSessions : [];
   state.cashMovements = Array.isArray(state.cashMovements) ? state.cashMovements : [];
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
