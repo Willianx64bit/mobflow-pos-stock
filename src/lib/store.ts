@@ -273,31 +273,66 @@ function normalizeState() {
 }
 
 function startRealtime(accountId: string) {
-  if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
-  if (realtimeChannel) {
-    void supabase.removeChannel(realtimeChannel);
-    realtimeChannel = null;
+  if (typeof window === "undefined") return;
+  if (realtimeOwnerId !== accountId) {
+    if (realtimeChannel) {
+      void supabase.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+    if (realtimeFallbackTimer) {
+      clearInterval(realtimeFallbackTimer);
+      realtimeFallbackTimer = null;
+    }
+    realtimeOwnerId = accountId;
+    realtimeChannel = supabase
+      .channel(`mobflow-state:${accountId}`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "app_state",
+        filter: `owner_id=eq.${accountId}`,
+      }, (payload) => {
+        const row = payload.new as Record<string, unknown> | undefined;
+        const remoteState = row?.["state"];
+        const remoteUpdatedAt = row?.["updated_at"];
+        if (!remoteState || typeof remoteState !== "object") return;
+        const remote = remoteState as State;
+        state = mergeConcurrentState(lastSyncedState, state, remote);
+        lastSyncedState = cloneState(remote);
+        lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+        listeners.forEach((l) => l());
+      })
+      .subscribe();
   }
-  realtimeOwnerId = accountId;
-  realtimeChannel = supabase
-    .channel(`mobflow-state:${accountId}`)
-    .on("postgres_changes", {
-      event: "UPDATE",
-      schema: "public",
-      table: "app_state",
-      filter: `owner_id=eq.${accountId}`,
-    }, (payload) => {
-      const remoteState = (payload.new as Record<string, unknown> | undefined)?.["state"];
-      const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
-      if (!remoteState || typeof remoteState !== "object") return;
-      const remote = remoteState as State;
-      state = mergeConcurrentState(lastSyncedState, state, remote);
-      lastSyncedState = cloneState(remote);
-      lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      listeners.forEach((l) => l());
-    })
-    .subscribe();
+
+  // Realtime is the fast path. This lightweight background check covers cases
+  // where the channel is disconnected or app_state is not in the publication.
+  // It never blocks navigation or page rendering.
+  if (!realtimeFallbackTimer) {
+    realtimeFallbackTimer = setInterval(async () => {
+      if (realtimePollInFlight || !cloudReady || !cloudAccountId || cloudAccountId !== accountId) return;
+      realtimePollInFlight = true;
+      try {
+        const { data, error } = await supabase
+          .from("app_state")
+          .select("state,updated_at")
+          .eq("owner_id", accountId)
+          .maybeSingle();
+        if (error || !data?.state || !data.updated_at || data.updated_at === lastCloudUpdatedAt) return;
+        const remote = data.state as State;
+        state = mergeConcurrentState(lastSyncedState, state, remote);
+        lastSyncedState = cloneState(remote);
+        lastCloudUpdatedAt = data.updated_at;
+        try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+        listeners.forEach((l) => l());
+      } catch {
+        // The next background check retries; keep the current screen responsive.
+      } finally {
+        realtimePollInFlight = false;
+      }
+    }, 5000);
+  }
 }
 
 function persistState(): Promise<boolean> {
