@@ -363,7 +363,11 @@ function startRealtime(accountId: string) {
   if (!syncFallbackTimer) {
     syncFallbackTimer = setInterval(() => {
       void refreshFromCloud(accountId);
-    }, 3000function persistState(): Promise<boolean> {
+    }, 3000);
+  }
+}
+
+function persistState(): Promise<boolean> {
   // Coalesce local changes, but never silently discard a failed cloud write.
   persistRequested = true;
   if (persistWorker) return persistQueue;
