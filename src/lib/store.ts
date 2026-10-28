@@ -7,7 +7,7 @@ export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
-export type Sale = { id: string; date: string; cashSessionId?: string; items: { name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
+export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
 export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
@@ -49,17 +49,21 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string; details?: string; legacy?: boolean };
+type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
 const uid = () => Math.random().toString(36).slice(2, 10);
+const currentOperator = () => typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined;
+const movementEntry = (input: Omit<StockMovement, "id" | "operator"> & { id?: string; operator?: string }): StockMovement => ({ ...input, id: input.id ?? uid(), operator: input.operator ?? currentOperator() });
 
 const emptyState = (): State => ({
   contacts: [],
   products: [],
   cart: [],
   sales: [],
+  stockMovements: [],
   cashSessions: [],
   cashMovements: [],
   conferences: [],
@@ -90,16 +94,25 @@ const listeners = new Set<() => void>();
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
-  if (!base) return { ...remote, ...local, products: local.products, sales: remote.sales, conferences: remote.conferences, receiving: remote.receiving, manualExpiries: local.manualExpiries ?? remote.manualExpiries ?? [], stockAdjustments: local.stockAdjustments ?? remote.stockAdjustments ?? [], stockWriteoffs: local.stockWriteoffs ?? remote.stockWriteoffs ?? [], stockTransfers: local.stockTransfers ?? remote.stockTransfers ?? [], promotions: remote.promotions ?? local.promotions ?? [], cashSessions: local.cashSessions ?? remote.cashSessions ?? [], cashMovements: local.cashMovements ?? remote.cashMovements ?? [], suppliers: remote.suppliers };
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
     const map = new Map(right.map((x) => [x.id, x]));
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
     return Array.from(map.values());
   };
+  if (!base) return { ...remote, ...local, products: local.products, sales: mergeById(local.sales, remote.sales), stockMovements: mergeById(local.stockMovements ?? [], remote.stockMovements ?? []), conferences: mergeById(local.conferences ?? [], remote.conferences ?? []), receiving: mergeById(local.receiving ?? [], remote.receiving ?? []), manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []), stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []), stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []), stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []), promotions: mergeById(local.promotions ?? [], remote.promotions ?? []), cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []), cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []), suppliers: remote.suppliers ?? local.suppliers };
+  const stockMovements = mergeById(local.stockMovements ?? [], remote.stockMovements ?? []);
+  const baseMovementIds = new Set((base.stockMovements ?? []).map((movement) => movement.id));
+  const newMovementDeltas = new Map<string, number>();
+  for (const movement of stockMovements) {
+    if (movement.legacy || baseMovementIds.has(movement.id)) continue;
+    newMovementDeltas.set(movement.productId, (newMovementDeltas.get(movement.productId) ?? 0) + movement.delta);
+  }
   const products = remote.products.map((rp) => {
     const bp = base.products.find((p) => p.id === rp.id);
     const lp = local.products.find((p) => p.id === rp.id);
     if (!lp || !bp) return rp;
+    const movementDelta = newMovementDeltas.get(rp.id);
+    if (movementDelta !== undefined) return { ...rp, stock: Math.max(0, Math.round((bp.stock + movementDelta) * 1000) / 1000) };
     const localStockChanged = lp.stock !== bp.stock;
     const remoteStockChanged = rp.stock !== bp.stock;
     if (localStockChanged && remoteStockChanged) {
@@ -116,6 +129,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   return {
     ...remote,
     products,
+    stockMovements,
     sales: mergeById(local.sales, remote.sales),
     cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []),
     cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []),
@@ -152,6 +166,89 @@ function normalizeState() {
   state.products = Array.isArray(state.products) ? state.products : [];
   state.cart = Array.isArray(state.cart) ? state.cart : [];
   state.sales = Array.isArray(state.sales) ? state.sales : [];
+  state.cashSessions = Array.isArray(state.cashSessions) ? state.cashSessions : [];
+  state.cashMovements = Array.isArray(state.cashMovements) ? state.cashMovements : [];
+  state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
+  state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
+  state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
+  state.stockAdjustments = Array.isArray(state.stockAdjustments) ? state.stockAdjustments : [];
+  state.stockWriteoffs = Array.isArray(state.stockWriteoffs) ? state.stockWriteoffs : [];
+  state.stockTransfers = Array.isArray(state.stockTransfers) ? state.stockTransfers : [];
+  state.promotions = Array.isArray(state.promotions) ? state.promotions : [];
+  state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
+  state.stockMovements = Array.isArray(state.stockMovements) ? state.stockMovements : [];
+  // Build a read-only bridge for historical operations created before the ledger existed.
+  // Legacy rows are explicitly marked so they never participate in stock delta reconciliation.
+  const knownMovementIds = new Set(state.stockMovements.map((movement) => movement.id));
+  const legacyCandidates: StockMovement[] = [];
+  for (const sale of state.sales) {
+    if (state.stockMovements.some((movement) => movement.operationId === sale.id && !movement.legacy)) continue;
+    (sale.items ?? []).forEach((item, index) => {
+      const product = state.products.find((p) => p.id === item.productId) ?? state.products.find((p) => p.name.trim().toLocaleLowerCase() === item.name.trim().toLocaleLowerCase());
+      const productId = product?.id ?? `legacy-product:${item.name.trim().toLocaleLowerCase()}`;
+      const id = `legacy:sale:${sale.id}:${productId}:${index}`;
+      if (knownMovementIds.has(id)) return;
+      legacyCandidates.push({ id, operationId: sale.id, date: sale.date, type: "Venda", productId, productCode: product?.code, productName: item.name, unit: item.unit === "kg" ? "kg" : product?.unit ?? "un", quantity: item.qty, totalValue: Math.round(item.price * item.qty * 100) / 100, stockBefore: 0, stockAfter: 0, delta: -item.qty, operator: sale.seller, details: `Venda histórica ${sale.id}`, legacy: true });
+    });
+  }
+  for (const adjustment of state.stockAdjustments) {
+    if (state.stockMovements.some((movement) => movement.operationId === adjustment.id && !movement.legacy)) continue;
+    for (const item of adjustment.items) {
+      const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
+      if (knownMovementIds.has(id)) continue;
+      const delta = item.newStock - item.previousStock;
+      legacyCandidates.push({ id, operationId: adjustment.id, date: adjustment.date, type: /balanço/i.test(adjustment.reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(delta), totalValue: Math.round(Math.abs(delta) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta, operator: adjustment.operator, details: adjustment.reason, legacy: true });
+    }
+  }
+  for (const writeoff of state.stockWriteoffs) {
+    if (state.stockMovements.some((movement) => movement.operationId === writeoff.id && !movement.legacy)) continue;
+    for (const item of writeoff.items) {
+      const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
+      if (knownMovementIds.has(id)) continue;
+      legacyCandidates.push({ id, operationId: writeoff.id, date: writeoff.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: writeoff.operator, details: `${writeoff.number} · ${writeoff.reason}`, legacy: true });
+    }
+  }
+  for (const transfer of state.stockTransfers) {
+    if (state.stockMovements.some((movement) => movement.operationId === transfer.id && !movement.legacy)) continue;
+    for (const item of transfer.items) {
+      const id = `legacy:transfer:${transfer.id}:${item.productId}`;
+      if (knownMovementIds.has(id)) continue;
+      legacyCandidates.push({ id, operationId: transfer.id, date: transfer.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: transfer.operator, details: `${transfer.number} · Destino: ${transfer.destinationName}`, legacy: true });
+    }
+  }
+  for (const note of state.receiving) {
+    if (!note.stockReleased || state.stockMovements.some((movement) => movement.operationId === note.id && !movement.legacy)) continue;
+    const lines = [...note.items, ...(note.extras ?? [])];
+    const totals = new Map<string, { quantity: number; name: string; unit: "un" | "kg" }>();
+    for (const line of lines) {
+      if (note.decisions && note.decisions[line.productId] === "devolver") continue;
+      const quantity = "received" in line ? (line.received ?? ("expected" in line ? line.expected : 0)) : 0;
+      if (quantity <= 0) continue;
+      const previous = totals.get(line.productId);
+      totals.set(line.productId, { quantity: (previous?.quantity ?? 0) + quantity, name: line.name, unit: line.unit });
+    }
+    for (const [productId, line] of totals) {
+      const id = `legacy:receiving:${note.id}:${productId}`;
+      if (knownMovementIds.has(id)) continue;
+      const product = state.products.find((p) => p.id === productId);
+      legacyCandidates.push({ id, operationId: note.id, date: note.date, type: "Recebimento", productId, productCode: product?.code, productName: line.name, unit: line.unit, quantity: line.quantity, totalValue: Math.round(line.quantity * (product?.price ?? 0) * 100) / 100, stockBefore: 0, stockAfter: 0, delta: line.quantity, details: `Nota ${note.number} · ${note.supplier}`, legacy: true });
+    }
+  }
+  // Reconstruct missing legacy stock snapshots backwards from the current product balance.
+  const legacyByProduct = new Map<string, StockMovement[]>();
+  for (const movement of legacyCandidates) legacyByProduct.set(movement.productId, [...(legacyByProduct.get(movement.productId) ?? []), movement]);
+  for (const [productId, movements] of legacyByProduct) {
+    const product = state.products.find((p) => p.id === productId);
+    let runningStock = product?.stock ?? 0;
+    for (const movement of movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())) {
+      if (movement.stockBefore === 0 && movement.stockAfter === 0) {
+        movement.stockAfter = runningStock;
+        movement.stockBefore = Math.max(0, Math.round((runningStock - movement.delta) * 1000) / 1000);
+      }
+      runningStock = Math.max(0, Math.round((runningStock - movement.delta) * 1000) / 1000);
+    }
+  }
+  state.stockMovements = [...legacyCandidates, ...state.stockMovements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   state.cashSessions = Array.isArray(state.cashSessions) ? state.cashSessions : [];
   state.cashMovements = Array.isArray(state.cashMovements) ? state.cashMovements : [];
   state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
@@ -429,7 +526,7 @@ export const actions = {
     if (!operator || !activeCash) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
-      return { name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
+      return { productId: p.id, name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
     const discountValue = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discount)) / 100 : Math.min(subtotal, Math.max(0, discount));
@@ -442,7 +539,13 @@ export const actions = {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
     });
-    set({ products, cart: [], sales: [sale, ...state.sales] });
+    const stockMovements = state.cart.flatMap((c) => {
+      const p = state.products.find((x) => x.id === c.productId);
+      if (!p) return [];
+      const stockAfter = Math.max(0, p.stock - c.qty);
+      return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
+    });
+    set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
     return sale;
   },
   addFiadoPayment(id: string, value: number) {
@@ -495,14 +598,24 @@ export const actions = {
       stockAdjustments: [],
       stockWriteoffs: [],
       stockTransfers: [],
+      stockMovements: [],
       promotions: [],
       suppliers: [],
       settings: { companyName: "" },
     });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
-    if (p.id) set({ products: state.products.map((x) => (x.id === p.id ? { ...x, ...p, id: x.id } : x)) });
-    else set({ products: [{ ...p, id: uid() }, ...state.products] });
+    if (p.id) {
+      const old = state.products.find((x) => x.id === p.id);
+      const updated = { ...old, ...p, id: p.id } as Product;
+      const movements = old && old.stock !== updated.stock ? [movementEntry({ operationId: `manual:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: old.id, productCode: old.code, productName: old.name, unit: old.unit, quantity: Math.abs(updated.stock - old.stock), totalValue: Math.round(Math.abs(updated.stock - old.stock) * updated.price * 100) / 100, stockBefore: old.stock, stockAfter: updated.stock, delta: updated.stock - old.stock, details: "Alteração manual do cadastro" })] : [];
+      set({ products: state.products.map((x) => (x.id === p.id ? updated : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] });
+    } else {
+      const id = uid();
+      const product = { ...p, id } as Product;
+      const movements = product.stock > 0 ? [movementEntry({ id: `cadastro:${id}`, operationId: id, date: new Date().toISOString(), type: "Cadastro", productId: id, productCode: product.code, productName: product.name, unit: product.unit, quantity: product.stock, totalValue: Math.round(product.stock * product.price * 100) / 100, stockBefore: 0, stockAfter: product.stock, delta: product.stock, details: "Estoque inicial do cadastro" })] : [];
+      set({ products: [product, ...state.products], stockMovements: [...movements, ...(state.stockMovements ?? [])] });
+    }
   },
   importProducts(rows: { code: string; name: string; qty: number; price?: number | undefined }[], mode: "replace" | "add") {
     const products = [...state.products];
@@ -518,11 +631,23 @@ export const actions = {
         created++;
       }
     }
-    set({ products });
+    const stockMovements: StockMovement[] = [];
+    for (const product of products) {
+      const previous = state.products.find((p) => p.id === product.id);
+      if (!previous) {
+        if (product.stock > 0) stockMovements.push(movementEntry({ id: `import:${product.id}:${uid()}`, operationId: `import:${product.id}`, date: new Date().toISOString(), type: "Importação", productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, quantity: product.stock, totalValue: Math.round(product.stock * product.price * 100) / 100, stockBefore: 0, stockAfter: product.stock, delta: product.stock, details: "Produto incluído pela importação" }));
+      } else if (previous.stock !== product.stock) {
+        stockMovements.push(movementEntry({ operationId: `import:${uid()}`, date: new Date().toISOString(), type: "Importação", productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, quantity: Math.abs(product.stock - previous.stock), totalValue: Math.round(Math.abs(product.stock - previous.stock) * product.price * 100) / 100, stockBefore: previous.stock, stockAfter: product.stock, delta: product.stock - previous.stock, details: `Importação em modo ${mode}` }));
+      }
+    }
+    set({ products, stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
     return { created, updated };
   },
   updateField(id: string, field: "price" | "stock", value: number) {
-    set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)) });
+    const product = state.products.find((x) => x.id === id);
+    if (!product) return;
+    const movements = field === "stock" && product.stock !== value ? [movementEntry({ operationId: `field:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: id, productCode: product.code, productName: product.name, unit: product.unit, quantity: Math.abs(value - product.stock), totalValue: Math.round(Math.abs(value - product.stock) * product.price * 100) / 100, stockBefore: product.stock, stockAfter: value, delta: value - product.stock, details: "Alteração direta do estoque" })] : [];
+    set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] });
   },
   applyStockAdjustmentBatch(input: { reason: string; items: { productId: string; mode: "somar" | "definir"; quantity: number }[] }) {
     const reason = input.reason.trim();
@@ -550,7 +675,8 @@ export const actions = {
       const changed = items.find((item) => item.productId === product.id);
       return changed ? { ...product, stock: changed.newStock } : product;
     });
-    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])] });
+    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: /balanço/i.test(reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
+    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
     return id;
   },
   applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
@@ -582,7 +708,8 @@ export const actions = {
       const item = items.find((x) => x.productId === p.id);
       return item ? { ...p, stock: item.newStock } : p;
     });
-    set({ products, stockWriteoffs: [entry, ...existing] });
+    const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · ${reason}` }));
+    set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
     return entry;
   },
   applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
@@ -592,7 +719,9 @@ export const actions = {
     const previousNumbers = existing.map((transfer) => String(transfer.number).match(/^NF:\s*(\d+)$/)).filter((match): match is RegExpMatchArray => Boolean(match)).map((match) => Number(match[1])).filter((number) => Number.isFinite(number));
     const sequence = previousNumbers.length ? Math.max(...previousNumbers) + 1 : 10;
     const entry: StockTransfer = { id: uid(), number: `NF:${String(sequence).padStart(4, "0")}`, date: new Date().toISOString(), reason: "Transferência de produtos, Vendas", destinationName: input.destinationName.trim(), destinationDocument: input.destinationDocument?.trim() || undefined, destinationPhone: input.destinationPhone?.trim() || undefined, destinationStreet: input.destinationStreet?.trim() || undefined, destinationNumber: input.destinationNumber?.trim() || undefined, destinationCep: input.destinationCep?.trim() || undefined, destinationNeighborhood: input.destinationNeighborhood?.trim() || undefined, destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined, costMode: input.costMode, operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined, items };
-    const products = state.products.map((p) => { const item = items.find((x) => x.productId === p.id); return item ? { ...p, stock: item.newStock } : p; }); set({ products, stockTransfers: [entry, ...existing] }); return entry;
+    const products = state.products.map((p) => { const item = items.find((x) => x.productId === p.id); return item ? { ...p, stock: item.newStock } : p; });
+    const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · Destino: ${entry.destinationName}` }));
+    set({ products, stockTransfers: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }); return entry;
   },
   attachStockTransferDocument(id: string, document: unknown) { if (!(state.stockTransfers ?? []).some((item) => item.id === id)) return false; set({ stockTransfers: (state.stockTransfers ?? []).map((item) => item.id === id ? { ...item, document } : item) }); return true; },
   attachStockWriteoffDocument(id: string, document: unknown) {
@@ -626,7 +755,8 @@ export const actions = {
     const conf = state.conferences.find((c) => c.id === id);
     if (!conf) return;
     const products = adjust ? state.products.map((p) => (p.id in conf.counts ? { ...p, stock: conf.counts[p.id]! } : p)) : state.products;
-    set({ products, conferences: state.conferences.map((c) => (c.id === id ? { ...c, status: "finalizada", adjusted: adjust } : c)) });
+    const stockMovements = adjust ? state.products.filter((p) => p.id in conf.counts && p.stock !== conf.counts[p.id]!).map((p) => movementEntry({ id: `${id}:${p.id}`, operationId: id, date: new Date().toISOString(), type: "Balanço", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: Math.abs(conf.counts[p.id]! - p.stock), totalValue: Math.round(Math.abs(conf.counts[p.id]! - p.stock) * p.price * 100) / 100, stockBefore: p.stock, stockAfter: conf.counts[p.id]!, delta: conf.counts[p.id]! - p.stock, details: conf.name })) : [];
+    set({ products, conferences: state.conferences.map((c) => (c.id === id ? { ...c, status: "finalizada", adjusted: adjust } : c)), stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
   },
   addManualExpiry(productId: string, expiry: string, quantity: number) {
     const product = state.products.find((p) => p.id === productId);
