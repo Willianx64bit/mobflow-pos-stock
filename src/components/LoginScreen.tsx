@@ -167,10 +167,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         return;
       }
 
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: data.session.access_token,
-        refresh_token: data.session.refresh_token,
-      });
+      const { error: sessionError } = await withTimeout(
+        supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        }),
+        15000,
+      );
 
       if (sessionError) {
         setError("Não foi possível iniciar a sessão.");
