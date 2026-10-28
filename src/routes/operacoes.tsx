@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale, LockKeyhole, Users, History, PackageCheck, TrendingUp, TrendingDown } from "lucide-react";
+import { ClipboardList, ClipboardCheck, PackageMinus, ArrowLeftRight, Scale, LockKeyhole, Users, History, TrendingUp, TrendingDown } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useStore, type StockMovement } from "@/lib/store";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
