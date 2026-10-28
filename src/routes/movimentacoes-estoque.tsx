@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { useStore, type StockMovement } from "@/lib/store";
-import { ArrowLeft, Filter, History, TrendingDown, TrendingUp, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Filter, History, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -20,6 +20,7 @@ function MovimentacoesEstoque() {
   const [toDate, setToDate] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<StockMovement | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const operationTypes = useMemo(() => [...new Set(movements.map((m) => m.type))].sort((a, b) => a.localeCompare(b, "pt-BR")), [movements]);
   const filtered = useMemo(() => movements
@@ -50,12 +51,12 @@ function MovimentacoesEstoque() {
               <h1 className="text-2xl font-extrabold text-heading md:text-3xl">Movimentações de estoque</h1>
               <p className="mt-1 text-sm text-muted-foreground">Consulte entradas, saídas e ajustes registrados no estoque.</p>
             </div>
-          </div>
+          </div>}
         </section>
 
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
-          <div className="mb-4 flex items-center gap-2 font-bold text-heading"><Filter className="h-5 w-5" /> Filtrar movimentações</div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <button type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} className="mb-4 flex w-full items-center justify-between gap-2 font-bold text-heading"><span className="inline-flex items-center gap-2"><Filter className="h-5 w-5" /> Filtrar movimentações</span><ChevronDown className={`h-5 w-5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
+          {filtersOpen && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <label className="space-y-1.5 text-sm font-medium text-heading">Operação
               <select value={operation} onChange={(e) => setOperation(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm">
                 <option value="Todas">Todas as operações</option>
