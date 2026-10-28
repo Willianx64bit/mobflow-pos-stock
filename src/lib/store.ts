@@ -89,6 +89,8 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
+let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
+let syncFallbackInFlight = false;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
@@ -272,11 +274,49 @@ function normalizeState() {
     : { companyName: "" };
 }
 
+async function refreshFromCloud(accountId: string) {
+  if (
+    typeof window === "undefined" ||
+    !cloudReady ||
+    cloudAccountId !== accountId ||
+    syncFallbackInFlight ||
+    persistWorker
+  ) return;
+
+  syncFallbackInFlight = true;
+  try {
+    const { data, error } = await supabase
+      .from("app_state")
+      .select("state,updated_at")
+      .eq("owner_id", accountId)
+      .maybeSingle();
+
+    if (error || !data?.state || typeof data.state !== "object") return;
+    const remoteUpdatedAt = typeof data.updated_at === "string" ? data.updated_at : null;
+    if (!remoteUpdatedAt || remoteUpdatedAt === lastCloudUpdatedAt) return;
+
+    const remote = data.state as State;
+    state = mergeConcurrentState(lastSyncedState, state, remote);
+    lastSyncedState = cloneState(remote);
+    lastCloudUpdatedAt = remoteUpdatedAt;
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    listeners.forEach((listener) => listener());
+  } catch {
+    // Realtime and the next fallback tick can recover from temporary network errors.
+  } finally {
+    syncFallbackInFlight = false;
+  }
+}
+
 function startRealtime(accountId: string) {
   if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
   if (realtimeChannel) {
     void supabase.removeChannel(realtimeChannel);
     realtimeChannel = null;
+  }
+  if (syncFallbackTimer) {
+    clearInterval(syncFallbackTimer);
+    syncFallbackTimer = null;
   }
   realtimeOwnerId = accountId;
   realtimeChannel = supabase
@@ -298,7 +338,17 @@ function startRealtime(accountId: string) {
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
     })
-    .subscribe();
+    .subscribe((status) => {
+      // Keep a fallback active even if Realtime disconnects or misses a change.
+      if (status === "SUBSCRIBED") void refreshFromCloud(accountId);
+    });
+
+  // Realtime is the fast path; polling recovers missed cross-user updates.
+  if (!syncFallbackTimer) {
+    syncFallbackTimer = setInterval(() => {
+      void refreshFromCloud(accountId);
+    }, 3000);
+  }
 }
 
 function persistState() {
