@@ -37,14 +37,14 @@ function HistoricoVendas() {
   }, [navigate]);
 
   const ownSales = useMemo(() => sales.filter((sale) => !!username && (sale.seller || "").trim().toLocaleLowerCase("pt-BR") === username.toLocaleLowerCase("pt-BR")), [sales, username]);
-  const productOptions = useMemo(() => Array.from(new Set(ownSales.flatMap((sale) => sale.items.map((item) => item.name)))).sort((a, b) => a.localeCompare(b, "pt-BR")), [ownSales]);
   const filteredSales = useMemo(() => ownSales.filter((sale) => {
     const date = new Date(sale.date);
     const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
     const inPeriod = dateMode === "month" ? key.slice(0, 7) === month : startDate <= endDate && key >= startDate && key <= endDate;
     const term = searchText.trim().toLocaleLowerCase("pt-BR");
     const matchesText = !term || sale.id.toLocaleLowerCase("pt-BR").includes(term) || (sale.customer || "").toLocaleLowerCase("pt-BR").includes(term) || sale.items.some((item) => item.name.toLocaleLowerCase("pt-BR").includes(term));
-    const matchesProduct = !productFilter || sale.items.some((item) => item.name === productFilter);
+    const productTerm = productFilter.trim().toLocaleLowerCase("pt-BR");
+    const matchesProduct = !productTerm || sale.items.some((item) => item.name.toLocaleLowerCase("pt-BR").includes(productTerm));
     return inPeriod && matchesText && matchesProduct;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [ownSales, dateMode, month, startDate, endDate, searchText, productFilter]);
   const total = filteredSales.reduce((sum, sale) => sum + sale.total, 0);
@@ -66,7 +66,7 @@ function HistoricoVendas() {
         </div>
         {filtersOpen && <div className="mt-4 grid gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="text-sm text-muted-foreground sm:col-span-2">Buscar venda, código, produto ou cliente<div className="relative mt-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" /><input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="Digite para pesquisar" className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-foreground" /></div></label>
-          <label className="text-sm text-muted-foreground">Produto<select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"><option value="">Todos os produtos</option>{productOptions.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
+          <label className="text-sm text-muted-foreground">Pesquisar produto<div className="relative mt-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" /><input type="search" value={productFilter} onChange={(e) => setProductFilter(e.target.value)} placeholder="Digite o nome do produto" className="block w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-foreground" /></div></label>
           <label className="text-sm text-muted-foreground">Período<select value={dateMode} onChange={(e) => setDateMode(e.target.value as "month" | "range")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"><option value="month">Por mês</option><option value="range">Data personalizada</option></select></label>
           {dateMode === "month" ? <label className="text-sm text-muted-foreground">Mês<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground" /></label> : <><label className="text-sm text-muted-foreground">Data inicial<input type="date" value={startDate} max={endDate} onChange={(e) => e.target.value && setStartDate(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground" /></label><label className="text-sm text-muted-foreground">Data final<input type="date" value={endDate} min={startDate} onChange={(e) => e.target.value && setEndDate(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground" /></label></>}
           <div className="flex items-end"><button type="button" onClick={() => { setSearchText(""); setProductFilter(""); setDateMode("month"); setMonth(todayKey.slice(0, 7)); setStartDate(todayKey); setEndDate(todayKey); }} className="rounded-lg px-3 py-2 font-semibold text-primary hover:bg-accent">Limpar filtros</button></div>
