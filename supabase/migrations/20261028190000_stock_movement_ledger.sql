@@ -173,7 +173,7 @@ begin
 
   select p.username into v_operator from public.profiles p where p.id = auth.uid() limit 1;
   select coalesce(jsonb_agg(jsonb_build_object(
-    'id', 'receiving:' || p_receiving_id || ':' || product.value->>'id',
+    'id', 'receiving:' || p_receiving_id || ':' || (product.value->>'id'),
     'operationId', p_receiving_id, 'date', v_now, 'type', 'Recebimento',
     'productId', product.value->>'id', 'productCode', product.value->>'code',
     'productName', product.value->>'name', 'unit', coalesce(product.value->>'unit', 'un'),
