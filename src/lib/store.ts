@@ -292,8 +292,17 @@ async function refreshFromCloud(accountId: string) {
       .maybeSingle();
 
     if (error || !data?.state || typeof data.state !== "object") return;
+
+    // A write can begin while this read is in flight. In that case, leave the
+    // current state untouched and let the next fallback tick read the committed row.
+    if (!cloudReady || cloudAccountId !== accountId || persistWorker) return;
+
     const remoteUpdatedAt = typeof data.updated_at === "string" ? data.updated_at : null;
-    if (!remoteUpdatedAt || remoteUpdatedAt === lastCloudUpdatedAt) return;
+    if (!remoteUpdatedAt) return;
+    const remoteTime = Date.parse(remoteUpdatedAt);
+    const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
+    // Never roll the merge base backwards if an older read returns after a newer event.
+    if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && remoteTime <= currentTime) return;
 
     const remote = data.state as State;
     state = mergeConcurrentState(lastSyncedState, state, remote);
@@ -332,9 +341,16 @@ function startRealtime(accountId: string) {
       if (!remoteState || typeof remoteState !== "object") return;
       const remote = remoteState as State;
       realtimeRevision += 1;
+      const incomingUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : null;
+      const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
+      const incomingTime = incomingUpdatedAt ? Date.parse(incomingUpdatedAt) : Number.NaN;
+      // Realtime payloads can arrive out of order; don't merge an older snapshot.
+      if (Number.isFinite(currentTime) && Number.isFinite(incomingTime) && incomingTime < currentTime) return;
       state = mergeConcurrentState(lastSyncedState, state, remote);
       lastSyncedState = cloneState(remote);
-      lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
+      if (incomingUpdatedAt && (!Number.isFinite(currentTime) || !Number.isFinite(incomingTime) || incomingTime >= currentTime)) {
+        lastCloudUpdatedAt = incomingUpdatedAt;
+      }
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
     })
