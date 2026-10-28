@@ -166,13 +166,23 @@ function normalizeState() {
   state.products = Array.isArray(state.products) ? state.products : [];
   state.cart = Array.isArray(state.cart) ? state.cart : [];
   state.sales = Array.isArray(state.sales) ? state.sales : [];
+  state.cashSessions = Array.isArray(state.cashSessions) ? state.cashSessions : [];
+  state.cashMovements = Array.isArray(state.cashMovements) ? state.cashMovements : [];
+  state.conferences = Array.isArray(state.conferences) ? state.conferences : [];
+  state.receiving = Array.isArray(state.receiving) ? state.receiving : [];
+  state.manualExpiries = Array.isArray(state.manualExpiries) ? state.manualExpiries : [];
+  state.stockAdjustments = Array.isArray(state.stockAdjustments) ? state.stockAdjustments : [];
+  state.stockWriteoffs = Array.isArray(state.stockWriteoffs) ? state.stockWriteoffs : [];
+  state.stockTransfers = Array.isArray(state.stockTransfers) ? state.stockTransfers : [];
+  state.promotions = Array.isArray(state.promotions) ? state.promotions : [];
+  state.suppliers = Array.isArray(state.suppliers) ? state.suppliers : [];
   state.stockMovements = Array.isArray(state.stockMovements) ? state.stockMovements : [];
   // Build a read-only bridge for historical operations created before the ledger existed.
   // Legacy rows are explicitly marked so they never participate in stock delta reconciliation.
   const knownMovementIds = new Set(state.stockMovements.map((movement) => movement.id));
   const legacyCandidates: StockMovement[] = [];
   for (const sale of state.sales) {
-    sale.items.forEach((item, index) => {
+    (sale.items ?? []).forEach((item, index) => {
       const product = state.products.find((p) => p.id === item.productId) ?? state.products.find((p) => p.name.trim().toLocaleLowerCase() === item.name.trim().toLocaleLowerCase());
       const productId = product?.id ?? `legacy-product:${item.name.trim().toLocaleLowerCase()}`;
       const id = `legacy:sale:${sale.id}:${productId}:${index}`;
