@@ -24,7 +24,7 @@ function ValidadeProdutos() {
   const [formError, setFormError] = useState("");
   const entries = useMemo(() => [
     ...notes.filter((note) => note.source !== "manual").flatMap((note) =>
-      note.items.filter((item) => !!item.expiry).map((item) => ({
+      note.items.filter((item) => !!item.expiry && note.decisions?.[item.productId] !== "devolver").map((item) => ({
         ...item,
         noteNumber: note.number,
         supplier: note.supplier,
