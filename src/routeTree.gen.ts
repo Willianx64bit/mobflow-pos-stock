@@ -146,6 +146,7 @@ export interface FileRoutesByTo {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
+  '/historico-vendas': typeof HistoricoVendasRoute
   '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
@@ -165,6 +166,7 @@ export interface FileRoutesById {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
+  '/historico-vendas': typeof HistoricoVendasRoute
   '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
