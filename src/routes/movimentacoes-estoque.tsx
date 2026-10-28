@@ -37,9 +37,9 @@ function MovimentacoesEstoque() {
   const formatDate = (value: string, seconds = false) => `${new Date(value).toLocaleDateString("pt-BR")} ${new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) })}`;
 
   return (
-    <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
+    <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6 xl:px-8 xl:py-8">
       <AppHeader />
-      <main className="mx-auto max-w-6xl space-y-5 pt-16">
+      <main className="mx-auto max-w-screen-2xl space-y-5 pt-16">
         <button type="button" onClick={() => navigate({ to: "/operacoes" })} className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 font-semibold text-heading hover:bg-muted">
           <ArrowLeft className="h-4 w-4" /> Voltar para Operações
         </button>
@@ -49,7 +49,7 @@ function MovimentacoesEstoque() {
             <div className="grid h-12 w-12 place-items-center rounded-xl bg-green-600/10 text-green-700"><History className="h-6 w-6" /></div>
             <div className="min-w-0">
               <h1 className="text-2xl font-extrabold text-heading md:text-3xl">Movimentações de estoque</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Consulte entradas, saídas e ajustes registrados no estoque.</p>
+              <p className="mt-1 text-sm md:text-base text-muted-foreground">Consulte entradas, saídas e ajustes registrados no estoque.</p>
             </div>
           </div>
         </section>
@@ -57,25 +57,25 @@ function MovimentacoesEstoque() {
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
           <button type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} className="mb-4 flex w-full items-center justify-between gap-2 font-bold text-heading"><span className="inline-flex items-center gap-2"><Filter className="h-5 w-5" /> Filtrar movimentações</span><ChevronDown className={`h-5 w-5 transition-transform ${filtersOpen ? "rotate-180" : ""}`} /></button>
           {filtersOpen && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="space-y-1.5 text-sm font-medium text-heading">Operação
-              <select value={operation} onChange={(e) => setOperation(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm">
+            <label className="space-y-1.5 text-sm md:text-base font-medium text-heading">Operação
+              <select value={operation} onChange={(e) => setOperation(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm md:text-base">
                 <option value="Todas">Todas as operações</option>
                 {operationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
             </label>
-            <label className="space-y-1.5 text-sm font-medium text-heading">Movimento
-              <select value={direction} onChange={(e) => setDirection(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm">
+            <label className="space-y-1.5 text-sm md:text-base font-medium text-heading">Movimento
+              <select value={direction} onChange={(e) => setDirection(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm md:text-base">
                 <option value="Todas">Entradas e saídas</option><option value="Entradas">Somente entradas</option><option value="Saídas">Somente saídas</option><option value="Sem alteração">Sem alteração de saldo</option>
               </select>
             </label>
-            <label className="space-y-1.5 text-sm font-medium text-heading">Produto, código ou operador
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Digite para pesquisar" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm" />
+            <label className="space-y-1.5 text-sm md:text-base font-medium text-heading">Produto, código ou operador
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Digite para pesquisar" className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm md:text-base" />
             </label>
-            <label className="space-y-1.5 text-sm font-medium text-heading">Data inicial
-              <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm" />
+            <label className="space-y-1.5 text-sm md:text-base font-medium text-heading">Data inicial
+              <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm md:text-base" />
             </label>
-            <label className="space-y-1.5 text-sm font-medium text-heading">Data final
-              <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm" />
+            <label className="space-y-1.5 text-sm md:text-base font-medium text-heading">Data final
+              <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm md:text-base" />
             </label>
             <div className="flex items-end"><button type="button" onClick={clearFilters} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-4 font-semibold hover:bg-muted"><X className="h-4 w-4" /> Limpar filtros</button></div>
           </div>}
@@ -84,9 +84,9 @@ function MovimentacoesEstoque() {
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-bold text-heading">Histórico</h2>
-            <span className="rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-muted-foreground">{filtered.length} de {movements.length} registro(s)</span>
+            <span className="rounded-full bg-secondary px-3 py-1 text-sm md:text-base font-semibold text-muted-foreground">{filtered.length} de {movements.length} registro(s)</span>
           </div>
-          {filtered.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">{movements.length === 0 ? "Ainda não há movimentações registradas para esta empresa." : "Nenhum registro corresponde aos filtros selecionados."}</div> : <div className="overflow-x-auto rounded-xl border">
+          {filtered.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center text-sm md:text-base text-muted-foreground">{movements.length === 0 ? "Ainda não há movimentações registradas para esta empresa." : "Nenhum registro corresponde aos filtros selecionados."}</div> : <div className="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader><TableRow>
                 <TableHead className="whitespace-nowrap">Data e hora</TableHead><TableHead>Operação</TableHead><TableHead>Produto</TableHead><TableHead className="whitespace-nowrap text-right">Quantidade</TableHead><TableHead className="whitespace-nowrap text-right">Valor total</TableHead><TableHead className="whitespace-nowrap text-right">Estoque antes</TableHead><TableHead className="whitespace-nowrap text-right">Estoque depois</TableHead><TableHead className="whitespace-nowrap text-right">Variação</TableHead>
@@ -94,7 +94,7 @@ function MovimentacoesEstoque() {
               <TableBody>{filtered.map((m) => <TableRow key={m.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelected(m)}>
                 <TableCell className="whitespace-nowrap">{formatDate(m.date)}</TableCell>
                 <TableCell className="whitespace-nowrap">{m.type}</TableCell>
-                <TableCell className="min-w-40"><div className="font-medium">{m.productName}</div>{m.productCode && <div className="text-xs text-muted-foreground">Cód. {m.productCode}</div>}</TableCell>
+                <TableCell className="min-w-40"><div className="font-medium">{m.productName}</div>{m.productCode && <div className="text-xs md:text-sm text-muted-foreground">Cód. {m.productCode}</div>}</TableCell>
                 <TableCell className="whitespace-nowrap text-right">{formatQuantity(m.quantity, m.unit)}</TableCell>
                 <TableCell className="whitespace-nowrap text-right">{formatMoney(m.totalValue)}</TableCell>
                 <TableCell className="whitespace-nowrap text-right">{formatQuantity(m.stockBefore, m.unit)}</TableCell>
@@ -110,17 +110,17 @@ function MovimentacoesEstoque() {
             {selected && <>
               <DialogHeader><DialogTitle>Detalhes da movimentação</DialogTitle><DialogDescription>Registro individual para consulta.</DialogDescription></DialogHeader>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Data e hora</p><p className="mt-1 font-semibold">{formatDate(selected.date, true)}</p></div>
-                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Tipo de operação</p><p className="mt-1 font-semibold">{selected.type}</p></div>
-                <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Produto</p><p className="mt-1 font-semibold">{selected.productName}</p>{selected.productCode && <p className="text-sm text-muted-foreground">Código: {selected.productCode}</p>}</div>
-                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Quantidade movimentada</p><p className="mt-1 font-semibold">{formatQuantity(selected.quantity, selected.unit)}</p></div>
-                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Valor total</p><p className="mt-1 font-semibold">{formatMoney(selected.totalValue)}</p></div>
-                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estoque antes</p><p className="mt-1 font-semibold">{formatQuantity(selected.stockBefore, selected.unit)}</p></div>
-                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Estoque depois</p><p className="mt-1 font-semibold">{formatQuantity(selected.stockAfter, selected.unit)}</p></div>
-                <div className="rounded-lg border p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Variação final</p><p className={`mt-1 text-lg font-extrabold ${selected.delta > 0 ? "text-green-700" : selected.delta < 0 ? "text-red-600" : "text-muted-foreground"}`}>{selected.delta > 0 ? "+" : ""}{formatQuantity(selected.delta, selected.unit)}</p></div>
-                {selected.operator && <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Operador</p><p className="mt-1 font-semibold">{selected.operator}</p></div>}
-                {selected.details && <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs text-muted-foreground">Referência</p><p className="mt-1 text-sm">{selected.details}</p></div>}
-                <div className="text-xs text-muted-foreground sm:col-span-2">Identificador: {selected.operationId}</div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs md:text-sm text-muted-foreground">Data e hora</p><p className="mt-1 font-semibold">{formatDate(selected.date, true)}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs md:text-sm text-muted-foreground">Tipo de operação</p><p className="mt-1 font-semibold">{selected.type}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs md:text-sm text-muted-foreground">Produto</p><p className="mt-1 font-semibold">{selected.productName}</p>{selected.productCode && <p className="text-sm md:text-base text-muted-foreground">Código: {selected.productCode}</p>}</div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs md:text-sm text-muted-foreground">Quantidade movimentada</p><p className="mt-1 font-semibold">{formatQuantity(selected.quantity, selected.unit)}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs md:text-sm text-muted-foreground">Valor total</p><p className="mt-1 font-semibold">{formatMoney(selected.totalValue)}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs md:text-sm text-muted-foreground">Estoque antes</p><p className="mt-1 font-semibold">{formatQuantity(selected.stockBefore, selected.unit)}</p></div>
+                <div className="rounded-lg bg-muted/40 p-3"><p className="text-xs md:text-sm text-muted-foreground">Estoque depois</p><p className="mt-1 font-semibold">{formatQuantity(selected.stockAfter, selected.unit)}</p></div>
+                <div className="rounded-lg border p-3 sm:col-span-2"><p className="text-xs md:text-sm text-muted-foreground">Variação final</p><p className={`mt-1 text-lg font-extrabold ${selected.delta > 0 ? "text-green-700" : selected.delta < 0 ? "text-red-600" : "text-muted-foreground"}`}>{selected.delta > 0 ? "+" : ""}{formatQuantity(selected.delta, selected.unit)}</p></div>
+                {selected.operator && <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs md:text-sm text-muted-foreground">Operador</p><p className="mt-1 font-semibold">{selected.operator}</p></div>}
+                {selected.details && <div className="rounded-lg bg-muted/40 p-3 sm:col-span-2"><p className="text-xs md:text-sm text-muted-foreground">Referência</p><p className="mt-1 text-sm md:text-base">{selected.details}</p></div>}
+                <div className="text-xs md:text-sm text-muted-foreground sm:col-span-2">Identificador: {selected.operationId}</div>
               </div>
             </>}
           </DialogContent>
