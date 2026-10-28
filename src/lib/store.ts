@@ -194,24 +194,27 @@ function normalizeState() {
   for (const adjustment of state.stockAdjustments) {
     if (state.stockMovements.some((movement) => movement.operationId === adjustment.id && !movement.legacy)) continue;
     for (const item of adjustment.items) {
-    const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
-    if (knownMovementIds.has(id)) continue;
-    const delta = item.newStock - item.previousStock;
-    legacyCandidates.push({ id, operationId: adjustment.id, date: adjustment.date, type: /balanço/i.test(adjustment.reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(delta), totalValue: Math.round(Math.abs(delta) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta, operator: adjustment.operator, details: adjustment.reason, legacy: true });
+      const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
+      if (knownMovementIds.has(id)) continue;
+      const delta = item.newStock - item.previousStock;
+      legacyCandidates.push({ id, operationId: adjustment.id, date: adjustment.date, type: /balanço/i.test(adjustment.reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(delta), totalValue: Math.round(Math.abs(delta) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta, operator: adjustment.operator, details: adjustment.reason, legacy: true });
+    }
   }
   for (const writeoff of state.stockWriteoffs) {
     if (state.stockMovements.some((movement) => movement.operationId === writeoff.id && !movement.legacy)) continue;
     for (const item of writeoff.items) {
-    const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
-    if (knownMovementIds.has(id)) continue;
-    legacyCandidates.push({ id, operationId: writeoff.id, date: writeoff.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: writeoff.operator, details: `${writeoff.number} · ${writeoff.reason}`, legacy: true });
+      const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
+      if (knownMovementIds.has(id)) continue;
+      legacyCandidates.push({ id, operationId: writeoff.id, date: writeoff.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: writeoff.operator, details: `${writeoff.number} · ${writeoff.reason}`, legacy: true });
+    }
   }
   for (const transfer of state.stockTransfers) {
     if (state.stockMovements.some((movement) => movement.operationId === transfer.id && !movement.legacy)) continue;
     for (const item of transfer.items) {
-    const id = `legacy:transfer:${transfer.id}:${item.productId}`;
-    if (knownMovementIds.has(id)) continue;
-    legacyCandidates.push({ id, operationId: transfer.id, date: transfer.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: transfer.operator, details: `${transfer.number} · Destino: ${transfer.destinationName}`, legacy: true });
+      const id = `legacy:transfer:${transfer.id}:${item.productId}`;
+      if (knownMovementIds.has(id)) continue;
+      legacyCandidates.push({ id, operationId: transfer.id, date: transfer.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: transfer.operator, details: `${transfer.number} · Destino: ${transfer.destinationName}`, legacy: true });
+    }
   }
   for (const note of state.receiving) {
     if (!note.stockReleased || state.stockMovements.some((movement) => movement.operationId === note.id && !movement.legacy)) continue;
@@ -229,8 +232,6 @@ function normalizeState() {
       if (knownMovementIds.has(id)) continue;
       const product = state.products.find((p) => p.id === productId);
       legacyCandidates.push({ id, operationId: note.id, date: note.date, type: "Recebimento", productId, productCode: product?.code, productName: line.name, unit: line.unit, quantity: line.quantity, totalValue: Math.round(line.quantity * (product?.price ?? 0) * 100) / 100, stockBefore: 0, stockAfter: 0, delta: line.quantity, details: `Nota ${note.number} · ${note.supplier}`, legacy: true });
-    }
-  }
     }
   }
   // Reconstruct missing legacy stock snapshots backwards from the current product balance.
