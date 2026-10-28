@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, confirmCloudSync, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -199,26 +199,27 @@ function PDV() {
     }
     setIsFinalizing(true);
     window.setTimeout(() => {
-      try { completeSale(); }
-      finally { setIsFinalizing(false); }
+      void completeSale().finally(() => setIsFinalizing(false));
     }, 2000);
   };
 
-  const completeSale = () => {
+  const completeSale = async () => {
     const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
-    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
+    if (!s) { setFlash("Não foi possível registrar a venda. Confira se o caixa continua aberto."); return; }
+    const synced = await confirmCloudSync();
+    setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$");
+    if (synced) { setDone(s); setFlash(""); }
+    else {
+      setFlash("Venda registrada neste aparelho, mas a nuvem ainda não confirmou. Não repita a venda; mantenha o app aberto para sincronizar.");
+    }
   };
 
   const confirmPixPayment = () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
     window.setTimeout(() => {
-      try {
-        setPixPayload("");
-        completeSale();
-      } finally {
-        setIsConfirmingPix(false);
-      }
+      setPixPayload("");
+      void completeSale().finally(() => setIsConfirmingPix(false));
     }, 2000);
   };
 
