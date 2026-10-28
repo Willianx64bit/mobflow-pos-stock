@@ -153,27 +153,27 @@ function BalancoEstoque() {
   }), [history, historyFrom, historyTo]);
 
   return (
-    <div className="mfb-in min-h-screen p-4 md:p-6">
+    <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6 xl:px-8 xl:py-8">
       <AppHeader />
-      <main className="mx-auto w-full max-w-5xl space-y-5">
-        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else if (showForm && step === 3) { setStep(2); setError(""); setMessage(""); } else { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setQuickInsert(false); setEditingProductId(null); setError(""); setMessage(""); setQuery(""); navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+      <main className="mx-auto w-full max-w-screen-2xl space-y-5">
+        <button type="button" onClick={() => { if (showForm && step === 2) { setStep(1); setError(""); setMessage(""); } else if (showForm && step === 3) { setStep(2); setError(""); setMessage(""); } else { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setQuickInsert(false); setEditingProductId(null); setError(""); setMessage(""); setQuery(""); navigate({ to: "/operacoes" }); } }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm md:text-base font-semibold text-secondary-foreground hover:bg-accent">
           <ArrowLeft className="h-4 w-4" /> {showForm && step === 2 ? "Voltar para operação" : showForm && step === 3 ? "Voltar para produtos" : "Voltar para Operações"}
         </button>
         {showForm ? (
         <section className="glass p-5 md:p-6">
           <div className="mb-4 flex justify-end">
-            <button type="button" onClick={() => { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setQuickInsert(false); setEditingProductId(null); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+            <button type="button" onClick={() => { setShowForm(false); setStep(1); setDrafts([]); setReason(""); setOperation("somar"); setQuickInsert(false); setEditingProductId(null); setError(""); setMessage(""); setQuery(""); }} aria-label="Fechar formulário de balanço" title="Fechar" className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-sm md:text-base font-semibold text-secondary-foreground hover:bg-accent">
               <X className="h-4 w-4" /> Fechar
             </button>
           </div>
           <div className="flex items-center gap-3">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary"><Scale className="h-6 w-6" /></div>
             <div>
-              <h1 className="font-display text-2xl tracking-wide text-heading md:text-3xl">BALANÇO DE ESTOQUE</h1>
+              <h1 className="font-display text-2xl tracking-wide text-heading md:text-3xl md:text-3xl">BALANÇO DE ESTOQUE</h1>
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm font-semibold">
+          <div className="mt-6 flex flex-wrap justify-center gap-2 text-sm md:text-base font-semibold">
             <span className={`rounded-full px-4 py-2 ${step === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>1. Motivo e operação</span>
             <span className={`rounded-full px-4 py-2 ${step === 2 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>2. Produtos</span>
             <span className={`rounded-full px-4 py-2 ${step === 3 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>3. Confirmação</span>
@@ -182,19 +182,19 @@ function BalancoEstoque() {
           {step === 1 ? (
             <div className="mt-6 space-y-6">
             <div className="mb-4">
-              <label className="mb-2 block text-sm font-semibold text-heading">Operação do balanço (vale para todos os produtos)</label>
-              <select value={operation} onChange={(e) => { const mode = e.target.value as "somar" | "definir"; setOperation(mode); setDrafts((old) => old.map((d) => ({ ...d, mode }))); }} className="field w-full text-foreground">
+              <label className="mb-2 block text-sm md:text-base font-semibold text-heading">Operação do balanço (vale para todos os produtos)</label>
+              <select value={operation} onChange={(e) => { const mode = e.target.value as "somar" | "definir"; setOperation(mode); setDrafts((old) => old.map((d) => ({ ...d, mode }))); }} className="field w-full text-base md:text-lg text-foreground">
                 <option value="somar">Somar ao saldo atual</option>
                 <option value="definir">Definir novo saldo total</option>
               </select>
             </div>
 
-          {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+          {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm md:text-base text-destructive">{error}</div>}
           <div className="mt-6">
-            <label htmlFor="stock-adjust-reason" className="mb-2 block text-sm font-semibold text-heading">Motivo do ajuste <span className="text-destructive">*</span></label>
+            <label htmlFor="stock-adjust-reason" className="mb-2 block text-sm md:text-base font-semibold text-heading">Motivo do ajuste <span className="text-destructive">*</span></label>
             <textarea id="stock-adjust-reason" value={reason} onChange={(e) => { setReason(e.target.value); setError(""); }}
               placeholder="Ex.: contagem física, perda, avaria, correção de cadastro..." rows={3} required
-              className="field w-full resize-y text-foreground" />
+              className="field w-full text-base md:text-lg resize-y text-foreground" />
           </div>
 
               <button type="button" disabled={transitioningTo!==null} onClick={() => { if (!reason.trim()) { setError("Informe o motivo do balanço para continuar."); return; } setError(""); void advanceStep(2); }} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-80">{transitioningTo===2?<><Loader2 className="h-5 w-5 animate-spin"/>Carregando próxima etapa...</>:"Próximo: selecionar produtos"}</button>
@@ -203,10 +203,10 @@ function BalancoEstoque() {
             <>
               <div className="mb-4">
                 <h2 className="font-semibold text-heading">2. Produtos do balanço</h2>
-                <p className="text-sm text-muted-foreground">Operação: {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
+                <p className="text-sm md:text-base text-muted-foreground">Operação: {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
               </div>
           <div className="mt-6">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm font-semibold text-heading">Inserir rápido</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`} /></button></div><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><div><p className="text-sm font-semibold text-heading">Planilha de importação</p><p className="text-xs text-muted-foreground">Modelo vazio com as colunas CÓDIGO e QUANTIDADE.</p></div><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm font-semibold text-heading">Adicionar produto</label>
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm md:text-base font-semibold text-heading">Inserir rápido</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`} /></button></div><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><div><p className="text-sm md:text-base font-semibold text-heading">Planilha de importação</p><p className="text-xs md:text-sm text-muted-foreground">Modelo vazio com as colunas CÓDIGO e QUANTIDADE.</p></div><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm md:text-base font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm md:text-base font-semibold text-heading">Adicionar produto</label>
             <div className="relative flex gap-2">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -223,7 +223,7 @@ function BalancoEstoque() {
                   onKeyDown={handleScannerKeyDown}
                   placeholder={quickInsert ? "Digite ou bipe o código de barras" : "Código de barras, nome ou REF"}
                   autoComplete="off"
-                  className="field w-full pl-10 text-foreground" />
+                  className="field w-full text-base md:text-lg pl-10 text-foreground" />
               </div>
             </div>
             {results.length > 0 && (
@@ -233,10 +233,10 @@ function BalancoEstoque() {
                     {p.photo ? <img src={p.photo} alt="" className="h-10 w-10 rounded-lg object-cover" /> : <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary"><PackagePlus className="h-5 w-5 text-muted-foreground" /></div>}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-semibold text-foreground">{p.name}</span>
-                      <span className="block truncate font-mono text-xs text-muted-foreground">Código: {p.code}{p.ref ? ` · REF: ${p.ref}` : ""}</span>
+                      <span className="block truncate font-mono text-xs md:text-sm text-muted-foreground">Código: {p.code}{p.ref ? ` · REF: ${p.ref}` : ""}</span>
                     </span>
-                    <span className="shrink-0 text-sm font-semibold text-foreground">Saldo: {p.stock} {p.unit === "kg" ? "kg" : "un."}</span>
-                    <span className="text-primary text-sm font-bold">+ Adicionar</span>
+                    <span className="shrink-0 text-sm md:text-base font-semibold text-foreground">Saldo: {p.stock} {p.unit === "kg" ? "kg" : "un."}</span>
+                    <span className="text-primary text-sm md:text-base font-bold">+ Adicionar</span>
                   </button>
                 ))}
               </div>
@@ -246,7 +246,7 @@ function BalancoEstoque() {
           <div className="mt-6">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="font-semibold text-heading">Produtos deste balanço</h2>
-              <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">{drafts.length} produto(s)</span>
+              <span className="rounded-full bg-secondary px-3 py-1 text-xs md:text-sm font-semibold text-secondary-foreground">{drafts.length} produto(s)</span>
             </div>
             {drafts.length === 0 ? null : (
               <div className="space-y-3">
@@ -256,8 +256,8 @@ function BalancoEstoque() {
                   return (
                     <div key={draft.productId} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-3">
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-semibold text-heading"><span className="font-mono text-xs text-muted-foreground">{product.code}</span> — {product.name}</div>
-                        <div className="mt-1 text-sm text-muted-foreground">Quantidade: <strong className="text-heading">{draft.quantity || "—"} {product.unit === "kg" ? "kg" : "un."}</strong></div>
+                        <div className="truncate text-sm md:text-base font-semibold text-heading"><span className="font-mono text-xs md:text-sm text-muted-foreground">{product.code}</span> — {product.name}</div>
+                        <div className="mt-1 text-sm md:text-base text-muted-foreground">Quantidade: <strong className="text-heading">{draft.quantity || "—"} {product.unit === "kg" ? "kg" : "un."}</strong></div>
                       </div>
                       <button type="button" onClick={() => setEditingProductId(product.id)} aria-label={`Editar ${product.name}`} title="Editar produto" className="rounded-lg p-2 text-primary hover:bg-primary/10"><Pencil className="h-4 w-4" /></button>
                       <button type="button" onClick={() => setDrafts((old) => old.filter((d) => d.productId !== product.id))} aria-label={`Remover ${product.name}`} className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
@@ -282,14 +282,14 @@ function BalancoEstoque() {
               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={() => { setEditingProductId(null); setError(""); }}>
                 <div role="dialog" aria-modal="true" aria-labelledby="stock-product-title" className="w-full max-w-lg rounded-2xl border border-border bg-background p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
                   <div className="mb-4 flex items-start justify-between gap-3">
-                    <div><h3 id="stock-product-title" className="text-lg font-bold text-heading">Editar produto do balanço</h3><p className="mt-1 text-sm text-muted-foreground">{product.name} · Código: {product.code}</p></div>
+                    <div><h3 id="stock-product-title" className="text-lg font-bold text-heading">Editar produto do balanço</h3><p className="mt-1 text-sm md:text-base text-muted-foreground">{product.name} · Código: {product.code}</p></div>
                     <button type="button" onClick={() => { setEditingProductId(null); setError(""); }} aria-label="Fechar formulário" className="rounded-lg px-3 py-1 text-xl text-muted-foreground hover:bg-secondary">×</button>
                   </div>
                   <div className="space-y-4">
-                    <div><label className="mb-1 block text-sm font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label><input autoFocus type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity} onChange={(e) => updateDraft(product.id, { quantity: e.target.value })} placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full text-foreground" /></div>
-                    <div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-xs font-semibold text-heading">Custo</label><input value={String(product.cost ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div><div><label className="mb-1 block text-xs font-semibold text-heading">Venda</label><input value={String(product.price ?? 0)} readOnly className="field w-full text-foreground opacity-80" /></div></div>
-                    <p className="text-xs text-muted-foreground">Saldo atual: {product.stock} {product.unit === "kg" ? "kg" : "un."}{next !== null ? " · Saldo após ajuste: " + next + " " + (product.unit === "kg" ? "kg" : "un.") : ""}</p>
-                    {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+                    <div><label className="mb-1 block text-sm md:text-base font-semibold text-heading">{draft.mode === "somar" ? "Quantidade para somar" : "Novo saldo total"}</label><input autoFocus type="number" min="0" step={product.unit === "kg" ? "0.001" : "1"} inputMode="decimal" value={draft.quantity} onChange={(e) => updateDraft(product.id, { quantity: e.target.value })} placeholder={product.unit === "kg" ? "Ex.: 2,500" : "Ex.: 12"} className="field w-full text-base md:text-lg text-foreground" /></div>
+                    <div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-xs md:text-sm font-semibold text-heading">Custo</label><input value={String(product.cost ?? 0)} readOnly className="field w-full text-base md:text-lg text-foreground opacity-80" /></div><div><label className="mb-1 block text-xs md:text-sm font-semibold text-heading">Venda</label><input value={String(product.price ?? 0)} readOnly className="field w-full text-base md:text-lg text-foreground opacity-80" /></div></div>
+                    <p className="text-xs md:text-sm text-muted-foreground">Saldo atual: {product.stock} {product.unit === "kg" ? "kg" : "un."}{next !== null ? " · Saldo após ajuste: " + next + " " + (product.unit === "kg" ? "kg" : "un.") : ""}</p>
+                    {error && <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm md:text-base text-destructive">{error}</p>}
                     <div className="flex gap-3 pt-1">
                       <button type="button" onClick={() => { setEditingProductId(null); setError(""); }} className="flex-1 rounded-xl bg-secondary py-3 font-semibold">Cancelar</button>
                       <button type="button" onClick={() => { if (!raw || !Number.isFinite(value) || value < 0 || (product.unit !== "kg" && !Number.isInteger(value))) { setError(product.unit !== "kg" && raw && Number.isFinite(value) ? "Informe um número inteiro para este produto." : "Informe uma quantidade válida antes de salvar."); return; } setError(""); setEditingProductId(null); }} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary py-3 font-bold text-primary-foreground"><Save className="h-4 w-4" />Salvar</button>
@@ -300,8 +300,8 @@ function BalancoEstoque() {
             );
           })()}
 
-          {step === 2 && error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-          {step === 2 && message && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{message}</div>}
+          {step === 2 && error && <div role="alert" className="mt-4 rounded-xl bg-destructive/10 p-3 text-sm md:text-base text-destructive">{error}</div>}
+          {step === 2 && message && <div role="status" className="mt-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 p-3 text-sm md:text-base text-emerald-800"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{message}</div>}
           {step === 2 && <div className="mt-5 flex gap-3">
             <button type="button" onClick={() => { setStep(1); setError(""); setMessage(""); }} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-3 font-semibold text-secondary-foreground hover:bg-accent">
               <ArrowLeft className="h-4 w-4" /> Voltar
@@ -323,12 +323,12 @@ function BalancoEstoque() {
           {step === 3 && <div className="mt-6 space-y-4">
             <div>
               <h2 className="text-xl font-bold text-heading">3. Confirmação do balanço</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Confira as diferenças de estoque e os valores calculados pelo custo cadastrado antes de confirmar.</p>
-              <p className="mt-2 rounded-xl bg-secondary/60 p-3 text-sm"><b>Motivo:</b> {reason} · <b>Operação:</b> {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
+              <p className="mt-1 text-sm md:text-base text-muted-foreground">Confira as diferenças de estoque e os valores calculados pelo custo cadastrado antes de confirmar.</p>
+              <p className="mt-2 rounded-xl bg-secondary/60 p-3 text-sm md:text-base"><b>Motivo:</b> {reason} · <b>Operação:</b> {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
             </div>
             <div className="overflow-x-auto rounded-xl border border-border">
-              <table className="w-full min-w-[680px] border-collapse text-sm">
-                <thead className="bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground"><tr>
+              <table className="w-full min-w-[680px] border-collapse text-sm md:text-base">
+                <thead className="bg-secondary/70 text-xs md:text-sm uppercase tracking-wide text-muted-foreground"><tr>
                   <th className="px-3 py-3 text-left">Produto</th><th className="px-3 py-3 text-center">Saldo atual</th><th className="px-3 py-3 text-center">Qtd. informada</th><th className="px-3 py-3 text-center">Diferença</th><th className="px-3 py-3 text-right">Valor de custo</th>
                 </tr></thead>
                 <tbody>{drafts.map((draft) => {
@@ -341,10 +341,10 @@ function BalancoEstoque() {
                   const unit = product.unit === "kg" ? "kg" : "un.";
                   const color = difference > 0 ? "text-emerald-600" : difference < 0 ? "text-red-600" : "text-muted-foreground";
                   return <tr key={draft.productId} className="border-t border-border/70">
-                    <td className="px-3 py-3"><b>{product.name}</b><div className="text-xs text-muted-foreground">Código: {product.code}</div></td>
+                    <td className="px-3 py-3"><b>{product.name}</b><div className="text-xs md:text-sm text-muted-foreground">Código: {product.code}</div></td>
                     <td className="px-3 py-3 text-center">{product.stock} {unit}</td>
                     <td className="px-3 py-3 text-center">{value} {unit}</td>
-                    <td className={"px-3 py-3 text-center font-bold " + color}>{difference > 0 ? "+" : ""}{difference} {unit}<div className="text-xs font-medium">{difference > 0 ? "Entrada" : difference < 0 ? "Saída" : "Sem alteração"}</div></td>
+                    <td className={"px-3 py-3 text-center font-bold " + color}>{difference > 0 ? "+" : ""}{difference} {unit}<div className="text-xs md:text-sm font-medium">{difference > 0 ? "Entrada" : difference < 0 ? "Saída" : "Sem alteração"}</div></td>
                     <td className={"px-3 py-3 text-right font-bold tabular-nums " + color}>{difference < 0 ? "−" : difference > 0 ? "+" : ""}R$ {costValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   </tr>;
                 })}</tbody>
@@ -356,8 +356,8 @@ function BalancoEstoque() {
                 {saving ? <span className="inline-flex items-center justify-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />Processando balanço...</span> : "Confirmar balanço"}
               </button>
             </div>
-            {saving && <p role="status" className="text-center text-sm text-muted-foreground">Processando informações e atualizando o estoque. Aguarde...</p>}
-            {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
+            {saving && <p role="status" className="text-center text-sm md:text-base text-muted-foreground">Processando informações e atualizando o estoque. Aguarde...</p>}
+            {error && <div role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm md:text-base text-destructive">{error}</div>}
           </div>}
         </section>
         ) : (
@@ -377,18 +377,18 @@ function BalancoEstoque() {
               <h2 className="font-display text-xl text-heading">Histórico de ajustes</h2>
             </div>
             <details className="rounded-xl border border-border bg-secondary/30 px-3 py-2">
-            <summary className="flex cursor-pointer select-none items-center gap-2 text-sm font-semibold text-heading"><Filter className="h-4 w-4" />Filtrar</summary>
+            <summary className="flex cursor-pointer select-none items-center gap-2 text-sm md:text-base font-semibold text-heading"><Filter className="h-4 w-4" />Filtrar</summary>
             <div className="mt-3 grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-              <label className="block text-sm font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full" /></label>
-              <label className="block text-sm font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full" /></label>
-              <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold">Limpar filtro</button>
+              <label className="block text-sm md:text-base font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full text-base md:text-lg" /></label>
+              <label className="block text-sm md:text-base font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full text-base md:text-lg" /></label>
+              <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm md:text-base font-semibold">Limpar filtro</button>
             </div>
             </details>
             </div>
           {history.length === 0 ? (
-            <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum balanço registrado ainda.</p>
+            <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm md:text-base text-muted-foreground">Nenhum balanço registrado ainda.</p>
           ) : filteredHistory.length === 0 ? (
-            <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum balanço encontrado nesse período.</p>
+            <p className="mt-4 rounded-xl bg-secondary/50 p-4 text-sm md:text-base text-muted-foreground">Nenhum balanço encontrado nesse período.</p>
           ) : (
             <div className="mt-4 space-y-3">
               {filteredHistory.map((entry) => (
@@ -397,15 +397,15 @@ function BalancoEstoque() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-heading">{entry.reason}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{fmtDate(entry.date)}{entry.operator ? ` · Operador: ${entry.operator}` : ""}</div>
+                        <div className="mt-1 text-xs md:text-sm text-muted-foreground">{fmtDate(entry.date)}{entry.operator ? ` · Operador: ${entry.operator}` : ""}</div>
                       </div>
-                      <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">{entry.items.length} produto(s)</span>
+                      <span className="rounded-full bg-secondary px-3 py-1 text-xs md:text-sm font-semibold text-secondary-foreground">{entry.items.length} produto(s)</span>
                     </div>
                   </summary>
                   <div className="mt-4 border-t border-border pt-3">
                     <div className="overflow-x-auto rounded-xl border border-border">
-                      <table className="w-full min-w-[640px] table-fixed border-collapse text-sm">
-                        <thead className="bg-secondary/70 text-xs uppercase tracking-wide text-muted-foreground">
+                      <table className="w-full min-w-[640px] table-fixed border-collapse text-sm md:text-base">
+                        <thead className="bg-secondary/70 text-xs md:text-sm uppercase tracking-wide text-muted-foreground">
                           <tr>
                             <th className="w-[19%] px-2 py-3 text-center font-semibold">Código</th>
                             <th className="w-[27%] px-2 py-3 text-left font-semibold">Produto</th>
@@ -422,10 +422,10 @@ function BalancoEstoque() {
                             const variation = item.mode === "somar" ? Number(item.quantity) : difference;
                             return (
                               <tr key={item.productId} className="border-t border-border/70 align-top">
-                                <td className="break-words px-2 py-3 text-center font-mono text-xs">{item.code}</td>
+                                <td className="break-words px-2 py-3 text-center font-mono text-xs md:text-sm">{item.code}</td>
                                 <td className="px-3 py-3">
                                   <div className="font-semibold text-foreground">{item.name}</div>
-                                  {item.ref ? <div className="mt-1 text-xs text-muted-foreground">REF: {item.ref}</div> : null}
+                                  {item.ref ? <div className="mt-1 text-xs md:text-sm text-muted-foreground">REF: {item.ref}</div> : null}
                                 </td>
                                 <td className="px-2 py-3 text-center tabular-nums">{item.previousStock} {unitLabel}</td>
                                 <td className="px-3 py-3">
