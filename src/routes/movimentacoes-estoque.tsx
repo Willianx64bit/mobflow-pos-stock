@@ -51,7 +51,7 @@ function MovimentacoesEstoque() {
               <h1 className="text-2xl font-extrabold text-heading md:text-3xl">Movimentações de estoque</h1>
               <p className="mt-1 text-sm text-muted-foreground">Consulte entradas, saídas e ajustes registrados no estoque.</p>
             </div>
-          </div>}
+          </div>
         </section>
 
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
@@ -78,7 +78,7 @@ function MovimentacoesEstoque() {
               <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm" />
             </label>
             <div className="flex items-end"><button type="button" onClick={clearFilters} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-4 font-semibold hover:bg-muted"><X className="h-4 w-4" /> Limpar filtros</button></div>
-          </div>
+          </div>}
         </section>
 
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
