@@ -122,7 +122,7 @@ function Gerencia() {
     const fromNotes = receiving
       .filter((note) => note.source !== "manual")
       .flatMap((note) => note.items
-        .filter((item) => !!item.expiry)
+        .filter((item) => !!item.expiry && note.decisions?.[item.productId] !== "devolver")
         .map((item) => ({
           id: note.id + "-" + item.productId + "-" + item.expiry,
           name: item.name,
@@ -138,10 +138,19 @@ function Gerencia() {
       unit: item.unit,
     }));
     const parseExpiry = (value: string) => {
-      const [day, month, year] = value.split("/").map(Number);
+      const parts = value.includes("-") ? value.split("-").map(Number) : value.split("/").map(Number);
+      const [year, month, day] = value.includes("-") ? parts : [parts[2], parts[1], parts[0]];
       return new Date(year, month - 1, day).getTime();
     };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + 60);
     return [...fromNotes, ...manual]
+      .filter((item) => {
+        const expiry = parseExpiry(item.expiry);
+        return Number.isFinite(expiry) && expiry <= limit.getTime();
+      })
       .sort((a, b) => parseExpiry(a.expiry) - parseExpiry(b.expiry))
       .slice(0, 5);
   }, [receiving, manualExpiries]);
