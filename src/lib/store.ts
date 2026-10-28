@@ -89,6 +89,8 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
+// Incremented whenever a cloud event arrives while a persistence request is in flight.
+let realtimeRevision = 0;
 const listeners = new Set<() => void>();
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
@@ -289,6 +291,7 @@ function startRealtime(accountId: string) {
       const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
       if (!remoteState || typeof remoteState !== "object") return;
       const remote = remoteState as State;
+      realtimeRevision += 1;
       state = mergeConcurrentState(lastSyncedState, state, remote);
       lastSyncedState = cloneState(remote);
       lastCloudUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : lastCloudUpdatedAt;
@@ -312,6 +315,7 @@ function persistState() {
       if (!cloudReady || typeof window === "undefined" || !cloudAccountId) break;
 
       const snapshot = cloneState(state);
+      const revisionAtRequestStart = realtimeRevision;
       const expected = lastCloudUpdatedAt;
       let result;
       try {
@@ -339,8 +343,14 @@ function persistState() {
         break;
       }
       if (result.data?.updated_at) {
-        lastCloudUpdatedAt = result.data.updated_at;
-        lastSyncedState = cloneState(snapshot);
+        // A Realtime event may have delivered a newer cloud snapshot while this HTTP
+        // request was in flight. Do not replace that newer merge base with our older snapshot.
+        if (!lastCloudUpdatedAt || Date.parse(result.data.updated_at) >= Date.parse(lastCloudUpdatedAt)) {
+          lastCloudUpdatedAt = result.data.updated_at;
+        }
+        if (revisionAtRequestStart === realtimeRevision) {
+          lastSyncedState = cloneState(snapshot);
+        }
         attempts = 0;
         continue;
       }
@@ -366,6 +376,9 @@ function persistState() {
       lastCloudUpdatedAt = remoteResult.data.updated_at ?? null;
       lastSyncedState = cloneState(remoteResult.data.state as State);
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      // CAS conflict reconciliation changes the external store too; notify React now,
+      // otherwise the new stock may appear only after a page reload.
+      listeners.forEach((l) => l());
       persistRequested = true;
       attempts += 1;
     }
