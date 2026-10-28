@@ -7,6 +7,16 @@ const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
 const PENDING_PAYMENT_KEY = "mobflow-pending-payment";
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("LOGIN_TIMEOUT")), ms);
+    promise.then(
+      (value) => { window.clearTimeout(timer); resolve(value); },
+      (error) => { window.clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
 export function isAuthenticated() {
   return localStorage.getItem(AUTH_KEY) === "1";
 }
@@ -113,16 +123,20 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
       }
 
-      // Limpa a sessão anterior somente depois de obter o CNPJ da empresa atual.
-      await supabase.auth.signOut();
+      // Limpa apenas a sessão local antes de autenticar. O signOut remoto pode
+      // ficar preso quando o serviço Auth está instável, impedindo o login de começar.
+      await withTimeout(supabase.auth.signOut({ scope: "local" }), 5000);
       sessionStorage.removeItem("mobflow-management");
       sessionStorage.removeItem("mobflow-pdv-authorized");
       sessionStorage.removeItem("mobflow-role");
       sessionStorage.removeItem("mobflow-username");
 
-      const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
-      });
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke("mobflow-login", {
+          body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
+        }),
+        20000,
+      );
 
       if (error || !data?.session) {
         let serverMessage = String(data?.error || "");
@@ -174,8 +188,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       const firstManagerLogin = mode === "empresa" && data.firstManagerLogin === true;
       if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
       onLogin({ firstManagerLogin });
-    } catch {
-      setError("Não foi possível conectar ao servidor.");
+    } catch (err) {
+      setError(err instanceof Error && err.message === "LOGIN_TIMEOUT"
+        ? "O servidor está demorando para responder. Tente novamente em instantes."
+        : "Não foi possível conectar ao servidor.");
     } finally {
       setLoading(false);
     }
