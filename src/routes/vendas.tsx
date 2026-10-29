@@ -109,6 +109,7 @@ function Vendas() {
                   <div className="whitespace-nowrap font-mono text-xs text-muted-foreground md:text-sm">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
                   <div className="min-w-0 truncate font-medium text-foreground">{s.customer || ""}</div>
                   <div className="min-w-0 truncate font-medium text-foreground">{s.seller || "Não registrado"}</div>
+                  <div className="min-w-0 truncate font-medium text-foreground">{s.payment || "Não informado"}</div>
                   <div className="whitespace-nowrap text-right font-mono font-semibold text-heading">R$ {brl(s.total)}</div>
                   <button
                     type="button"
@@ -132,7 +133,7 @@ function Vendas() {
                       </div>
                     ))}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
-                      <span className="rounded-md bg-secondary px-2 py-1 font-mono text-sm text-secondary-foreground">Pagamento: {s.payment}</span>
+                      
                       <button onClick={() => printReceipt(s, savedCompanyName)} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent hover:text-foreground">🧾 Comprovante</button>
                     </div>
                   </div>
