@@ -27,6 +27,7 @@ function Fiado() {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [confirmDialogMessage, setConfirmDialogMessage] = useState("");
   const [pendingConfirmation, setPendingConfirmation] = useState<(() => void) | null>(null);
+  const [settledReceipt, setSettledReceipt] = useState<{ customer: string; amount: number } | null>(null);
   const formatMoneyInput = (value: string) => { const digits = value.replace(/\D/g, ""); if (!digits) return ""; return (Number(digits) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
   const requestFiadoConfirmation = (message: string, change: () => void) => {
     setConfirmDialogMessage(message);
@@ -192,6 +193,23 @@ function Fiado() {
             <div className="mt-5 flex gap-2">
               <button type="button" onClick={() => { setConfirmDialogOpen(false); setPendingConfirmation(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
               <button type="button" onClick={continueFiadoConfirmation} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">Continuar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {settledReceipt && (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="w-full max-w-md glass p-6 shadow-2xl">
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-green-500/15"><ReceiptText className="h-6 w-6 text-green-600" /></div>
+            <h2 className="text-center text-xl font-bold text-heading">Fiado quitado com sucesso</h2>
+            <p className="mt-2 text-center text-sm text-muted-foreground">Cliente: {settledReceipt.customer}</p>
+            <div className="mt-5 rounded-xl bg-green-500/10 p-4 text-center">
+              <div className="text-xs font-bold uppercase tracking-wide text-green-700">Total pago</div>
+              <div className="mt-1 font-display text-3xl font-bold text-green-600">R$ {brl(settledReceipt.amount)}</div>
+            </div>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <button onClick={() => { printFiadoBalance(settledReceipt.customer, customers.find(([name]) => name === settledReceipt.customer)?.[1] ?? []); setSettledReceipt(null); }} className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground"><Printer className="mr-2 inline h-4 w-4" />Imprimir saldo</button>
+              <button onClick={() => setSettledReceipt(null)} className="rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Fechar comprovante</button>
             </div>
           </div>
         </div>
