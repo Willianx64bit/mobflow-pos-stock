@@ -116,7 +116,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     const lp = local.products.find((p) => p.id === rp.id);
     if (!lp || !bp) return rp;
     const movementDelta = newMovementDeltas.get(rp.id);
-    if (movementDelta !== undefined) return { ...rp, stock: Math.max(0, Math.round((bp.stock + movementDelta) * 1000) / 1000) };
+    if (movementDelta !== undefined) return { ...rp, stock: Math.round((bp.stock + movementDelta) * 1000) / 1000 };
     const localStockChanged = lp.stock !== bp.stock;
     const remoteStockChanged = rp.stock !== bp.stock;
     if (localStockChanged && remoteStockChanged) {
@@ -124,7 +124,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
       // If both sides already have the same value, use the server value instead
       // of applying the identical delta twice.
       if (lp.stock === rp.stock) return rp;
-      return { ...rp, stock: Math.max(0, bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) };
+      return { ...rp, stock: Math.round((bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) * 1000) / 1000 };
     }
     if (localStockChanged && !remoteStockChanged) return lp;
     return rp;
@@ -247,9 +247,9 @@ function normalizeState() {
     for (const movement of movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())) {
       if (movement.stockBefore === 0 && movement.stockAfter === 0) {
         movement.stockAfter = runningStock;
-        movement.stockBefore = Math.max(0, Math.round((runningStock - movement.delta) * 1000) / 1000);
+        movement.stockBefore = Math.round((runningStock - movement.delta) * 1000) / 1000;
       }
-      runningStock = Math.max(0, Math.round((runningStock - movement.delta) * 1000) / 1000);
+      runningStock = Math.round((runningStock - movement.delta) * 1000) / 1000;
     }
   }
   state.stockMovements = [...legacyCandidates, ...state.stockMovements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -616,12 +616,12 @@ export const actions = {
     const sale: Sale = { id: uid(), date: new Date().toISOString(), cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
-      return c ? { ...p, stock: Math.max(0, p.stock - c.qty) } : p;
+      return c ? { ...p, stock: Math.round((p.stock - c.qty) * 1000) / 1000 } : p;
     });
     const stockMovements = state.cart.flatMap((c) => {
       const p = state.products.find((x) => x.id === c.productId);
       if (!p) return [];
-      const stockAfter = Math.max(0, p.stock - c.qty);
+      const stockAfter = Math.round((p.stock - c.qty) * 1000) / 1000;
       return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
     });
     set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
@@ -765,7 +765,6 @@ export const actions = {
       const p = state.products.find((x) => x.id === item.productId);
       if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null;
       const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
-      if (quantity > p.stock) return null;
       const purchase = Math.max(0, p.cost ?? 0);
       const sale = Math.max(0, p.price ?? 0);
       const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2;
@@ -793,7 +792,7 @@ export const actions = {
   },
   applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     if (!input.destinationName.trim() || !input.items.length) return false;
-    const prepared = input.items.map((item) => { const p = state.products.find((x) => x.id === item.productId); if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null; const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity; if (quantity > p.stock) return null; const purchase = Math.max(0, p.cost ?? 0); const sale = Math.max(0, p.price ?? 0); const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2; return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 }; });
+    const prepared = input.items.map((item) => { const p = state.products.find((x) => x.id === item.productId); if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null; const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity; const purchase = Math.max(0, p.cost ?? 0); const sale = Math.max(0, p.price ?? 0); const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2; return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 }; });
     if (prepared.some((x) => x === null)) return false; const items = prepared as StockWriteoffItem[]; const existing = state.stockTransfers ?? [];
     const previousNumbers = existing.map((transfer) => String(transfer.number).match(/^NF:\s*(\d+)$/)).filter((match): match is RegExpMatchArray => Boolean(match)).map((match) => Number(match[1])).filter((number) => Number.isFinite(number));
     const sequence = previousNumbers.length ? Math.max(...previousNumbers) + 1 : 10;
