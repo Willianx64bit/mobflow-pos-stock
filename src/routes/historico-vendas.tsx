@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Filter, Search, History, ReceiptText, ChevronDown } from "lucide-react";
+import { Filter, Search, History, ReceiptText, ChevronDown, CreditCard } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, printReceipt, useStore } from "@/lib/store";
 
@@ -58,7 +58,7 @@ function HistoricoVendas() {
       <section className="glass p-4 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><div><h1 className="font-display text-2xl text-heading">Histórico de vendas</h1><p className="text-sm text-muted-foreground">Exibindo somente as vendas registradas no seu usuário.</p></div></div>
-          <button type="button" onClick={() => setFiltersOpen((value) => !value)} className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4" />{filtersOpen ? "Fechar filtros" : "Filtrar"}</button>
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigate({ to: "/fiado-consulta" })} className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent"><CreditCard className="h-4 w-4" />Fiado</button><button type="button" onClick={() => setFiltersOpen((value) => !value)} className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4" />{filtersOpen ? "Fechar filtros" : "Filtrar"}</button></div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Vendas no período</div><div className="mt-1 font-display text-3xl text-heading">{filteredSales.length}</div></div>
