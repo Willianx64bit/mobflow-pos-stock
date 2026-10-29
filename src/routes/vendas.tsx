@@ -95,9 +95,9 @@ function Vendas() {
           
         </div>
         <div className="overflow-x-auto">
-          <div className="min-w-[760px]">
-            <div className="mb-1 grid grid-cols-[1.2fr_1.2fr_1.2fr_0.8fr_100px] items-center gap-3 border-b border-border px-3 py-3 text-xs font-semibold text-muted-foreground">
-              <span>Data e horário</span><span>Comprador</span><span>Vendedor</span><span className="text-right">Total</span><span className="text-center">Detalhes</span>
+          <div className="min-w-[1040px]">
+            <div className="mb-1 grid grid-cols-[1.2fr_1.2fr_1.2fr_1fr_0.8fr_100px] items-center gap-3 border-b border-border px-3 py-3 text-sm font-bold text-muted-foreground md:text-base">
+              <span>Data e horário</span><span>Comprador</span><span>Vendedor</span><span>Pagamento</span><span className="text-right">Total</span><span className="text-center">Detalhes</span>
             </div>
             <div className="divide-y divide-border/50">
           {filteredSales.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">Nenhuma venda encontrada nesse período.</p>}
@@ -105,8 +105,8 @@ function Vendas() {
             const isExpanded = expandedSales.includes(s.id);
             return (
               <div key={s.id} className="py-3">
-                <div className="grid grid-cols-[1.2fr_1.2fr_1.2fr_0.8fr_100px] items-center gap-3 px-3 text-[13px]">
-                  <div className="whitespace-nowrap font-mono text-[11px] text-muted-foreground">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
+                <div className="grid grid-cols-[1.2fr_1.2fr_1.2fr_1fr_0.8fr_100px] items-center gap-3 px-3 text-sm md:text-base">
+                  <div className="whitespace-nowrap font-mono text-xs text-muted-foreground md:text-sm">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div>
                   <div className="min-w-0 truncate font-medium text-foreground">{s.customer || ""}</div>
                   <div className="min-w-0 truncate font-medium text-foreground">{s.seller || "Não registrado"}</div>
                   <div className="whitespace-nowrap text-right font-mono font-semibold text-heading">R$ {brl(s.total)}</div>
@@ -114,26 +114,26 @@ function Vendas() {
                     type="button"
                     onClick={() => setExpandedSales((current) => isExpanded ? current.filter((id) => id !== s.id) : [...current, s.id])}
                     aria-expanded={isExpanded}
-                    className="mx-auto inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-secondary px-2.5 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent"
+                    className="mx-auto inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-secondary px-2.5 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"
                   >
                     {isExpanded ? "Fechar" : "Produtos"}
                     <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                   </button>
                 </div>
                 {isExpanded && (
-                  <div className="mt-3 space-y-2 rounded-xl border border-border/60 bg-secondary/20 p-3">
+                  <div className="mt-3 space-y-2 rounded-xl border border-border/60 bg-secondary/20 p-3 text-sm md:text-base">
                     {s.items.map((item, index) => (
                       <div key={`${s.id}-${item.name}-${index}`} className="flex flex-col gap-1 border-b border-border/40 pb-2 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <div className="font-medium text-foreground">{item.name}</div>
-                          <div className="text-xs text-muted-foreground">Quantidade: {item.qty}{item.unit === "kg" ? " kg" : " un."}</div>
+                          <div className="text-sm text-muted-foreground">Quantidade: {item.qty}{item.unit === "kg" ? " kg" : " un."}</div>
                         </div>
                         <div className="text-sm font-semibold text-heading">Total: R$ {brl(item.price * item.qty)}</div>
                       </div>
                     ))}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/50 pt-3">
-                      <span className="rounded-md bg-secondary px-2 py-1 font-mono text-[11px] text-secondary-foreground">Pagamento: {s.payment}</span>
-                      <button onClick={() => printReceipt(s, savedCompanyName)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground hover:bg-accent hover:text-foreground">🧾 Comprovante</button>
+                      <span className="rounded-md bg-secondary px-2 py-1 font-mono text-sm text-secondary-foreground">Pagamento: {s.payment}</span>
+                      <button onClick={() => printReceipt(s, savedCompanyName)} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent hover:text-foreground">🧾 Comprovante</button>
                     </div>
                   </div>
                 )}
