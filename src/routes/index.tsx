@@ -63,7 +63,23 @@ function PDV() {
   const [quick, setQuick] = useState(false);
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
+  const [doneProgress, setDoneProgress] = useState(100);
   const [isFinalizing, setIsFinalizing] = useState(false);
+  useEffect(() => {
+    if (!done) return;
+    setDoneProgress(100);
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const remaining = Math.max(0, 100 - ((Date.now() - startedAt) / 10000) * 100);
+      setDoneProgress(remaining);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        setDone(null);
+      }
+    }, 50);
+    return () => clearInterval(timer);
+  }, [done]);
+
   const [isConfirmingPix, setIsConfirmingPix] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
@@ -540,8 +556,11 @@ function PDV() {
             <button onClick={() => printReceipt(done)} className="mt-5 w-full rounded-xl bg-secondary ring-1 ring-border text-secondary-foreground font-semibold py-3 hover:text-foreground">
               <ReceiptText className="inline h-4 w-4 mr-2" />Gerar comprovante
             </button>
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-secondary" aria-hidden="true">
+              <div className="h-full rounded-full bg-primary transition-[width] duration-100" style={{ width: doneProgress + "%" }} />
+            </div>
             <button autoFocus onClick={() => setDone(null)} className="mt-2 w-full rounded-xl bg-primary text-primary-foreground font-bold py-3">
-              Nova venda <kbd className="font-mono text-[11px] opacity-70">ESC</kbd>
+              Fechar <kbd className="font-mono text-[11px] opacity-70">ESC</kbd>
             </button>
           </div>
         </div>
