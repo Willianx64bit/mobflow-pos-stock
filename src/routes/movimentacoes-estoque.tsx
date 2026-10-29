@@ -11,13 +11,21 @@ export const Route = createFileRoute("/movimentacoes-estoque")({
   component: MovimentacoesEstoque,
 });
 
+function localDateKey(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
 function MovimentacoesEstoque() {
   const navigate = useNavigate();
   const movements = useStore((s) => s.stockMovements ?? []);
   const [operation, setOperation] = useState("Todas");
   const [direction, setDirection] = useState("Todas");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(() => localDateKey(new Date()));
+  const [toDate, setToDate] = useState(() => localDateKey(new Date()));
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<StockMovement | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -26,12 +34,12 @@ function MovimentacoesEstoque() {
   const filtered = useMemo(() => movements
     .filter((m) => operation === "Todas" || m.type === operation)
     .filter((m) => direction === "Todas" || (direction === "Entradas" ? m.delta > 0 : direction === "Saídas" ? m.delta < 0 : m.delta === 0))
-    .filter((m) => !fromDate || new Date(m.date).toISOString().slice(0, 10) >= fromDate)
-    .filter((m) => !toDate || new Date(m.date).toISOString().slice(0, 10) <= toDate)
+    .filter((m) => !fromDate || localDateKey(m.date) >= fromDate)
+    .filter((m) => !toDate || localDateKey(m.date) <= toDate)
     .filter((m) => !search.trim() || `${m.productName} ${m.productCode ?? ""} ${m.operator ?? ""} ${m.details ?? ""}`.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [movements, operation, direction, fromDate, toDate, search]);
 
-  const clearFilters = () => { setOperation("Todas"); setDirection("Todas"); setFromDate(""); setToDate(""); setSearch(""); };
+  const clearFilters = () => { const today = localDateKey(new Date()); setOperation("Todas"); setDirection("Todas"); setFromDate(today); setToDate(today); setSearch(""); };
   const formatMoney = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
   const formatQuantity = (value: number, unit: "un" | "kg") => `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 }).format(value)} ${unit}`;
   const formatDate = (value: string, seconds = false) => `${new Date(value).toLocaleDateString("pt-BR")} ${new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) })}`;
