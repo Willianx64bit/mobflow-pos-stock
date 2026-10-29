@@ -91,6 +91,8 @@ let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
 let syncFallbackInFlight = false;
+let refreshAfterPersist = false;
+let syncWakeListenersInstalled = false;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
@@ -275,12 +277,16 @@ function normalizeState() {
 }
 
 async function refreshFromCloud(accountId: string) {
+  if (persistWorker && cloudReady && cloudAccountId === accountId) {
+    // A read skipped during a write must be retried as soon as the write queue settles.
+    refreshAfterPersist = true;
+    return;
+  }
   if (
     typeof window === "undefined" ||
     !cloudReady ||
     cloudAccountId !== accountId ||
-    syncFallbackInFlight ||
-    persistWorker
+    syncFallbackInFlight
   ) return;
 
   syncFallbackInFlight = true;
@@ -295,7 +301,10 @@ async function refreshFromCloud(accountId: string) {
 
     // A write can begin while this read is in flight. In that case, leave the
     // current state untouched and let the next fallback tick read the committed row.
-    if (!cloudReady || cloudAccountId !== accountId || persistWorker) return;
+    if (!cloudReady || cloudAccountId !== accountId || persistWorker) {
+      if (persistWorker && cloudReady && cloudAccountId === accountId) refreshAfterPersist = true;
+      return;
+    }
 
     const remoteUpdatedAt = typeof data.updated_at === "string" ? data.updated_at : null;
     if (!remoteUpdatedAt) return;
@@ -328,6 +337,18 @@ function startRealtime(accountId: string) {
     syncFallbackTimer = null;
   }
   realtimeOwnerId = accountId;
+  if (!syncWakeListenersInstalled) {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible" && cloudAccountId) void refreshFromCloud(cloudAccountId);
+    };
+    const refreshWhenOnline = () => {
+      if (cloudAccountId) void refreshFromCloud(cloudAccountId);
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("online", refreshWhenOnline);
+    syncWakeListenersInstalled = true;
+  }
   realtimeChannel = supabase
     .channel(`mobflow-state:${accountId}`)
     .on("postgres_changes", {
@@ -456,6 +477,11 @@ function persistState() {
     if (persistRequested && cloudReady && typeof window !== "undefined" && cloudAccountId) {
       // Avoid a tight retry loop during Supabase outages/timeouts.
       setTimeout(() => { void persistState(); }, 1800);
+    } else if (refreshAfterPersist && cloudReady && typeof window !== "undefined" && cloudAccountId) {
+      // Do not leave a cross-user update waiting for the next 3-second poll
+      // when the poll/read was skipped because this tab was saving.
+      refreshAfterPersist = false;
+      void refreshFromCloud(cloudAccountId);
     }
   });
   persistQueue = persistWorker;
