@@ -143,14 +143,16 @@ function BalancoEstoque() {
     const parsed = new Date(date);
     return Number.isNaN(parsed.getTime()) ? date : parsed.toLocaleString("pt-BR");
   };
-  const [historyFrom, setHistoryFrom] = useState("");
-  const [historyTo, setHistoryTo] = useState("");
+  const [historyFrom, setHistoryFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
+  const [historyTo, setHistoryTo] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; });
+  const [historyMode, setHistoryMode] = useState("Todos");
   const filteredHistory = useMemo(() => history.filter((entry) => {
     const parsed = new Date(entry.date);
     if (Number.isNaN(parsed.getTime())) return false;
     const day = `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,"0")}-${String(parsed.getDate()).padStart(2,"0")}`;
-    return (!historyFrom || day >= historyFrom) && (!historyTo || day <= historyTo);
-  }), [history, historyFrom, historyTo]);
+    const modeMatches = historyMode === "Todos" || (historyMode === "somar" ? entry.items.every((item) => item.mode === "somar") : entry.items.every((item) => item.mode === "definir"));
+    return (!historyFrom || day >= historyFrom) && (!historyTo || day <= historyTo) && modeMatches;
+  }), [history, historyFrom, historyTo, historyMode]);
 
   return (
     <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6 xl:px-8 xl:py-8">
@@ -378,10 +380,11 @@ function BalancoEstoque() {
             </div>
             <details className="rounded-xl border border-border bg-secondary/30 px-3 py-2">
             <summary className="flex cursor-pointer select-none items-center gap-2 text-sm md:text-base font-semibold text-heading"><Filter className="h-4 w-4" />Filtrar</summary>
-            <div className="mt-3 grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+            <div className="mt-3 grid gap-3 rounded-xl border border-border bg-background p-3 sm:grid-cols-2 lg:grid-cols-4 sm:items-end">
+              <label className="block text-sm md:text-base font-medium"><span className="mb-1 block">Tipo de balanço</span><select value={historyMode} onChange={(e) => setHistoryMode(e.target.value)} className="field w-full text-base md:text-lg"><option value="Todos">Todos os tipos</option><option value="somar">Somar ao saldo atual</option><option value="definir">Definir novo saldo total</option></select></label>
               <label className="block text-sm md:text-base font-medium"><span className="mb-1 block">Data inicial</span><input type="date" value={historyFrom} onChange={(e) => setHistoryFrom(e.target.value)} className="field w-full text-base md:text-lg" /></label>
               <label className="block text-sm md:text-base font-medium"><span className="mb-1 block">Data final</span><input type="date" value={historyTo} min={historyFrom || undefined} onChange={(e) => setHistoryTo(e.target.value)} className="field w-full text-base md:text-lg" /></label>
-              <button type="button" onClick={() => { setHistoryFrom(""); setHistoryTo(""); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm md:text-base font-semibold">Limpar filtro</button>
+              <button type="button" onClick={() => { const d = new Date(); const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; setHistoryFrom(today); setHistoryTo(today); setHistoryMode("Todos"); }} className="rounded-xl bg-secondary px-4 py-2.5 text-sm md:text-base font-semibold">Limpar filtro</button>
             </div>
             </details>
             </div>
