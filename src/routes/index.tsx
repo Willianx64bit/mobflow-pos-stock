@@ -136,7 +136,6 @@ function PDV() {
     if (!pendingWeight) return;
     const kg = parseWeight(weightInput);
     if (kg === null || kg <= 0) { setFlash("Informe o peso"); return; }
-    if (kg > pendingWeight.stock) { setFlash(`Peso maior que o estoque: ${brl(pendingWeight.stock)} kg`); return; }
     actions.addToCart(pendingWeight.id, kg);
     setFlash(`+${brl(kg)} kg ${pendingWeight.name}`);
     setPendingWeight(null);
