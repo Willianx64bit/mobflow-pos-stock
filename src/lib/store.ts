@@ -579,7 +579,6 @@ export const actions = {
     if (!p) return;
     const cur = state.cart.find((c) => c.productId === productId);
     const nextQty = Math.max(0, (cur?.qty ?? 0) + qty);
-    if (nextQty > p.stock) return;
     const cart = nextQty === 0
       ? state.cart.filter((c) => c.productId !== productId)
       : cur ? state.cart.map((c) => (c.productId === productId ? { ...c, qty: nextQty } : c)) : [...state.cart, { productId, qty: nextQty }];
@@ -589,7 +588,7 @@ export const actions = {
     const p = state.products.find((x) => x.id === productId);
     if (!p || !Number.isFinite(qty)) return;
     const normalized = p.unit === "kg" ? Math.round(Math.max(0, qty) * 1000) / 1000 : Math.floor(Math.max(0, qty));
-    const nextQty = Math.min(p.stock, normalized);
+    const nextQty = normalized;
     const cart = nextQty <= 0
       ? state.cart.filter((c) => c.productId !== productId)
       : state.cart.map((c) => c.productId === productId ? { ...c, qty: nextQty } : c);
