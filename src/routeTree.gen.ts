@@ -10,21 +10,28 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BaixaProdutosRouteImport } from './routes/baixa-produtos'
+import { Route as BalancoEstoqueRouteImport } from './routes/balanco-estoque'
+import { Route as CaixaRouteImport } from './routes/caixa'
 import { Route as ConferenciaRouteImport } from './routes/conferencia'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
-import { Route as BalancoEstoqueRouteImport } from './routes/balanco-estoque'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as EstoqueRouteImport } from './routes/estoque'
 import { Route as FiadoRouteImport } from './routes/fiado'
+import { Route as FiadoConsultaRouteImport } from './routes/fiado-consulta'
+import { Route as FornecedoresClientesRouteImport } from './routes/fornecedores-clientes'
 import { Route as GerenciaRouteImport } from './routes/gerencia'
+import { Route as HistoricoVendasRouteImport } from './routes/historico-vendas'
+import { Route as MovimentacoesEstoqueRouteImport } from './routes/movimentacoes-estoque'
+import { Route as OperacaoCaixaRouteImport } from './routes/operacao-caixa'
+import { Route as OperacoesRouteImport } from './routes/operacoes'
 import { Route as PromocoesRouteImport } from './routes/promocoes'
 import { Route as RecebimentoRouteImport } from './routes/recebimento'
 import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
+import { Route as SaibaMaisRouteImport } from './routes/saiba-mais'
+import { Route as TransferenciasRouteImport } from './routes/transferencias'
 import { Route as ValidadeRouteImport } from './routes/validade'
 import { Route as VendasRouteImport } from './routes/vendas'
-import { Route as HistoricoVendasRouteImport } from './routes/historico-vendas'
-import { Route as FiadoConsultaRouteImport } from './routes/fiado-consulta'
-import { Route as CaixaRouteImport } from './routes/caixa'
 import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as FiadoClienteRouteImport } from './routes/fiado.cliente'
 
@@ -33,14 +40,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConferenciaRoute = ConferenciaRouteImport.update({
-  id: '/conferencia',
-  path: '/conferencia',
+const BaixaProdutosRoute = BaixaProdutosRouteImport.update({
+  id: '/baixa-produtos',
+  path: '/baixa-produtos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BalancoEstoqueRoute = BalancoEstoqueRouteImport.update({
   id: '/balanco-estoque',
   path: '/balanco-estoque',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CaixaRoute = CaixaRouteImport.update({
+  id: '/caixa',
+  path: '/caixa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConferenciaRoute = ConferenciaRouteImport.update({
+  id: '/conferencia',
+  path: '/conferencia',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
@@ -63,9 +80,39 @@ const FiadoRoute = FiadoRouteImport.update({
   path: '/fiado',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FiadoConsultaRoute = FiadoConsultaRouteImport.update({
+  id: '/fiado-consulta',
+  path: '/fiado-consulta',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FornecedoresClientesRoute = FornecedoresClientesRouteImport.update({
+  id: '/fornecedores-clientes',
+  path: '/fornecedores-clientes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GerenciaRoute = GerenciaRouteImport.update({
   id: '/gerencia',
   path: '/gerencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoricoVendasRoute = HistoricoVendasRouteImport.update({
+  id: '/historico-vendas',
+  path: '/historico-vendas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MovimentacoesEstoqueRoute = MovimentacoesEstoqueRouteImport.update({
+  id: '/movimentacoes-estoque',
+  path: '/movimentacoes-estoque',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperacaoCaixaRoute = OperacaoCaixaRouteImport.update({
+  id: '/operacao-caixa',
+  path: '/operacao-caixa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperacoesRoute = OperacoesRouteImport.update({
+  id: '/operacoes',
+  path: '/operacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PromocoesRoute = PromocoesRouteImport.update({
@@ -83,6 +130,16 @@ const RecuperarSenhaRoute = RecuperarSenhaRouteImport.update({
   path: '/recuperar-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SaibaMaisRoute = SaibaMaisRouteImport.update({
+  id: '/saiba-mais',
+  path: '/saiba-mais',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TransferenciasRoute = TransferenciasRouteImport.update({
+  id: '/transferencias',
+  path: '/transferencias',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ValidadeRoute = ValidadeRouteImport.update({
   id: '/validade',
   path: '/validade',
@@ -91,21 +148,6 @@ const ValidadeRoute = ValidadeRouteImport.update({
 const VendasRoute = VendasRouteImport.update({
   id: '/vendas',
   path: '/vendas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HistoricoVendasRoute = HistoricoVendasRouteImport.update({
-  id: '/historico-vendas',
-  path: '/historico-vendas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FiadoConsultaRoute = FiadoConsultaRouteImport.update({
-  id: '/fiado-consulta',
-  path: '/fiado-consulta',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CaixaRoute = CaixaRouteImport.update({
-  id: '/caixa',
-  path: '/caixa',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FiadoCustomerRoute = FiadoCustomerRouteImport.update({
@@ -121,62 +163,83 @@ const FiadoClienteRoute = FiadoClienteRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/baixa-produtos': typeof BaixaProdutosRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
+  '/caixa': typeof CaixaRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
-  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
+  '/fiado-consulta': typeof FiadoConsultaRoute
+  '/fornecedores-clientes': typeof FornecedoresClientesRoute
   '/gerencia': typeof GerenciaRoute
+  '/historico-vendas': typeof HistoricoVendasRoute
+  '/movimentacoes-estoque': typeof MovimentacoesEstoqueRoute
+  '/operacao-caixa': typeof OperacaoCaixaRoute
+  '/operacoes': typeof OperacoesRoute
   '/promocoes': typeof PromocoesRoute
   '/recebimento': typeof RecebimentoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
+  '/saiba-mais': typeof SaibaMaisRoute
+  '/transferencias': typeof TransferenciasRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
-  '/historico-vendas': typeof HistoricoVendasRoute
-  '/fiado-consulta': typeof FiadoConsultaRoute
-  '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/baixa-produtos': typeof BaixaProdutosRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
+  '/caixa': typeof CaixaRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
-  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
+  '/fiado-consulta': typeof FiadoConsultaRoute
+  '/fornecedores-clientes': typeof FornecedoresClientesRoute
   '/gerencia': typeof GerenciaRoute
+  '/historico-vendas': typeof HistoricoVendasRoute
+  '/movimentacoes-estoque': typeof MovimentacoesEstoqueRoute
+  '/operacao-caixa': typeof OperacaoCaixaRoute
+  '/operacoes': typeof OperacoesRoute
   '/promocoes': typeof PromocoesRoute
   '/recebimento': typeof RecebimentoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
+  '/saiba-mais': typeof SaibaMaisRoute
+  '/transferencias': typeof TransferenciasRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
-  '/historico-vendas': typeof HistoricoVendasRoute
-  '/fiado-consulta': typeof FiadoConsultaRoute
-  '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/baixa-produtos': typeof BaixaProdutosRoute
+  '/balanco-estoque': typeof BalancoEstoqueRoute
+  '/caixa': typeof CaixaRoute
   '/conferencia': typeof ConferenciaRoute
   '/configuracoes': typeof ConfiguracoesRoute
-  '/balanco-estoque': typeof BalancoEstoqueRoute
   '/dashboard': typeof DashboardRoute
   '/estoque': typeof EstoqueRoute
   '/fiado': typeof FiadoRouteWithChildren
+  '/fiado-consulta': typeof FiadoConsultaRoute
+  '/fornecedores-clientes': typeof FornecedoresClientesRoute
   '/gerencia': typeof GerenciaRoute
+  '/historico-vendas': typeof HistoricoVendasRoute
+  '/movimentacoes-estoque': typeof MovimentacoesEstoqueRoute
+  '/operacao-caixa': typeof OperacaoCaixaRoute
+  '/operacoes': typeof OperacoesRoute
   '/promocoes': typeof PromocoesRoute
   '/recebimento': typeof RecebimentoRoute
   '/recuperar-senha': typeof RecuperarSenhaRoute
+  '/saiba-mais': typeof SaibaMaisRoute
+  '/transferencias': typeof TransferenciasRoute
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
-  '/historico-vendas': typeof HistoricoVendasRoute
-  '/fiado-consulta': typeof FiadoConsultaRoute
-  '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
 }
@@ -184,80 +247,110 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/baixa-produtos'
+    | '/balanco-estoque'
+    | '/caixa'
     | '/conferencia'
     | '/configuracoes'
-    | '/balanco-estoque'
     | '/dashboard'
     | '/estoque'
     | '/fiado'
+    | '/fiado-consulta'
+    | '/fornecedores-clientes'
     | '/gerencia'
+    | '/historico-vendas'
+    | '/movimentacoes-estoque'
+    | '/operacao-caixa'
+    | '/operacoes'
     | '/promocoes'
     | '/recebimento'
     | '/recuperar-senha'
+    | '/saiba-mais'
+    | '/transferencias'
     | '/validade'
     | '/vendas'
-    | '/historico-vendas'
-    | '/fiado-consulta'
-    | '/caixa'
     | '/fiado/$customer'
     | '/fiado/cliente'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/baixa-produtos'
+    | '/balanco-estoque'
+    | '/caixa'
     | '/conferencia'
     | '/configuracoes'
-    | '/balanco-estoque'
     | '/dashboard'
     | '/estoque'
     | '/fiado'
+    | '/fiado-consulta'
+    | '/fornecedores-clientes'
     | '/gerencia'
+    | '/historico-vendas'
+    | '/movimentacoes-estoque'
+    | '/operacao-caixa'
+    | '/operacoes'
     | '/promocoes'
     | '/recebimento'
     | '/recuperar-senha'
+    | '/saiba-mais'
+    | '/transferencias'
     | '/validade'
     | '/vendas'
-    | '/historico-vendas'
-    | '/caixa'
     | '/fiado/$customer'
     | '/fiado/cliente'
   id:
     | '__root__'
     | '/'
+    | '/baixa-produtos'
+    | '/balanco-estoque'
+    | '/caixa'
     | '/conferencia'
     | '/configuracoes'
-    | '/balanco-estoque'
     | '/dashboard'
     | '/estoque'
     | '/fiado'
+    | '/fiado-consulta'
+    | '/fornecedores-clientes'
     | '/gerencia'
+    | '/historico-vendas'
+    | '/movimentacoes-estoque'
+    | '/operacao-caixa'
+    | '/operacoes'
     | '/promocoes'
     | '/recebimento'
     | '/recuperar-senha'
+    | '/saiba-mais'
+    | '/transferencias'
     | '/validade'
     | '/vendas'
-    | '/historico-vendas'
-    | '/historico-vendas'
-    | '/caixa'
     | '/fiado/$customer'
     | '/fiado/cliente'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BaixaProdutosRoute: typeof BaixaProdutosRoute
+  BalancoEstoqueRoute: typeof BalancoEstoqueRoute
+  CaixaRoute: typeof CaixaRoute
   ConferenciaRoute: typeof ConferenciaRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
-  BalancoEstoqueRoute: typeof BalancoEstoqueRoute
   DashboardRoute: typeof DashboardRoute
   EstoqueRoute: typeof EstoqueRoute
   FiadoRoute: typeof FiadoRouteWithChildren
+  FiadoConsultaRoute: typeof FiadoConsultaRoute
+  FornecedoresClientesRoute: typeof FornecedoresClientesRoute
   GerenciaRoute: typeof GerenciaRoute
+  HistoricoVendasRoute: typeof HistoricoVendasRoute
+  MovimentacoesEstoqueRoute: typeof MovimentacoesEstoqueRoute
+  OperacaoCaixaRoute: typeof OperacaoCaixaRoute
+  OperacoesRoute: typeof OperacoesRoute
   PromocoesRoute: typeof PromocoesRoute
   RecebimentoRoute: typeof RecebimentoRoute
   RecuperarSenhaRoute: typeof RecuperarSenhaRoute
+  SaibaMaisRoute: typeof SaibaMaisRoute
+  TransferenciasRoute: typeof TransferenciasRoute
   ValidadeRoute: typeof ValidadeRoute
   VendasRoute: typeof VendasRoute
-  HistoricoVendasRoute: typeof HistoricoVendasRoute
-  FiadoConsultaRoute: typeof FiadoConsultaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -269,11 +362,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/conferencia': {
-      id: '/conferencia'
-      path: '/conferencia'
-      fullPath: '/conferencia'
-      preLoaderRoute: typeof ConferenciaRouteImport
+    '/baixa-produtos': {
+      id: '/baixa-produtos'
+      path: '/baixa-produtos'
+      fullPath: '/baixa-produtos'
+      preLoaderRoute: typeof BaixaProdutosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/balanco-estoque': {
@@ -281,6 +374,20 @@ declare module '@tanstack/react-router' {
       path: '/balanco-estoque'
       fullPath: '/balanco-estoque'
       preLoaderRoute: typeof BalancoEstoqueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/caixa': {
+      id: '/caixa'
+      path: '/caixa'
+      fullPath: '/caixa'
+      preLoaderRoute: typeof CaixaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/conferencia': {
+      id: '/conferencia'
+      path: '/conferencia'
+      fullPath: '/conferencia'
+      preLoaderRoute: typeof ConferenciaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/configuracoes': {
@@ -311,11 +418,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FiadoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fiado-consulta': {
+      id: '/fiado-consulta'
+      path: '/fiado-consulta'
+      fullPath: '/fiado-consulta'
+      preLoaderRoute: typeof FiadoConsultaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fornecedores-clientes': {
+      id: '/fornecedores-clientes'
+      path: '/fornecedores-clientes'
+      fullPath: '/fornecedores-clientes'
+      preLoaderRoute: typeof FornecedoresClientesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gerencia': {
       id: '/gerencia'
       path: '/gerencia'
       fullPath: '/gerencia'
       preLoaderRoute: typeof GerenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/historico-vendas': {
+      id: '/historico-vendas'
+      path: '/historico-vendas'
+      fullPath: '/historico-vendas'
+      preLoaderRoute: typeof HistoricoVendasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/movimentacoes-estoque': {
+      id: '/movimentacoes-estoque'
+      path: '/movimentacoes-estoque'
+      fullPath: '/movimentacoes-estoque'
+      preLoaderRoute: typeof MovimentacoesEstoqueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operacao-caixa': {
+      id: '/operacao-caixa'
+      path: '/operacao-caixa'
+      fullPath: '/operacao-caixa'
+      preLoaderRoute: typeof OperacaoCaixaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operacoes': {
+      id: '/operacoes'
+      path: '/operacoes'
+      fullPath: '/operacoes'
+      preLoaderRoute: typeof OperacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/promocoes': {
@@ -339,6 +488,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecuperarSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/saiba-mais': {
+      id: '/saiba-mais'
+      path: '/saiba-mais'
+      fullPath: '/saiba-mais'
+      preLoaderRoute: typeof SaibaMaisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/transferencias': {
+      id: '/transferencias'
+      path: '/transferencias'
+      fullPath: '/transferencias'
+      preLoaderRoute: typeof TransferenciasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/validade': {
       id: '/validade'
       path: '/validade'
@@ -351,27 +514,6 @@ declare module '@tanstack/react-router' {
       path: '/vendas'
       fullPath: '/vendas'
       preLoaderRoute: typeof VendasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/historico-vendas': {
-      id: '/historico-vendas'
-      path: '/historico-vendas'
-      fullPath: '/historico-vendas'
-      preLoaderRoute: typeof HistoricoVendasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/fiado-consulta': {
-      id: '/fiado-consulta'
-      path: '/fiado-consulta'
-      fullPath: '/fiado-consulta'
-      preLoaderRoute: typeof FiadoConsultaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/caixa': {
-      id: '/caixa'
-      path: '/caixa'
-      fullPath: '/caixa'
-      preLoaderRoute: typeof CaixaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fiado/$customer': {
@@ -405,22 +547,28 @@ const FiadoRouteWithChildren = FiadoRoute._addFileChildren(FiadoRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BaixaProdutosRoute: BaixaProdutosRoute,
+  BalancoEstoqueRoute: BalancoEstoqueRoute,
+  CaixaRoute: CaixaRoute,
   ConferenciaRoute: ConferenciaRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
-  BalancoEstoqueRoute: BalancoEstoqueRoute,
-  BalancoEstoqueRoute: BalancoEstoqueRoute,
   DashboardRoute: DashboardRoute,
   EstoqueRoute: EstoqueRoute,
   FiadoRoute: FiadoRouteWithChildren,
+  FiadoConsultaRoute: FiadoConsultaRoute,
+  FornecedoresClientesRoute: FornecedoresClientesRoute,
   GerenciaRoute: GerenciaRoute,
+  HistoricoVendasRoute: HistoricoVendasRoute,
+  MovimentacoesEstoqueRoute: MovimentacoesEstoqueRoute,
+  OperacaoCaixaRoute: OperacaoCaixaRoute,
+  OperacoesRoute: OperacoesRoute,
   PromocoesRoute: PromocoesRoute,
   RecebimentoRoute: RecebimentoRoute,
   RecuperarSenhaRoute: RecuperarSenhaRoute,
+  SaibaMaisRoute: SaibaMaisRoute,
+  TransferenciasRoute: TransferenciasRoute,
   ValidadeRoute: ValidadeRoute,
   VendasRoute: VendasRoute,
-  HistoricoVendasRoute: HistoricoVendasRoute,
-  FiadoConsultaRoute: FiadoConsultaRoute,
-  CaixaRoute: CaixaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
