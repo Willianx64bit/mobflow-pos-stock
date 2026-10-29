@@ -400,7 +400,10 @@ function startRealtime(accountId: string) {
   // Realtime is the fast path; polling recovers missed cross-user updates.
   if (!syncFallbackTimer) {
     syncFallbackTimer = setInterval(() => {
-      void refreshFromCloud(accountId);
+      // Periodically reconcile every active device with the latest committed
+      // snapshot, even when Realtime delivered an event with the same timestamp
+      // or a client missed one of the events in a rapid sequence.
+      void refreshFromCloud(accountId, true);
     }, 3000);
   }
 }
