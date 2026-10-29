@@ -34,7 +34,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [cnpj, setCnpj] = useState("");
+  const [cnpj, setCnpj] = useState(() => {
+    const saved = localStorage.getItem("mobflow-company-cnpj") || "";
+    const digits = saved.replace(/\\D/g, "").slice(0, 14);
+    return digits.replace(/^(\\d{2})(\\d)/, "$1.$2").replace(/^(\\d{2})\\.(\\d{3})(\\d)/, "$1.$2.$3").replace(/\\.(\\d{3})(\\d)/, ".$1/$2").replace(/(\\d{4})(\\d)/, "$1-$2");
+  });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -401,7 +405,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode !== "pdv" && (
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="organization" placeholder="00.000.000/0000-00" className="field w-full border border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" required />
+              <input value={cnpj} onChange={(e) => { const formatted = formatCnpj(e.target.value); setCnpj(formatted); const digits = formatted.replace(/\\D/g, ""); if (digits) localStorage.setItem("mobflow-company-cnpj", digits); else localStorage.removeItem("mobflow-company-cnpj"); }} inputMode="numeric" autoComplete="organization" name="company-cnpj" placeholder="00.000.000/0000-00" className="field w-full border border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" required />
             </div>
           )}
 
