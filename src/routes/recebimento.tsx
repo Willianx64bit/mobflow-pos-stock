@@ -227,10 +227,13 @@ function Recebimento() {
       </div>
 
       {showNewNote && <div className="space-y-4">
-        <div className="flex flex-wrap justify-center gap-2 text-sm font-semibold">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap justify-center gap-2 text-sm font-semibold">
           <span className={`rounded-full px-4 py-2 ${step === 1 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>1. Fornecedor</span>
           <span className={`rounded-full px-4 py-2 ${step === 2 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>2. Produtos</span>
           <span className={`rounded-full px-4 py-2 ${step === 3 ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>3. Confirmação</span>
+          </div>
+          <button type="button" onClick={() => { if (savingNote || transitioningTo !== null) return; resetForm(); setShowNewNote(false); }} disabled={savingNote || transitioningTo !== null} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent disabled:opacity-50">Fechar</button>
         </div>
 
         {step === 1 && <div className="space-y-4">
