@@ -61,11 +61,11 @@ function Conferencia() {
     <section className="glass p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><div className="font-display text-2xl tracking-[.12em] text-heading mb-1">CONFERÊNCIA</div><div className="label-mono">Notas pendentes de recebimento</div></div><button type="button" onClick={() => navigate({ to: "/operacoes" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">← Voltar para Operações</button></div>
       
-      {!pending.length && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">nenhuma nota pendente</p>}
+      {!pending.length && <p className="py-10 text-center font-mono text-sm text-muted-foreground">nenhuma nota pendente</p>}
       <div className="divide-y divide-border/50">
         {pending.map(n => <button key={n.id} onClick={() => setOpen(n.id)} className="w-full text-left py-4 flex flex-wrap items-center gap-3 hover:bg-accent/30 rounded-lg px-2">
-          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier} · {n.items.length} produtos</div></div>
-          <span className="font-mono text-[11px] bg-secondary rounded-md px-2 py-1 text-secondary-foreground">Pendente</span>
+          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-sm text-muted-foreground">{n.supplier} · {n.items.length} produtos</div></div>
+          <span className="font-mono text-sm bg-secondary rounded-md px-2 py-1 text-secondary-foreground">Pendente</span>
           <span className="text-primary font-semibold">Abrir →</span>
         </button>)}
       </div>
@@ -76,12 +76,12 @@ function Conferencia() {
         <button type="button" onClick={() => setFiltersOpen(v => !v)} aria-expanded={filtersOpen} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4"/>{filtersOpen ? "Fechar" : "Filtrar"}</button>
       </div>
       {filtersOpen && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div><label className="mb-1 block text-xs font-semibold">Data inicial</label><input type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} className="field w-full"/></div>
-        <div><label className="mb-1 block text-xs font-semibold">Data final</label><input type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} className="field w-full"/></div>
-        <div><label className="mb-1 block text-xs font-semibold">Conclusão</label><select value={historyCompletion} onChange={e => setHistoryCompletion(e.target.value)} className="field w-full"><option>Todos</option><option>Finalizados</option><option>Finalizado</option><option>Finalizado com divergência</option><option>Ação necessária</option><option>Analisando</option><option>Pendente</option></select></div>
+        <div><label className="mb-1 block text-sm font-semibold">Data inicial</label><input type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} className="field w-full"/></div>
+        <div><label className="mb-1 block text-sm font-semibold">Data final</label><input type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} className="field w-full"/></div>
+        <div><label className="mb-1 block text-sm font-semibold">Conclusão</label><select value={historyCompletion} onChange={e => setHistoryCompletion(e.target.value)} className="field w-full"><option>Todos</option><option>Finalizados</option><option>Finalizado</option><option>Finalizado com divergência</option><option>Ação necessária</option><option>Analisando</option><option>Pendente</option></select></div>
         <div className="sm:col-span-2 lg:col-span-3 flex justify-end"><button type="button" onClick={() => {setHistoryFrom("");setHistoryTo("");setHistoryCompletion("Todos");}} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Limpar filtros</button></div>
       </div>}
-      {!filteredHistory.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{history.length ? "Nenhuma conferência encontrada com esses filtros." : "nenhuma conferência finalizada"}</p>}
+      {!filteredHistory.length && <p className="py-8 text-center font-mono text-sm text-muted-foreground">{history.length ? "Nenhuma conferência encontrada com esses filtros." : "nenhuma conferência finalizada"}</p>}
       <div className="divide-y divide-border/50">{filteredHistory.map(n => {
         const allLines = [...n.items, ...(n.extras ?? [])];
         const label = historyStatus(n);
@@ -89,9 +89,9 @@ function Conferencia() {
         return <div key={n.id} className="w-full py-4 px-2">
           <div className="flex flex-wrap items-center gap-2">
             <div className="font-semibold text-foreground">NF {n.number}</div>
-            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${completedStyle}`}>{label === "Finalizado" ? <CheckCircle2 className="h-4 w-4"/> : label === "Finalizado com divergência" || label === "Ação necessária" ? <AlertTriangle className="h-4 w-4"/> : <Clock3 className="h-4 w-4"/>}{label}</span>
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold ${completedStyle}`}>{label === "Finalizado" ? <CheckCircle2 className="h-4 w-4"/> : label === "Finalizado com divergência" || label === "Ação necessária" ? <AlertTriangle className="h-4 w-4"/> : <Clock3 className="h-4 w-4"/>}{label}</span>
           </div>
-          <div className="mt-1 font-mono text-[11px] text-muted-foreground">{n.supplier} · {allLines.length} produtos</div>
+          <div className="mt-1 font-mono text-sm text-muted-foreground">{n.supplier} · {allLines.length} produtos</div>
           <button onClick={() => setOpen(n.id)} className="mt-2 rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
         </div>;
       })}</div>
@@ -110,7 +110,7 @@ function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; pro
   };
   const decisionLabel = (id: string) => note.decisions?.[id] === "aceitar" ? "Aceito" : note.decisions?.[id] === "devolver" ? "Devolver" : "Sem decisão";
   return <section className="glass p-4">
-    <div className="flex flex-wrap items-center gap-3 mb-4"><button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar para Conferências</button><div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier} · Visualização da conferência</div></div><span className="rounded-md bg-secondary px-2 py-1 text-xs font-semibold text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.actionCompleted ? "Finalizado" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span></div>
+    <div className="flex flex-wrap items-center gap-3 mb-4"><button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar para Conferências</button><div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-sm text-muted-foreground">{note.supplier} · Visualização da conferência</div></div><span className="rounded-md bg-secondary px-2 py-1 text-sm font-semibold text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.actionCompleted ? "Finalizado" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span></div>
     {needsAction && <div className="mb-4"><button onClick={() => setConfirmAction(true)} className="w-full rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold">Ação realizada · Finalizar</button></div>}
     <div className="overflow-x-auto"><table className="w-full text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Esperado</th><th className="text-right">Recebido</th><th className="text-right">Decisão</th></tr></thead><tbody className="divide-y divide-border/50">
       {note.items.map(i => <tr key={i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === i.productId)?.code}</div></td><td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
@@ -230,7 +230,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
   return <section className="glass p-4">
     <div className="flex flex-wrap items-center gap-3 mb-4">
       <button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar</button>
-      <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-[11px] text-muted-foreground">{note.supplier}</div></div>
+      <div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-sm text-muted-foreground">{note.supplier}</div></div>
       <button onClick={() => setCameraOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-primary text-primary-foreground px-4 py-2 font-bold"><Camera className="h-4 w-4" /> Câmera</button>
       <label className="flex items-center gap-2 rounded-xl bg-secondary ring-1 ring-border px-3 py-2 text-sm text-secondary-foreground cursor-pointer select-none">
         <input
@@ -250,7 +250,7 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
           {note.items.map(i => {
             const product = products.find(p => p.id === i.productId);
             return <tr key={i.productId}>
-              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => product && editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button><button type="button" onClick={() => product && clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
+              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => product && editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button><button type="button" onClick={() => product && clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
               <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
               <td className="text-right">
                 <div className="font-mono font-semibold">{counts[i.productId] ?? 0} {i.unit === "kg" ? "kg" : "un."}</div>
@@ -260,15 +260,15 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
                     : "Quantidade completa"}
                 </div>
               </td>
-              <td className="text-right"><button type="button" onClick={() => product && openProduct(product)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Abrir</button></td>
+              <td className="text-right"><button type="button" onClick={() => product && openProduct(product)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-sm font-semibold text-secondary-foreground">Abrir</button></td>
             </tr>;
           })}
-          {products.filter(p => (extraCounts[p.id] ?? 0) > 0 && !note.items.some(i => i.productId === p.id)).map(p => <tr key={"extra-" + p.id} className="bg-amber-500/5"><td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => editProductQty(p)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><div className="text-foreground font-medium">{p.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p.code}</div><span className="inline-flex mt-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Produto não está na nota</span><button type="button" onClick={() => clearProductCollection(p)} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td><td className="text-right font-mono">—</td><td className="text-right font-mono font-semibold">{extraCounts[p.id]} {p.unit === "kg" ? "kg" : "un."}</td><td className="text-right"><button type="button" onClick={() => openProduct(p)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-xs font-semibold text-secondary-foreground">Adicionar</button></td></tr>)}
+          {products.filter(p => (extraCounts[p.id] ?? 0) > 0 && !note.items.some(i => i.productId === p.id)).map(p => <tr key={"extra-" + p.id} className="bg-amber-500/5"><td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => editProductQty(p)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><div className="text-foreground font-medium">{p.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p.code}</div><span className="inline-flex mt-1 rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Produto não está na nota</span><button type="button" onClick={() => clearProductCollection(p)} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td><td className="text-right font-mono">—</td><td className="text-right font-mono font-semibold">{extraCounts[p.id]} {p.unit === "kg" ? "kg" : "un."}</td><td className="text-right"><button type="button" onClick={() => openProduct(p)} className="rounded-lg bg-secondary ring-1 ring-border px-2 py-1 text-sm font-semibold text-secondary-foreground">Adicionar</button></td></tr>)}
         </tbody>
       </table>
     </div>
 
-    {Object.values(extraCounts).some(q => q > 0) && <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800"><b>Produtos extras registrados:</b> eles serão enviados para Recebimento para avaliação do responsável.</div>}
+    {Object.values(extraCounts).some(q => q > 0) && <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800"><b>Produtos extras registrados:</b> eles serão enviados para Recebimento para avaliação do responsável.</div>}
     <div className="mt-4 rounded-xl bg-secondary/60 ring-1 ring-border p-3 text-[12px] text-secondary-foreground">A conferência será salva mesmo se houver divergência.</div>
     <button onClick={() => { setFinishError(false); setConfirmFinish(true); }} disabled={finishing} className="w-full mt-4 rounded-xl bg-primary text-primary-foreground font-bold py-3 disabled:opacity-60">{finishing ? "Salvando conferência..." : "Finalizar conferência"}</button>
     {finishError && <p className="mt-2 text-sm text-destructive">Não foi possível salvar a conferência. Os produtos coletados continuam salvos; tente novamente.</p>}
@@ -299,15 +299,15 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     {selectedProduct && <div className="mfb-product-modal fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-border p-5 shadow-xl">
         <div className="flex items-center gap-3 mb-4">
-          {selectedProduct.photo ? <img src={selectedProduct.photo} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-border" /> : <div className="h-16 w-16 rounded-xl bg-secondary grid place-items-center text-xs text-muted-foreground">Sem foto</div>}
-          <div className="flex-1"><div className="font-bold text-lg text-foreground">{selectedProduct.name}</div><div className="font-mono text-[11px] text-muted-foreground">Código: {selectedProduct.code}</div></div>
+          {selectedProduct.photo ? <img src={selectedProduct.photo} alt="" className="h-16 w-16 rounded-xl object-cover ring-1 ring-border" /> : <div className="h-16 w-16 rounded-xl bg-secondary grid place-items-center text-sm text-muted-foreground">Sem foto</div>}
+          <div className="flex-1"><div className="font-bold text-lg text-foreground">{selectedProduct.name}</div><div className="font-mono text-sm text-muted-foreground">Código: {selectedProduct.code}</div></div>
           <button onClick={() => setSelectedProduct(null)} className="text-xl text-muted-foreground">×</button>
         </div>
-        {!note.items.some(i => i.productId === selectedProduct.id) && <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-800"><b>Produto não está na nota.</b> Será registrado como produto extra para aprovação.</div>}
+        {!note.items.some(i => i.productId === selectedProduct.id) && <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-sm text-amber-800"><b>Produto não está na nota.</b> Será registrado como produto extra para aprovação.</div>}
         <div className="rounded-xl bg-secondary/60 ring-1 ring-border p-3 mb-4">
-          <div className="text-[11px] text-muted-foreground">Já coletado</div>
+          <div className="text-sm text-muted-foreground">Já coletado</div>
           <div className="text-2xl font-bold text-foreground">{(note.items.some(i => i.productId === selectedProduct.id) ? counts[selectedProduct.id] : extraCounts[selectedProduct.id]) ?? 0} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
-          <div className="text-[11px] text-muted-foreground mt-1">Esperado nesta nota: {note.items.find(i => i.productId === selectedProduct.id)?.expected ?? "não consta"} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
+          <div className="text-sm text-muted-foreground mt-1">Esperado nesta nota: {note.items.find(i => i.productId === selectedProduct.id)?.expected ?? "não consta"} {selectedProduct.unit === "kg" ? "kg" : "un."}</div>
         </div>
         <div className="label-mono mb-2">{editingQuantity ? "Editar quantidade coletada" : "Quantidade desta coleta"}</div>
         <input autoFocus type="number" min="0" step={selectedProduct.unit === "kg" ? "0.001" : "1"} value={productQty} onChange={e => setProductQty(e.target.value)} className="field w-full text-foreground text-lg font-mono" placeholder="Ex.: 20" />
@@ -377,9 +377,9 @@ function BarcodeScanner({ products, onProduct, onClose }: {
     <div className="w-full max-w-lg rounded-2xl bg-background p-4 ring-1 ring-border">
       <div className="flex items-center gap-3 mb-3"><div className="flex-1 font-bold text-foreground">Ler código do produto</div><button onClick={onClose} className="text-2xl text-muted-foreground">×</button></div>
       <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-border"><video ref={videoRef} muted playsInline className="h-full w-full object-cover" /></div>
-      <p className="mt-3 text-xs text-muted-foreground">Aponte a câmera para o código de barras.</p>
+      <p className="mt-3 text-sm text-muted-foreground">Aponte a câmera para o código de barras.</p>
       <div className="mt-3 flex gap-2"><input value={manualCode} onChange={e => setManualCode(e.target.value)} onKeyDown={e => e.key === "Enter" && findManual()} placeholder="Ou digite o código" className="field flex-1 text-foreground" /><button onClick={findManual} className="rounded-xl bg-secondary ring-1 ring-border px-4 font-semibold text-secondary-foreground">Buscar</button></div>
-      {error && <div className="mt-3 rounded-lg bg-destructive/10 p-3 text-xs text-destructive">{error}</div>}
+      {error && <div className="mt-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
     </div>
   </div>;
 }
