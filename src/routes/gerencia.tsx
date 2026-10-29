@@ -458,8 +458,7 @@ function Gerencia() {
       <main className="space-y-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="font-mono text-xs uppercase tracking-[.16em] text-muted-foreground">GERÊNCIA</div>
-            <h1 className="mt-1 font-display text-4xl tracking-wide text-heading">Resumo rápido da operação de hoje.</h1>
+            <div className="font-mono text-lg font-bold uppercase tracking-[.16em] text-heading">GERÊNCIA</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => navigate({ to: "/vendas" })} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">Ver mais detalhes</button>
