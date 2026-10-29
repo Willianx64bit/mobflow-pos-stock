@@ -23,6 +23,7 @@ import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
 import { Route as ValidadeRouteImport } from './routes/validade'
 import { Route as VendasRouteImport } from './routes/vendas'
 import { Route as HistoricoVendasRouteImport } from './routes/historico-vendas'
+import { Route as FiadoConsultaRouteImport } from './routes/fiado-consulta'
 import { Route as CaixaRouteImport } from './routes/caixa'
 import { Route as FiadoCustomerRouteImport } from './routes/fiado.$customer'
 import { Route as FiadoClienteRouteImport } from './routes/fiado.cliente'
@@ -97,6 +98,11 @@ const HistoricoVendasRoute = HistoricoVendasRouteImport.update({
   path: '/historico-vendas',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FiadoConsultaRoute = FiadoConsultaRouteImport.update({
+  id: '/fiado-consulta',
+  path: '/fiado-consulta',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CaixaRoute = CaixaRouteImport.update({
   id: '/caixa',
   path: '/caixa',
@@ -128,6 +134,7 @@ export interface FileRoutesByFullPath {
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/historico-vendas': typeof HistoricoVendasRoute
+  '/fiado-consulta': typeof FiadoConsultaRoute
   '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
@@ -188,6 +195,7 @@ export interface FileRouteTypes {
     | '/validade'
     | '/vendas'
     | '/historico-vendas'
+    | '/fiado-consulta'
     | '/caixa'
     | '/fiado/$customer'
     | '/fiado/cliente'
@@ -247,6 +255,7 @@ export interface RootRouteChildren {
   ValidadeRoute: typeof ValidadeRoute
   VendasRoute: typeof VendasRoute
   HistoricoVendasRoute: typeof HistoricoVendasRoute
+  FiadoConsultaRoute: typeof FiadoConsultaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -349,6 +358,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HistoricoVendasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fiado-consulta': {
+      id: '/fiado-consulta'
+      path: '/fiado-consulta'
+      fullPath: '/fiado-consulta'
+      preLoaderRoute: typeof FiadoConsultaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/caixa': {
       id: '/caixa'
       path: '/caixa'
@@ -401,6 +417,7 @@ const rootRouteChildren: RootRouteChildren = {
   ValidadeRoute: ValidadeRoute,
   VendasRoute: VendasRoute,
   HistoricoVendasRoute: HistoricoVendasRoute,
+  FiadoConsultaRoute: FiadoConsultaRoute,
   CaixaRoute: CaixaRoute,
 }
 export const routeTree = rootRouteImport
