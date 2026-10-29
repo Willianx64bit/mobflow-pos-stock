@@ -34,11 +34,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [cnpj, setCnpj] = useState(() => {
-    const saved = localStorage.getItem("mobflow-company-cnpj") || "";
-    const digits = saved.replace(/\\D/g, "").slice(0, 14);
-    return digits.replace(/^(\\d{2})(\\d)/, "$1.$2").replace(/^(\\d{2})\\.(\\d{3})(\\d)/, "$1.$2.$3").replace(/\\.(\\d{3})(\\d)/, ".$1/$2").replace(/(\\d{4})(\\d)/, "$1-$2");
-  });
+  // Deixa o campo vazio para o navegador oferecer o CNPJ salvo ao tocar nele.
+  const [cnpj, setCnpj] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -389,7 +386,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <p className={`mt-1 text-muted-foreground ${mode === "empresa" ? "text-base lg:text-lg" : "text-base lg:text-lg"}`}>{mode === "pdv" ? "Informe seu usuário e senha para continuar." : "Informe os dados da empresa para entrar."}</p>
         </div>
 
-        <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="off">
+        <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="on">
           <div>
             <label className="label-mono mb-1.5 block !text-muted-foreground">Usuário</label>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
@@ -405,7 +402,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           {mode !== "pdv" && (
             <div>
               <label className="label-mono block mb-1.5">CNPJ</label>
-              <input value={cnpj} onChange={(e) => { const formatted = formatCnpj(e.target.value); setCnpj(formatted); const digits = formatted.replace(/\\D/g, ""); if (digits) localStorage.setItem("mobflow-company-cnpj", digits); else localStorage.removeItem("mobflow-company-cnpj"); }} inputMode="numeric" autoComplete="organization" name="company-cnpj" placeholder="00.000.000/0000-00" className="field w-full border border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" required />
+              <input value={cnpj} onChange={(e) => setCnpj(formatCnpj(e.target.value))} inputMode="numeric" autoComplete="on" name="cnpj" placeholder="00.000.000/0000-00" className="field w-full border border-border bg-background text-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" required />
             </div>
           )}
 
