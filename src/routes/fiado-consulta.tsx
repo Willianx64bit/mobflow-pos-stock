@@ -26,7 +26,7 @@ function FiadoConsulta() {
 
   useEffect(() => {
     const permissions = (() => { try { return JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]") as string[]; } catch { return []; } })();
-    if (sessionStorage.getItem("mobflow-pdv-authorized") !== "1" || !permissions.includes("PDV")) navigate({ to: "/" });
+    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
 
   const customers = useMemo(() => {
@@ -46,7 +46,7 @@ function FiadoConsulta() {
     <section className="glass p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary"><CreditCard className="h-5 w-5"/></div><div><h1 className="font-display text-2xl text-heading">Consulta de fiado</h1><p className="text-sm text-muted-foreground">Somente visualização. Nenhum pagamento ou cadastro pode ser alterado aqui.</p></div></div>
-        <div className="flex flex-wrap gap-2"><button onClick={()=>navigate({to:"/historico-vendas"})} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold"><ArrowLeft className="mr-1 inline h-4 w-4"/>Voltar</button><button onClick={()=>setFiltersOpen(v=>!v)} className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm font-semibold"><Filter className="h-4 w-4"/>{filtersOpen?"Fechar filtros":"Filtrar"}</button></div>
+        <div className="flex flex-wrap gap-2"><button onClick={()=>navigate({to:"/vendas"})} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold"><ArrowLeft className="mr-1 inline h-4 w-4"/>Voltar</button><button onClick={()=>setFiltersOpen(v=>!v)} className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary px-4 py-2.5 text-sm font-semibold"><Filter className="h-4 w-4"/>{filtersOpen?"Fechar filtros":"Filtrar"}</button></div>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Clientes no período</div><div className="mt-1 font-display text-2xl">{customers.length}</div></div><div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Saldo pendente</div><div className="mt-1 font-display text-2xl text-orange-600">R$ {brl(totalDue)}</div></div><div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Compras no período</div><div className="mt-1 font-display text-2xl">{customers.reduce((n,c)=>n+c.rows.length,0)}</div></div></div>
       {filtersOpen && <div className="mt-4 grid gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
