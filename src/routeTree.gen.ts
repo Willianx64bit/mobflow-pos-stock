@@ -154,6 +154,7 @@ export interface FileRoutesByTo {
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/historico-vendas': typeof HistoricoVendasRoute
+  '/fiado-consulta': typeof FiadoConsultaRoute
   '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
@@ -174,6 +175,7 @@ export interface FileRoutesById {
   '/validade': typeof ValidadeRoute
   '/vendas': typeof VendasRoute
   '/historico-vendas': typeof HistoricoVendasRoute
+  '/fiado-consulta': typeof FiadoConsultaRoute
   '/caixa': typeof CaixaRoute
   '/fiado/$customer': typeof FiadoCustomerRoute
   '/fiado/cliente': typeof FiadoClienteRoute
