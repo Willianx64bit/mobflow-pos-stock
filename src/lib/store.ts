@@ -274,6 +274,10 @@ function normalizeState() {
   state.settings = state.settings && typeof state.settings === "object"
     ? state.settings
     : { companyName: "" };
+  // Keep the company name as the visible caption, but do not store an embedded
+  // image in the shared state. A multi-megabyte base64 logo made every cloud
+  // write time out and blocked stock movement synchronization.
+  delete state.settings.companyLogo;
 }
 
 async function refreshFromCloud(accountId: string) {
@@ -525,6 +529,7 @@ export async function hydrateStore() {
       lastCloudUpdatedAt = null;
       lastSyncedState = null;
     }
+    const hadLegacyLogo = Boolean(state.settings?.companyLogo);
     normalizeState();
 
     try {
@@ -533,6 +538,9 @@ export async function hydrateStore() {
     } catch {}
     cloudReady = true;
     startRealtime(accountId);
+    // Remove the oversized legacy logo from the existing cloud row once,
+    // using the normal compare-and-swap writer so stock/history remain intact.
+    if (hadLegacyLogo) void persistState();
     if (!data?.state && !error) await persistState();
     listeners.forEach((l) => l());
   })().finally(() => { hydrating = null; });
