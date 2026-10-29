@@ -21,6 +21,7 @@ function Operacoes() {
   const formatMoney = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
   const formatQuantity = (value: number, unit: "un" | "kg") => `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 }).format(value)} ${unit}`;
   const hasActionToDo = receiving.some((note) => note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") && !note.actionCompleted);
+  const pendingConferenceCount = receiving.filter((note) => note.status === "pendente").length;
   const [hasManagementAccess, setHasManagementAccess] = useState(false);
   useEffect(() => {
     const readPermissions = () => {
@@ -63,6 +64,7 @@ function Operacoes() {
                   <div className="relative grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 md:h-16 md:w-16"><Icon className="h-7 w-7 md:h-8 md:w-8" />
                     {item.title === "Conferência" && hasActionToDo && <span className="absolute left-14 top-0 whitespace-nowrap rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">AÇÃO A SER FEITA</span>}
                   </div>
+                  {item.title === "Conferência" && pendingConferenceCount > 0 && <span className="rounded-md bg-amber-300 px-2 py-1 text-xs font-extrabold text-amber-950">{pendingConferenceCount} PENDENTE{pendingConferenceCount === 1 ? "" : "S"}</span>}
                   {!item.ready && <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">Em preparação</span>}
                 </div>
                 <h2 className="mt-5 text-lg font-bold leading-snug text-heading md:text-xl xl:text-2xl">{item.title}</h2>
