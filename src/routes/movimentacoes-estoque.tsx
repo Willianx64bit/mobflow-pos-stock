@@ -92,7 +92,7 @@ function MovimentacoesEstoque() {
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-lg font-bold text-heading">Histórico</h2>
-            <span className="rounded-full bg-secondary px-3 py-1 text-sm md:text-base font-semibold text-muted-foreground">{filtered.length} de {movements.length} registro(s)</span>
+            <span className="rounded-full bg-secondary px-3 py-1 text-sm md:text-base font-semibold text-muted-foreground">{filtered.length} registro(s) no período filtrado</span>
           </div>
           {filtered.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center text-sm md:text-base text-muted-foreground">{movements.length === 0 ? "Ainda não há movimentações registradas para esta empresa." : "Nenhum registro corresponde aos filtros selecionados."}</div> : <div className="overflow-x-auto rounded-xl border">
             <Table>
