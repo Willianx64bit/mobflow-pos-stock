@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Filter, Search, History, Wallet } from "lucide-react";
+import { ChevronDown, Filter, Search, History, Wallet, CreditCard } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, printReceipt, useStore } from "@/lib/store";
 
@@ -60,7 +60,7 @@ function Vendas() {
         ))}
       </div>
       <section className="glass p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><button type="button" onClick={() => navigate({ to: "/operacao-caixa" })} className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/15"><Wallet className="h-4 w-4" />Operação de caixa</button><button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigate({ to: "/operacao-caixa" })} className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/15"><Wallet className="h-4 w-4" />Operação de caixa</button><button type="button" onClick={() => navigate({ to: "/fiado-consulta" })} className="inline-flex items-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><CreditCard className="h-4 w-4" />Fiado</button></div><button onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm text-secondary-foreground hover:bg-accent">← Voltar para gerência</button></div>
         <div className="mb-4">
           <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><h2 className="font-display text-xl text-heading">Histórico de vendas</h2></div><button type="button" onClick={() => setFiltersOpen(open => !open)} aria-expanded={filtersOpen} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4" />{filtersOpen ? "Fechar" : "Filtrar"}</button></div>
           <p className="mt-1 text-sm text-muted-foreground">Pesquise vendas por código do comprovante, produto ou cliente.</p>
