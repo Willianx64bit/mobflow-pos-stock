@@ -477,9 +477,10 @@ function persistState() {
     if (persistRequested && cloudReady && typeof window !== "undefined" && cloudAccountId) {
       // Avoid a tight retry loop during Supabase outages/timeouts.
       setTimeout(() => { void persistState(); }, 1800);
-    } else if (refreshAfterPersist && cloudReady && typeof window !== "undefined" && cloudAccountId) {
-      // Do not leave a cross-user update waiting for the next 3-second poll
-      // when the poll/read was skipped because this tab was saving.
+    }
+    // Retry a deferred read independently of write retries. Otherwise sustained
+    // local writes can starve cross-user refreshes until the tab becomes idle.
+    if (refreshAfterPersist && cloudReady && typeof window !== "undefined" && cloudAccountId) {
       refreshAfterPersist = false;
       void refreshFromCloud(cloudAccountId);
     }
