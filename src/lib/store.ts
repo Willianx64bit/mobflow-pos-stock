@@ -90,6 +90,7 @@ let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let syncFallbackInFlight = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
@@ -280,7 +281,7 @@ function normalizeState() {
   delete state.settings.companyLogo;
 }
 
-async function refreshFromCloud(accountId: string) {
+async function refreshFromCloud(accountId: string, forceLatest = false) {
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
     // A read skipped during a write must be retried as soon as the write queue settles.
     refreshAfterPersist = true;
@@ -315,7 +316,7 @@ async function refreshFromCloud(accountId: string) {
     const remoteTime = Date.parse(remoteUpdatedAt);
     const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
     // Never roll the merge base backwards if an older read returns after a newer event.
-    if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && remoteTime <= currentTime) return;
+    if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && (forceLatest ? remoteTime < currentTime : remoteTime <= currentTime)) return;
 
     const remote = data.state as State;
     state = mergeConcurrentState(lastSyncedState, state, remote);
@@ -339,6 +340,10 @@ function startRealtime(accountId: string) {
   if (syncFallbackTimer) {
     clearInterval(syncFallbackTimer);
     syncFallbackTimer = null;
+  }
+  if (realtimeRefreshTimer) {
+    clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = null;
   }
   realtimeOwnerId = accountId;
   if (!syncWakeListenersInstalled) {
@@ -378,6 +383,14 @@ function startRealtime(accountId: string) {
       }
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
       listeners.forEach((l) => l());
+      // Reconcile against the latest committed row after a burst of concurrent
+      // operations. Realtime carries a full snapshot, but another write may
+      // already have committed before this client applies that event.
+      if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = setTimeout(() => {
+        realtimeRefreshTimer = null;
+        void refreshFromCloud(accountId, true);
+      }, 180);
     })
     .subscribe((status) => {
       // Keep a fallback active even if Realtime disconnects or misses a change.
