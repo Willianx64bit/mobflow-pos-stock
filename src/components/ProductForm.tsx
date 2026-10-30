@@ -15,10 +15,13 @@ export function ProductForm({ product, onClose }: Props) {
   const codeInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     (product ? first.current : codeInput.current)?.focus();
+  }, []);
+
+  useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
-  }, [onClose, product]);
+  }, [onClose]);
 
   const num=(s:string)=>Number(s.replace(",","."))||0;
   const cleanNumber=(value:string)=>{
