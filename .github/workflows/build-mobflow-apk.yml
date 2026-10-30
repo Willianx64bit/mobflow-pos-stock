@@ -48,8 +48,16 @@ jobs:
       - name: Install wrapper dependencies
         run: npm install
 
+      - name: Prepare MobFlow MF icon
+        run: |
+          mkdir -p resources
+          node scripts/prepare-icon.mjs
+
       - name: Generate Android project
         run: npx cap add android
+
+      - name: Generate Android launcher icons
+        run: npx capacitor-assets generate --android
 
       - name: Sync Capacitor
         run: npx cap sync android
