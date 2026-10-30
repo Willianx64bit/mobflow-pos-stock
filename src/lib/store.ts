@@ -1126,6 +1126,7 @@ export function printFiadoBalance(customer: string, sales: Sale[]) {
 }
 
 export function printReceipt(s: Sale, companyName = "") {
+  const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] ?? char));
   let receiptCompanyName = companyName.trim() || state.settings?.companyName?.trim() || "";
   if (!receiptCompanyName && typeof window !== "undefined") {
     try {
@@ -1133,18 +1134,69 @@ export function printReceipt(s: Sale, companyName = "") {
       if (raw) receiptCompanyName = JSON.parse(raw)?.settings?.companyName?.trim() || "";
     } catch {}
   }
-  const w = window.open("", "_blank", "width=380,height=640");
+  const w = window.open("", "_blank", "width=420,height=720");
   if (!w) return;
-  const rows = s.items.map((i) => { const qty = i.unit === "kg" ? `${brl(i.qty)} kg` : `${i.qty}×`; return `<tr><td>${qty} ${i.name}</td><td style="text-align:right">${brl(i.price * i.qty)}</td></tr>`; }).join("");
-  w.document.write(`<html><head><title>Comprovante ${s.id}</title><style>body{font-family:monospace;font-size:12px;width:280px;margin:12px auto}h1{text-align:center;font-size:18px;margin:0}hr{border:0;border-top:1px dashed #000}table{width:100%}p{margin:2px 0}.c{text-align:center}</style></head><body>
-<h1>${receiptCompanyName || "COMPROVANTE DE COMPRA"}</h1><p class="c">COMPROVANTE DE COMPRA</p><hr/>
-<p>Data: ${new Date(s.date).toLocaleString("pt-BR")}</p><p>Nº: ${s.id.toUpperCase()}</p>
-${s.customer ? `<p>Cliente: ${s.customer}</p>` : ""}${s.cpf ? `<p>CPF: ${s.cpf}</p>` : ""}<hr/>
-<table>${rows}</table><hr/>
-<table>${s.discount ? `<tr><td>Subtotal</td><td style="text-align:right">R$ ${brl(s.subtotal ?? s.total + s.discount)}</td></tr><tr><td>Desconto</td><td style="text-align:right">- R$ ${brl(s.discount)}</td></tr>` : ""}<tr><td><b>TOTAL</b></td><td style="text-align:right"><b>R$ ${brl(s.total)}</b></td></tr>
-<tr><td>Pagamento</td><td style="text-align:right">${s.payment}</td></tr>
-${s.received && s.received > s.total ? `<tr><td>Recebido</td><td style="text-align:right">${brl(s.received)}</td></tr><tr><td>Troco</td><td style="text-align:right">${brl(s.received - s.total)}</td></tr>` : ""}</table>
-<hr/><p class="c">Obrigado pela preferência!</p><script>window.onload=()=>{window.print()}</script></body></html>`);
+  const rows = s.items.map((item) => {
+    const productCode = state.products.find((product) => product.id === item.productId)?.code || "—";
+    const quantity = item.qty.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
+    const unit = item.unit === "kg" ? "kg" : "un";
+    return `<tr>
+      <td class="code">${escapeHtml(productCode)}</td>
+      <td class="description">${escapeHtml(item.name)}</td>
+      <td class="number">${quantity} ${unit}</td>
+      <td class="number">R$ ${brl(item.price)}</td>
+      <td class="number total">R$ ${brl(item.price * item.qty)}</td>
+    </tr>`;
+  }).join("");
+  const subtotal = s.subtotal ?? s.total + (s.discount ?? 0);
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Comprovante ${escapeHtml(s.id)}</title>
+<style>
+  @page{size:80mm auto;margin:3mm}
+  *{box-sizing:border-box}
+  body{font-family:Arial,Helvetica,sans-serif;font-size:10px;line-height:1.35;width:100%;max-width:74mm;margin:0 auto;color:#000;background:#fff}
+  h1{text-align:center;font-size:16px;line-height:1.2;margin:0 0 3px;font-weight:700;overflow-wrap:anywhere}
+  .subtitle{text-align:center;font-size:10px;letter-spacing:.5px;margin:0 0 8px}
+  .meta{margin:5px 0}
+  .meta p{margin:2px 0;overflow-wrap:anywhere}
+  .rule{border:0;border-top:1px dashed #000;margin:7px 0}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th{font-size:8px;text-align:left;font-weight:700;padding:4px 1px;border-top:1px solid #000;border-bottom:1px solid #000;vertical-align:bottom}
+  td{font-size:8px;padding:5px 1px;border-bottom:1px dotted #777;vertical-align:top;overflow-wrap:anywhere}
+  .code{width:15%;text-align:left}
+  .description{width:29%;text-align:left}
+  .number{text-align:right;width:18%;white-space:normal}
+  .total{font-weight:700;width:20%}
+  .summary{margin-top:6px}
+  .summary td{border:0;padding:2px 1px;font-size:9px}
+  .summary .grand-total td{font-size:12px;font-weight:700;border-top:1px solid #000;border-bottom:1px double #000;padding:5px 1px}
+  .center{text-align:center}
+  .footer{text-align:center;margin:10px 0 2px;font-size:10px}
+  @media screen{body{padding:8px}}
+</style></head><body>
+<h1>${escapeHtml(receiptCompanyName || "COMPROVANTE DE COMPRA")}</h1>
+<p class="subtitle">COMPROVANTE DE COMPRA</p>
+<hr class="rule">
+<div class="meta">
+  <p>Data: ${escapeHtml(new Date(s.date).toLocaleString("pt-BR"))}</p>
+  <p>Nº: ${escapeHtml(s.id.toUpperCase())}</p>
+  ${s.customer ? `<p>Cliente: ${escapeHtml(s.customer)}</p>` : ""}
+  ${s.cpf ? `<p>CPF: ${escapeHtml(s.cpf)}</p>` : ""}
+  ${s.seller ? `<p>Vendedor: ${escapeHtml(s.seller)}</p>` : ""}
+</div>
+<table aria-label="Itens da compra">
+  <thead><tr><th class="code">Código</th><th class="description">Descrição</th><th class="number">Qtd.</th><th class="number">V. un.</th><th class="number total">Total</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<table class="summary">
+  ${s.discount ? `<tr><td>Subtotal</td><td style="text-align:right">R$ ${brl(subtotal)}</td></tr><tr><td>Desconto</td><td style="text-align:right">- R$ ${brl(s.discount)}</td></tr>` : ""}
+  <tr class="grand-total"><td>TOTAL</td><td style="text-align:right">R$ ${brl(s.total)}</td></tr>
+  <tr><td>Pagamento</td><td style="text-align:right">${escapeHtml(s.payment)}</td></tr>
+  ${s.received && s.received > s.total ? `<tr><td>Recebido</td><td style="text-align:right">R$ ${brl(s.received)}</td></tr><tr><td>Troco</td><td style="text-align:right">R$ ${brl(s.received - s.total)}</td></tr>` : ""}
+</table>
+<hr class="rule">
+<p class="footer">Obrigado pela preferência!</p>
+<script>window.onload=()=>window.print();</script>
+</body></html>`);
   w.document.close();
 }
 
