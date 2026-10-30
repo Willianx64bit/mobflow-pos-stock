@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  build-and-smoke-test:
     runs-on: windows-latest
     defaults:
       run:
@@ -31,6 +31,27 @@ jobs:
         run: npm install
       - name: Build MobFlow Windows installer
         run: npm run dist
+      - name: Install MobFlow silently
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "dist/*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Installer EXE não encontrado." }
+          Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+      - name: Verify MobFlow executable starts
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:LOCALAPPDATA "Programs/MobFlow/MobFlow.exe"
+          if (-not (Test-Path $app)) {
+            $app = Get-ChildItem "$env:LOCALAPPDATA/Programs" -Filter "MobFlow.exe" -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $app -or -not (Test-Path $app)) { throw "MobFlow.exe não foi encontrado após a instalação." }
+          $process = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 12
+          $process.Refresh()
+          if ($process.HasExited) { throw "MobFlow abriu, mas encerrou inesperadamente. ExitCode: $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Smoke test aprovado: MobFlow instalado e processo permaneceu aberto por 12 segundos."
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
