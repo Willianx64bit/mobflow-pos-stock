@@ -35,10 +35,13 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Install Android SDK
+      - name: Install Android SDK command-line tools
         uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools\nplatforms;android-35\nbuild-tools;35.0.0'
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Install wrapper dependencies
         run: npm install
