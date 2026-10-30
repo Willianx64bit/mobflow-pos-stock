@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - packaging/windows-exe-wrapper
+      - packaging/windows-exe-fix-print
     paths:
       - "desktop-wrapper/**"
       - ".github/workflows/build-mobflow-exe.yml"
