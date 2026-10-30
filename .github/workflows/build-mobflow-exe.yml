@@ -1,0 +1,40 @@
+name: Build MobFlow Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - packaging/windows-exe-wrapper
+    paths:
+      - "desktop-wrapper/**"
+      - ".github/workflows/build-mobflow-exe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-wrapper
+    steps:
+      - name: Checkout isolated Windows wrapper branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop-wrapper/package.json
+      - name: Install dependencies
+        run: npm install
+      - name: Build MobFlow Windows installer
+        run: npm run dist
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobflow-windows-exe
+          path: desktop-wrapper/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
