@@ -1,0 +1,26 @@
+{
+  "name": "mobflow-windows",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MobFlow Windows desktop wrapper",
+  "main": "main.cjs",
+  "scripts": {
+    "prepare-icon": "node scripts/prepare-icon.mjs",
+    "dist": "npm run prepare-icon && electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^26.0.12",
+    "png-to-ico": "^2.1.8",
+    "sharp": "^0.34.3"
+  },
+  "build": {
+    "appId": "com.mobflow.desktop",
+    "productName": "MobFlow",
+    "directories": { "output": "dist" },
+    "files": ["main.cjs", "package.json"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "resources/icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true, "shortcutName": "MobFlow" },
+    "artifactName": "MobFlow-Setup-1.0.0-x64.exe"
+  }
+}
