@@ -1,0 +1,14 @@
+import fs from "node:fs";
+import path from "node:path";
+import sharp from "sharp";
+import pngToIco from "png-to-ico";
+const root = process.cwd();
+const source = path.resolve(root, "../public/mobflow-icon.svg");
+const resources = path.resolve(root, "resources");
+const png = path.join(resources, "icon.png");
+const ico = path.join(resources, "icon.ico");
+if (!fs.existsSync(source)) throw new Error(`Official MobFlow icon not found: ${source}`);
+fs.mkdirSync(resources, { recursive: true });
+await sharp(source).resize(256, 256).png().toFile(png);
+fs.writeFileSync(ico, await pngToIco(png));
+console.log("Official MF icon prepared for Windows.");
