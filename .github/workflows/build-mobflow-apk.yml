@@ -2,6 +2,12 @@ name: Build MobFlow Android APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - packaging/android-apk-wrapper
+    paths:
+      - 'android-wrapper/**'
+      - '.github/workflows/build-mobflow-apk.yml'
 
 permissions:
   contents: read
