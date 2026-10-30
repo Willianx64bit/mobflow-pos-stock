@@ -1137,7 +1137,9 @@ export function printReceipt(s: Sale, companyName = "") {
   const w = window.open("", "_blank", "width=420,height=720");
   if (!w) return;
   const rows = s.items.map((item) => {
-    const productCode = state.products.find((product) => product.id === item.productId)?.code || "—";
+    const product = state.products.find((entry) => entry.id === item.productId);
+    const barcode = product?.barcodes?.[0] || product?.code || "";
+    const productCode = barcode.replace(/\D/g, "").slice(-5) || "—";
     const quantity = item.qty.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
     const unit = item.unit === "kg" ? "kg" : "un";
     return `<tr>
