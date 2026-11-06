@@ -13,14 +13,14 @@ Neon test target: `mobflow-pdv-realtime-test` / `realtime-validation` (PostgreSQ
   - verifies EdDSA JWT signature against `NEON_AUTH_JWKS_URL`, issuer against `new URL(NEON_AUTH_BASE_URL).origin`, and validates subject, expiration, and not-before;
   - maps the Neon subject to a MobFlow profile through `auth_identity_links`;
   - sets transaction-local identity context only from the verified token and database profile;
-  - runs database work under `SET LOCAL ROLE mobflow_api_test`, not as the database owner.
+  - runs database work under `SET LOCAL ROLE mobflow_api`, not as the database owner.
 - Added unit tests for Neon JWT verification, non-UUID identity mapping, missing identity mapping, and invalid signature.
 - Updated existing auth tests to account for restricted-role execution.
 
 ## Database checks performed on PG18
 - Applied migrations 0002 and 0003.
 - Added synthetic Neon subject mappings for two synthetic tenants.
-- Under `mobflow_api_test`, the first synthetic subject could resolve exactly one identity link.
+- Under `mobflow_api`, the first synthetic subject could resolve exactly one identity link.
 - Under the same restricted role, Tenant A manager could read only Tenant A state; cross-tenant state visibility/update returned zero rows.
 - Earlier schema checks confirmed RLS enabled on all 7 public application tables.
 
