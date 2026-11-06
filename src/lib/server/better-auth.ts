@@ -44,7 +44,9 @@ export function getMobFlowBetterAuth() {
     trustedOrigins,
     emailAndPassword: {
       enabled: true,
+      disableSignUp: true,
       requireEmailVerification: false,
+      revokeSessionsOnPasswordReset: true,
       password: {
         hash: async (password) => bcrypt.hash(password, 12),
         verify: async ({ hash, password }) => bcrypt.compare(password, hash),
