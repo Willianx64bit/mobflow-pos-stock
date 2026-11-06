@@ -224,6 +224,84 @@ Recriar apenas EXECUTE estritamente necessário por função, com funções admi
 4. Call sites das RPCs e Edge Functions, além de configuração Auth relevante.
 5. Views, tipos, extensões e demais objetos ainda não catalogados.
 
+
+## Storage, Realtime, extensões e Edge Functions — sétimo resultado
+
+Dados obtidos diretamente do projeto Supabase PDV por consultas somente leitura e leitura das versões publicadas das Edge Functions.
+
+### Storage
+
+Bucket encontrado:
+
+| Bucket | Público | Limite | MIME types permitidos |
+|---|---:|---:|---|
+| `mobflow-payment-proofs` | não | 5 MiB | image/jpeg, image/png, image/webp, application/pdf |
+
+- O bucket é privado e armazena comprovantes de pagamento.
+- A Edge Function publicada `mobflow-signup` (v16) executa a ação `submit_payment_proof`: valida o token de solicitação, MIME type e tamanho; consulta a empresa por `payment_request_token` usando cliente service role; faz upload em `mobflow-payment-proofs` no caminho `<requestToken>/<uuid>.<ext>`; registra `payment_proof_path` e `payment_submitted_at` em `companies`.
+- Se a gravação dos metadados falhar após o upload, a função tenta remover o arquivo enviado. Preservar essa compensação e testar falhas parciais.
+- A mesma função usa service role para concluir o primeiro acesso do gerente e para cadastro público; não depende de policies de cliente para gravar tabelas protegidas.
+- A consulta de policies no schema `storage` não retornou policies. As tabelas `storage.objects` e `storage.buckets` têm RLS habilitado, sem FORCE RLS. Os roles `anon` e `authenticated` possuem privilégios SQL de SELECT/INSERT/UPDATE/DELETE nessas tabelas, mas sem policies correspondentes o RLS não concede acesso a linhas. `service_role` possui os privilégios e opera pelo caminho administrativo.
+- Não criar policies públicas no destino apenas para fazer o upload funcionar: o fluxo observado é backend privilegiado. Reproduzir o bucket privado e acesso mediado por API/servidor, com validação de propriedade, tipo e tamanho.
+
+### Realtime
+
+| Publicação | Tabela do PDV confirmada |
+|---|---|
+| `supabase_realtime` | `public.app_state` |
+
+- A publicação `supabase_realtime` não é `FOR ALL TABLES`; `public.app_state` é a única tabela do PDV retornada nessa publicação.
+- A publicação interna `supabase_realtime_messages_publication` contém tabelas particionadas `realtime.messages_2026_10_28` até `realtime.messages_2026_11_03`; tratá-las como infraestrutura interna do Supabase Realtime, não como tabelas de negócio a migrar.
+- A consulta de publicação confirma inclusão no WAL/publication, mas não prova por si só quais telas/usuários assinam os eventos nem a semântica de sincronização do cliente. Rastrear os call sites no código antes de desenhar substituição.
+- Não transportar a infraestrutura interna do Realtime para Neon. Se o aplicativo ainda precisar de atualização ao vivo, definir um mecanismo próprio e testar autorização, reconexão e concorrência. Preservar o CAS de `mobflow_save_state` independentemente do mecanismo de notificação.
+
+### Extensões instaladas
+
+A listagem do projeto identificou como instaladas (com versão instalada) as extensões:
+- `plpgsql` 1.0
+- `supabase_vault` 0.3.1
+- `pg_stat_statements` 1.11
+- `pgcrypto` 1.3
+- `uuid-ossp` 1.1
+
+A ferramenta também listou várias extensões disponíveis, mas com `installed_version = null`; elas não devem ser consideradas instaladas nem copiadas para Neon. Avaliar somente as extensões efetivamente usadas por funções, defaults, tipos e consultas do PDV. `supabase_vault` é específica do ecossistema Supabase e exige plano separado se houver segredos armazenados nela; não copiar conteúdo de segredos para documentação.
+
+### Edge Functions publicadas — leitura direta do projeto
+
+As seis funções abaixo estavam ACTIVE no momento da consulta:
+
+| Função | Versão publicada | verify_jwt | Responsabilidade observada |
+|---|---:|---:|---|
+| `mobflow-login` | 27 | false | Valida perfil/empresa/assinatura, cria gerente inicial quando aplicável e autentica por senha via Supabase Auth. |
+| `mobflow-users` | 23 | true | CRUD de usuários PDV, permissões, bloqueio, redefinição de senha e operações de limpeza/exclusão. |
+| `mobflow-reauth-manager` | 14 | true | Verificação/configuração da senha adicional da gerência, armazenada em `manager_security_by_account`. |
+| `mobflow-signup` | 16 | false | Cadastro público, setup inicial do gerente, geração de Pix e upload de comprovante. |
+| `mobflow-manager-password-recovery` | 11 | false | Recuperação de senha adicional da gerência por token e SMTP. |
+| `mobflow-admin-api` | 1 | true | API presente no projeto PDV; leitura de empresas para um email administrativo autorizado. |
+
+Pontos de integração e riscos a preservar/reavaliar:
+
+1. As funções usam `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY`; as operações administrativas usam service role no servidor. Nunca expor a chave privilegiada no cliente nem replicá-la como segredo de frontend.
+2. `mobflow-login` usa Supabase Auth `admin.createUser` e `signInWithPassword`, além de consultar `profiles`, `companies`, `account_allowlist` e `manager_security_by_account`. A migração de banco não pode ser separada da decisão de identidade/senhas.
+3. `mobflow-users` contém operações destrutivas `reset_application` e `delete_all_pdv`, protegidas por validação de gerência; preservar escopo por `account_id`, confirmação de senha e tratamento de falha parcial. Não executar essas ações durante auditoria.
+4. `mobflow-reauth-manager` e `mobflow-manager-password-recovery` usam SHA-256 simples para senha adicional da gerência. A recuperação marca o token como usado antes de persistir o novo hash; se a gravação falhar, o token fica consumido. A atomicidade/compensação continua sendo ponto de correção antes ou durante a migração, sem alterar o comportamento em produção nesta fase.
+5. `mobflow-signup` chama também um endpoint externo do projeto Supabase Admin `mobflow-public-billing` para obter configurações de pagamento. Embora o escopo atual seja PDV, essa dependência externa precisa ser mapeada para não quebrar o cadastro; não alterar o projeto Admin agora.
+6. `mobflow-admin-api` está publicado dentro do projeto PDV, mas autentica por email administrativo e lista empresas. Confirmar se o painel Admin realmente depende desse endpoint antes de decidir seu destino ou remoção.
+7. A versão publicada de `mobflow-reauth-manager` v14 difere do arquivo versionado na branch auditada; manter a divergência registrada e decidir qual contrato é correto após rastrear o cliente. Não sobrescrever uma versão pela outra sem teste e decisão explícita.
+
+### Security Advisor — observações atuais
+
+O Security Advisor retornou:
+- 5 tabelas com RLS habilitado e nenhuma policy: `account_allowlist`, `companies`, `manager_password_recovery_tokens`, `manager_security`, `manager_security_by_account`. Isso é consistente com o uso observado de Edge Functions com service role, mas precisa ser validado em cada fluxo.
+- 3 funções `SECURITY DEFINER` executáveis por `authenticated`: `accept_receiving`, `finalize_receiving_decisions`, `mobflow_save_state`. São endpoints RPC expostos pelo Data API; preservar as verificações internas de identidade/conta, validar argumentos e testar autorização. O aviso não prova por si só uma vulnerabilidade explorável.
+- Proteção de senhas vazadas do Supabase Auth desativada. Registrar como configuração de segurança a considerar no desenho de autenticação de destino.
+
+### Limitações e próximos passos
+
+- A leitura direta das Edge Functions confirma versões e conteúdo publicados, mas não substitui rastrear chamadas no frontend, secrets/configuração do ambiente, logs e fluxos externos.
+- A consulta Realtime ainda precisa ser ligada aos pontos de assinatura do cliente.
+- Ainda faltam inventário de views, tipos, funções/procedures fora de `public/private`, grants/memberships adicionais e confirmação do uso real de extensões.
+
 ## Segurança da auditoria
 
 Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
