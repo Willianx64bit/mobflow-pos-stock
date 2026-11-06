@@ -1,5 +1,7 @@
 # 46 — Better Auth: login bridge and test schema
 
+> **Status update:** this is the initial login-bridge record. The signup, user-management, manager re-authentication, and recovery routes have since been ported; see [47-better-auth-flow-progress.md](./47-better-auth-flow-progress.md) for the current state and blockers.
+
 ## Scope
 
 This is an isolated continuation of the MobFlow PDV Supabase → Neon migration.
@@ -20,9 +22,10 @@ production deployment, and the live Supabase project remain untouched.
   `VITE_MOBFLOW_AUTH_PROVIDER=better-auth` flag is enabled.
 - State API requests use same-origin HttpOnly cookies in Better Auth mode;
   the current Supabase bearer-token path remains the default.
-- Public Better Auth sign-up is disabled. The new-company signup and payment
-  workflow is intentionally hidden in Better Auth mode until its server-side
-  port is complete.
+- Public Better Auth sign-up is disabled. MobFlow company signup is handled
+  by a controlled Neon server route; payment-proof files temporarily remain in
+  the existing PDV Supabase Storage bucket to preserve the separate Admin
+  workflow's storage contract.
 
 ## Test database schema
 
