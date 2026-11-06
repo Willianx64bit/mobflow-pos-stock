@@ -21,7 +21,9 @@ Source of truth remains Supabase production; only the isolated Neon branch was w
 - Copied the complete `app_state` JSON snapshot (127,764 bytes) and its original `updated_at` timestamp.
 - All inserts used `ON CONFLICT DO NOTHING`; no existing target rows were overwritten.
 - Neon verification after copy: 4 profiles, 1 company, 1 app_state.
+- Source and target `app_state` both have 127,764 bytes and matching MD5 `db53c01e2c70528c01e3344e34499a51`; timestamps represent the same instant.
 - Under `mobflow_api_test` RLS context, manager sees 4 account profiles and 1 app_state row; PDV sees only its own profile and 1 account app_state row.
+- The API role can read profiles and read/write app_state, but cannot read `companies` or `manager_security`.
 - No source Supabase rows were changed.
 
 ## Preview HTTP validation blocker
