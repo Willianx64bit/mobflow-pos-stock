@@ -84,13 +84,15 @@ describe("MobFlow Neon API authentication", () => {
 
   it("rejects inactive profiles and rolls back", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
-    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [profile({ active: false })] })\n      .mockResolvedValueOnce({ rows: [] });
+    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [profile({ active: false })] })
+      .mockResolvedValueOnce({ rows: [] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 403,
       code: "profile_inactive",
     });
-    expect(client.query).toHaveBeenLastCalledWith("ROLLBACK");\n    expect(client.query).toHaveBeenCalledTimes(4);
+    expect(client.query).toHaveBeenLastCalledWith("ROLLBACK");
+    expect(client.query).toHaveBeenCalledTimes(4);
     expect(client.release).toHaveBeenCalledOnce();
   });
 
