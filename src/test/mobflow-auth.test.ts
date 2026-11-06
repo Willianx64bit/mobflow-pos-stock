@@ -69,7 +69,7 @@ describe("MobFlow Neon API authentication", () => {
 
   it("rolls back and releases the connection when the profile is not migrated", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
-    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 403,
@@ -77,8 +77,9 @@ describe("MobFlow Neon API authentication", () => {
     });
 
     expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    expect(client.query).toHaveBeenNthCalledWith(2, "SELECT set_config('app.user_id', $1, true)", [USER_ID]);
-    expect(client.query).toHaveBeenNthCalledWith(4, "ROLLBACK");
+    expect(client.query).toHaveBeenNthCalledWith(2, "SET LOCAL ROLE mobflow_api_test");
+    expect(client.query).toHaveBeenNthCalledWith(3, "SELECT set_config('app.user_id', $1, true)", [USER_ID]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
 
@@ -87,21 +88,22 @@ describe("MobFlow Neon API authentication", () => {
     client.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [profile({ active: false })] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [profile({ active: false })] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 403,
       code: "profile_inactive",
     });
     expect(client.query).toHaveBeenLastCalledWith("ROLLBACK");
-    expect(client.query).toHaveBeenCalledTimes(4);
+    expect(client.query).toHaveBeenCalledTimes(5);
     expect(client.release).toHaveBeenCalledOnce();
   });
 
   it("sets transaction-local identity context for an active manager", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
     client.query
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [profile()] })
@@ -118,8 +120,8 @@ describe("MobFlow Neon API authentication", () => {
       displayName: "Teste Manager",
       permissions: {},
     });
-    expect(client.query).toHaveBeenNthCalledWith(4, "SELECT set_config('app.account_id', $1, true)", [ACCOUNT_ID]);
-    expect(client.query).toHaveBeenNthCalledWith(5, "SELECT set_config('app.role', $1, true)", ["manager"]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "SELECT set_config('app.account_id', $1, true)", [ACCOUNT_ID]);
+    expect(client.query).toHaveBeenNthCalledWith(6, "SELECT set_config('app.role', $1, true)", ["manager"]);
     expect(client.release).not.toHaveBeenCalled();
   });
 
@@ -149,8 +151,8 @@ describe("MobFlow Neon API authentication", () => {
     client.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [profile({ role: "owner" })] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [profile({ role: "owner" })] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 403,
@@ -163,6 +165,7 @@ describe("MobFlow Neon API authentication", () => {
   it("derives tenant and role from the Neon profile, not request payload fields", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
     client.query
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [profile({ account_id: ACCOUNT_ID, role: "manager" })] })
@@ -179,8 +182,8 @@ describe("MobFlow Neon API authentication", () => {
     expect(result.identity.userId).toBe(USER_ID);
     expect(result.identity.accountId).toBe(ACCOUNT_ID);
     expect(result.identity.role).toBe("manager");
-    expect(client.query).toHaveBeenNthCalledWith(4, "SELECT set_config('app.account_id', $1, true)", [ACCOUNT_ID]);
-    expect(client.query).toHaveBeenNthCalledWith(5, "SELECT set_config('app.role', $1, true)", ["manager"]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "SELECT set_config('app.account_id', $1, true)", [ACCOUNT_ID]);
+    expect(client.query).toHaveBeenNthCalledWith(6, "SELECT set_config('app.role', $1, true)", ["manager"]);
   });
 
   it("maps authentication errors to their intended HTTP response", () => {
