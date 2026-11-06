@@ -75,7 +75,7 @@ describe("MobFlow Neon state API", () => {
       updatedAt: VERSION_1,
     });
     expect(client.query).toHaveBeenCalledWith(
-      "SELECT state, updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
+      expect.stringContaining("to_char(updated_at AT TIME ZONE 'UTC'"),
       [ACCOUNT_ID],
     );
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
@@ -109,6 +109,26 @@ describe("MobFlow Neon state API", () => {
       [JSON.stringify({ products: [{ id: "p1", quantity: 8 }] }), ACCOUNT_ID, VERSION_1],
     );
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("preserves PostgreSQL microsecond precision in the returned version", async () => {
+    const preciseVersion = "2026-11-06T22:00:00.000001Z";
+    client.query.mockResolvedValueOnce({ rows: [{ updated_at: preciseVersion }] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: { products: [] }, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(json(response)).resolves.toMatchObject({
+      ok: true,
+      status: "saved",
+      updatedAt: preciseVersion,
+    });
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("to_char(updated_at AT TIME ZONE 'UTC'"),
+      [JSON.stringify({ products: [] }), ACCOUNT_ID, VERSION_1],
+    );
   });
 
   it("returns HTTP 409 and the latest remote state after a stale-version conflict", async () => {
