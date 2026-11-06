@@ -15,7 +15,7 @@ Repositório: Willianx64bit/mobflow-pos-stock.
 - O bootstrap consulta sessão Auth, lê profiles e hidrata o estado do aplicativo. A sessão é mantida no navegador e há proteções para SSR.
 
 ## Estrutura pública observada
-Foram identificadas oito tabelas públicas, todas com RLS habilitado. O retorno detalhado exibiu: profiles, app_state, account_allowlist, manager_security, manager_security_by_account, companies e manager_password_recovery_tokens. A oitava entrada deve ser reconciliada na extração integral de metadados antes de gerar DDL; não presumir que a lista esteja completa.
+Foram identificadas sete tabelas públicas, todas com RLS habilitado: profiles, app_state, account_allowlist, manager_security, manager_security_by_account, companies e manager_password_recovery_tokens.
 
 app_state.state é JSONB e concentra estado operacional. Não normalizar nem alterar seu formato sem mapear serialização, sincronização e compatibilidade com versões antigas.
 
