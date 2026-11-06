@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/mobflow/state")({
             );
           }
 
-          const expected = body.expectedUpdatedAt;
+          const expected = body.expectedUpdatedAt ?? null;
           if (
             expected !== null &&
             (typeof expected !== "string" || Number.isNaN(Date.parse(expected)))
