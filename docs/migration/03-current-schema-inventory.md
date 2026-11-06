@@ -15,7 +15,7 @@ Escopo: tabelas, colunas, defaults, constraints, índices e indicadores de RLS. 
 ## Tabelas e estrutura
 
 ### `public.profiles`
-Colunas: `id uuid` (PK, FK para `auth.users(id)), `username text` (único), `cnpj text`, `created_at timestamptz DEFAULT now()`, `account_id uuid` (FK para `auth.users(id)`), `role text DEFAULT 'manager'`, `active boolean DEFAULT true`, `display_name text NULL`, `permissions jsonb DEFAULT ["PDV", "Conferência"]`.
+Colunas: `id uuid` (PK, FK para `auth.users(id)`), `username text` (único), `cnpj text`, `created_at timestamptz DEFAULT now()`, `account_id uuid` (FK para `auth.users(id)`), `role text DEFAULT 'manager'`, `active boolean DEFAULT true`, `display_name text NULL`, `permissions jsonb DEFAULT ["PDV", "Conferência"]`.
 Constraint: role limitado a `manager`, `pdv`, `admin`.
 Índice adicional: `profiles_account_id_idx(account_id)`.
 Observação: manter distinção entre `id` do usuário e `account_id` da conta/gerente.
@@ -54,15 +54,6 @@ Observação: preservar uso único, expiração e atomicidade de consumo do toke
 5. `companies` possui índices únicos por email normalizado, CNPJ, username e tokens; todos devem ser preservados no desenho de destino.
 6. Os hashes em `manager_security*` e tokens de recuperação são dados sensíveis. Não copiar valores para documentação, Git ou ambiente de teste.
 
-## Próximo passo — somente leitura
-
-Exportar as policies RLS e triggers atuais do projeto PDV. Em seguida, recuperar definições das funções relacionadas e grants. Só após comparar o estado completo será elaborado o schema de destino para Neon.
-
-## Segurança da etapa
-
-Consulta de catálogo somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação ou alteração de configuração foi executado.
-
-
 ## Policies RLS e triggers — segundo CSV
 
 Consulta executada no catálogo para schemas `public` e `private`, excluindo triggers internos.
@@ -84,10 +75,6 @@ Foram retornadas 4 policies e 0 triggers visíveis:
 - A consulta retornou zero triggers não internos em `public` e `private`. Isso não prova ausência de triggers em outros schemas, nem de triggers internos do PostgreSQL/Supabase.
 - A regra de `profiles` não trouxe policy de INSERT/UPDATE/DELETE. Preservar esse comportamento até localizar todos os fluxos que alteram perfis.
 - As expressões dependem de `auth.uid()`, `private.current_account_id()` e `private.current_account_role()`. A migração de identidade precisa substituir essas dependências com autorização equivalente, sem enfraquecer isolamento por conta.
-
-## Segurança da etapa (atualização)
-
-Segundo CSV consultado somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação ou alteração de configuração foi executado.
 
 ## Funções PostgreSQL — terceiro CSV
 
@@ -111,14 +98,44 @@ Consulta de catálogo somente leitura retornou 7 funções nos schemas `public` 
 4. **Identidade e tenancy dependem de Supabase Auth.** As funções auxiliares chamam `auth.uid()`; qualquer mudança de autenticação exige implementar contexto de identidade confiável e autorização equivalente antes de migrar policies/RPCs.
 5. **SECURITY DEFINER exige cuidado.** Todas as sete funções são SECURITY DEFINER e definem search_path; preservar privilégios mínimos, owner controlado, nomes totalmente qualificados e search_path seguro. Não conceder execução a usuários/clientes sem necessidade.
 6. **Allowlist:** a função de trigger é concedida a postgres/service_role, não a authenticated. O CSV não mostrou trigger comum anexado a tabela, portanto sua associação precisa ser conferida por catálogo de triggers/event triggers e no fluxo de cadastro.
-7. **RLS automático:** `rls_auto_enable()` é uma função de event trigger, não um trigger de tabela. O CSV de funções não confirma que exista event trigger ativo apontando para ela. Consultar `pg_event_trigger` e confirmar tags/estado antes de desenhar equivalente em Neon.
+7. **RLS automático:** `rls_auto_enable()` é uma função de event trigger, não um trigger de tabela. A consulta de `pg_event_trigger` confirmou que `ensure_rls` está habilitado (`evtenabled = O`), para `ddl_command_end`, com tags `CREATE TABLE`, `CREATE TABLE AS` e `SELECT INTO`, chamando `rls_auto_enable()`. A função/event trigger pertence ao owner `postgres`.
 
-### Limitações do CSV
+### Limitações do CSV de funções
 
 - O resultado contém apenas funções com `prokind='f'` nos schemas `public` e `private`; não inclui procedures, aggregates, funções de outros schemas, triggers/event triggers associados, policies de Storage nem configuração Auth.
 - A coluna de permissões representa ACL da função, mas precisamos conferir grants efetivos, roles herdadas e privilégios de tabelas/sequences.
 - As funções usam referências Supabase (`auth.uid()`, `auth.users`, `service_role`); elas não são diretamente portáveis para Neon sem camada de identidade e autorização equivalente.
 
-## Próxima inspeção — event triggers e privilégios
+## Event triggers — quarto resultado
 
-Consultar separadamente `pg_event_trigger`, triggers associados e grants efetivos. Nenhuma função deve ser removida ou recriada no ambiente de produção.
+Consulta somente leitura em `pg_event_trigger` retornou 7 event triggers, todos habilitados (`evtenabled = O`):
+
+| Event trigger | Evento | Tags | Função | Owner |
+|---|---|---|---|---|
+| `ensure_rls` | `ddl_command_end` | CREATE TABLE, CREATE TABLE AS, SELECT INTO | `rls_auto_enable()` | postgres |
+| `issue_graphql_placeholder` | `sql_drop` | DROP EXTENSION | `set_graphql_placeholder()` | supabase_admin |
+| `issue_pg_cron_access` | `ddl_command_end` | CREATE EXTENSION | `grant_pg_cron_access()` | supabase_admin |
+| `issue_pg_graphql_access` | `ddl_command_end` | CREATE EXTENSION | `grant_pg_graphql_access()` | supabase_admin |
+| `issue_pg_net_access` | `ddl_command_end` | CREATE EXTENSION | `grant_pg_net_access()` | supabase_admin |
+| `pgrst_ddl_watch` | `ddl_command_end` | sem filtro de tags | `pgrst_ddl_watch()` | supabase_admin |
+| `pgrst_drop_watch` | `sql_drop` | sem filtro de tags | `pgrst_drop_watch()` | supabase_admin |
+
+### Interpretação para migração
+
+- **`ensure_rls` é comportamento de segurança relevante.** Confirma que o event trigger chama `rls_auto_enable()` após comandos DDL de criação de tabelas indicados. No destino, precisamos garantir que novas tabelas também recebam RLS por um mecanismo deliberado (por exemplo, migration templates/checks ou automação própria). Não presumir que o event trigger Supabase será portável nem criar um equivalente sem avaliar privilégios e escopo.
+- Os cinco eventos de GraphQL, pg_cron e pg_net são hooks internos de integração/extensões do Supabase. Devem ser avaliados conforme as extensões e serviços realmente usados no PDV; não copiar automaticamente para Neon.
+- `pgrst_ddl_watch` e `pgrst_drop_watch` notificam o PostgREST sobre DDL/drop. São específicos da integração PostgREST/Supabase e não devem ser replicados no Neon se o destino não usar PostgREST.
+- Os sete registros estavam habilitados no momento da consulta. A consulta não prova que todas as extensões correspondentes estão instaladas nem que os serviços externos estão em uso.
+- Os owners `postgres` e `supabase_admin` pertencem ao ambiente Supabase; não transportar esses owners literalmente para o destino.
+
+## Próximas inspeções — somente leitura
+
+1. Grants efetivos de tabelas, sequences, schemas e funções, incluindo roles herdadas.
+2. Buckets e policies do Storage, em especial arquivos de comprovantes de pagamento.
+3. Publicação Realtime e tabelas inscritas.
+4. Call sites das RPCs e Edge Functions, além de configuração Auth relevante.
+5. Views, tipos, extensões e demais objetos ainda não catalogados.
+
+## Segurança da auditoria
+
+Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
