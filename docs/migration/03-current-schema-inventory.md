@@ -170,9 +170,55 @@ Consulta somente leitura com `has_table_privilege`, para os roles `anon`, `authe
 
 Não copiar as concessões atuais de `anon`/`authenticated` para Neon. Projetar grants mínimos por operação e manter RLS/tenant isolation como camada adicional; em particular, remover TRUNCATE/TRIGGER/REFERENCES de roles de cliente e só conceder DML estritamente necessário. A correção no Supabase de produção não foi feita nesta auditoria e não deve ser executada sem plano, janela e aprovação explícita.
 
+
+## Grants efetivos de schemas, sequences e funções — sexto resultado
+
+Consulta somente leitura com `has_schema_privilege`, `has_sequence_privilege` e `has_function_privilege`, para `anon`, `authenticated` e `service_role`, nos schemas `public` e `private`.
+
+### Schemas
+
+| Role | Schema | USAGE | CREATE |
+|---|---|---:|---:|
+| anon | public | sim | não |
+| anon | private | não | não |
+| authenticated | public | sim | não |
+| authenticated | private | sim | não |
+| service_role | public | sim | não |
+| service_role | private | não | não |
+
+### Sequences
+
+A consulta não retornou linhas de sequences nos schemas `public` e `private`. Isso indica que não foram encontradas sequences correspondentes ao filtro consultado; confirmar novamente se o inventário de objetos mudar.
+
+### Funções
+
+| Função | anon EXECUTE | authenticated EXECUTE | service_role EXECUTE |
+|---|---:|---:|---:|
+| `private.current_account_id()` | não | sim | não |
+| `private.current_account_role()` | não | sim | não |
+| `public.accept_receiving(text)` | não | sim | sim |
+| `public.enforce_mobflow_account_allowlist()` | não | não | sim |
+| `public.finalize_receiving_decisions(text,jsonb)` | não | sim | sim |
+| `public.mobflow_save_state(uuid,timestamptz,jsonb)` | não | sim | sim |
+| `public.rls_auto_enable()` | não | não | sim |
+
+### Interpretação para migração
+
+- `anon` tem USAGE em `public`, mas não em `private`, e não tem EXECUTE em nenhuma das sete funções consultadas.
+- `authenticated` tem USAGE em ambos os schemas, mas não CREATE. Pode executar as duas funções auxiliares de contexto e as três RPCs operacionais de recebimento/estado; não pode executar a função de allowlist nem a função de event trigger.
+- `service_role` tem USAGE em `public`, não em `private`, e não tem CREATE em nenhum dos dois schemas. Pode executar as funções públicas de recebimento/estado, allowlist e event trigger; não tem EXECUTE direto nas duas funções auxiliares privadas.
+- A ausência de USAGE de `service_role` em `private` não deve ser interpretada isoladamente como falha nas RPCs SECURITY DEFINER: as funções executam com o contexto de seu owner durante o corpo. Ainda assim, preservar e testar explicitamente o owner, search_path e as chamadas internas no destino.
+- O acesso de `authenticated` às funções auxiliares privadas é parte do contrato atual usado pelas policies e deve ser avaliado junto da estratégia de identidade; não conceder automaticamente o mesmo acesso no Neon sem necessidade.
+- Nenhuma permissão CREATE de schema foi encontrada para os três roles consultados. Manter DDL restrito a roles administrativas/de migração.
+- A consulta verifica privilégios efetivos dos três roles nomeados, mas não substitui auditoria de memberships, roles customizadas, grants em outros schemas, funções de outros schemas ou privilégios herdados por outros caminhos.
+
+### Decisão para o desenho Neon
+
+Recriar apenas EXECUTE estritamente necessário por função, com funções administrativas/trigger não executáveis por clientes. Manter CREATE de schemas reservado a roles de migração. Não copiar automaticamente o USAGE/EXECUTE de Supabase; validar cada policy e chamada do aplicativo sob o modelo de identidade escolhido.
+
 ## Próximas inspeções — somente leitura
 
-1. Grants efetivos de sequences, schemas e funções, incluindo roles herdadas/memberships.
+1. Grants de roles/memberships e privilégios de objetos fora dos schemas `public` e `private`.
 2. Buckets e policies do Storage, em especial arquivos de comprovantes de pagamento.
 3. Publicação Realtime e tabelas inscritas.
 4. Call sites das RPCs e Edge Functions, além de configuração Auth relevante.
