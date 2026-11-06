@@ -132,7 +132,9 @@ describe("MobFlow Neon Managed Auth API bridge", () => {
 
   it("rejects a token with an invalid signature", async () => {
     const { token, jwk } = makeToken();
-    const tampered = `${token.slice(0, -1)}${token.endsWith("a") ? "b" : "a"}`;
+    const [header, payload, signature] = token.split(".");
+    const alteredSignature = `${signature[0] === "a" ? "b" : "a"}${signature.slice(1)}`;
+    const tampered = `${header}.${payload}.${alteredSignature}`;
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ keys: [jwk] })));
 
     await expect(beginAuthenticatedTransaction(request(tampered))).rejects.toMatchObject({
