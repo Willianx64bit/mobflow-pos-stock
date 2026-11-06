@@ -98,3 +98,20 @@ Referência: https://neon.com/docs/auth/migrate/from-supabase
 ### Limites desta preparação
 
 Nenhuma tabela, função, extensão, política RLS ou dado foi criado/importado. Data API, Neon Auth, Functions e Realtime permanecem desativados. O projeto é apenas a base isolada de integração para a próxima etapa.
+
+
+## Etapa 3 — início da reprodução do banco (06/11/2026)
+
+A revisão da branch confirmou que o diretório `supabase/migrations` contém somente 7 arquivos SQL versionados. A auditoria anterior registrou 28 migrações aplicadas no Supabase. Portanto, faltam 21 definições históricas no repositório, além de não haver um dump completo do schema-base.
+
+Os 7 arquivos presentes foram inspecionados. Eles incluem RPCs de recebimento, permissões, metadados de cobrança e o ledger central de movimentações de estoque. Alguns dependem de objetos criados em migrações anteriores não versionadas (por exemplo, `private.current_account_id()`, tabelas e estruturas preexistentes). Aplicá-los isoladamente no Neon vazio falharia ou poderia produzir uma estrutura incompleta.
+
+A consulta de leitura das migrações pelo conector Supabase foi bloqueada pela validação do identificador do projeto: o valor retornado pela listagem é `ezkwubdpblqkqdfampopa` (21 caracteres), enquanto a ferramenta exige uma referência com exatamente 20 caracteres. Nenhuma alteração foi feita no Supabase.
+
+### Decisão de segurança
+
+**Não aplicar parcialmente os 7 arquivos no Neon.** A reprodução precisa incluir o schema-base e todas as migrações na ordem original, especialmente RLS, funções auxiliares, gatilhos, RPCs CAS e regras de isolamento por empresa. Não inventar as 21 migrações ausentes nem gerar tabelas por inferência.
+
+### Próxima ação necessária para continuar
+
+Recuperar as 28 migrações aplicadas (ou um dump somente de schema, sem dados, acompanhado da lista de migrações) a partir do Supabase/CLI ou de backup confiável. Depois comparar com os 7 arquivos versionados, reconstruir uma sequência completa e aplicar somente no Neon de teste. O PDV permanece sem tabelas e sem dados.
