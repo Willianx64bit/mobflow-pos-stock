@@ -366,6 +366,30 @@ A consulta retornou triggers habilitados de infraestrutura Supabase nas tabelas 
 - Não copiar as funções/triggers internos do Supabase Storage para Neon. Se o Storage for substituído por R2 ou outro object storage, implementar apenas as regras de negócio necessárias na API própria.
 - A consulta não retornou triggers não internos em tabelas `public` ou `private`, consistente com o inventário anterior.
 
+
+## Advisors de performance e saúde — décimo resultado
+
+Leitura dos advisors do projeto em 2026-11-06:
+
+### Performance
+
+- 1 chave estrangeira sem índice de cobertura: `companies_payment_confirmed_by_fkey`, na tabela `companies`, coluna `payment_confirmed_by`.
+- 4 índices sinalizados como não utilizados no período observado:
+  - `manager_password_recovery_tokens_account_created_idx`
+  - `companies_subscription_status_idx`
+  - `companies_subscription_expires_at_idx`
+  - `profiles_account_id_idx`
+
+Interpretação:
+- São avisos informativos, não prova de que os índices são dispensáveis. O uso depende da carga e do período de estatísticas observado.
+- Não remover índices durante a migração sem analisar consultas, planos e workloads reais.
+- Avaliar índice para `companies.payment_confirmed_by` no desenho de destino, considerando consultas e operações de FK/delete/update.
+
+### Saúde
+
+- O Health Advisor não retornou avisos no momento da consulta.
+- Isso não substitui testes funcionais, observabilidade ou confirmação de disponibilidade de serviços externos.
+
 ## Segurança da auditoria
 
 Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
