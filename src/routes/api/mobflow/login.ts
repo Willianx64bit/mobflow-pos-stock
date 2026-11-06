@@ -12,7 +12,7 @@ class LoginError extends Error {
 const deny = (message: string, status = 401): never => { throw new LoginError(message, status); };
 const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
 
-async function handleLogin(request: Request) {
+export async function handleMobFlowLogin(request: Request) {
   if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
   }
@@ -141,5 +141,5 @@ async function handleLogin(request: Request) {
 }
 
 export const Route = createFileRoute("/api/mobflow/login")({
-  server: { handlers: { POST: ({ request }) => handleLogin(request) } },
+  server: { handlers: { POST: ({ request }) => handleMobFlowLogin(request) } },
 });
