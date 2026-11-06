@@ -84,7 +84,10 @@ describe("MobFlow Neon API authentication", () => {
 
   it("rejects inactive profiles and rolls back", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
-    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [profile({ active: false })] })
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [profile({ active: false })] })
       .mockResolvedValueOnce({ rows: [] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
@@ -99,6 +102,7 @@ describe("MobFlow Neon API authentication", () => {
   it("sets transaction-local identity context for an active manager", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
     client.query
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [profile()] })
       .mockResolvedValueOnce({ rows: [] })
