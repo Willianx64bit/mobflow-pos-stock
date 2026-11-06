@@ -569,3 +569,14 @@ A documentação informa que habilitar Realtime ativa logical replication no pro
 - Login lembrado vs sessão temporária, refresh, logout, usuário bloqueado e expiração de token.
 - Recebimento: aceitar/devolver/extras e chamadas RPC preservam atomicidade e idempotência.
 - Testes negativos de isolamento e permissões para cada endpoint/API.
+
+
+### Verificação documental complementar — assinatura JWT Supabase
+- A documentação oficial Supabase “JWT Signing Keys” (atualizada em 05/11/2026) informa que há dois modelos: legado com segredo compartilhado HS256 e Signing Keys com chaves assimétricas (por exemplo ES256/RS256). A documentação de JWTs informa que o endpoint público `/auth/v1/.well-known/jwks.json` só retorna chaves quando o projeto usa assinatura assimétrica.
+- O padrão documentado para projetos Supabase é HS256, mas isso **não confirma** o algoritmo configurado neste projeto específico. O resultado de `get_project` só retorna nome, região, estado e versão PostgreSQL; não inclui a configuração de signing keys.
+- A consulta do endpoint JWKS pela ferramenta de navegação não foi concluída (endpoint inacessível nessa via); portanto não registrar “JWKS vazio” nem “JWKS ativo”.
+- Próxima verificação necessária: confirmar no painel Supabase > Authentication > JWT Signing Keys qual chave está em uso (não compartilhar chave privada/segredo), ou fornecer apenas o algoritmo e estado da chave atual. Se for HS256, o Neon Data API não poderá validar esse token via JWKS público; seria necessário outro desenho seguro (API server-side validando com Auth, ou planejar migração de assinatura com janela/compatibilidade). Se for ES256/RS256 e JWKS público disponível, testar o token no Neon isolado.
+- Fontes oficiais consultadas:
+  - https://supabase.com/docs/guides/auth/signing-keys
+  - https://supabase.com/docs/guides/auth/jwts
+  - https://neon.com/docs/data-api/custom-authentication-providers
