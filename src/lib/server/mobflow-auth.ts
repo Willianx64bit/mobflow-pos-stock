@@ -222,7 +222,7 @@ export async function beginAuthenticatedTransaction(request: Request): Promise<A
   const client = await getNeonPool().connect();
   try {
     await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE mobflow_api_test");
+    await client.query("SET LOCAL ROLE mobflow_api");
     if (process.env.MOBFLOW_AUTH_PROVIDER === NEON_AUTH_PROVIDER) {
       await client.query("SELECT set_config('app.auth_user_id', $1, true)", [authUserId]);
     }
