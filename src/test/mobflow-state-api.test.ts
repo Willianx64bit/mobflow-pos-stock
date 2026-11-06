@@ -1,0 +1,189 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { client, beginAuthenticatedTransaction, releaseTransaction } = vi.hoisted(() => ({
+  client: { query: vi.fn() },
+  beginAuthenticatedTransaction: vi.fn(),
+  releaseTransaction: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  createFileRoute: () => (config: unknown) => config,
+}));
+
+vi.mock("@/lib/server/mobflow-auth", () => ({
+  beginAuthenticatedTransaction,
+  jsonError: () => Response.json(
+    { ok: false, code: "internal_error" },
+    { status: 500 },
+  ),
+}));
+
+vi.mock("@/lib/server/neon", () => ({ releaseTransaction }));
+
+import { Route } from "@/routes/api/mobflow/state";
+
+const handlers = (Route as unknown as {
+  server: {
+    handlers: {
+      GET: (args: { request: Request }) => Promise<Response>;
+      PUT: (args: { request: Request }) => Promise<Response>;
+    };
+  };
+}).server.handlers;
+
+const ACCOUNT_ID = "9c47eaac-2abf-4cd6-b614-24e27077bdf6";
+const VERSION_1 = "2026-11-06T18:00:00.000Z";
+const VERSION_2 = "2026-11-06T18:00:01.000Z";
+
+function put(body: string) {
+  return new Request("https://mobflow.test/api/mobflow/state", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body,
+  });
+}
+
+function transaction() {
+  beginAuthenticatedTransaction.mockResolvedValue({
+    client,
+    identity: { userId: ACCOUNT_ID, accountId: ACCOUNT_ID, role: "manager" },
+  });
+}
+
+async function json(response: Response) {
+  return response.json() as Promise<Record<string, unknown>>;
+}
+
+describe("MobFlow Neon state API", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    transaction();
+    releaseTransaction.mockResolvedValue(undefined);
+  });
+
+  it("reads the state and version for the authenticated account", async () => {
+    client.query.mockResolvedValueOnce({
+      rows: [{ state: { products: [{ id: "p1", quantity: 4 }] }, updated_at: VERSION_1 }],
+    });
+
+    const response = await handlers.GET({ request: new Request("https://mobflow.test/api/mobflow/state") });
+
+    expect(response.status).toBe(200);
+    await expect(json(response)).resolves.toMatchObject({
+      ok: true,
+      state: { products: [{ id: "p1", quantity: 4 }] },
+      updatedAt: VERSION_1,
+    });
+    expect(client.query).toHaveBeenCalledWith(
+      "SELECT state, updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
+      [ACCOUNT_ID],
+    );
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("creates the first state when no expected version is supplied", async () => {
+    client.query.mockResolvedValueOnce({ rows: [{ updated_at: VERSION_1 }] });
+
+    const response = await handlers.PUT({ request: put(JSON.stringify({ state: { products: [] } })) });
+
+    expect(response.status).toBe(200);
+    await expect(json(response)).resolves.toMatchObject({ ok: true, status: "saved", updatedAt: VERSION_1 });
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO public.app_state"),
+      [ACCOUNT_ID, JSON.stringify({ products: [] })],
+    );
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("updates state only when the expected timestamp matches", async () => {
+    client.query.mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: { products: [{ id: "p1", quantity: 8 }] }, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(json(response)).resolves.toMatchObject({ ok: true, status: "saved", updatedAt: VERSION_2 });
+    expect(client.query).toHaveBeenCalledWith(
+      expect.stringContaining("WHERE owner_id = $2"),
+      [JSON.stringify({ products: [{ id: "p1", quantity: 8 }] }), ACCOUNT_ID, VERSION_1],
+    );
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("returns HTTP 409 and the latest remote state after a stale-version conflict", async () => {
+    const remoteState = { products: [{ id: "p1", quantity: 9 }] };
+    client.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ state: remoteState, updated_at: VERSION_2 }] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: { products: [{ id: "p1", quantity: 7 }] }, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(409);
+    await expect(json(response)).resolves.toMatchObject({
+      ok: false,
+      status: "conflict",
+      code: "version_conflict",
+      remoteState,
+      remoteUpdatedAt: VERSION_2,
+    });
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("allows only one of two concurrent writes using the same version", async () => {
+    let updateCount = 0;
+    client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("UPDATE public.app_state")) {
+        updateCount += 1;
+        return updateCount === 1 ? { rows: [{ updated_at: VERSION_2 }] } : { rows: [] };
+      }
+      if (sql.includes("SELECT state, updated_at")) {
+        return { rows: [{ state: { winner: true }, updated_at: VERSION_2 }] };
+      }
+      return { rows: [] };
+    });
+
+    const [first, second] = await Promise.all([
+      handlers.PUT({ request: put(JSON.stringify({ state: { writer: "device-a" }, expectedUpdatedAt: VERSION_1 })) }),
+      handlers.PUT({ request: put(JSON.stringify({ state: { writer: "device-b" }, expectedUpdatedAt: VERSION_1 })) }),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect(updateCount).toBe(2);
+  });
+
+  it("returns 400 for malformed JSON, null bodies, and non-object state values", async () => {
+    const malformed = await handlers.PUT({ request: put("{") });
+    const nullBody = await handlers.PUT({ request: put("null") });
+    const invalidState = await handlers.PUT({ request: put(JSON.stringify({ state: [] })) });
+
+    expect(malformed.status).toBe(400);
+    expect((await json(malformed)).code).toBe("invalid_json");
+    expect(nullBody.status).toBe(400);
+    expect((await json(nullBody)).code).toBe("invalid_body");
+    expect(invalidState.status).toBe(400);
+    expect((await json(invalidState)).code).toBe("invalid_state");
+    expect(beginAuthenticatedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an invalid expected version", async () => {
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: { products: [] }, expectedUpdatedAt: "not-a-date" })),
+    });
+
+    expect(response.status).toBe(400);
+    await expect(json(response)).resolves.toMatchObject({ code: "invalid_version" });
+    expect(beginAuthenticatedTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects payloads larger than 8 MiB before opening a database transaction", async () => {
+    const oversized = JSON.stringify({ state: { data: "x".repeat(8 * 1024 * 1024) } });
+    const response = await handlers.PUT({ request: put(oversized) });
+
+    expect(response.status).toBe(413);
+    await expect(json(response)).resolves.toMatchObject({ code: "payload_too_large" });
+    expect(beginAuthenticatedTransaction).not.toHaveBeenCalled();
+  });
+});
