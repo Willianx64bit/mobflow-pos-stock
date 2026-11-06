@@ -77,7 +77,7 @@ describe("MobFlow Neon API authentication", () => {
     });
 
     expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
-    expect(client.query).toHaveBeenNthCalledWith(2, "SET LOCAL ROLE mobflow_api_test");
+    expect(client.query).toHaveBeenNthCalledWith(2, "SET LOCAL ROLE mobflow_api");
     expect(client.query).toHaveBeenNthCalledWith(3, "SELECT set_config('app.user_id', $1, true)", [USER_ID]);
     expect(client.query).toHaveBeenNthCalledWith(5, "ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
