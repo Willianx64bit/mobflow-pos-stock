@@ -72,9 +72,9 @@ async function handleUsers(request: Request) {
       if (sha256(managerPassword) !== security.rows[0].password_hash) deny("Senha da gerência incorreta.", 401);
 
       await client.query(
-        \`INSERT INTO public.app_state (owner_id,state,updated_at)
+        `INSERT INTO public.app_state (owner_id,state,updated_at)
          VALUES ($1,$2::jsonb,now())
-         ON CONFLICT (owner_id) DO UPDATE SET state=EXCLUDED.state, updated_at=now()\`,
+         ON CONFLICT (owner_id) DO UPDATE SET state=EXCLUDED.state, updated_at=now()`,
         [identity.accountId, JSON.stringify(EMPTY_STATE)],
       );
 
@@ -132,10 +132,10 @@ async function handleUsers(request: Request) {
 
     if (action === "list") {
       const result = await client.query(
-        \`SELECT id::text,username,display_name,role,active,created_at,permissions
+        `SELECT id::text,username,display_name,role,active,created_at,permissions
          FROM public.profiles
          WHERE account_id=$1 AND role='pdv'
-         ORDER BY created_at DESC\`,
+         ORDER BY created_at DESC`,
         [identity.accountId],
       );
       await client.query("COMMIT");
@@ -188,18 +188,18 @@ async function handleUsers(request: Request) {
       const now = new Date();
       const hash = await bcrypt.hash(password, 12);
       await client.query(
-        \`INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
-         VALUES ($1,$2,$3,true,$4,$4)\`,
+        `INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+         VALUES ($1,$2,$3,true,$4,$4)`,
         [id, displayName, emailFor(username), now],
       );
       await client.query(
-        \`INSERT INTO public."account" (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
-         VALUES ($1,$1,'credential',$1,$2,$3,$3)\`,
+        `INSERT INTO public."account" (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
+         VALUES ($1,$1,'credential',$1,$2,$3,$3)`,
         [id, hash, now],
       );
       await client.query(
-        \`INSERT INTO public.profiles (id,username,cnpj,account_id,role,active,display_name,permissions)
-         VALUES ($1,$2,$3,$4,'pdv',true,$5,$6::jsonb)\`,
+        `INSERT INTO public.profiles (id,username,cnpj,account_id,role,active,display_name,permissions)
+         VALUES ($1,$2,$3,$4,'pdv',true,$5,$6::jsonb)`,
         [id, username, managerCnpj, identity.accountId, displayName, JSON.stringify(permissions)],
       );
 
@@ -244,8 +244,8 @@ async function handleUsers(request: Request) {
       if (password.length < 6) deny("A senha precisa ter pelo menos 6 caracteres.");
       const hash = await bcrypt.hash(password, 12);
       const update = await client.query(
-        \`UPDATE public."account" SET password=$2,"updatedAt"=now()
-         WHERE "userId"=$1 AND "providerId"='credential' AND "accountId"=$1\`,
+        `UPDATE public."account" SET password=$2,"updatedAt"=now()
+         WHERE "userId"=$1 AND "providerId"='credential' AND "accountId"=$1`,
         [userId, hash],
       );
       if (!update.rowCount) deny("Não foi possível localizar a credencial deste usuário.", 404);
