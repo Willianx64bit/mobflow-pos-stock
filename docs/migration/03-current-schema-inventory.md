@@ -390,6 +390,50 @@ Interpretação:
 - O Health Advisor não retornou avisos no momento da consulta.
 - Isso não substitui testes funcionais, observabilidade ou confirmação de disponibilidade de serviços externos.
 
+
+## Call sites do frontend — décimo primeiro resultado
+
+Leitura de `src/lib/store.ts`, `src/lib/supabase.ts` e `src/lib/manager-auth.ts` na branch `migration/neon-preparation`.
+
+### Cliente Supabase e sessão
+
+- `src/lib/supabase.ts` cria o cliente com URL e publishable key do projeto PDV.
+- A sessão é persistida no browser com storage customizado: localStorage quando "Salvar login" está ativo; sessionStorage quando desativado. A chave de sessão é `mobflow-auth-session`.
+- A chave publicada no frontend é publishable key, não service role. Não registrar o valor literal da chave nesta documentação.
+- A estratégia de autenticação de destino precisa manter persistência/expiração/renovação de sessão e o comportamento de "Salvar login", ou fazer uma transição explícita e testada.
+
+### Estado, Realtime e sincronização
+
+- `hydrateStore()` chama `auth.getUser()`, lê `profiles.account_id` pelo `profiles.id`, usa `account_id` como dono e carrega `app_state.state, updated_at` por `owner_id`.
+- `startRealtime(accountId)` assina `postgres_changes` somente para evento `UPDATE` em `public.app_state`, filtrado por `owner_id=eq.<accountId>`.
+- A assinatura mescla snapshots com estado local, protege contra eventos fora de ordem e agenda uma leitura de reconciliação após 180 ms.
+- Existe fallback de polling a cada 3 segundos, além de atualização quando a janela recebe foco, a página volta a ficar visível ou a conexão retorna.
+- Portanto, Realtime não é apenas um detalhe de publicação: o cliente depende de evento UPDATE e de polling para reconciliar mudanças entre dispositivos. A migração precisa reproduzir o contrato de atualização/reconexão e o merge sem duplicar movimentos/estoque.
+- O frontend executa SELECT de `app_state` e `profiles` diretamente pelo cliente autenticado; policies e contexto de identidade precisam suportar isso, ou esses acessos devem migrar para endpoints equivalentes com comportamento idêntico.
+
+### Escrita do estado e CAS — distinção importante
+
+- No arquivo `src/lib/store.ts`, a gravação observada faz UPDATE direto em `app_state` com filtros `owner_id` e `updated_at` esperado, selecionando o novo timestamp. Quando não há timestamp inicial, usa UPSERT por `owner_id`.
+- Se o UPDATE não retorna linha, o cliente lê o estado remoto, faz merge e tenta novamente (até o limite de tentativas do worker). Falhas mantêm a gravação pendente para retry.
+- **Não foi encontrada chamada a `supabase.rpc('mobflow_save_state', ...)` em `src/lib/store.ts`.** A função `mobflow_save_state` existe no banco e sua lógica foi auditada, mas o caminho de persistência observado neste arquivo usa compare-and-swap por UPDATE condicional diretamente na tabela. Confirmar se outro módulo chama a RPC antes de decidir se ela é contrato ativo ou legado.
+- Para a migração, preservar primeiro o comportamento efetivamente chamado pelo frontend e testar concorrência, conflitos, retry, criação inicial, perda de conexão e reconciliação. Não trocar por upsert cego nem remover a RPC sem localizar todos os call sites.
+
+### RPCs de recebimento
+
+- `src/lib/store.ts` chama `supabase.rpc('accept_receiving', { p_receiving_id })`.
+- O mesmo arquivo chama `supabase.rpc('finalize_receiving_decisions', { ... })`.
+- Essas duas RPCs são caminhos ativos no frontend observado e precisam manter transação, lock, validação de decisões, estoque e idempotência conforme auditado anteriormente.
+
+### Senha adicional da gerência
+
+- `src/lib/manager-auth.ts` chama a Edge Function `mobflow-reauth-manager` com a senha no corpo da requisição.
+- A UI depende da resposta `ok`/mensagem de erro; manter contrato e autorização do usuário autenticado.
+- A persistência do estado da sessão e as credenciais adicionais da gerência são mecanismos distintos; não confundir a senha Auth do usuário com a senha adicional de gerência.
+
+### Limitação desta leitura
+
+A leitura confirmou os call sites nos arquivos citados, mas não é uma busca exaustiva de todo o repositório. A decisão final sobre RPCs e dependências de Auth deve considerar todos os módulos e as versões publicadas das Edge Functions.
+
 ## Segurança da auditoria
 
 Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
