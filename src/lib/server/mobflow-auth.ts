@@ -219,6 +219,16 @@ export async function beginAuthenticatedTransaction(request: Request): Promise<A
     authUserId = authUser.id;
   }
 
+  // Reject malformed Supabase subjects before opening a database connection.
+  // Managed Neon Auth uses opaque subject IDs and resolves them through the
+  // explicit auth_identity_links table below.
+  if (
+    process.env.MOBFLOW_AUTH_PROVIDER !== NEON_AUTH_PROVIDER &&
+    !/^[0-9a-f-]{36}$/i.test(authUserId)
+  ) {
+    throw new ApiAuthError("A identidade da sessão não é válida para este perfil.", 401, "invalid_token");
+  }
+
   const client = await getNeonPool().connect();
   try {
     await client.query("BEGIN");
