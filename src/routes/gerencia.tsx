@@ -4,8 +4,20 @@ import type { FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { isBetterAuthEnabled } from "@/lib/auth-client";
 import { verifyManagerPassword } from "@/lib/manager-auth";
 import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent, Scale, Workflow } from "lucide-react";
+
+const postBetterAuth = async (path: string, body: Record<string, unknown>) => {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  return { data, error: response.ok ? null : true };
+};
 
 const managementTabs = [
   { to: "/promocoes", label: "Promoções", icon: "promotions" },
@@ -83,9 +95,10 @@ function Gerencia() {
     }
     setRecoveryLoading(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-manager-password-recovery", {
-        body: { action: "request", email, cnpj },
-      });
+      const recoveryResult = isBetterAuthEnabled
+        ? await postBetterAuth("/api/mobflow/manager-password-recovery", { action: "request", email, cnpj })
+        : await supabase.functions.invoke("mobflow-manager-password-recovery", { body: { action: "request", email, cnpj } });
+      const { data, error: invokeError } = recoveryResult;
       if (invokeError || !data?.ok) {
         setRecoveryMessage(String(data?.error ?? "Não foi possível processar a solicitação agora. Tente novamente mais tarde."));
       } else {
@@ -160,21 +173,35 @@ function Gerencia() {
     let active = true;
     const checkManager = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
+        let hasSession = false;
+        if (isBetterAuthEnabled) {
+          const sessionResponse = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+          const sessionBody = await sessionResponse.json().catch(() => ({}));
+          hasSession = sessionResponse.ok && sessionBody?.ok === true;
+        } else {
+          const { data: sessionData } = await supabase.auth.getSession();
+          hasSession = Boolean(sessionData.session);
+        }
+        if (!hasSession) {
           if (active) {
             setAccessIssue("Sua sessão não está ativa. Entre novamente com a conta da empresa para acessar a Gerência.");
             setCheckingManager(false);
           }
           return;
         }
-        const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
+        const statusResult = isBetterAuthEnabled
+          ? await postBetterAuth("/api/mobflow/reauth-manager", { action: "status" })
+          : await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
+        const { data: securityStatus, error: securityStatusError } = statusResult;
         if (securityStatusError || typeof securityStatus?.configured !== "boolean" || !["manager", "pdv"].includes(securityStatus?.role)) {
           throw new Error("Não foi possível verificar a permissão da Gerência.");
         }
         let needsFirstUser = false;
         if (securityStatus.role === "manager" && securityStatus.configured) {
-          const { data: usersData, error: usersError } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+          const usersResult = isBetterAuthEnabled
+            ? await postBetterAuth("/api/mobflow/users", { action: "list" })
+            : await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+          const { data: usersData, error: usersError } = usersResult;
           if (usersError || !Array.isArray(usersData?.users)) throw new Error("Não foi possível verificar o primeiro usuário.");
           needsFirstUser = usersData.users.length === 0;
         }
@@ -207,9 +234,10 @@ function Gerencia() {
     }
     setPasswordLoading(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-reauth-manager", {
-        body: { action: "set_password", password: setupPassword },
-      });
+      const setResult = isBetterAuthEnabled
+        ? await postBetterAuth("/api/mobflow/reauth-manager", { action: "set_password", password: setupPassword })
+        : await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "set_password", password: setupPassword } });
+      const { data, error: invokeError } = setResult;
       if (invokeError || !data?.ok) {
         setSetupPasswordError(data?.error || "Não foi possível salvar a senha. Tente novamente.");
         return;
@@ -342,15 +370,17 @@ function Gerencia() {
     }
     setFirstUserLoading(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-users", {
-        body: {
-          action: "create",
-          username,
-          displayName: firstDisplayName.trim() || username,
-          password: firstPassword,
-          permissions: ["PDV", "Operações", "Validade", "Fiado", "Gerência"],
-        },
-      });
+      const createBody = {
+        action: "create",
+        username,
+        displayName: firstDisplayName.trim() || username,
+        password: firstPassword,
+        permissions: ["PDV", "Operações", "Validade", "Fiado", "Gerência"],
+      };
+      const createResult = isBetterAuthEnabled
+        ? await postBetterAuth("/api/mobflow/users", createBody)
+        : await supabase.functions.invoke("mobflow-users", { body: createBody });
+      const { data, error: invokeError } = createResult;
       if (invokeError || !data?.ok) {
         let message = data?.error || "";
         try { message = message || String((await (invokeError as { context?: Response })?.context?.json())?.error || ""); } catch {}
