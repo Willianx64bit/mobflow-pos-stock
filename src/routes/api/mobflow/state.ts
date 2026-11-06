@@ -51,15 +51,24 @@ export const Route = createFileRoute("/api/mobflow/state")({
             );
           }
 
-          let body: { state?: unknown; expectedUpdatedAt?: unknown };
+          let parsedBody: unknown;
           try {
-            body = JSON.parse(rawBody) as { state?: unknown; expectedUpdatedAt?: unknown };
+            parsedBody = JSON.parse(rawBody) as unknown;
           } catch {
             return Response.json(
               { ok: false, error: "Corpo da requisição inválido.", code: "invalid_json" },
               { status: 400 },
             );
           }
+
+          if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
+            return Response.json(
+              { ok: false, error: "O corpo da requisição deve ser um objeto JSON.", code: "invalid_body" },
+              { status: 400 },
+            );
+          }
+
+          const body = parsedBody as { state?: unknown; expectedUpdatedAt?: unknown };
 
           if (!body.state || typeof body.state !== "object" || Array.isArray(body.state)) {
             return Response.json(
