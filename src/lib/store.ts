@@ -81,7 +81,6 @@ let state: State = emptyState();
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
-let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let realtimeOwnerId: string | null = null;
 let cloudAccountId: string | null = null;
 let lastCloudUpdatedAt: string | null = null;
@@ -90,7 +89,6 @@ let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
-let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let syncFallbackInFlight = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
@@ -354,10 +352,6 @@ function startRealtime(accountId: string) {
   if (syncFallbackTimer) {
     clearInterval(syncFallbackTimer);
     syncFallbackTimer = null;
-  }
-  if (realtimeRefreshTimer) {
-    clearTimeout(realtimeRefreshTimer);
-    realtimeRefreshTimer = null;
   }
   realtimeOwnerId = accountId;
 
