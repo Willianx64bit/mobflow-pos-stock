@@ -281,6 +281,7 @@ function normalizeState() {
 
 type MobFlowApiBody = {
   ok?: boolean;
+  accountId?: string;
   state?: unknown;
   updatedAt?: string | null;
   status?: string;
