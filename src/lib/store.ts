@@ -281,9 +281,34 @@ function normalizeState() {
   delete state.settings.companyLogo;
 }
 
+type MobFlowApiBody = {
+  ok?: boolean;
+  state?: unknown;
+  updatedAt?: string | null;
+  status?: string;
+  remoteState?: unknown;
+  remoteUpdatedAt?: string | null;
+  error?: string;
+};
+
+async function callMobFlowApi(path: string, init: RequestInit = {}) {
+  const { data, error } = await supabase.auth.getSession();
+  const accessToken = data.session?.access_token;
+  if (error || !accessToken) throw new Error("Sessão MobFlow indisponível para sincronizar com o Neon.");
+
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  if (init.body !== undefined && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(path, { ...init, headers });
+  const body = await response.json().catch(() => ({})) as MobFlowApiBody;
+  return { response, body };
+}
+
 async function refreshFromCloud(accountId: string, forceLatest = false) {
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
-    // A read skipped during a write must be retried as soon as the write queue settles.
     refreshAfterPersist = true;
     return;
   }
@@ -296,36 +321,29 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
 
   syncFallbackInFlight = true;
   try {
-    const { data, error } = await supabase
-      .from("app_state")
-      .select("state,updated_at")
-      .eq("owner_id", accountId)
-      .maybeSingle();
+    const { response, body } = await callMobFlowApi("/api/mobflow/state");
+    if (!response.ok || !body.state || typeof body.state !== "object") return;
 
-    if (error || !data?.state || typeof data.state !== "object") return;
-
-    // A write can begin while this read is in flight. In that case, leave the
-    // current state untouched and let the next fallback tick read the committed row.
     if (!cloudReady || cloudAccountId !== accountId || persistWorker) {
       if (persistWorker && cloudReady && cloudAccountId === accountId) refreshAfterPersist = true;
       return;
     }
 
-    const remoteUpdatedAt = typeof data.updated_at === "string" ? data.updated_at : null;
+    const remoteUpdatedAt = typeof body.updatedAt === "string" ? body.updatedAt : null;
     if (!remoteUpdatedAt) return;
     const remoteTime = Date.parse(remoteUpdatedAt);
     const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
-    // Never roll the merge base backwards if an older read returns after a newer event.
     if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && (forceLatest ? remoteTime < currentTime : remoteTime <= currentTime)) return;
 
-    const remote = data.state as State;
+    const remote = body.state as State;
     state = mergeConcurrentState(lastSyncedState, state, remote);
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
+    realtimeRevision += 1;
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
     listeners.forEach((listener) => listener());
   } catch {
-    // Realtime and the next fallback tick can recover from temporary network errors.
+    // A próxima tentativa de polling ou o retorno da conexão recupera a sincronização.
   } finally {
     syncFallbackInFlight = false;
   }
@@ -333,10 +351,6 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
 
 function startRealtime(accountId: string) {
   if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
-  if (realtimeChannel) {
-    void supabase.removeChannel(realtimeChannel);
-    realtimeChannel = null;
-  }
   if (syncFallbackTimer) {
     clearInterval(syncFallbackTimer);
     syncFallbackTimer = null;
@@ -346,6 +360,7 @@ function startRealtime(accountId: string) {
     realtimeRefreshTimer = null;
   }
   realtimeOwnerId = accountId;
+
   if (!syncWakeListenersInstalled) {
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible" && cloudAccountId) void refreshFromCloud(cloudAccountId);
@@ -358,58 +373,15 @@ function startRealtime(accountId: string) {
     window.addEventListener("online", refreshWhenOnline);
     syncWakeListenersInstalled = true;
   }
-  realtimeChannel = supabase
-    .channel(`mobflow-state:${accountId}`)
-    .on("postgres_changes", {
-      event: "UPDATE",
-      schema: "public",
-      table: "app_state",
-      filter: `owner_id=eq.${accountId}`,
-    }, (payload) => {
-      const remoteState = (payload.new as Record<string, unknown> | undefined)?.["state"];
-      const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
-      if (!remoteState || typeof remoteState !== "object") return;
-      const remote = remoteState as State;
-      realtimeRevision += 1;
-      const incomingUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : null;
-      const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
-      const incomingTime = incomingUpdatedAt ? Date.parse(incomingUpdatedAt) : Number.NaN;
-      // Realtime payloads can arrive out of order; don't merge an older snapshot.
-      if (Number.isFinite(currentTime) && Number.isFinite(incomingTime) && incomingTime < currentTime) return;
-      state = mergeConcurrentState(lastSyncedState, state, remote);
-      lastSyncedState = cloneState(remote);
-      if (incomingUpdatedAt && (!Number.isFinite(currentTime) || !Number.isFinite(incomingTime) || incomingTime >= currentTime)) {
-        lastCloudUpdatedAt = incomingUpdatedAt;
-      }
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      listeners.forEach((l) => l());
-      // Reconcile against the latest committed row after a burst of concurrent
-      // operations. Realtime carries a full snapshot, but another write may
-      // already have committed before this client applies that event.
-      if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
-      realtimeRefreshTimer = setTimeout(() => {
-        realtimeRefreshTimer = null;
-        void refreshFromCloud(accountId, true);
-      }, 180);
-    })
-    .subscribe((status) => {
-      // Keep a fallback active even if Realtime disconnects or misses a change.
-      if (status === "SUBSCRIBED") void refreshFromCloud(accountId);
-    });
 
-  // Realtime is the fast path; polling recovers missed cross-user updates.
-  if (!syncFallbackTimer) {
-    syncFallbackTimer = setInterval(() => {
-      // Periodically reconcile every active device with the latest committed
-      // snapshot, even when Realtime delivered an event with the same timestamp
-      // or a client missed one of the events in a rapid sequence.
-      void refreshFromCloud(accountId, true);
-    }, 3000);
-  }
+  // Neon Realtime fica para a etapa seguinte. Enquanto isso, a API Neon
+  // reconcilia o estado a cada 3 segundos sem acessar o banco pelo navegador.
+  syncFallbackTimer = setInterval(() => {
+    void refreshFromCloud(accountId, true);
+  }, 3000);
 }
 
 function persistState() {
-  // Coalesce local changes, but never silently discard a failed cloud write.
   persistRequested = true;
   if (persistWorker) return persistQueue;
 
@@ -424,36 +396,21 @@ function persistState() {
       const snapshot = cloneState(state);
       const revisionAtRequestStart = realtimeRevision;
       const expected = lastCloudUpdatedAt;
-      let result;
+
+      let result: Awaited<ReturnType<typeof callMobFlowApi>>;
       try {
-        if (expected) {
-          result = await supabase.from("app_state")
-            .update({ state: snapshot, updated_at: new Date().toISOString() })
-            .eq("owner_id", cloudAccountId)
-            .eq("updated_at", expected)
-            .select("updated_at")
-            .maybeSingle();
-        } else {
-          result = await supabase.from("app_state")
-            .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
-            .select("updated_at")
-            .maybeSingle();
-        }
+        result = await callMobFlowApi("/api/mobflow/state", {
+          method: "PUT",
+          body: JSON.stringify({ state: snapshot, expectedUpdatedAt: expected }),
+        });
       } catch {
-        // Keep the latest state queued for a delayed retry.
         persistRequested = true;
         break;
       }
 
-      if (result.error) {
-        persistRequested = true;
-        break;
-      }
-      if (result.data?.updated_at) {
-        // A Realtime event may have delivered a newer cloud snapshot while this HTTP
-        // request was in flight. Do not replace that newer merge base with our older snapshot.
-        if (!lastCloudUpdatedAt || Date.parse(result.data.updated_at) >= Date.parse(lastCloudUpdatedAt)) {
-          lastCloudUpdatedAt = result.data.updated_at;
+      if (result.response.ok && typeof result.body.updatedAt === "string") {
+        if (!lastCloudUpdatedAt || Date.parse(result.body.updatedAt) >= Date.parse(lastCloudUpdatedAt)) {
+          lastCloudUpdatedAt = result.body.updatedAt;
         }
         if (revisionAtRequestStart === realtimeRevision) {
           lastSyncedState = cloneState(snapshot);
@@ -462,44 +419,32 @@ function persistState() {
         continue;
       }
 
-      // The compare-and-swap matched no row: another writer may have won.
-      // Read its version, merge, and let the next loop attempt a fresh CAS.
-      let remoteResult;
-      try {
-        remoteResult = await supabase.from("app_state")
-          .select("state,updated_at")
-          .eq("owner_id", cloudAccountId)
-          .maybeSingle();
-      } catch {
-        persistRequested = true;
-        break;
-      }
-      if (remoteResult.error || !remoteResult.data?.state) {
+      if (result.response.status !== 409 || result.body.status !== "conflict") {
         persistRequested = true;
         break;
       }
 
-      state = mergeConcurrentState(lastSyncedState, state, remoteResult.data.state as State);
-      lastCloudUpdatedAt = remoteResult.data.updated_at ?? null;
-      lastSyncedState = cloneState(remoteResult.data.state as State);
+      const remoteState = result.body.remoteState;
+      const remoteUpdatedAt = typeof result.body.remoteUpdatedAt === "string" ? result.body.remoteUpdatedAt : null;
+      if (remoteState && typeof remoteState === "object") {
+        state = mergeConcurrentState(lastSyncedState, state, remoteState as State);
+        lastSyncedState = cloneState(remoteState as State);
+      } else {
+        lastSyncedState = null;
+      }
+      lastCloudUpdatedAt = remoteUpdatedAt;
       try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      // CAS conflict reconciliation changes the external store too; notify React now,
-      // otherwise the new stock may appear only after a page reload.
-      listeners.forEach((l) => l());
+      listeners.forEach((listener) => listener());
       persistRequested = true;
       attempts += 1;
     }
   })().catch(() => {
-    // Preserve a retry request even if an unexpected exception escapes.
     persistRequested = true;
   }).finally(() => {
     persistWorker = null;
     if (persistRequested && cloudReady && typeof window !== "undefined" && cloudAccountId) {
-      // Avoid a tight retry loop during Supabase outages/timeouts.
       setTimeout(() => { void persistState(); }, 1800);
     }
-    // Retry a deferred read independently of write retries. Otherwise sustained
-    // local writes can starve cross-user refreshes until the tab becomes idle.
     if (refreshAfterPersist && cloudReady && typeof window !== "undefined" && cloudAccountId) {
       refreshAfterPersist = false;
       void refreshFromCloud(cloudAccountId);
@@ -513,52 +458,56 @@ export async function hydrateStore() {
   if (hydrating) return hydrating;
   hydrating = (async () => {
     load();
-    // Preserve contacts saved locally for this same account if the cloud snapshot
-    // predates the contacts feature. Never merge another company's local data.
     const localOwner = typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null;
-    const localContacts = localOwner && localOwner === cloudAccountId ? [...(state.contacts ?? [])] : [...(state.contacts ?? [])];
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
-    const accountId = profile?.account_id ?? user.id;
-    const sameOwner = localOwner === accountId;
-    cloudAccountId = accountId;
-    const { data, error } = await supabase
-      .from("app_state")
-      .select("state,updated_at")
-      .eq("owner_id", accountId)
-      .maybeSingle();
-
-    if (!error && data?.state) {
-      const remoteContacts = Array.isArray((data.state as State).contacts) ? (data.state as State).contacts : [];
-      const mergedContacts = sameOwner
-        ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remote => remote.id === local.id))]
-        : remoteContacts;
-      state = { ...emptyState(), ...data.state, contacts: mergedContacts };
-      state.settings = { ...emptyState().settings, ...(data.state as State).settings };
-      lastCloudUpdatedAt = data.updated_at ?? null;
-      lastSyncedState = cloneState(data.state as State);
-    } else if (!error) {
-      // Conta sem dados na nuvem é uma empresa nova: não reutilizar dados
-      // de demonstração nem o armazenamento local de outra conta.
-      state = emptyState();
-      lastCloudUpdatedAt = null;
-      lastSyncedState = null;
-    }
-    const hadLegacyLogo = Boolean(state.settings?.companyLogo);
-    normalizeState();
+    const localContacts = [...(state.contacts ?? [])];
 
     try {
-      localStorage.setItem(OWNER_KEY, accountId);
-      localStorage.setItem(KEY, JSON.stringify(state));
-    } catch {}
-    cloudReady = true;
-    startRealtime(accountId);
-    // Remove the oversized legacy logo from the existing cloud row once,
-    // using the normal compare-and-swap writer so stock/history remain intact.
-    if (hadLegacyLogo) void persistState();
-    if (!data?.state && !error) await persistState();
-    listeners.forEach((l) => l());
+      const contextResult = await callMobFlowApi("/api/mobflow/session-context");
+      if (!contextResult.response.ok || !contextResult.body.ok || typeof contextResult.body.accountId !== "string") {
+        throw new Error("Não foi possível validar a sessão no servidor MobFlow.");
+      }
+      const accountId = contextResult.body.accountId;
+      const sameOwner = localOwner === accountId;
+
+      const stateResult = await callMobFlowApi("/api/mobflow/state");
+      if (!stateResult.response.ok || !stateResult.body.ok) {
+        throw new Error("Não foi possível carregar os dados da empresa pelo Neon.");
+      }
+
+      const remoteState = stateResult.body.state;
+      if (remoteState && typeof remoteState === "object") {
+        const remote = remoteState as State;
+        const remoteContacts = Array.isArray(remote.contacts) ? remote.contacts : [];
+        const mergedContacts = sameOwner
+          ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remoteContact => remoteContact.id === local.id))]
+          : remoteContacts;
+        state = { ...emptyState(), ...remote, contacts: mergedContacts };
+        state.settings = { ...emptyState().settings, ...(remote.settings ?? {}) };
+        lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
+        lastSyncedState = cloneState(remote);
+      } else {
+        state = emptyState();
+        lastCloudUpdatedAt = null;
+        lastSyncedState = null;
+      }
+
+      const hadLegacyLogo = Boolean(state.settings?.companyLogo);
+      normalizeState();
+
+      try {
+        localStorage.setItem(OWNER_KEY, accountId);
+        localStorage.setItem(KEY, JSON.stringify(state));
+      } catch {}
+      cloudAccountId = accountId;
+      cloudReady = true;
+      startRealtime(accountId);
+      if (hadLegacyLogo) void persistState();
+      if (!remoteState) await persistState();
+      listeners.forEach((l) => l());
+    } catch {
+      // Mantém a cópia local disponível; a sincronização será retomada quando a sessão/API responder.
+      cloudReady = false;
+    }
   })().finally(() => { hydrating = null; });
   return hydrating;
 }
