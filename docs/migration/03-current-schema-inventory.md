@@ -482,3 +482,38 @@ A documentação informa que habilitar Realtime ativa logical replication no pro
 
 **Decisão provisória:** manter Neon Realtime como candidato técnico para preservar a experiência atual, mas não habilitar ainda. Primeiro concluir Auth/identidade, backend de consultas autorizadas e plano de teste. A sincronização em tempo real é requisito obrigatório da migração, não funcionalidade opcional.
 
+
+
+## Auditoria complementar — Auth, chamadas do frontend e Edge Functions (06/11/2026)
+
+### Limite de leitura da configuração Auth
+- A conexão MCP disponível não expõe uma operação de leitura da configuração completa do Supabase Auth (por exemplo: confirmação de e-mail, duração/rotação de sessão, política de senha, limites de tentativa, MFA e configurações SMTP).
+- A busca de ferramentas disponíveis encontrou leitura de projeto, funções e banco, mas não um getter de Auth config. Portanto, esses parâmetros permanecem **não verificados**; não assumir valores padrão nem tentar alterá-los.
+- A migração deve incluir uma etapa específica para exportar/registrar esses parâmetros por painel ou API administrativa autorizada, antes de decidir a estratégia final de identidade.
+- O frontend depende diretamente de Supabase Auth: `getSession`, `getUser`, `refreshSession`, `signInWithPassword` (via login function), `setSession`, `signOut`. A persistência local usa a chave `mobflow-auth-session`, com localStorage quando “Salvar login” está ativo e sessionStorage quando desativado. Isso precisa ser preservado ou substituído por comportamento equivalente testado.
+
+### Chamadas do frontend mapeadas na branch de preparação
+- `src/components/LoginScreen.tsx`: invoca `mobflow-login` e `mobflow-signup`; consulta diretamente `mobflow-public-billing` no projeto Supabase externo de cobrança (`xsitutjpdshmidzpgxpx)).
+- `src/routes/recuperar-senha.tsx`: invoca `mobflow-manager-password-recovery`.
+- `src/lib/manager-auth.ts` e `src/routes/gerencia.tsx`: invocam `mobflow-reauth-manager`.
+- `src/routes/gerencia.tsx` e `src/routes/configuracoes.tsx`: invocam `mobflow-users` para listar/administrar usuários e operações de conta.
+- `mobflow-admin-api`: não foi encontrada chamada correspondente nos arquivos de frontend inspecionados; a função está ativa e ainda deve ser confirmada com o projeto MobFlow Admin antes de qualquer desativação.
+- A consulta de preço e o cadastro público dependem do endpoint externo `mobflow-public-billing`. Essa dependência é entre projetos e não pode ser esquecida nem alterada durante a migração do PDV.
+
+### Comparação do código publicado com o código versionado
+- Foram comparados os seis arquivos publicados no Supabase de produção com os arquivos da branch `migration/neon-preparation`.
+- Cinco funções são idênticas byte a byte entre produção e branch: `mobflow-login` v27, `mobflow-users` v23, `mobflow-signup` v16, `mobflow-manager-password-recovery` v11 e `mobflow-admin-api` v1.
+- **Divergência confirmada:** `mobflow-reauth-manager` produção v14 difere da branch em uma condição de autorização na linha que valida perfil e permissão “Gerência”. A produção permite perfil ativo com a permissão “Gerência” sem exigir `role === "pdv"`; a branch exige que seja `pdv` quando não é `manager`. Nenhuma versão deve ser escolhida ou publicada automaticamente. A regra correta precisa ser decidida e testada antes da migração.
+- As configurações `verify_jwt` publicadas permanecem: login false, users true, reauth true, signup false, recovery false, admin-api true. Nas funções com `verify_jwt=false`, a autenticação e validação internas devem ser mantidas e testadas explicitamente.
+
+### Dependências externas e segredos operacionais
+- `mobflow-signup` chama o projeto externo de cobrança para obter parâmetros Pix; o endpoint não pertence ao projeto PDV.
+- `mobflow-manager-password-recovery` usa Nodemailer e variáveis SMTP Gmail (`GMAIL_SMTP_HOST`, `GMAIL_SMTP_PORT`, `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`). A migração precisa mapear esses segredos para o ambiente de destino sem expô-los no frontend ou em documentação.
+- `mobflow-signup` também usa Storage privado `mobflow-payment-proofs` e operações administrativas de Auth; essas capacidades precisam de substitutos server-side compatíveis se Auth/Storage forem movidos.
+- Nenhuma chamada foi executada contra o endpoint externo, nenhum segredo foi lido, e nenhuma função foi alterada.
+
+### Consequências para a estratégia de migração
+- Não é seguro migrar somente as tabelas para Neon e deixar o frontend chamando Auth/RPC/Functions do Supabase sem uma arquitetura de transição explícita.
+- A decisão de identidade (manter Supabase Auth temporariamente ou migrar para outro provedor) deve vir antes da implementação das APIs Neon, pois afeta emissão/validação de JWT, recuperação de senha, criação de usuários, bloqueio, permissões e isolamento por empresa.
+- A divergência da função de reautenticação e a dependência do serviço de cobrança externo são bloqueadores de desenho; não são motivo para mexer no sistema atual.
+- Status continua sendo auditoria somente leitura. Não houve alteração no banco, Auth, Storage, Edge Functions, Realtime ou produção.
