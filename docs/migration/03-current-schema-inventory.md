@@ -302,6 +302,46 @@ O Security Advisor retornou:
 - A consulta Realtime ainda precisa ser ligada aos pontos de assinatura do cliente.
 - Ainda faltam inventário de views, tipos, funções/procedures fora de `public/private`, grants/memberships adicionais e confirmação do uso real de extensões.
 
+
+## Views, tipos, memberships e privilégios padrão — oitavo resultado
+
+Consulta somente leitura dos catálogos de views/materialized views, tipos customizados, memberships de roles e default privileges.
+
+### Views e tipos
+
+- Não foram retornadas views nem materialized views nos schemas `public`, `private` e `storage`.
+- Não foram encontrados enums nem domains definidos em `public` ou `private`.
+- Os tipos compostos listados no schema `public` correspondem aos tipos de linha automaticamente associados às sete tabelas já inventariadas; não são tipos de negócio independentes.
+
+### Memberships de roles
+
+O catálogo retornou memberships envolvendo `anon`, `authenticated` e `service_role`. A direção é importante: em `pg_auth_members`, a role concedida é a role da qual o membro pode fazer SET ROLE; o membro é a conta que recebe a membership.
+- `authenticator` aparece como membro de `anon`, `authenticated` e `service_role`, compatível com o padrão do gateway PostgREST alternar para o role de requisição.
+- `postgres` também aparece como membro dessas roles com `inherit_option=true` e `admin_option=true`; é uma configuração interna privilegiada do ambiente Supabase e não deve ser copiada literalmente para Neon.
+- Não transportar roles internas `authenticator`, `supabase_admin` ou memberships Supabase para o destino sem necessidade arquitetural demonstrada.
+
+### Default privileges — ponto de atenção importante
+
+O catálogo retornou privilégios padrão configurados para objetos futuros em `public` pelos owners `postgres` e `supabase_admin`, e em `storage` pelo owner `postgres`.
+
+Em `public`, tanto para objetos criados por `postgres` quanto por `supabase_admin`, os ACLs padrão concedem:
+- Sequences (`S`): `rwU` para `anon`, `authenticated` e `service_role` (SELECT, UPDATE e USAGE).
+- Functions (`f`): EXECUTE (`X`) para `anon`, `authenticated` e `service_role`.
+- Tables (`r`): `arwdDxtm` para `anon`, `authenticated` e `service_role` (inclui privilégios amplos de leitura/escrita e privilégios estruturais no PostgreSQL 17).
+
+Em `storage`, os default privileges do owner `postgres` também concedem ACLs amplas de sequences, funções e tabelas a `anon`, `authenticated` e `service_role`.
+
+Interpretação:
+- Default privileges afetam objetos criados futuramente pelo owner correspondente; não são, por si só, a prova de que cada objeto existente tem exatamente os mesmos grants.
+- Esse padrão ajuda a explicar por que objetos novos podem nascer com privilégios amplos mesmo quando o desenvolvedor não escreve GRANT explicitamente.
+- É um risco de desenho para o destino: não reproduzir esses default privileges amplos. No Neon, definir defaults mínimos por owner/role e conceder EXECUTE/USAGE/DML explicitamente, objeto por objeto ou por grupos estritamente necessários.
+- A auditoria deve considerar também o owner que cria cada objeto: default privileges são associados ao owner e ao schema; não basta consultar somente ACL do objeto já existente.
+- A listagem inclui ACLs padrão de owners internos Supabase. Não replicar `supabase_admin` nem os defaults internos do serviço.
+
+### Escopo ainda não coberto
+
+A consulta não substitui a inspeção de objetos em schemas Supabase internos, privilégios de colunas, grants em tipos individuais, configurações Auth completas, configuração de Storage via API e código de assinatura Realtime no frontend.
+
 ## Segurança da auditoria
 
 Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
