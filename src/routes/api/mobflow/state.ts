@@ -8,7 +8,7 @@ type StateRow = { state: unknown; updated_at: string };
 
 async function readRemoteState(client: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>["client"], accountId: string) {
   const result = await client.query<StateRow>(
-    "SELECT state, updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
+    "SELECT state, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
     [accountId],
   );
   return result.rows[0] ?? null;
@@ -98,7 +98,7 @@ export const Route = createFileRoute("/api/mobflow/state")({
               `INSERT INTO public.app_state (owner_id, state, updated_at)
                VALUES ($1, $2::jsonb, clock_timestamp())
                ON CONFLICT (owner_id) DO NOTHING
-               RETURNING updated_at`,
+               RETURNING to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at`,
               [accountId, serializedState],
             );
 
@@ -114,7 +114,7 @@ export const Route = createFileRoute("/api/mobflow/state")({
                    updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
                WHERE owner_id = $2
                  AND updated_at = $3::timestamptz
-               RETURNING updated_at`,
+               RETURNING to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at`,
               [serializedState, accountId, expected],
             );
 
