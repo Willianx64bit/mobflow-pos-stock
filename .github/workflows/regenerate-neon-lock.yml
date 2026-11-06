@@ -1,0 +1,38 @@
+name: Regenerate Bun lockfile for Neon API
+
+on:
+  push:
+    branches:
+      - migration/neon-preparation
+    paths:
+      - package.json
+      - .github/workflows/regenerate-neon-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migration/neon-preparation
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - name: Regenerate lockfile
+        run: bun install
+      - name: Commit generated lockfile
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock is already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bun.lock
+          git commit -m "build: regenerate Bun lockfile for Neon driver"
+          git push origin migration/neon-preparation
