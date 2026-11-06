@@ -4,11 +4,28 @@ import { ChevronDown, ChevronRight, LockKeyhole, Trash2, AlertTriangle } from "l
 import { AppHeader } from "@/components/AppHeader";
 import { actions, hydrateStore, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import { isBetterAuthEnabled } from "@/lib/auth-client";
 import { verifyManagerPassword } from "@/lib/manager-auth";
 
 
 async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ data: any; error: unknown }> {
   try {
+    if (isBetterAuthEnabled) {
+      const response = await fetch("/api/mobflow/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(opts.body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return { data, error: null };
+      const raw = String(data?.error ?? "");
+      const friendly = raw.includes("Sessão") ? "Sessão da gerência expirada. Entre novamente na gerência."
+        : raw.includes("Acesso de gerência") ? "Só a conta da gerência pode cadastrar usuários do PDV. Entre com o login da empresa."
+        : raw;
+      return { data: { error: friendly || undefined }, error: true };
+    }
+
     const refreshed = await supabase.auth.refreshSession();
     let session = refreshed.data.session;
     if (!session) session = (await supabase.auth.getSession()).data.session;
@@ -102,9 +119,34 @@ function Configuracoes() {
     let active = true;
     const verifyManager = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        setCurrentAuthUserId(sessionData.session?.user?.id ?? null);
-        if (!sessionData.session) {
+        let hasSession = false;
+        let status: any = null;
+        let statusError: unknown = null;
+        if (isBetterAuthEnabled) {
+          const sessionResponse = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+          const sessionBody = await sessionResponse.json().catch(() => ({}));
+          hasSession = sessionResponse.ok && sessionBody?.ok === true;
+          setCurrentAuthUserId(sessionBody?.user?.id ?? null);
+          const statusResponse = await fetch("/api/mobflow/reauth-manager", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "same-origin",
+            body: JSON.stringify({ action: "status" }),
+          });
+          status = await statusResponse.json().catch(() => null);
+          statusError = statusResponse.ok ? null : true;
+        } else {
+          const { data: sessionData } = await supabase.auth.getSession();
+          hasSession = Boolean(sessionData.session);
+          setCurrentAuthUserId(sessionData.session?.user?.id ?? null);
+          const result = await supabase.functions.invoke(
+            "mobflow-reauth-manager",
+            { body: { action: "status" } },
+          );
+          status = result.data;
+          statusError = result.error;
+        }
+        if (!hasSession) {
           if (active) navigate({ to: "/gerencia" });
           return;
         }
@@ -112,10 +154,6 @@ function Configuracoes() {
         // A Gerência já foi desbloqueada com a senha na tela anterior.
         // Confirme a permissão pelo servidor para não depender de uma consulta
         // direta a profiles que pode ser bloqueada por RLS.
-        const { data: status, error: statusError } = await supabase.functions.invoke(
-          "mobflow-reauth-manager",
-          { body: { action: "status" } },
-        );
         const allowedRole = status?.role === "manager" || status?.role === "pdv";
         const unlocked = sessionStorage.getItem("mobflow-management") === "1";
         const allowed = !statusError && status?.configured === true && allowedRole && unlocked;
@@ -149,6 +187,10 @@ function Configuracoes() {
     let active = true;
     const loadCompanyCnpj = async () => {
       try {
+        if (isBetterAuthEnabled) {
+          if (active) setCompanyCnpj(String(localStorage.getItem("mobflow-company-cnpj") ?? settings.companyCnpj ?? ""));
+          return;
+        }
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError) throw userError;
         if (!user) {
