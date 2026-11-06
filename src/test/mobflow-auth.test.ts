@@ -69,7 +69,7 @@ describe("MobFlow Neon API authentication", () => {
 
   it("rolls back and releases the connection when the profile is not migrated", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
-    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
+    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 403,
@@ -78,19 +78,19 @@ describe("MobFlow Neon API authentication", () => {
 
     expect(client.query).toHaveBeenNthCalledWith(1, "BEGIN");
     expect(client.query).toHaveBeenNthCalledWith(2, "SELECT set_config('app.user_id', $1, true)", [USER_ID]);
-    expect(client.query).toHaveBeenNthCalledWith(3, "ROLLBACK");
+    expect(client.query).toHaveBeenNthCalledWith(4, "ROLLBACK");
     expect(client.release).toHaveBeenCalledOnce();
   });
 
   it("rejects inactive profiles and rolls back", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
-    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [profile({ active: false })] });
+    client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [profile({ active: false })] })\n      .mockResolvedValueOnce({ rows: [] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 403,
       code: "profile_inactive",
     });
-    expect(client.query).toHaveBeenLastCalledWith("ROLLBACK");
+    expect(client.query).toHaveBeenLastCalledWith("ROLLBACK");\n    expect(client.query).toHaveBeenCalledTimes(4);
     expect(client.release).toHaveBeenCalledOnce();
   });
 
