@@ -271,23 +271,33 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
   const submitSignup = async (e: FormEvent) => {
     e.preventDefault();
-    if (isBetterAuthEnabled) {
-      setSignupError("O cadastro de novas empresas será reativado após a migração do fluxo de pagamento.");
-      return;
-    }
     setSignupLoading(true);
     setSignupError("");
     try {
-      const { data, error } = await supabase.functions.invoke("mobflow-signup", {
-        body: {
-          companyName: signupForm.companyName.trim(),
-          username: signupForm.username.trim().toUpperCase(),
-          password: signupForm.password,
-          cnpj: signupForm.cnpj,
-          email: signupForm.email.trim().toLowerCase(),
-          phone: signupForm.phone,
-        },
-      });
+      const signupBody = {
+        companyName: signupForm.companyName.trim(),
+        username: signupForm.username.trim().toUpperCase(),
+        password: signupForm.password,
+        cnpj: signupForm.cnpj,
+        email: signupForm.email.trim().toLowerCase(),
+        phone: signupForm.phone,
+      };
+      let data: any;
+      let error: any;
+      if (isBetterAuthEnabled) {
+        const response = await withTimeout(fetch("/api/mobflow/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify(signupBody),
+        }), 20000);
+        data = await response.json().catch(() => ({}));
+        if (!response.ok) error = { message: data?.error };
+      } else {
+        const result = await supabase.functions.invoke("mobflow-signup", { body: signupBody });
+        data = result.data;
+        error = result.error;
+      }
       if (error || !data?.ok) {
         let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";
         if (error && !data?.error && error.context && typeof error.context.json === "function") {
@@ -488,9 +498,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </button>
           {mode === "empresa" && !onClose && (
             <>
-              {!isBetterAuthEnabled && <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-slate-300 bg-white py-3.5 lg:py-4 font-bold text-slate-700 transition-colors hover:bg-slate-50">
+              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-slate-300 bg-white py-3.5 lg:py-4 font-bold text-slate-700 transition-colors hover:bg-slate-50">
                 Criar conta
-              </button>}
+              </button>
               <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/20">
                 Saiba mais sobre o MobFlow
               </a>
