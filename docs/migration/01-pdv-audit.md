@@ -72,3 +72,29 @@ As duas funções ausentes foram adicionadas somente à branch de migração, se
 ## Limites mantidos
 
 As fontes capturadas são referência de auditoria na branch isolada. Nenhuma função foi implantada, nenhum segredo foi copiado, nenhuma migração foi aplicada e nenhum dado real foi alterado.
+
+
+## Etapa 2 — infraestrutura de teste provisionada (06/11/2026)
+
+Foi criado um projeto Neon exclusivo para o PDV, sem reaproveitar o projeto `coletaflow`:
+
+- Projeto: `mobflow-pdv-test`
+- Project ID: `square-haze-51319178`
+- Região: `aws-us-east-2`
+- PostgreSQL: `17.11`
+- Branch padrão: `integration-test` (`br-wandering-union-bd6vcsk6`)
+- Banco: `mobflow_pdv_test`
+- Role: `mobflow_test_owner`
+- Verificação SQL: conexão confirmada, versão 17.11 e zero tabelas no schema `public`.
+
+O projeto foi criado sem dados, sem importar schemas, usuários ou dados de produção. O compute ficou com configuração mínima de 0,25 CU e máximo de 0,5 CU; o plano Free não permitiu definir explicitamente o intervalo de suspensão, então foi mantido o padrão da conta.
+
+### Decisão de autenticação pendente
+
+A documentação oficial atual do Neon informa que o Managed Better Auth não aceita importar hashes de senha existentes do Supabase. Usuários com senha precisarão criar novas credenciais/reautenticar, ou a aplicação deverá manter temporariamente Supabase Auth como provedor externo enquanto o banco migra. Não habilitar Neon Auth nem alterar login antes de escolher e testar a estratégia.
+
+Referência: https://neon.com/docs/auth/migrate/from-supabase
+
+### Limites desta preparação
+
+Nenhuma tabela, função, extensão, política RLS ou dado foi criado/importado. Data API, Neon Auth, Functions e Realtime permanecem desativados. O projeto é apenas a base isolada de integração para a próxima etapa.
