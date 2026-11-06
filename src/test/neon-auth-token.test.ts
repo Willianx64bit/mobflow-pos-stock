@@ -18,9 +18,12 @@ const PROFILE_ID = "9c47eaac-2abf-4cd6-b614-24e27077bdf6";
 const ACCOUNT_ID = PROFILE_ID;
 const AUTH_USER_ID = "neon-managed-user-id-not-a-uuid";
 
+const TEST_KEY_PAIR = generateKeyPairSync("ed25519");
+const TEST_JWK = TEST_KEY_PAIR.publicKey.export({ format: "jwk" });
+
 function makeToken() {
-  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-  const jwk = publicKey.export({ format: "jwk" });
+  const { privateKey } = TEST_KEY_PAIR;
+  const jwk = TEST_JWK;
   const header = Buffer.from(JSON.stringify({ alg: "EdDSA", kid: "mobflow-test-key", typ: "JWT" })).toString("base64url");
   const payload = Buffer.from(JSON.stringify({
     sub: AUTH_USER_ID,
