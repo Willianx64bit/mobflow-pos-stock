@@ -88,3 +88,37 @@ Foram retornadas 4 policies e 0 triggers visíveis:
 ## Segurança da etapa (atualização)
 
 Segundo CSV consultado somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação ou alteração de configuração foi executado.
+
+## Funções PostgreSQL — terceiro CSV
+
+Consulta de catálogo somente leitura retornou 7 funções nos schemas `public` e `private`. O CSV contém as definições completas; esta documentação resume seus contratos sem copiar dados sensíveis.
+
+| Função | Retorno | SECURITY DEFINER | Permissões observadas | Papel |
+|---|---|---:|---|---|
+| `private.current_account_id()` | uuid | sim | postgres, authenticated | Resolve a conta do usuário pelo perfil; usa `auth.uid()` como fallback. |
+| `private.current_account_role()` | text | sim | postgres, authenticated | Resolve role do perfil; fallback `pdv`. |
+| `public.accept_receiving(text)` | boolean | sim | postgres, authenticated, service_role | Aceita recebimento já decidido, bloqueia a linha de estado e atualiza estoque/recebimento no JSONB. |
+| `public.enforce_mobflow_account_allowlist()` | trigger | sim | postgres, service_role | Valida username extraído do email contra `account_allowlist`. |
+| `public.finalize_receiving_decisions(text,jsonb)` | boolean | sim | postgres, authenticated, service_role | Valida decisões, bloqueia estado e atualiza estoque e recebimento em uma operação. |
+| `public.mobflow_save_state(uuid,timestamptz,jsonb)` | jsonb | sim | postgres, authenticated, service_role | Gravação CAS com validação de conta, lock, timestamp e retorno explícito de conflito. |
+| `public.rls_auto_enable()` | event_trigger | sim | postgres, service_role | Event trigger function que habilita RLS em tabelas criadas em `public`. |
+
+### Requisitos de preservação
+
+1. **CAS (`mobflow_save_state`) é crítico.** Mantém a verificação `auth.uid()`, exige que `private.current_account_id()` corresponda ao `p_owner_id`, aceita apenas JSON object, usa `FOR UPDATE`, trata criação concorrente com `ON CONFLICT DO NOTHING` e retorna `saved=false` com estado/timestamp atuais quando há conflito. Na atualização, garante timestamp estritamente crescente com `greatest(clock_timestamp(), updated_at + 1 microsecond)`. Não substituir por upsert cego nem read-modify-write no cliente.
+2. **Recebimento é transacional.** `accept_receiving` e `finalize_receiving_decisions` bloqueiam a linha `app_state` com `FOR UPDATE`, validam estado/decisões e alteram estoque e status dentro da mesma função. Regressões devem cobrir decisão aceitar/devolver, itens extras, repetição de chamada e concorrência.
+3. **Há diferença entre as duas funções de recebimento.** `finalize_receiving_decisions` valida explicitamente que produtos aceitos existam no array `products`; `accept_receiving` espera que as decisões já estejam concluídas e não repete essa mesma verificação de existência. Não fundir nem substituir uma pela outra sem rastrear os chamadores.
+4. **Identidade e tenancy dependem de Supabase Auth.** As funções auxiliares chamam `auth.uid()`; qualquer mudança de autenticação exige implementar contexto de identidade confiável e autorização equivalente antes de migrar policies/RPCs.
+5. **SECURITY DEFINER exige cuidado.** Todas as sete funções são SECURITY DEFINER e definem search_path; preservar privilégios mínimos, owner controlado, nomes totalmente qualificados e search_path seguro. Não conceder execução a usuários/clientes sem necessidade.
+6. **Allowlist:** a função de trigger é concedida a postgres/service_role, não a authenticated. O CSV não mostrou trigger comum anexado a tabela, portanto sua associação precisa ser conferida por catálogo de triggers/event triggers e no fluxo de cadastro.
+7. **RLS automático:** `rls_auto_enable()` é uma função de event trigger, não um trigger de tabela. O CSV de funções não confirma que exista event trigger ativo apontando para ela. Consultar `pg_event_trigger` e confirmar tags/estado antes de desenhar equivalente em Neon.
+
+### Limitações do CSV
+
+- O resultado contém apenas funções com `prokind='f'` nos schemas `public` e `private`; não inclui procedures, aggregates, funções de outros schemas, triggers/event triggers associados, policies de Storage nem configuração Auth.
+- A coluna de permissões representa ACL da função, mas precisamos conferir grants efetivos, roles herdadas e privilégios de tabelas/sequences.
+- As funções usam referências Supabase (`auth.uid()`, `auth.users`, `service_role`); elas não são diretamente portáveis para Neon sem camada de identidade e autorização equivalente.
+
+## Próxima inspeção — event triggers e privilégios
+
+Consultar separadamente `pg_event_trigger`, triggers associados e grants efetivos. Nenhuma função deve ser removida ou recriada no ambiente de produção.
