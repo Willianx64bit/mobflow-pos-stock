@@ -342,6 +342,30 @@ Interpretação:
 
 A consulta não substitui a inspeção de objetos em schemas Supabase internos, privilégios de colunas, grants em tipos individuais, configurações Auth completas, configuração de Storage via API e código de assinatura Realtime no frontend.
 
+
+## Triggers de tabelas em schemas Auth e Storage — nono resultado
+
+Consulta somente leitura de triggers não internos em `auth`, `storage`, `public` e `private`.
+
+### Trigger de negócio confirmado
+
+| Tabela | Trigger | Evento | Função | Status |
+|---|---|---|---|---|
+| `auth.users` | `mobflow_account_allowlist` | BEFORE INSERT | `public.enforce_mobflow_account_allowlist()` | habilitado |
+
+- Isso confirma a associação que não havia aparecido na consulta anterior limitada aos schemas `public` e `private`.
+- A criação de qualquer usuário em `auth.users` passa pela validação de allowlist antes do INSERT. Isso afeta os fluxos `mobflow-login` (criação do gerente legado), `mobflow-signup` e `mobflow-users` (criação de usuários PDV), todos os quais chamam Auth Admin API.
+- Na migração, essa regra precisa ser preservada em um ponto confiável do fluxo de criação de identidade. Não basta migrar a tabela `account_allowlist`; o gatilho precisa ser substituído por validação de servidor equivalente, com testes de corrida e rollback.
+- O trigger chama uma função SECURITY DEFINER, com owner `postgres`. Preservar validação de entrada, search_path seguro e execução restrita; não criar trigger equivalente no Neon antes de definir a arquitetura de Auth.
+
+### Triggers internos do Storage
+
+A consulta retornou triggers habilitados de infraestrutura Supabase nas tabelas `storage.buckets` e `storage.objects`, incluindo validação de nomes/estados de bucket, proteção de colunas de controle e exclusão, atualização de `updated_at` e sinalização do lifecycle.
+
+- Esses triggers pertencem ao serviço de Storage (owner `supabase_storage_admin`) e não são lógica de negócio MobFlow.
+- Não copiar as funções/triggers internos do Supabase Storage para Neon. Se o Storage for substituído por R2 ou outro object storage, implementar apenas as regras de negócio necessárias na API própria.
+- A consulta não retornou triggers não internos em tabelas `public` ou `private`, consistente com o inventário anterior.
+
 ## Segurança da auditoria
 
 Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
