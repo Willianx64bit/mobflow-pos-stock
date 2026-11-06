@@ -115,3 +115,19 @@ A consulta de leitura das migrações pelo conector Supabase foi bloqueada pela 
 ### Próxima ação necessária para continuar
 
 Recuperar as 28 migrações aplicadas (ou um dump somente de schema, sem dados, acompanhado da lista de migrações) a partir do Supabase/CLI ou de backup confiável. Depois comparar com os 7 arquivos versionados, reconstruir uma sequência completa e aplicar somente no Neon de teste. O PDV permanece sem tabelas e sem dados.
+
+
+## Etapa 3 — conciliação do histórico recuperado (06/11/2026)
+
+O CSV exportado diretamente de `supabase_migrations.schema_migrations` foi recebido e contém 28 registros. A análise comparativa foi documentada em `docs/migration/02-migration-history-reconciliation.md`.
+
+Principais conclusões:
+- 6 dos 7 arquivos SQL versionados têm correspondência histórica clara, mas com timestamps/nomes divergentes.
+- `20261028190000_stock_movement_ledger.sql` não aparece entre as 28 migrações aplicadas; não presumir que esteja em produção.
+- O histórico não cria o schema-base de `profiles` e `app_state`; é necessário recuperar um dump schema-only confiável antes de montar o bootstrap do Neon.
+- Migrações intermediárias criam e depois removem tabelas/funções administrativas. Não reaplicar a sequência parcialmente.
+- Existem migrações com hashes e IDs específicos de contas; valores sensíveis foram excluídos da documentação e não serão levados ao Neon.
+- A função `mobflow_save_state` é o mecanismo CAS crítico e precisa manter bloqueio de linha, comparação de timestamp e gravação condicional.
+- Storage de comprovantes e Realtime precisam ser tratados separadamente; o registro Realtime é específico do Supabase.
+
+Nenhuma SQL foi executada e nenhum dado/schema foi importado. Próxima dependência: obter o schema-base completo (tabelas, funções, triggers, RLS, grants, índices, constraints e policies de Storage) para conciliação com o estado final das 28 migrações.
