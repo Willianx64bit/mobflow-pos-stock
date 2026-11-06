@@ -5,9 +5,11 @@ on:
     branches:
       - migration/neon-preparation
     paths:
-      - "src/lib/server/**"
+      - "src/lib/**"
       - "src/routes/api/mobflow/**"
       - "src/routes/api/auth/**"
+      - "src/routes/__root.tsx"
+      - "src/components/**"
       - "src/test/**"
       - "scripts/**"
       - "package.json"
