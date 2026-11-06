@@ -25,20 +25,20 @@ async function requestRecovery(body: Record<string, unknown>) {
   const client = await getNeonPool().connect();
   try {
     const match = await client.query<{ account_id: string }>(
-      \`SELECT p.account_id::text
+      `SELECT p.account_id::text
        FROM public.profiles p
        JOIN public.companies c ON c.account_id=p.account_id
        WHERE p.cnpj=$1 AND p.role='manager' AND p.active=true AND lower(trim(c.email))=$2
-       ORDER BY p.created_at DESC LIMIT 1\`,
+       ORDER BY p.created_at DESC LIMIT 1`,
       [cnpj, email],
     );
     const accountId = match.rows[0]?.account_id;
     if (!accountId) return genericResponse();
 
     const rate = await client.query<{ total: number }>(
-      \`SELECT count(*)::int AS total
+      `SELECT count(*)::int AS total
        FROM public.manager_password_recovery_tokens
-       WHERE account_id=$1 AND created_at >= now() - interval '1 hour'\`,
+       WHERE account_id=$1 AND created_at >= now() - interval '1 hour'`,
       [accountId],
     );
     if ((rate.rows[0]?.total ?? 0) >= 3) return genericResponse();
@@ -46,8 +46,8 @@ async function requestRecovery(body: Record<string, unknown>) {
     const token = randomBytes(32).toString("hex");
     const tokenHash = sha256(token);
     await client.query(
-      \`INSERT INTO public.manager_password_recovery_tokens (account_id,token_hash,expires_at)
-       VALUES ($1,$2,now() + interval '30 minutes')\`,
+      `INSERT INTO public.manager_password_recovery_tokens (account_id,token_hash,expires_at)
+       VALUES ($1,$2,now() + interval '30 minutes')`,
       [accountId, tokenHash],
     );
 
@@ -64,13 +64,13 @@ async function requestRecovery(body: Record<string, unknown>) {
         from: "MobFlow <" + smtpUser + ">",
         to: email,
         subject: "Recuperação da senha da Gerência — MobFlow",
-        html: \`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#222">
+        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#222">
 <h2>Recuperar senha da Gerência</h2>
 <p>Recebemos uma solicitação para criar uma nova senha da Gerência da sua empresa no MobFlow.</p>
 <p>O link é válido por 30 minutos e pode ser usado uma única vez.</p>
 <p style="margin:28px 0"><a href="\${resetUrl}" style="background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Criar nova senha</a></p>
 <p>Se você não solicitou essa alteração, ignore este e-mail. Sua senha atual continuará funcionando.</p>
-</div>\`,
+</div>`,
       });
     } catch (error) {
       await client.query(
@@ -103,9 +103,9 @@ async function resetRecovery(body: Record<string, unknown>) {
     const result = await client.query<{
       id: string; account_id: string; expires_at: Date | string; used_at: Date | null;
     }>(
-      \`SELECT id::text,account_id::text,expires_at,used_at
+      `SELECT id::text,account_id::text,expires_at,used_at
        FROM public.manager_password_recovery_tokens
-       WHERE token_hash=$1 FOR UPDATE\`,
+       WHERE token_hash=$1 FOR UPDATE`,
       [tokenHash],
     );
     const recovery = result.rows[0];
@@ -115,10 +115,10 @@ async function resetRecovery(body: Record<string, unknown>) {
     }
 
     const claimed = await client.query(
-      \`UPDATE public.manager_password_recovery_tokens
+      `UPDATE public.manager_password_recovery_tokens
        SET used_at=now()
        WHERE id=$1 AND used_at IS NULL AND expires_at>now()
-       RETURNING id\`,
+       RETURNING id`,
       [recovery.id],
     );
     if (!claimed.rowCount) {
@@ -127,9 +127,9 @@ async function resetRecovery(body: Record<string, unknown>) {
     }
 
     await client.query(
-      \`INSERT INTO public.manager_security_by_account (account_id,password_hash,updated_at)
+      `INSERT INTO public.manager_security_by_account (account_id,password_hash,updated_at)
        VALUES ($1,$2,now())
-       ON CONFLICT (account_id) DO UPDATE SET password_hash=EXCLUDED.password_hash,updated_at=now()\`,
+       ON CONFLICT (account_id) DO UPDATE SET password_hash=EXCLUDED.password_hash,updated_at=now()`,
       [recovery.account_id, sha256(password)],
     );
     await client.query("COMMIT");
