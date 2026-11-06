@@ -79,7 +79,7 @@ CREATE TABLE public.companies (
   CONSTRAINT companies_subscription_status_check CHECK (subscription_status = ANY (ARRAY['pending_payment'::text, 'active'::text, 'past_due'::text, 'suspended'::text, 'cancelled'::text])),
   CONSTRAINT companies_payment_method_check CHECK (payment_method = 'pix'),
   CONSTRAINT companies_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
-  CONSTRAINT companies_payment_confirmed_by_fkey FOREIGN KEY (payment_confirmed_by) REFERENCES public.profiles(id) ON DELETE SET NULL,
+  CONSTRAINT companies_payment_confirmed_by_fkey FOREIGN KEY (payment_confirmed_by) REFERENCES public.profiles(id) ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX companies_payment_request_token_uidx ON public.companies USING btree (payment_request_token);
