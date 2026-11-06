@@ -80,9 +80,9 @@ CREATE TABLE public.companies (
   CONSTRAINT companies_payment_method_check CHECK (payment_method = 'pix'),
   CONSTRAINT companies_account_id_fkey FOREIGN KEY (account_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
   CONSTRAINT companies_payment_confirmed_by_fkey FOREIGN KEY (payment_confirmed_by) REFERENCES public.profiles(id) ON DELETE SET NULL,
-  CONSTRAINT companies_payment_request_token_key UNIQUE (payment_request_token)
 );
 
+CREATE UNIQUE INDEX companies_payment_request_token_uidx ON public.companies USING btree (payment_request_token);
 CREATE UNIQUE INDEX companies_email_lower_uidx ON public.companies USING btree (lower(email));
 CREATE UNIQUE INDEX companies_manager_setup_token_uidx ON public.companies USING btree (manager_setup_token) WHERE manager_setup_token IS NOT NULL;
 CREATE INDEX companies_subscription_status_idx ON public.companies USING btree (subscription_status);
