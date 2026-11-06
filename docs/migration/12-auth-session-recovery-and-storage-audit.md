@@ -38,7 +38,7 @@ O código versionado de `mobflow-reauth-manager`:
 - suporta `status`, `set_password` e `verify`;
 - armazena e compara o segredo de Gerência usando SHA-256 simples, sem salt/work factor no código analisado.
 
-O inventário anterior registrou diferença entre o arquivo versionado e a função publicada v14 quanto ao critério de papel/permissão. A tentativa de recuperar o conteúdo publicado pela integração de leitura não foi concluída nesta etapa; portanto, a versão efetiva de produção permanece pendente de nova confirmação por fonte autorizada. Não escolher automaticamente uma das versões.
+A comparação direta com a função publicada v14 foi concluída em 06/11/2026. A versão publicada aceita qualquer perfil ativo que tenha a permissão `Gerência`, independentemente de `role`; o código versionado exige `role = manager` ou `role = pdv` com a permissão. Assim, um perfil com outro papel e permissão `Gerência` poderia passar na publicada, mas não no código versionado. A função publicada usa `verify_jwt=true` e SHA-256 simples. A divergência é real e precisa de decisão funcional antes de substituir ou migrar a função.
 
 ### Risco e decisão necessária
 
@@ -126,7 +126,7 @@ Os nomes das variáveis são registrados para inventário, mas seus valores não
 ## 6. Pendências e limites desta auditoria
 
 - Configuração Auth do projeto (confirmação de e-mail, duração de sessão, rotação de refresh token, política de senha, MFA e SMTP) não foi disponibilizada pela leitura atual. Não assumir valores.
-- A versão publicada de `mobflow-reauth-manager` e sua divergência com o repositório precisam ser confirmadas por fonte autorizada.
+- A divergência entre a função publicada v14 e o arquivo versionado foi confirmada; a decisão sobre o papel permitido continua pendente.
 - A matriz de autorização do backend está documentada parcialmente em `11-authorization-and-operations-matrix.md`; a auditoria de menus, rotas e componentes frontend ainda não foi fechada.
 - As políticas efetivas do bucket e os consumidores frontend de leitura/download precisam de confirmação adicional.
 - Não foi feito teste de fluxo, alteração de configuração, chamada de escrita, upload, redefinição ou login neste trabalho.
