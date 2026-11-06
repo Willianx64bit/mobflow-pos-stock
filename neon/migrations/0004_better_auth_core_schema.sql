@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS public."account" (
 
 CREATE INDEX IF NOT EXISTS "account_userId_idx"
   ON public."account" ("userId");
-CREATE INDEX IF NOT EXISTS "account_provider_account_idx"
+CREATE UNIQUE INDEX IF NOT EXISTS "account_provider_account_uidx"
   ON public."account" ("providerId", "accountId");
 
 CREATE TABLE IF NOT EXISTS public."verification" (
