@@ -539,3 +539,33 @@ A documentação informa que habilitar Realtime ativa logical replication no pro
 - A estratégia de identidade permanece em aberto, mas agora há uma opção técnica concreta para validar: Supabase Auth externo + Neon Data API com JWKS.
 - Critério de aprovação: token validado criptograficamente, claims corretas, autorização por empresa preservada, refresh/logout/revogação testados, e nenhum acesso cruzado entre empresas.
 - Sem aprovação dos testes, manter o caminho via API server-side com validação Supabase Auth; não fazer fallback inseguro com claims definidas livremente pelo cliente.
+
+
+## Auditoria complementar — cobertura automatizada e invariantes de sincronização (06/11/2026)
+
+### Testes existentes na branch auditada
+- `package.json` disponibiliza `vitest run`, mas o inventário da branch contém somente um arquivo de teste em `src/test/app-routing.test.tsx`.
+- O teste existente valida apenas o match da rota raiz; não há cobertura automatizada identificada para Auth, RLS, Realtime, concorrência, CAS, reconciliação offline, vendas, movimentos de estoque ou recebimentos.
+- Isso não prova ausência de testes manuais/históricos, mas significa que a migração não pode usar a suíte atual como evidência de equivalência funcional.
+- Antes da Etapa 4, criar testes de caracterização para o comportamento atual e testes de integração no Neon isolado. Não alterar funcionalidades da produção para acomodar os testes.
+
+### Invariantes confirmados no caminho crítico de sincronização
+- O canal atual é `postgres_changes` em `public.app_state`, evento `UPDATE`, filtrado por `owner_id=eq.<accountId>`; é o caminho rápido de atualização entre dispositivos da mesma empresa.
+- O payload carrega snapshot JSON completo e `updated_at`; o cliente ignora evento antigo, combina estado remoto/local por `mergeConcurrentState`, persiste localmente e notifica os assinantes.
+- Após evento, agenda reconciliação remota em 180 ms para buscar o snapshot mais recente e reduzir risco de aplicar evento fora de ordem.
+- Ao assinar, executa leitura/reconciliação imediata; também revalida ao foco/visibilidade e reconexão de rede.
+- Polling de 3 segundos é fallback de recuperação, não substituto do Realtime.
+- Escrita normal usa compare-and-swap: UPDATE por `owner_id` + `updated_at` esperado; criação inicial usa UPSERT somente quando não existe versão remota. Em conflito, relê, mescla e tenta novamente, mantendo pedido pendente em falhas.
+- Eventos Realtime que chegam durante uma escrita HTTP são protegidos por revisão local; não sobrescrever a base mesclada com snapshot mais antigo.
+- A migração precisa preservar a semântica acima, além da integridade das operações de negócio. Um feed de eventos que apenas avise “houve alteração” não é substituto suficiente sem adaptar/testar a reconciliação.
+
+### Plano mínimo de testes antes de aprovar a migração
+- Duas sessões/dispositivos da mesma empresa: alteração aparece sem recarregar página.
+- Duas empresas distintas: nenhum evento ou dado cruza tenant.
+- Duas escritas simultâneas: sem perda de venda, estoque ou movimento e sem duplicação.
+- Evento atrasado/fora de ordem e múltiplos eventos em sequência: snapshot final correto.
+- Queda de rede, reconexão, aba em background e retorno ao foco: reconciliação correta.
+- Realtime indisponível: fallback recupera dados sem substituir o caminho principal.
+- Login lembrado vs sessão temporária, refresh, logout, usuário bloqueado e expiração de token.
+- Recebimento: aceitar/devolver/extras e chamadas RPC preservam atomicidade e idempotência.
+- Testes negativos de isolamento e permissões para cada endpoint/API.
