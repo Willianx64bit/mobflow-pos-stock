@@ -1,5 +1,4 @@
 import { createPublicKey, verify as verifySignature } from "node:crypto";
-import type { JsonWebKey } from "node:crypto";
 import type { PoolClient } from "@neondatabase/serverless";
 import { getNeonPool } from "@/lib/server/neon";
 
