@@ -140,6 +140,18 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       );
 
       if (error || !data?.session) {
+        // A 402 is returned by the Supabase platform gateway before the Edge
+        // Function runs. Do not misreport this infrastructure restriction as
+        // an invalid username or password.
+        const invokeStatus = typeof error?.context?.status === "number" ? error.context.status : undefined;
+        if (invokeStatus === 402) {
+          setError("O serviço de autenticação está bloqueado temporariamente pelo Supabase (HTTP 402). Suas credenciais ainda não foram verificadas. Verifique os limites e a situação de cobrança do projeto.");
+          return;
+        }
+        if (invokeStatus === 503 || invokeStatus === 502) {
+          setError("O serviço de autenticação está temporariamente indisponível. Tente novamente em instantes.");
+          return;
+        }
         let serverMessage = String(data?.error || "");
         if (error && !serverMessage && error.context && typeof error.context.clone === "function") {
           try { const detail = await error.context.clone().json(); serverMessage = String(detail?.error || ""); } catch { /* mantém mensagem genérica */ }
