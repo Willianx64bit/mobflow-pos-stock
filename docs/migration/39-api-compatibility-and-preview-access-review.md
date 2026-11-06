@@ -6,11 +6,23 @@ Branch: `migration/neon-preparation`
 ## Verified
 
 - Preview deployment for commit `5fd1f18e4b4a8881d4501ec8faedfe4edfd42475` is `READY`.
+- Follow-up documentation commit `c547a981b495da2f8969b5446ce4d3f1d80cea17` also deployed to Preview with state `READY`.
 - Vercel build output includes the Neon serverless driver in the server function bundle.
 - The Supabase project URL in `src/lib/server/mobflow-auth.ts` matches the existing client configuration in `src/lib/supabase.ts`; no URL change is required.
-- Neon test role `mobflow_api_test` can connect and sees zero profiles and zero app_state rows.
 - The API source keeps Neon access server-side, verifies bearer tokens with Supabase Auth, derives the profile/account from Neon, and sets identity GUCs transaction-locally.
 - State writes use insert-if-absent for first save and timestamp CAS for subsequent saves.
+
+## Test data copied to Neon test branch
+
+Source of truth remains Supabase production; only the isolated Neon branch was written.
+
+- Copied the four `profiles` rows belonging to test account `TESTE.MOBFLOW`, preserving every profile/Auth UUID.
+- Copied the company's operational metadata row for the same account. Sensitive payment request/setup tokens, proof paths, and payment notes were not copied; database defaults remain in effect for omitted fields.
+- Copied the complete `app_state` JSON snapshot (127,764 bytes) and its original `updated_at` timestamp.
+- All inserts used `ON CONFLICT DO NOTHING`; no existing target rows were overwritten.
+- Neon verification after copy: 4 profiles, 1 company, 1 app_state.
+- Under `mobflow_api_test` RLS context, manager sees 4 account profiles and 1 app_state row; PDV sees only its own profile and 1 account app_state row.
+- No source Supabase rows were changed.
 
 ## Preview HTTP validation blocker
 
@@ -18,13 +30,6 @@ Branch: `migration/neon-preparation`
 - The available Vercel fetch flow returns `401 deployment_authentication_required` after its share-link redirect, including when the share URL is supplied.
 - Therefore no HTTP response from `/api/mobflow/session-context` or `/api/mobflow/state` is being treated as verified.
 - A shareable protection bypass already exists for the deployment; creating another one returned `protection_bypass_conflict`. Do not weaken project-wide or production protection to work around this.
-
-## Source-of-truth and migration blocker
-
-- Supabase remains the source of truth.
-- The Supabase SQL connector currently rejects its own connection reference with `ref must be exactly 20 characters long`, preventing a fresh read of the test account's exact profile/company/state rows.
-- Neon test branch still has zero visible profiles and app_state rows for `mobflow_api_test`.
-- Do not create synthetic identity data or copy a partial state snapshot. Preserve Auth UUIDs and exact company/account relationships.
 
 ## Compatibility boundary
 
@@ -34,7 +39,6 @@ Branch: `migration/neon-preparation`
 
 ## Next safe steps
 
-1. Restore a supported way to read the Supabase test account without exposing credentials.
-2. Migrate only the approved test profile/company metadata and app_state into the Neon test branch, preserving UUIDs.
-3. Validate authenticated and unauthenticated API requests, first save, CAS conflict, and cross-tenant isolation through an authorized Preview test path.
-4. Only after those pass, design the store adapter cutover as a separate reviewed change. Keep Supabase Auth and receiving RPCs unchanged in that first cutover.
+1. Validate authenticated and unauthenticated API requests, first save, CAS conflict, and cross-tenant isolation through an authorized Preview test path.
+2. Compare the copied test state against source checksums and representative collection counts.
+3. Only after HTTP/API tests pass, design the store adapter cutover as a separate reviewed change. Keep Supabase Auth and receiving RPCs unchanged in that first cutover.
