@@ -5,8 +5,9 @@ Branch: `migration/neon-preparation`
 
 ## CI result
 
-- The API test suite, dependency installation, and application build completed successfully for the preceding state API test commit.
-- The microsecond-precision fix and its regression test were committed afterward; their CI run is being checked separately.
+- The API test suite, dependency installation, and application build completed successfully for commit `2ca1c9e` (run `42301117333`).
+- An intermediate run for the first precision-fix commit failed because the GET test still expected the old SQL projection; the assertion was corrected in the following commit, and the complete suite then passed.
+- The Preview deployment for the later documentation commit `a308cf9` is `READY`; the code-fix Preview for `2ca1c9e` is also `READY`.
 - The new tests cover GET, initial insert, CAS update, HTTP 409 conflict, concurrent request behavior at the handler boundary, invalid JSON/body/state/version, 8 MiB payload limit, and exact version-string preservation.
 
 ## Isolated Neon validation
@@ -24,6 +25,12 @@ Branch: `migration/neon-preparation`
 - Exactly one UPDATE returned a row; the other returned zero rows.
 - The persisted state matched the winning writer.
 - This confirms PostgreSQL's conditional update is atomic under the tested race.
+
+### First-save race
+
+- Two independent concurrent INSERT requests used the same new `owner_id` with `ON CONFLICT (owner_id) DO NOTHING RETURNING ...`.
+- Exactly one INSERT returned a row; the other returned zero rows.
+- The final table contained exactly one state row for the synthetic account.
 
 ### RLS isolation
 
@@ -44,7 +51,6 @@ Branch: `migration/neon-preparation`
 
 ## Remaining validation
 
-- Confirm the CI run for the precision fix and regression test.
 - Validate the protected Preview HTTP endpoints using an authorized Vercel access path and a real Supabase test session. Do not weaken Deployment Protection.
 - Confirm authenticated API first-save, subsequent-save, conflict response, and cross-tenant denial end-to-end.
 - Keep `src/lib/store.ts` untouched until the API and compatibility boundary are fully verified.
