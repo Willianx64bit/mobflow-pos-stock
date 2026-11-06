@@ -437,3 +437,48 @@ A leitura confirmou os call sites nos arquivos citados, mas não é uma busca ex
 ## Segurança da auditoria
 
 Todas as consultas descritas neste documento foram somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação de dados ou alteração de configuração foi executado. As alterações feitas até aqui foram apenas documentação na branch isolada `migration/neon-preparation`; `main`, produção, Supabase e Neon não foram modificados.
+
+## Neon Realtime — avaliação de compatibilidade (2026-11-06)
+
+Foi consultada a documentação oficial do Neon Realtime (beta; documentação atualizada em 2026-10-30) e o estado do projeto isolado `mobflow-pdv-test`.
+
+### Estado observado do ambiente de teste
+
+- Projeto Neon: `square-haze-51319178`, região `aws-us-east-2`.
+- Branch `integration-test`: `br-wandering-union-bd6vcsk6`, estado `ready`.
+- É a única branch atualmente listada nesse projeto isolado.
+- Realtime está desativado (`enabled=false`, `pending=false`).
+- A região `aws-us-east-2` consta entre as regiões suportadas pelo Realtime beta.
+- Nenhuma configuração foi ativada ou alterada nesta auditoria.
+
+### Compatibilidade funcional
+
+O Neon Realtime oferece live SQL: consultas SELECT determinísticas podem ser assinadas e atualizadas conforme os dados mudam. O recurso permite filtros, joins e agregações. O modelo é diferente do Supabase Realtime, que publica eventos de alterações PostgreSQL.
+
+Para o MobFlow, isso pode reproduzir a atualização automática de `app_state`, mas exige adaptar o mecanismo de assinatura. Não se deve presumir compatibilidade direta com `postgres_changes` ou reutilizar o canal Supabase sem alterações.
+
+### Bloqueio de segurança a resolver antes de qualquer ativação
+
+- Na versão beta consultada, Neon Realtime ainda não suporta PostgreSQL RLS.
+- O padrão recomendado pela documentação é criar consultas autorizadas no backend e selá-las (`sealed queries`), usando a sessão autenticada verificada no servidor para derivar o filtro por usuário/empresa.
+- Uma sealed query é uma capacidade bearer de curta duração (atualmente 60 segundos); o backend precisa renovar a mesma consulta antes da expiração. Não expor o segredo de assinatura no frontend.
+- A autorização precisa derivar a empresa da identidade verificada, nunca confiar em `owner_id` enviado livremente pelo navegador.
+- O MobFlow hoje usa Supabase Auth e políticas com `auth.uid()`/helpers privados. A estratégia de identidade no destino ainda não está decidida. Não ativar Realtime até existir um fluxo testável que autentique o usuário e aplique isolamento por empresa no backend.
+- Não substituir a política de segurança por filtro client-side.
+
+### Efeito operacional de habilitar
+
+A documentação informa que habilitar Realtime ativa logical replication no projeto inteiro, altera permanentemente `wal_level` para `logical` (mesmo se Realtime for desabilitado depois) e suspende os computes de todas as branches do projeto durante a aplicação, encerrando conexões ativas. Por isso, a ativação exige janela de teste e autorização explícita, mesmo em projeto de teste.
+
+### Requisitos de aceitação para o MobFlow
+
+1. Um usuário autenticado recebe apenas o estado da própria empresa.
+2. Alteração feita em um segundo dispositivo chega automaticamente sem recarregar a página.
+3. Eventos fora de ordem, duas gravações simultâneas e merge de vendas/movimentações não duplicam estoque nem sobrescrevem dados.
+4. Desconexão, retorno da rede, foco/visibilidade e reconciliação preservam o estado.
+5. Renovação das sealed queries ocorre sem interrupção perceptível.
+6. Polling/reconciliação de 3 segundos permanece como proteção/fallback, não como substituto da atualização em tempo real.
+7. Testes incluem usuários de empresas diferentes para comprovar isolamento negativo (um não recebe dados do outro).
+
+**Decisão provisória:** manter Neon Realtime como candidato técnico para preservar a experiência atual, mas não habilitar ainda. Primeiro concluir Auth/identidade, backend de consultas autorizadas e plano de teste. A sincronização em tempo real é requisito obrigatório da migração, não funcionalidade opcional.
+
