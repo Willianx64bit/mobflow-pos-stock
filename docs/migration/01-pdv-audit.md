@@ -45,3 +45,30 @@ verify_jwt=false não prova ausência de autenticação: cada função deve ser 
 
 ## Limites desta fase
 Não aplicar migrations no Supabase ou Neon, não copiar dados reais, não alterar Auth/RLS/Storage, não implantar funções e não mudar domínio ou publicação oficial. As próximas mudanças serão feitas somente na branch de migração e em ambientes de teste isolados.
+
+## Conciliação entre código publicado e GitHub (06/11/2026)
+
+Foi feita comparação direta da fonte publicada no Supabase com a branch `migration/neon-preparation`:
+
+| Função | Versão publicada | Situação na branch após auditoria |
+|---|---:|---|
+| `mobflow-login` | 27 | Igual à publicada |
+| `mobflow-users` | 23 | Igual à publicada |
+| `mobflow-signup` | 16 | Igual à publicada |
+| `mobflow-reauth-manager` | 14 | Divergência de uma condição de autorização; a branch exige `role === "pdv"` para usuários que não sejam `manager`, enquanto a função publicada aceita qualquer perfil ativo com permissão `Gerência`. A versão da branch é mais restritiva. Não sobrescrever sem decisão explícita sobre a regra correta. |
+| `mobflow-manager-password-recovery` | 11 | Fonte publicada capturada na branch; o arquivo não existia no GitHub antes desta auditoria |
+| `mobflow-admin-api` | 1 | Fonte publicada capturada na branch; o arquivo não existia no GitHub antes desta auditoria |
+
+As duas funções ausentes foram adicionadas somente à branch de migração, sem implantação. A função de recuperação depende de SMTP Gmail (variáveis `GMAIL_SMTP_HOST`, `GMAIL_SMTP_PORT`, `GMAIL_SMTP_USER`, `GMAIL_SMTP_APP_PASSWORD`) e `MOBFLOW_APP_URL`; os valores secretos não foram consultados nem registrados.
+
+### Pontos de segurança/robustez para a nova implementação
+
+- `mobflow-login` usa Service Role no servidor e valida status de assinatura, CNPJ, papel e usuário. A substituição deve manter essas verificações antes de criar sessão.
+- `mobflow-users` possui ações destrutivas (`reset_application`, `delete_all_pdv`) e operações em múltiplas etapas. Exigem confirmação forte, autorização por empresa e tratamento de falha parcial.
+- `mobflow-manager-password-recovery` gera token aleatório, persiste hash, limita solicitações recentes por conta e tenta consumir o token uma única vez. Hoje marca o token como usado antes de salvar a nova senha; se a gravação da senha falhar, o link fica consumido. A nova versão deve tornar o consumo e a troca de senha atômicos ou implementar compensação segura.
+- `mobflow-reauth-manager` usa SHA-256 simples para a senha de gerência. Antes de reproduzir, avaliar migração para hash de senha com salt e fator de trabalho apropriado, mantendo compatibilidade planejada com hashes existentes.
+- `mobflow-admin-api` publicado no projeto PDV (v1) implementa somente `list_companies`; confirmar se ainda é chamada por algum cliente ou se é legado antes de removê-la.
+
+## Limites mantidos
+
+As fontes capturadas são referência de auditoria na branch isolada. Nenhuma função foi implantada, nenhum segredo foi copiado, nenhuma migração foi aplicada e nenhum dado real foi alterado.
