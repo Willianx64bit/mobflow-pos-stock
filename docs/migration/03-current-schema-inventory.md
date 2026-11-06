@@ -517,3 +517,25 @@ A documentação informa que habilitar Realtime ativa logical replication no pro
 - A decisão de identidade (manter Supabase Auth temporariamente ou migrar para outro provedor) deve vir antes da implementação das APIs Neon, pois afeta emissão/validação de JWT, recuperação de senha, criação de usuários, bloqueio, permissões e isolamento por empresa.
 - A divergência da função de reautenticação e a dependência do serviço de cobrança externo são bloqueadores de desenho; não são motivo para mexer no sistema atual.
 - Status continua sendo auditoria somente leitura. Não houve alteração no banco, Auth, Storage, Edge Functions, Realtime ou produção.
+
+
+## Auditoria complementar — extensões PostgreSQL e caminho de autenticação externa (06/11/2026)
+
+### Extensões instaladas no Supabase PDV
+- Consulta somente leitura de `pg_extension`/lista de extensões confirmou instaladas no projeto: `plpgsql` (pg_catalog), `pg_stat_statements` (extensions), `pgcrypto` (extensions) e `uuid-ossp` (extensions).
+- A lista de extensões disponíveis no catálogo é muito maior; disponibilidade não significa instalação nem dependência do MobFlow.
+- Não copiar a lista inteira para Neon. Antes da migração, mapear usos concretos no schema/migrations/código. UUID `gen_random_uuid()` e funções criptográficas precisam de compatibilidade verificada, mas não ativar extensões no ambiente de teste nesta fase.
+- Nenhuma extensão foi instalada, removida ou alterada.
+
+### Possível compatibilidade Supabase Auth → Neon Data API
+- Documentação oficial Neon consultada (páginas “Custom authentication providers”, “Access control & security” e “pg_session_jwt”) confirma suporte a provedor JWT externo na Data API, com validação por JWKS e RLS PostgreSQL.
+- Para o Neon Data API aceitar token customizado, o JWT deve conter `sub` (identidade) e `role` (papel PostgreSQL; para o papel padrão, `authenticated`). O Neon valida assinatura pelo JWKS configurado; ausência de `role` pode fazer a requisição cair no papel `anonymous`.
+- Isso cria uma alternativa potencial a migrar imediatamente as contas/senhas para Neon Auth: manter Supabase Auth como provedor de identidade temporário e direcionar as consultas ao Neon Data API, desde que o token atual cumpra algoritmo/claims/JWKS aceitos e o fluxo de renovação funcione.
+- **Compatibilidade ainda não comprovada para o projeto MobFlow.** A conexão de auditoria não disponibiliza a configuração de assinatura JWT do Supabase nem uma sessão/token real de teste. Não assumir que o projeto já usa chave assimétrica/JWKS ou que o endpoint JWKS está pronto. Precisamos confirmar o algoritmo ativo, issuer, audience, claims e rotação de chaves sem expor tokens ou segredos.
+- Não ativar Data API, não cadastrar JWKS, não habilitar Neon Auth e não alterar Auth do Supabase nesta fase. Primeiro fazer teste isolado com token de teste e RLS, incluindo token expirado, usuário desativado, tenant incorreto e renovação.
+- Mesmo que esse caminho funcione para acesso direto ao banco, as Edge Functions ainda precisarão ser portadas/adaptadas para Neon/server-side APIs; funções administrativas e chaves privilegiadas nunca devem ir para o navegador.
+
+### Impacto no plano
+- A estratégia de identidade permanece em aberto, mas agora há uma opção técnica concreta para validar: Supabase Auth externo + Neon Data API com JWKS.
+- Critério de aprovação: token validado criptograficamente, claims corretas, autorização por empresa preservada, refresh/logout/revogação testados, e nenhum acesso cruzado entre empresas.
+- Sem aprovação dos testes, manter o caminho via API server-side com validação Supabase Auth; não fazer fallback inseguro com claims definidas livremente pelo cliente.
