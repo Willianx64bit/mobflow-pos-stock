@@ -118,8 +118,8 @@ describe("MobFlow Neon API authentication", () => {
       displayName: "Teste Manager",
       permissions: {},
     });
-    expect(client.query).toHaveBeenNthCalledWith(3, "SELECT set_config('app.account_id', $1, true)", [ACCOUNT_ID]);
-    expect(client.query).toHaveBeenNthCalledWith(4, "SELECT set_config('app.role', $1, true)", ["manager"]);
+    expect(client.query).toHaveBeenNthCalledWith(4, "SELECT set_config('app.account_id', $1, true)", [ACCOUNT_ID]);
+    expect(client.query).toHaveBeenNthCalledWith(5, "SELECT set_config('app.role', $1, true)", ["manager"]);
     expect(client.release).not.toHaveBeenCalled();
   });
 
