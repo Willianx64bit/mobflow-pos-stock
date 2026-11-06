@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { isBetterAuthEnabled, mobflowAuthClient } from "@/lib/auth-client";
 import { useStore } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
 
@@ -27,7 +28,8 @@ export async function logout() {
   sessionStorage.removeItem("mobflow-username");
   sessionStorage.removeItem("mobflow-management");
   sessionStorage.removeItem("mobflow-pdv-authorized");
-  await supabase.auth.signOut();
+  if (isBetterAuthEnabled) await mobflowAuthClient.signOut().catch(() => undefined);
+  else await supabase.auth.signOut();
 }
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
@@ -79,7 +81,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }, [mode]);
 
   const logoutAccount = async () => {
-    await supabase.auth.signOut();
+    if (isBetterAuthEnabled) await mobflowAuthClient.signOut().catch(() => undefined);
+    else await supabase.auth.signOut();
     localStorage.removeItem(AUTH_KEY);
     sessionStorage.removeItem("mobflow-role");
     sessionStorage.removeItem("mobflow-username");
@@ -105,23 +108,76 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       let loginCnpj = cnpj.replace(/\D/g, "");
       if (mode === "pdv") {
         loginCnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
-        const { data: sessionData } = await supabase.auth.getSession();
-        const currentUser = sessionData.session?.user;
-        if (currentUser) {
-          const { data: currentProfile, error: profileError } = await supabase
-            .from("profiles")
-            .select("cnpj, role")
-            .eq("id", currentUser.id)
-            .maybeSingle();
-          if (!profileError && currentProfile?.cnpj && ["manager", "pdv"].includes(currentProfile.role)) {
-            loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
-            localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+        if (!isBetterAuthEnabled) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const currentUser = sessionData.session?.user;
+          if (currentUser) {
+            const { data: currentProfile, error: profileError } = await supabase
+              .from("profiles")
+              .select("cnpj, role")
+              .eq("id", currentUser.id)
+              .maybeSingle();
+            if (!profileError && currentProfile?.cnpj && ["manager", "pdv"].includes(currentProfile.role)) {
+              loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
+              localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+            }
           }
         }
         if (loginCnpj.length !== 14) {
           setError("Não foi possível identificar a empresa. Entre novamente na gerência.");
           return;
         }
+      }
+
+      if (isBetterAuthEnabled) {
+        await mobflowAuthClient.signOut().catch(() => undefined);
+        sessionStorage.removeItem("mobflow-management");
+        sessionStorage.removeItem("mobflow-pdv-authorized");
+        sessionStorage.removeItem("mobflow-role");
+        sessionStorage.removeItem("mobflow-username");
+
+        const validationResponse = await withTimeout(fetch("/api/mobflow/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            username: username.trim(),
+            password,
+            cnpj: loginCnpj,
+            expectedRole: mode === "pdv" ? "pdv" : "manager",
+          }),
+        }), 20000);
+        const validation = await validationResponse.json().catch(() => ({}));
+        if (!validationResponse.ok || !validation?.ok || !validation?.profile) {
+          setError(String(validation?.error || "Usuário ou senha inválido."));
+          return;
+        }
+
+        const email = username.trim().toUpperCase().toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+        const authResult = await withTimeout(
+          mobflowAuthClient.signIn.email({ email, password }),
+          15000,
+        );
+        if (authResult.error) {
+          await mobflowAuthClient.signOut().catch(() => undefined);
+          setError("Usuário ou senha inválido.");
+          return;
+        }
+
+        localStorage.setItem(AUTH_KEY, "1");
+        if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+        if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
+        sessionStorage.setItem("mobflow-role", validation.profile.role);
+        sessionStorage.setItem("mobflow-username", validation.profile.username);
+        const savedPermissions = Array.isArray(validation.profile.permissions)
+          ? validation.profile.permissions
+          : (validation.profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
+        const normalizedPermissions = Array.from(new Set(savedPermissions.map((p: string) => p === "Conferência" ? "Operações" : p)));
+        sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
+        const firstManagerLogin = mode === "empresa" && validation.firstManagerLogin === true;
+        if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
+        onLogin({ firstManagerLogin });
+        return;
       }
 
       // Limpa apenas a sessão local antes de autenticar. O signOut remoto pode
@@ -215,6 +271,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
   const submitSignup = async (e: FormEvent) => {
     e.preventDefault();
+    if (isBetterAuthEnabled) {
+      setSignupError("O cadastro de novas empresas será reativado após a migração do fluxo de pagamento.");
+      return;
+    }
     setSignupLoading(true);
     setSignupError("");
     try {
@@ -428,9 +488,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           </button>
           {mode === "empresa" && !onClose && (
             <>
-              <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-slate-300 bg-white py-3.5 lg:py-4 font-bold text-slate-700 transition-colors hover:bg-slate-50">
+              {!isBetterAuthEnabled && <button type="button" onClick={() => { setShowSignup(true); setSignupError(""); }} className="w-full rounded-xl border border-slate-300 bg-white py-3.5 lg:py-4 font-bold text-slate-700 transition-colors hover:bg-slate-50">
                 Criar conta
-              </button>
+              </button>}
               <a href="/saiba-mais" className="inline-flex w-full items-center justify-center rounded-xl border border-primary/40 bg-primary/10 py-3.5 font-bold text-primary transition-colors hover:bg-primary/20">
                 Saiba mais sobre o MobFlow
               </a>
