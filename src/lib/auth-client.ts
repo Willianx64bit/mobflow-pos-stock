@@ -6,3 +6,5 @@ import { createAuthClient } from "better-auth/react";
  * Existing Supabase login remains active until the migration cutover is approved.
  */
 export const mobflowAuthClient = createAuthClient();
+
+export const isBetterAuthEnabled = import.meta.env.VITE_MOBFLOW_AUTH_PROVIDER === "better-auth";

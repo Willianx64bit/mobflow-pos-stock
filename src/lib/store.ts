@@ -291,11 +291,22 @@ type MobFlowApiBody = {
 };
 
 async function callMobFlowApi(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+
+  if (import.meta.env.VITE_MOBFLOW_AUTH_PROVIDER === "better-auth") {
+    // Better Auth stores the session in an HttpOnly cookie; never copy it to JS storage.
+    if (init.body !== undefined && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
+    const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
+    const body = await response.json().catch(() => ({})) as MobFlowApiBody;
+    return { response, body };
+  }
+
   const { data, error } = await supabase.auth.getSession();
   const accessToken = data.session?.access_token;
   if (error || !accessToken) throw new Error("Sessão MobFlow indisponível para sincronizar com o Neon.");
 
-  const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${accessToken}`);
   if (init.body !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");

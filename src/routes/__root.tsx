@@ -14,6 +14,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/lib/supabase";
+import { isBetterAuthEnabled, mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
@@ -181,29 +182,30 @@ function RootComponent() {
     let active = true;
     const bootstrap = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const session = data.session;
+        let profile: { role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
 
-        if (!session) {
-          localStorage.removeItem("mobflow-authenticated");
-          sessionStorage.removeItem("mobflow-role");
-          sessionStorage.removeItem("mobflow-username");
-          sessionStorage.removeItem("mobflow-pdv-authorized");
-          if (active) {
-            setAuthenticated(false);
-            setCheckingSession(false);
+        if (isBetterAuthEnabled) {
+          const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+          if (response.ok) {
+            const body = await response.json();
+            if (body?.ok && body.user) profile = { ...body.user, active: true };
           }
-          return;
+        } else {
+          const { data } = await supabase.auth.getSession();
+          const session = data.session;
+          if (session) {
+            const { data: supabaseProfile } = await supabase
+              .from("profiles")
+              .select("role,username,active,permissions")
+              .eq("id", session.user.id)
+              .maybeSingle();
+            profile = supabaseProfile;
+          }
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role,username,active,permissions")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
         if (!profile || profile.active === false || profile.role === "admin") {
-          await supabase.auth.signOut();
+          if (isBetterAuthEnabled) await mobflowAuthClient.signOut().catch(() => undefined);
+          else await supabase.auth.signOut();
           localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
           sessionStorage.removeItem("mobflow-username");
