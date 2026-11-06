@@ -61,3 +61,30 @@ Exportar as policies RLS e triggers atuais do projeto PDV. Em seguida, recuperar
 ## Segurança da etapa
 
 Consulta de catálogo somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação ou alteração de configuração foi executado.
+
+
+## Policies RLS e triggers — segundo CSV
+
+Consulta executada no catálogo para schemas `public` e `private`, excluindo triggers internos.
+
+Foram retornadas 4 policies e 0 triggers visíveis:
+
+| Tabela | Policy | Operação | Role | Regra |
+|---|---|---|---|---|
+| `app_state` | `state account insert` | INSERT | authenticated | `owner_id = private.current_account_id()` via WITH CHECK |
+| `app_state` | `state account select` | SELECT | authenticated | `owner_id = private.current_account_id()` via USING |
+| `app_state` | `state account update` | UPDATE | authenticated | A mesma condição em USING e WITH CHECK |
+| `profiles` | `profiles account select` | SELECT | authenticated | Permite o próprio perfil (`id = auth.uid()`) ou gerente lendo perfis da própria conta (`account_id = private.current_account_id()`) |
+
+### Interpretação cautelosa
+
+- As policies retornadas só cobrem SELECT em `profiles` e SELECT/INSERT/UPDATE em `app_state`.
+- Não foram retornadas policies para `companies`, `account_allowlist`, `manager_security`, `manager_security_by_account` ou `manager_password_recovery_tokens`.
+- Como essas cinco tabelas têm RLS habilitado no inventário anterior, a ausência de policies aplicáveis a `authenticated` pode significar que o acesso é feito por Edge Functions/backend com privilégios elevados. Isso ainda precisa ser confirmado no código e nos grants; não assumir acesso público nem criar policies novas por conveniência.
+- A consulta retornou zero triggers não internos em `public` e `private`. Isso não prova ausência de triggers em outros schemas, nem de triggers internos do PostgreSQL/Supabase.
+- A regra de `profiles` não trouxe policy de INSERT/UPDATE/DELETE. Preservar esse comportamento até localizar todos os fluxos que alteram perfis.
+- As expressões dependem de `auth.uid()`, `private.current_account_id()` e `private.current_account_role()`. A migração de identidade precisa substituir essas dependências com autorização equivalente, sem enfraquecer isolamento por conta.
+
+## Segurança da etapa (atualização)
+
+Segundo CSV consultado somente leitura. Nenhum INSERT, UPDATE, DELETE, DDL, deploy, importação ou alteração de configuração foi executado.
