@@ -128,9 +128,51 @@ Consulta somente leitura em `pg_event_trigger` retornou 7 event triggers, todos 
 - Os sete registros estavam habilitados no momento da consulta. A consulta não prova que todas as extensões correspondentes estão instaladas nem que os serviços externos estão em uso.
 - Os owners `postgres` e `supabase_admin` pertencem ao ambiente Supabase; não transportar esses owners literalmente para o destino.
 
+
+## Grants efetivos de tabelas — quinto resultado
+
+Consulta somente leitura com `has_table_privilege`, para os roles `anon`, `authenticated` e `service_role`, nas sete tabelas de `public`. Diferente da listagem de ACL, este resultado confirma os privilégios efetivos desses roles no momento da consulta.
+
+| Tabela | Role | SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `account_allowlist` | anon | não | não | não | não | não | não | não |
+| `account_allowlist` | authenticated | não | não | não | não | não | não | não |
+| `account_allowlist` | service_role | sim | sim | sim | sim | sim | sim | sim |
+| `app_state` | anon | sim | sim | sim | sim | sim | sim | sim |
+| `app_state` | authenticated | sim | sim | sim | sim | sim | sim | sim |
+| `app_state` | service_role | sim | sim | sim | sim | sim | sim | sim |
+| `companies` | anon | não | não | não | não | não | não | não |
+| `companies` | authenticated | não | não | não | não | não | não | não |
+| `companies` | service_role | sim | sim | sim | sim | sim | sim | sim |
+| `manager_password_recovery_tokens` | anon | não | não | não | não | não | não | não |
+| `manager_password_recovery_tokens` | authenticated | não | não | não | não | não | não | não |
+| `manager_password_recovery_tokens` | service_role | sim | sim | sim | sim | sim | sim | sim |
+| `manager_security` | anon | não | não | não | não | não | não | não |
+| `manager_security` | authenticated | não | não | não | não | não | não | não |
+| `manager_security` | service_role | sim | sim | sim | sim | sim | sim | sim |
+| `manager_security_by_account` | anon | não | não | não | não | não | não | não |
+| `manager_security_by_account` | authenticated | não | não | não | não | não | não | não |
+| `manager_security_by_account` | service_role | sim | sim | sim | sim | sim | sim | sim |
+| `profiles` | anon | sim | sim | sim | sim | sim | sim | sim |
+| `profiles` | authenticated | sim | não | não | não | sim | sim | sim |
+| `profiles` | service_role | sim | sim | sim | sim | sim | sim | sim |
+
+### Avaliação de segurança
+
+- **Permissões excessivas confirmadas:** `anon` e `authenticated` têm os sete privilégios de tabela em `app_state`. Em `profiles`, `anon` também tem os sete; `authenticated` tem SELECT, TRUNCATE, REFERENCES e TRIGGER, mas não INSERT/UPDATE/DELETE.
+- **Risco especial de TRUNCATE:** RLS não filtra nem bloqueia `TRUNCATE`. Portanto, as policies de linha não compensam a concessão desse privilégio. A presença do privilégio efetivo é uma falha de configuração a corrigir antes de expor ou reproduzir esse modelo no destino. A consulta não demonstra que o privilégio foi exercido nem que houve perda/alteração de dados.
+- **RLS continua sendo uma camada separada:** embora os roles tenham privilégios SQL de SELECT/DML em `app_state`, as policies catalogadas para `authenticated` restringem SELECT/INSERT/UPDATE por `private.current_account_id()`; não foi catalogada policy de DELETE. Para `anon`, não foi catalogada policy aplicável. Em `profiles`, a policy catalogada permite SELECT a authenticated sob condições específicas; não foi catalogada policy de escrita nem policy para anon. A autorização efetiva de operações de linha depende da combinação de grants e policies.
+- **TRIGGER e REFERENCES também são privilégios estruturais**, não permissões de linha. Não devem ser concedidos a roles de cliente sem necessidade explícita.
+- `service_role` possui todos os sete privilégios nas sete tabelas. Tratar essa role como credencial altamente privilegiada, exclusivamente no servidor; nunca expor sua chave no cliente.
+- Os resultados confirmam os privilégios efetivos apenas para os três roles consultados e as tabelas listadas. Não incluem privilégios de schema, sequences, funções, memberships/roles customizadas, Storage ou objetos em outros schemas.
+
+### Decisão para o desenho Neon
+
+Não copiar as concessões atuais de `anon`/`authenticated` para Neon. Projetar grants mínimos por operação e manter RLS/tenant isolation como camada adicional; em particular, remover TRUNCATE/TRIGGER/REFERENCES de roles de cliente e só conceder DML estritamente necessário. A correção no Supabase de produção não foi feita nesta auditoria e não deve ser executada sem plano, janela e aprovação explícita.
+
 ## Próximas inspeções — somente leitura
 
-1. Grants efetivos de tabelas, sequences, schemas e funções, incluindo roles herdadas.
+1. Grants efetivos de sequences, schemas e funções, incluindo roles herdadas/memberships.
 2. Buckets e policies do Storage, em especial arquivos de comprovantes de pagamento.
 3. Publicação Realtime e tabelas inscritas.
 4. Call sites das RPCs e Edge Functions, além de configuração Auth relevante.
