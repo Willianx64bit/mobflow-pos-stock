@@ -97,7 +97,16 @@ issue has not been treated as a code failure.
 4. Signup still calls the existing MobFlow Admin public billing endpoint at
    `xsitutjpdshmidzpgxpx.supabase.co`. The Supabase project listing reported
    MobFlow Admin as inactive; this dependency must be checked before enabling
-   signup. The Admin project and repository were not modified.
+   signup.
+
+   Read-only inspection of the Admin repository also confirmed that its
+   `adminApi.ts` authenticates against the Admin project's own Supabase session
+   and invokes that project's `mobflow-admin-api` function. That function reads
+   its own `companies` table and currently supports only `list_companies`.
+   This is a separate integration contract from the PDV database. It has not
+   been changed; before cutover, the user must decide how Neon company records
+   will be exposed to the separate Admin project without silently changing its
+   authentication or payment workflow.
 5. Manager recovery email requires `GMAIL_SMTP_HOST`,
    `GMAIL_SMTP_PORT=465`, `GMAIL_SMTP_USER`,
    `GMAIL_SMTP_APP_PASSWORD`, and `MOBFLOW_APP_URL`; none were configured
