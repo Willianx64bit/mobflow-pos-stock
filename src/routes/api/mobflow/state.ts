@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createFileRoute } from "@tanstack/react-router";
 import { beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
@@ -108,17 +109,76 @@ export const Route = createFileRoute("/api/mobflow/state")({
               return Response.json({ ok: true, status: "saved", updatedAt: inserted.rows[0].updated_at });
             }
           } else {
-            const updated = await client.query<{ updated_at: string }>(
-              `UPDATE public.app_state
-               SET state = $1::jsonb,
-                   updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
-               WHERE owner_id = $2
-                 AND updated_at = $3::timestamptz
-               RETURNING to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at`,
-              [serializedState, accountId, expected],
+            const previousResult = await client.query<{ state: Record<string, unknown> }>(
+              `SELECT state
+               FROM public.app_state
+               WHERE owner_id = $1
+                 AND updated_at = $2::timestamptz
+               FOR UPDATE`,
+              [accountId, expected],
             );
+            const previousState = previousResult.rows[0]?.state ?? null;
 
-            if (updated.rows[0]) {
+            const updated = previousState
+              ? await client.query<{ updated_at: string }>(
+                  `UPDATE public.app_state
+                   SET state = $1::jsonb,
+                       updated_at = GREATEST(clock_timestamp(), updated_at + interval '1 microsecond')
+                   WHERE owner_id = $2
+                     AND updated_at = $3::timestamptz
+                   RETURNING to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at`,
+                  [serializedState, accountId, expected],
+                )
+              : { rows: [] as Array<{ updated_at: string }> };
+
+            if (updated.rows[0] && previousState) {
+              const oldProducts = Array.isArray(previousState.products)
+                ? previousState.products as Array<Record<string, unknown>>
+                : [];
+              const nextState = body.state as Record<string, unknown>;
+              const nextProducts = Array.isArray(nextState.products)
+                ? nextState.products as Array<Record<string, unknown>>
+                : [];
+              const oldById = new Map(oldProducts.map((product) => [String(product.id ?? ""), product]));
+
+              for (const product of nextProducts) {
+                const id = String(product.id ?? "");
+                const previous = oldById.get(id);
+                if (!id || !previous) continue;
+
+                const oldStock = Number(previous.stock);
+                const nextStock = Number(product.stock);
+                if (Number.isFinite(oldStock) && Number.isFinite(nextStock) && oldStock !== nextStock) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'stock', 'automatic', 'product', $3, $4::jsonb
+                    )`,
+                    [
+                      randomUUID(),
+                      randomUUID(),
+                      id,
+                      JSON.stringify({ stockDelta: nextStock - oldStock, resultingStock: nextStock, source: "state_update" }),
+                    ],
+                  );
+                }
+
+                const oldPrice = Number(previous.price);
+                const nextPrice = Number(product.price);
+                if (Number.isFinite(oldPrice) && Number.isFinite(nextPrice) && oldPrice !== nextPrice) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'price', 'automatic', 'product', $3, $4::jsonb
+                    )`,
+                    [
+                      randomUUID(),
+                      randomUUID(),
+                      id,
+                      JSON.stringify({ price: nextPrice, previousPrice: oldPrice, source: "state_update" }),
+                    ],
+                  );
+                }
+              }
+
               await releaseTransaction(client, true);
               transaction = null;
               return Response.json({ ok: true, status: "saved", updatedAt: updated.rows[0].updated_at });
