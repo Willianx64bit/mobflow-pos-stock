@@ -31,10 +31,11 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
         let transaction: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
         try {
           const url = new URL(request.url);
-          const cursor = parseNonNegativeInteger(url.searchParams.get("cursor"), 0);
+          const rawCursor = url.searchParams.get("cursor") ?? "0";
+          const cursorIsValid = /^\\d+$/.test(rawCursor) && BigInt(rawCursor) <= MAX_CURSOR;
           const requestedLimit = parseNonNegativeInteger(url.searchParams.get("limit"), DEFAULT_LIMIT);
 
-          if (cursor === null || requestedLimit === null || BigInt(cursor) > MAX_CURSOR || requestedLimit < 1) {
+          if (!cursorIsValid || requestedLimit === null || requestedLimit < 1) {
             return Response.json(
               { ok: false, error: "Cursor ou limite de sincronização inválido.", code: "invalid_sync_cursor" },
               { status: 400 },
@@ -66,12 +67,12 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
                AND sequence <= $3::bigint
              ORDER BY sequence ASC
              LIMIT $4`,
-            [identity.accountId, String(cursor), highWaterMark, limit + 1],
+            [identity.accountId, rawCursor, highWaterMark, limit + 1],
           );
 
           const hasMore = eventsResult.rows.length > limit;
           const page = eventsResult.rows.slice(0, limit);
-          const nextCursor = page.length ? page[page.length - 1].sequence : String(cursor);
+          const nextCursor = page.length ? page[page.length - 1].sequence : rawCursor;
 
           await releaseTransaction(client, true);
           transaction = null;
@@ -79,7 +80,7 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
           return Response.json({
             ok: true,
             events: page,
-            cursor: String(cursor),
+            cursor: rawCursor,
             nextCursor,
             highWaterMark,
             hasMore,
