@@ -238,6 +238,54 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 }
               }
 
+              // Conference records are manual workflow events, separate from stock deltas.
+              const oldConferences = Array.isArray(previousState.conferences)
+                ? previousState.conferences as Array<Record<string, unknown>>
+                : [];
+              const nextConferences = Array.isArray(nextState.conferences)
+                ? nextState.conferences as Array<Record<string, unknown>>
+                : [];
+              const oldConferencesById = new Map(oldConferences.map((item) => [String(item.id ?? ""), item]));
+              const nextConferencesById = new Map(nextConferences.map((item) => [String(item.id ?? ""), item]));
+              const conferenceProjection = (item: Record<string, unknown>) => ({
+                id: String(item.id ?? ""),
+                name: typeof item.name === "string" ? item.name : "",
+                date: typeof item.date === "string" ? item.date : "",
+                status: typeof item.status === "string" ? item.status : "",
+                counts: item.counts && typeof item.counts === "object" && !Array.isArray(item.counts) ? item.counts : {},
+                unknown: Array.isArray(item.unknown) ? item.unknown : [],
+                adjusted: item.adjusted === true,
+                receivingId: typeof item.receivingId === "string" ? item.receivingId : undefined,
+                expiries: item.expiries && typeof item.expiries === "object" && !Array.isArray(item.expiries) ? item.expiries : {},
+                extraCounts: item.extraCounts && typeof item.extraCounts === "object" && !Array.isArray(item.extraCounts) ? item.extraCounts : {},
+                extraExpiries: item.extraExpiries && typeof item.extraExpiries === "object" && !Array.isArray(item.extraExpiries) ? item.extraExpiries : {},
+              });
+              for (const item of nextConferences) {
+                const id = String(item.id ?? "");
+                if (!id) continue;
+                const previous = oldConferencesById.get(id);
+                const projection = conferenceProjection(item);
+                if (!previous || JSON.stringify(conferenceProjection(previous)) !== JSON.stringify(projection)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'conference', 'manual', 'conference', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "upsert", conference: projection })],
+                  );
+                }
+              }
+              for (const previous of oldConferences) {
+                const id = String(previous.id ?? "");
+                if (id && !nextConferencesById.has(id)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'conference', 'manual', 'conference', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "delete" })],
+                  );
+                }
+              }
+
               for (const product of nextProducts) {
                 const id = String(product.id ?? "");
                 const previous = oldById.get(id);
