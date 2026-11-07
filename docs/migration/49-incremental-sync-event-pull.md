@@ -59,3 +59,28 @@ Sequence values are returned as strings to avoid JavaScript integer precision lo
 3. Verify tenant A cannot retrieve tenant B events using separate authenticated test profiles.
 4. Verify an event appended after the high-water read is picked up by the next request.
 5. Only then implement the authenticated push contract and atomic event append in domain transactions.
+
+
+## Receiving transaction integration — 2026-11-07
+
+The existing Better Auth Neon receiving route now appends events before committing its existing `app_state` transaction:
+
+- One manual `receiving` event includes the accepted status, decision completion, accepted/returned line counts, and per-line product ID, received quantity, and decision.
+- One automatic `stock` event is appended for each product with a positive accepted quantity. Its payload contains only the stock delta and source.
+- Returned lines never produce stock events.
+- The event payload is size-checked before append (15,000 bytes, below the database's 16 KiB limit).
+- Stable deterministic idempotency UUIDs are derived from tenant + receiving ID + release operation + product ID.
+- The event inserts and `app_state` update run in the same authenticated PostgreSQL transaction. If any append or state update fails, the transaction rolls back.
+- The route rejects accepted quantities referencing a product absent from the current product list.
+
+Files changed:
+- `src/routes/api/mobflow/receiving.ts`
+
+Commit:
+- `9ad23ab93b7f0966c78bb9dffecb53d9e3931aca`
+
+## Validation status after receiving integration
+
+Not yet build- or integration-tested. No runtime test has exercised accepting a receiving note, returned lines, retries, or rollback against Neon. The existing receiving route is active only when `MOBFLOW_AUTH_PROVIDER=better-auth`; the legacy Supabase RPC path was not changed and does not yet emit these new events. The event-pull route also has not yet been called by the client.
+
+Do not remove polling or change client sync behavior based on this implementation alone.
