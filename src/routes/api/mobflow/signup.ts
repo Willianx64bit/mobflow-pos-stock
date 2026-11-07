@@ -77,9 +77,9 @@ async function submitPaymentProof(body: Record<string, unknown>) {
     }
 
     const update = await client.query(
-      \`UPDATE public.companies
+      `UPDATE public.companies
        SET payment_proof_path=$2,payment_submitted_at=now(),subscription_status='pending_payment',updated_at=now()
-       WHERE payment_request_token=$1 AND subscription_status <> 'active'\`,
+       WHERE payment_request_token=$1 AND subscription_status <> 'active'`,
       [requestToken, path],
     );
     if (!update.rowCount) {
@@ -109,8 +109,8 @@ async function completeManagerSetup(body: Record<string, unknown>) {
   try {
     await client.query("BEGIN");
     const companyResult = await client.query<{ account_id: string; company_name: string; manager_setup_completed_at: string | null }>(
-      \`SELECT account_id::text,company_name,manager_setup_completed_at
-       FROM public.companies WHERE cnpj=$1 AND manager_setup_token=$2 LIMIT 1\`,
+      `SELECT account_id::text,company_name,manager_setup_completed_at
+       FROM public.companies WHERE cnpj=$1 AND manager_setup_token=$2 LIMIT 1`,
       [cnpj, setupToken],
     );
     const company = companyResult.rows[0];
@@ -127,7 +127,7 @@ async function completeManagerSetup(body: Record<string, unknown>) {
       return errorResponse("Esse nome de usuário já está em uso.", 409);
     }
     const updatedUser = await client.query(
-      \`UPDATE public."user" SET email=$2,name=$3,"emailVerified"=true,"updatedAt"=now() WHERE id=$1\`,
+      `UPDATE public."user" SET email=$2,name=$3,"emailVerified"=true,"updatedAt"=now() WHERE id=$1`,
       [company.account_id, authEmail(username), username],
     );
     if (!updatedUser.rowCount) {
@@ -135,19 +135,19 @@ async function completeManagerSetup(body: Record<string, unknown>) {
       return errorResponse("Não foi possível localizar a conta do primeiro acesso.", 404);
     }
     await client.query(
-      \`UPDATE public."account" SET password=$2,"updatedAt"=now()
-       WHERE "userId"=$1 AND "providerId"='credential' AND "accountId"=$1\`,
+      `UPDATE public."account" SET password=$2,"updatedAt"=now()
+       WHERE "userId"=$1 AND "providerId"='credential' AND "accountId"=$1`,
       [company.account_id, await bcrypt.hash(password, 12)],
     );
     await client.query('DELETE FROM public."session" WHERE "userId"=$1', [company.account_id]);
     await client.query(
-      \`UPDATE public.profiles SET username=$2,display_name=$3,permissions=$4::jsonb
-       WHERE id=$1\`,
+      `UPDATE public.profiles SET username=$2,display_name=$3,permissions=$4::jsonb
+       WHERE id=$1`,
       [company.account_id, username, company.company_name, JSON.stringify(MANAGER_PERMISSIONS)],
     );
     await client.query(
-      \`UPDATE public.companies SET username=$2,manager_setup_token=NULL,manager_setup_completed_at=now(),updated_at=now()
-       WHERE account_id=$1 AND manager_setup_token=$3\`,
+      `UPDATE public.companies SET username=$2,manager_setup_token=NULL,manager_setup_completed_at=now(),updated_at=now()
+       WHERE account_id=$1 AND manager_setup_token=$3`,
       [company.account_id, username, setupToken],
     );
     await client.query("COMMIT");
@@ -194,11 +194,11 @@ async function createCompany(body: Record<string, unknown>) {
   try {
     await client.query("BEGIN");
     const duplicates = await client.query(
-      \`SELECT
+      `SELECT
         EXISTS(SELECT 1 FROM public.companies WHERE cnpj=$1) AS cnpj_exists,
         EXISTS(SELECT 1 FROM public.companies WHERE lower(email)=lower($2)) AS email_exists,
         EXISTS(SELECT 1 FROM public.profiles WHERE username=$3) AS username_exists,
-        EXISTS(SELECT 1 FROM public.account_allowlist WHERE username=$3) AS allowlist_exists\`,
+        EXISTS(SELECT 1 FROM public.account_allowlist WHERE username=$3) AS allowlist_exists`,
       [cnpj, email, username],
     );
     const duplicate = duplicates.rows[0];
@@ -210,30 +210,30 @@ async function createCompany(body: Record<string, unknown>) {
     const now = new Date();
     const passwordHash = await bcrypt.hash(password, 12);
     await client.query(
-      \`INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
-       VALUES ($1,$2,$3,true,$4,$4)\`,
+      `INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+       VALUES ($1,$2,$3,true,$4,$4)`,
       [id, username, authEmail(username), now],
     );
     await client.query(
-      \`INSERT INTO public."account" (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
-       VALUES ($1,$1,'credential',$1,$2,$3,$3)\`,
+      `INSERT INTO public."account" (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
+       VALUES ($1,$1,'credential',$1,$2,$3,$3)`,
       [id, passwordHash, now],
     );
     await client.query(
-      \`INSERT INTO public.profiles (id,username,cnpj,account_id,role,active,display_name,permissions)
-       VALUES ($1,$2,$3,$1,'manager',true,$4,$5::jsonb)\`,
+      `INSERT INTO public.profiles (id,username,cnpj,account_id,role,active,display_name,permissions)
+       VALUES ($1,$2,$3,$1,'manager',true,$4,$5::jsonb)`,
       [id, username, cnpj, companyName, JSON.stringify(MANAGER_PERMISSIONS)],
     );
     await client.query(
-      \`INSERT INTO public.account_allowlist (username,cnpj,active) VALUES ($1,$2,true)\`,
+      `INSERT INTO public.account_allowlist (username,cnpj,active) VALUES ($1,$2,true)`,
       [username, cnpj],
     );
     const companyResult = await client.query<{ payment_request_token: string }>(
-      \`INSERT INTO public.companies
+      `INSERT INTO public.companies
         (account_id,company_name,cnpj,username,manager_setup_token,manager_setup_completed_at,
          email,phone,plan_code,monthly_price,payment_method,subscription_status)
        VALUES ($1,$2,$3,$4,NULL,now(),$5,$6,'complete',$7,'pix','pending_payment')
-       RETURNING payment_request_token::text\`,
+       RETURNING payment_request_token::text`,
       [id, companyName, cnpj, username, email, phone, monthlyPrice],
     );
     const requestToken = companyResult.rows[0]?.payment_request_token;

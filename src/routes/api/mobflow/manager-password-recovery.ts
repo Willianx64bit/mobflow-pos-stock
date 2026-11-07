@@ -68,7 +68,7 @@ async function requestRecovery(body: Record<string, unknown>) {
 <h2>Recuperar senha da Gerência</h2>
 <p>Recebemos uma solicitação para criar uma nova senha da Gerência da sua empresa no MobFlow.</p>
 <p>O link é válido por 30 minutos e pode ser usado uma única vez.</p>
-<p style="margin:28px 0"><a href="\${resetUrl}" style="background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Criar nova senha</a></p>
+<p style="margin:28px 0"><a href="${resetUrl}" style="background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Criar nova senha</a></p>
 <p>Se você não solicitou essa alteração, ignore este e-mail. Sua senha atual continuará funcionando.</p>
 </div>`,
       });
