@@ -301,7 +301,10 @@ describe("MobFlow Neon state API", () => {
 
   it("emits manual expiry create, update and delete events without unrelated fields", async () => {
     const previousState = {
-      manualExpiries: [{ id: "exp-old", productId: "p1", name: "Leite", quantity: 2, expiry: "2026-12-01", unit: "un" }],
+      manualExpiries: [
+        { id: "exp-old", productId: "p1", name: "Leite", quantity: 2, expiry: "2026-12-01", unit: "un" },
+        { id: "exp-removed", productId: "p3", name: "Queijo", quantity: 1, expiry: "2026-11-30", unit: "un" },
+      ],
     };
     const nextState = {
       manualExpiries: [
@@ -331,7 +334,7 @@ describe("MobFlow Neon state API", () => {
     expect(JSON.stringify(JSON.parse(events[0][1][3] as string))).not.toContain("must-not-sync");
     expect(events[1][1][2]).toBe("exp-new");
     expect(JSON.parse(events[2][1][3] as string)).toEqual({ operation: "delete" });
-    expect(events[2][1][2]).toBe("exp-old");
+    expect(events[2][1][2]).toBe("exp-removed");
   });
 
   it("emits manual stock adjustment, writeoff and transfer events with limited payloads", async () => {
