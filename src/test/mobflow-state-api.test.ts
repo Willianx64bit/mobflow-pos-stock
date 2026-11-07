@@ -299,6 +299,41 @@ describe("MobFlow Neon state API", () => {
     expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
   });
 
+  it("emits manual expiry create, update and delete events without unrelated fields", async () => {
+    const previousState = {
+      manualExpiries: [{ id: "exp-old", productId: "p1", name: "Leite", quantity: 2, expiry: "2026-12-01", unit: "un" }],
+    };
+    const nextState = {
+      manualExpiries: [
+        { id: "exp-old", productId: "p1", name: "Leite", quantity: 3, expiry: "2026-12-01", unit: "un", privateNote: "must-not-sync" },
+        { id: "exp-new", productId: "p2", name: "Iogurte", quantity: 5, expiry: "2026-12-10", unit: "un" },
+      ],
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const events = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event") && String(call[0]).includes("'master_data', 'manual'"),
+    );
+    expect(events).toHaveLength(3);
+    expect(events[0][1][2]).toBe("exp-old");
+    expect(JSON.parse(events[0][1][3] as string)).toMatchObject({
+      operation: "upsert",
+      manualExpiry: { id: "exp-old", quantity: 3, expiry: "2026-12-01" },
+    });
+    expect(JSON.stringify(JSON.parse(events[0][1][3] as string))).not.toContain("must-not-sync");
+    expect(events[1][1][2]).toBe("exp-new");
+    expect(JSON.parse(events[2][1][3] as string)).toEqual({ operation: "delete" });
+    expect(events[2][1][2]).toBe("exp-old");
+  });
+
   it("emits manual stock adjustment, writeoff and transfer events with limited payloads", async () => {
     const previousState = {
       stockAdjustments: [{ id: "adj-old", date: "2026-11-01", reason: "Correção", items: [] }],
