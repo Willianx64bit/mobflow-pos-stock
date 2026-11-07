@@ -2,7 +2,7 @@
 -- Apply only to the isolated Neon migration/QA database during validation.
 CREATE TABLE IF NOT EXISTS public.admin_billing_settings (
   id boolean PRIMARY KEY DEFAULT true CHECK (id = true),
-  monthly_price numeric(12,2) NOT NULL CHECK (monthly_price > 0),
+  monthly_price numeric(12,2) NOT NULL CHECK (monthly_price > 0 AND monthly_price <= 9999.99),
   payment_method text NOT NULL DEFAULT 'pix' CHECK (payment_method = 'pix'),
   pix_phone text NOT NULL CHECK (pix_phone ~ '^\+?[0-9]{10,15}$'),
   updated_at timestamptz NOT NULL DEFAULT now(),
