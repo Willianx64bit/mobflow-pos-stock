@@ -229,6 +229,41 @@ describe("MobFlow Neon state API", () => {
     });
   });
 
+  it("emits manual promotion upsert and delete events with a limited projection", async () => {
+    const previousState = {
+      promotions: [{ id: "promo-old", productId: "p1", productName: "Arroz", originalPrice: 20, promoPrice: 18, startsAt: "2026-11-01", endsAt: "2026-11-10" }],
+      settings: { pixKey: "must-not-be-in-event" },
+    };
+    const nextState = {
+      promotions: [{ id: "promo-new", productId: "p2", productName: "Feijão", originalPrice: 12, promoPrice: 10, startsAt: "2026-11-07", endsAt: "2026-11-14" }],
+      settings: { pixKey: "must-not-be-in-event" },
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const events = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(events).toHaveLength(2);
+    expect(events[0][0]).toContain("'promotions', 'manual'");
+    expect(events[0][1][2]).toBe("promo-new");
+    const upsertPayload = JSON.parse(events[0][1][3] as string);
+    expect(upsertPayload).toMatchObject({
+      operation: "upsert",
+      promotion: { id: "promo-new", productId: "p2", promoPrice: 10 },
+    });
+    expect(JSON.stringify(upsertPayload)).not.toContain("must-not-be-in-event");
+    expect(events[1][1][2]).toBe("promo-old");
+    expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
+  });
+
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
     const previousState = { products: [{ id: "p1", stock: null, price: undefined }] };
     const nextState = { products: [{ id: "p1", stock: null, price: null }] };
