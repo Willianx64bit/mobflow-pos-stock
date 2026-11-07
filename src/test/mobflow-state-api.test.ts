@@ -266,6 +266,9 @@ describe("MobFlow Neon state API", () => {
       remoteUpdatedAt: VERSION_2,
     });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+    expect(client.query.mock.calls.some((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    )).toBe(false);
   });
 
   it("allows only one of two concurrent writes using the same version", async () => {
