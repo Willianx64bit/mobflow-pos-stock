@@ -160,13 +160,13 @@ describe("MobFlow Neon state API", () => {
     );
     expect(eventCalls).toHaveLength(2);
     expect(eventCalls[0][0]).toContain("'stock', 'automatic'");
-    expect(eventCalls[0][2]).toBe("p1");
-    expect(JSON.parse(eventCalls[0][3] as string)).toMatchObject({
+    expect(eventCalls[0][1][2]).toBe("p1");
+    expect(JSON.parse(eventCalls[0][1][3] as string)).toMatchObject({
       stockDelta: -2, resultingStock: 8, source: "state_update",
     });
     expect(eventCalls[1][0]).toContain("'price', 'automatic'");
-    expect(eventCalls[1][2]).toBe("p1");
-    expect(JSON.parse(eventCalls[1][3] as string)).toMatchObject({
+    expect(eventCalls[1][1][2]).toBe("p1");
+    expect(JSON.parse(eventCalls[1][1][3] as string)).toMatchObject({
       price: 6, previousPrice: 5, source: "state_update",
     });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
