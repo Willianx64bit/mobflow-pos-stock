@@ -197,7 +197,7 @@ async function createCompany(body: Record<string, unknown>) {
       monthly_price: monthlyPrice,
       payment_method: "pix",
       recipient_name: "MOBFLOW",
-      recipient_city: "SAO PAULO",
+      recipient_city: "CAPAO BONITO",
     };
   } catch (error) {
     console.error("[MobFlow billing settings]", error instanceof Error ? error.message : "unknown error");
