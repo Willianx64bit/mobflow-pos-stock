@@ -8,7 +8,7 @@ const genericResponse = () => Response.json({ ok: true, message: genericMessage 
 
 async function requestRecovery(body: Record<string, unknown>) {
   const email = String(body.email ?? "").trim().toLowerCase();
-  const cnpj = String(body.cnpj ?? "").replace(/\\D/g, "");
+  const cnpj = String(body.cnpj ?? "").replace(/\D/g, "");
   if (!email || !email.includes("@") || cnpj.length !== 14) {
     return Response.json({ ok: false, error: "Informe um e-mail válido e o CNPJ completo da empresa." }, { status: 400 });
   }
@@ -47,7 +47,7 @@ async function requestRecovery(body: Record<string, unknown>) {
       [accountId, tokenHash],
     );
 
-    const baseUrl = (process.env.MOBFLOW_APP_URL || "https://mobflow-pos-stock.vercel.app").replace(/\\/+$/, "");
+    const baseUrl = (process.env.MOBFLOW_APP_URL || "https://mobflow-pos-stock.vercel.app").replace(/\/+$/, "");
     const resetUrl = baseUrl + "/recuperar-senha?token=" + encodeURIComponent(token);
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#222">
 <h2>Recuperar senha da Gerência</h2>
@@ -65,7 +65,7 @@ async function requestRecovery(body: Record<string, unknown>) {
       "Criar nova senha: " + resetUrl,
       "",
       "Se você não solicitou essa alteração, ignore este e-mail. Sua senha atual continuará funcionando.",
-    ].join("\\n");
+    ].join("\n");
 
     try {
       const response = await fetch("https://api.resend.com/emails", {
