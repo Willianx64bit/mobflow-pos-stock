@@ -351,6 +351,52 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 }
               }
 
+              // Manual expiry records are master-data workflow events. Keep only the
+              // fields required to reproduce the expiry entry on another device.
+              const oldExpiries = Array.isArray(previousState.manualExpiries)
+                ? previousState.manualExpiries as Array<Record<string, unknown>> : [];
+              const nextExpiries = Array.isArray(nextState.manualExpiries)
+                ? nextState.manualExpiries as Array<Record<string, unknown>> : [];
+              const oldExpiriesById = new Map(oldExpiries.map((item) => [String(item.id ?? ""), item]));
+              const nextExpiriesById = new Map(nextExpiries.map((item) => [String(item.id ?? ""), item]));
+              const expiryProjection = (item: Record<string, unknown>) => ({
+                id: String(item.id ?? ""),
+                productId: String(item.productId ?? ""),
+                name: typeof item.name === "string" ? item.name : "",
+                quantity: finiteStateNumber(item.quantity),
+                expiry: typeof item.expiry === "string" ? item.expiry : "",
+                unit: item.unit === "kg" ? "kg" : "un",
+              });
+              for (const item of nextExpiries) {
+                const id = String(item.id ?? "");
+                if (!id) continue;
+                const projection = expiryProjection(item);
+                const previous = oldExpiriesById.get(id);
+                if (!previous || JSON.stringify(expiryProjection(previous)) !== JSON.stringify(projection)) {
+                  const payload = JSON.stringify({ operation: "upsert", manualExpiry: projection });
+                  if (new TextEncoder().encode(payload).byteLength > 15000) {
+                    throw new Error("O registro de validade excede o limite seguro de sincronização.");
+                  }
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'master_data', 'manual', 'manual_expiry', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, payload],
+                  );
+                }
+              }
+              for (const previous of oldExpiries) {
+                const id = String(previous.id ?? "");
+                if (id && !nextExpiriesById.has(id)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'master_data', 'manual', 'manual_expiry', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "delete" })],
+                  );
+                }
+              }
+
               for (const product of nextProducts) {
                 const id = String(product.id ?? "");
                 const previous = oldById.get(id);
