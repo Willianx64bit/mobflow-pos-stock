@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
+import { isBetterAuthEnabled } from "@/lib/auth-client";
 
 export type Product = { id: string; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
@@ -967,7 +968,20 @@ export const actions = {
   async acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || (note.status !== "analisando" && note.status !== "divergente" && note.status !== "conferido") || note.stockReleased || !note.decisionCompleted) return false;
-    const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
+    let data: unknown;
+    let error: unknown;
+    if (isBetterAuthEnabled) {
+      const result = await callMobFlowApi("/api/mobflow/receiving", {
+        method: "POST",
+        body: JSON.stringify({ action: "accept", receivingId: id }),
+      });
+      data = result.body.data;
+      error = result.response.ok ? null : result.body.error;
+    } else {
+      const result = await supabase.rpc("accept_receiving", { p_receiving_id: id });
+      data = result.data;
+      error = result.error;
+    }
     if (error || data !== true) {
       await hydrateStore();
       return false;
@@ -1001,10 +1015,23 @@ export const actions = {
     // before the database validates and releases stock.
     await persistQueue;
     const rpcResult = await Promise.race([
-      supabase.rpc("finalize_receiving_decisions", {
-        p_receiving_id: id,
-        p_decisions: decisions,
-      }).then(({ data, error }) => ({ data, error })),
+      (async () => {
+        if (isBetterAuthEnabled) {
+          const result = await callMobFlowApi("/api/mobflow/receiving", {
+            method: "POST",
+            body: JSON.stringify({ action: "finalize_decisions", receivingId: id, decisions }),
+          });
+          return {
+            data: result.body.data,
+            error: result.response.ok ? null : { message: String(result.body.error || "Falha ao finalizar o recebimento.") },
+          };
+        }
+        const result = await supabase.rpc("finalize_receiving_decisions", {
+          p_receiving_id: id,
+          p_decisions: decisions,
+        });
+        return { data: result.data, error: result.error };
+      })(),
       new Promise<{ data: null; error: { message: string } }>((resolve) =>
         setTimeout(() => resolve({ data: null, error: { message: "Tempo limite ao atualizar o estoque." } }), 20000)
       ),
