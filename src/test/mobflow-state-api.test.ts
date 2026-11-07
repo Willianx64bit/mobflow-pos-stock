@@ -299,6 +299,51 @@ describe("MobFlow Neon state API", () => {
     expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
   });
 
+  it("emits manual stock adjustment, writeoff and transfer events with limited payloads", async () => {
+    const previousState = {
+      stockAdjustments: [{ id: "adj-old", date: "2026-11-01", reason: "Correção", items: [] }],
+      stockWriteoffs: [],
+      stockTransfers: [],
+    };
+    const nextState = {
+      stockAdjustments: [{ id: "adj-new", date: "2026-11-07", reason: "Balanço", operator: "Caixa", items: [
+        { productId: "p1", code: "001", name: "Arroz", unit: "kg", mode: "somar", quantity: 2, previousStock: 3, newStock: 5 },
+      ] }],
+      stockWriteoffs: [{ id: "out-1", number: "B001", date: "2026-11-07", reason: "Perda", costMode: "compra", items: [
+        { productId: "p1", code: "001", name: "Arroz", unit: "kg", quantity: 1, previousStock: 5, newStock: 4, unitCost: 99, totalCost: 99 },
+      ] }],
+      stockTransfers: [{ id: "tr-1", number: "T001", date: "2026-11-07", reason: "Transferência de produtos, Vendas", destinationName: "Filial Centro", destinationDocument: "123456789", destinationPhone: "11999999999", items: [
+        { productId: "p2", code: "002", name: "Feijão", unit: "un", quantity: 4, previousStock: 8, newStock: 4, unitCost: 7, totalCost: 28 },
+      ] }],
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const events = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event") && String(call[0]).includes("'stock', 'manual'"),
+    );
+    expect(events).toHaveLength(4);
+    expect(events[0][0]).toContain("'stock', 'manual', $3, $4, $5::jsonb");
+    expect(events[0][1][3]).toBe("adj-new");
+    expect(JSON.parse(events[0][1][4] as string)).toMatchObject({
+      operation: "upsert",
+      stockOperation: { id: "adj-new", items: [{ productId: "p1", newStock: 5 }] },
+    });
+    const transferPayload = JSON.parse(events[2][1][4] as string);
+    expect(transferPayload.stockOperation.destinationName).toBe("Filial Centro");
+    expect(JSON.stringify(transferPayload)).not.toContain("123456789");
+    expect(JSON.stringify(transferPayload)).not.toContain("11999999999");
+    expect(JSON.stringify(transferPayload)).not.toContain("unitCost");
+    expect(JSON.parse(events[3][1][4] as string)).toEqual({ operation: "delete" });
+  });
+
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
     const previousState = { products: [{ id: "p1", stock: null, price: undefined }] };
     const nextState = { products: [{ id: "p1", stock: null, price: null }] };
