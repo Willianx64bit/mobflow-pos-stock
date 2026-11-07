@@ -100,3 +100,25 @@ Unique keys protect event ID, tenant sequence, and tenant idempotency key. Paylo
 - Add client-side durable queue/cursor only after the API contract is stable.
 
 No migration has been applied to Neon in this step.
+
+
+## Disposable-branch validation — 2026-11-07
+
+The draft migration was executed on a separate Neon validation branch cloned from the existing test branch:
+- Project: `mobflow-pdv-realtime-test`
+- Validation branch ID: `br-lingering-credit-bdova1jb`
+- Parent test branch: `br-wild-night-bds1bdfk`
+
+Checks performed successfully:
+1. All 18 migration statements completed in one transaction.
+2. `mobflow_append_sync_event` inserted an automatic stock event with sequence `1`.
+3. Repeating the same tenant idempotency key returned sequence `1`, not a second event.
+4. The same transaction saw exactly one event after the retry.
+5. Under `mobflow_api`, a tenant-A context saw zero rows and zero counter rows for tenant B.
+6. The test transaction was rolled back, so the inserted test event/counter did not remain as test data.
+
+Limitations:
+- This validates schema creation, the append function, basic idempotency, and RLS tenant filtering.
+- It does not yet validate concurrent writers, actor mismatch rejection, event retention, API payload validation, offline queue semantics, or Realtime delivery.
+- The disposable validation branch was retained after testing; it was not deleted.
+- The migration remains **unapplied** on the primary test branch `br-wild-night-bds1bdfk` and production.
