@@ -264,6 +264,41 @@ describe("MobFlow Neon state API", () => {
     expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
   });
 
+  it("emits manual conference upsert and delete events without unrelated state", async () => {
+    const previousState = {
+      conferences: [{ id: "conf-old", name: "Inventário antigo", date: "2026-11-01", status: "aberta", counts: { p1: 2 }, unknown: ["x"] }],
+      settings: { pixKey: "must-not-be-in-event" },
+    };
+    const nextState = {
+      conferences: [{ id: "conf-new", name: "Inventário novo", date: "2026-11-07", status: "finalizada", counts: { p2: 5 }, unknown: [] }],
+      settings: { pixKey: "must-not-be-in-event" },
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const events = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(events).toHaveLength(2);
+    expect(events[0][0]).toContain("'conference', 'manual'");
+    expect(events[0][1][2]).toBe("conf-new");
+    const payload = JSON.parse(events[0][1][3] as string);
+    expect(payload).toMatchObject({
+      operation: "upsert",
+      conference: { id: "conf-new", status: "finalizada", counts: { p2: 5 } },
+    });
+    expect(JSON.stringify(payload)).not.toContain("must-not-be-in-event");
+    expect(events[1][1][2]).toBe("conf-old");
+    expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
+  });
+
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
     const previousState = { products: [{ id: "p1", stock: null, price: undefined }] };
     const nextState = { products: [{ id: "p1", stock: null, price: null }] };
