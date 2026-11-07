@@ -21,7 +21,7 @@ function requiredEnv(name: string): string {
 export function getMobFlowBetterAuth() {
   if (authInstance) return authInstance;
 
-  const databaseUrl = requiredEnv("MOBFLOW_AUTH_DATABASE_URL");
+  const databaseUrl = process.env.MOBFLOW_AUTH_DATABASE_URL?.trim() || requiredEnv("NEON_DATABASE_URL");
   const secret = requiredEnv("BETTER_AUTH_SECRET");
   const baseURL = requiredEnv("BETTER_AUTH_URL");
   const trustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS || baseURL)
