@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
         try {
           const url = new URL(request.url);
           const rawCursor = url.searchParams.get("cursor") ?? "0";
-          const cursorIsValid = /^\\d+$/.test(rawCursor) && BigInt(rawCursor) <= MAX_CURSOR;
+          const cursorIsValid = /^\d+$/.test(rawCursor) && BigInt(rawCursor) <= MAX_CURSOR;
           const requestedLimit = parseNonNegativeInteger(url.searchParams.get("limit"), DEFAULT_LIMIT);
 
           if (!cursorIsValid || requestedLimit === null || requestedLimit < 1) {
