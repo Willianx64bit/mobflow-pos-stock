@@ -176,19 +176,35 @@ async function createCompany(body: Record<string, unknown>) {
   if (phone.length < 10 || phone.length > 13) return errorResponse("Informe um telefone válido com DDD.");
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errorResponse("Informe um e-mail válido.");
 
-  const billingResponse = await fetch("https://xsitutjpdshmidzpgxpx.supabase.co/functions/v1/mobflow-public-billing", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-    signal: AbortSignal.timeout(12000),
-  }).catch(() => null);
-  if (!billingResponse?.ok) return errorResponse("O cadastro está temporariamente indisponível para pagamento. Tente novamente mais tarde.", 503);
-  const paymentSettings = await billingResponse.json().catch(() => null);
-  const pixKey = String(paymentSettings?.pix_phone ?? "").trim();
-  const monthlyPrice = Number(paymentSettings?.monthly_price);
-  if (paymentSettings?.ok !== true || !/^\+?\d{10,15}$/.test(pixKey) || !Number.isFinite(monthlyPrice) || monthlyPrice <= 0) {
-    return errorResponse("As configurações Pix ainda não estão disponíveis. Tente novamente mais tarde.", 503);
+  let paymentSettings: { pix_phone: string; monthly_price: number; payment_method: "pix"; recipient_name: string; recipient_city: string };
+  try {
+    const billingResult = await getNeonPool().query<{
+      pix_phone: string;
+      monthly_price: string | number;
+      payment_method: string;
+    }>(
+      "SELECT pix_phone, monthly_price, payment_method FROM public.admin_billing_settings WHERE id = true LIMIT 1",
+    );
+    const billing = billingResult.rows[0];
+    const pixKey = String(billing?.pix_phone ?? "").trim();
+    const monthlyPrice = Number(billing?.monthly_price);
+    if (!billing || billing.payment_method !== "pix" || !/^\+?\d{10,15}$/.test(pixKey) ||
+        !Number.isFinite(monthlyPrice) || monthlyPrice <= 0) {
+      return errorResponse("As configurações Pix ainda não estão disponíveis. Tente novamente mais tarde.", 503);
+    }
+    paymentSettings = {
+      pix_phone: pixKey,
+      monthly_price: monthlyPrice,
+      payment_method: "pix",
+      recipient_name: "MOBFLOW",
+      recipient_city: "SAO PAULO",
+    };
+  } catch (error) {
+    console.error("[MobFlow billing settings]", error instanceof Error ? error.message : "unknown error");
+    return errorResponse("Não foi possível consultar as configurações de cobrança. Tente novamente mais tarde.", 503);
   }
+  const pixKey = paymentSettings.pix_phone;
+  const monthlyPrice = paymentSettings.monthly_price;
 
   const client = await getNeonPool().connect();
   try {
