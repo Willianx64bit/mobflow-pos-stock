@@ -204,6 +204,31 @@ describe("MobFlow Neon state API", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
+  it("emits a manual catalog upsert when catalog metadata changes", async () => {
+    const previousState = { products: [{ id: "p1", code: "001", name: "Produto", category: "Mercearia" }] };
+    const nextState = { products: [{ id: "p1", code: "001", name: "Produto atualizado", category: "Limpeza" }] };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const events = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(events).toHaveLength(1);
+    expect(events[0][0]).toContain("'catalog', 'manual'");
+    expect(events[0][1][2]).toBe("p1");
+    expect(JSON.parse(events[0][1][3] as string)).toMatchObject({
+      operation: "upsert",
+      product: { name: "Produto atualizado", category: "Limpeza" },
+    });
+  });
+
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
     const previousState = { products: [{ id: "p1", stock: null, price: undefined }] };
     const nextState = { products: [{ id: "p1", stock: null, price: null }] };
