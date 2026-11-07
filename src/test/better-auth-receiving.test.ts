@@ -82,6 +82,16 @@ describe("Neon receiving stock release", () => {
       status: "aceito",
       stockReleased: true,
     });
+    const eventCalls = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(eventCalls).toHaveLength(2);
+    expect(eventCalls[0][0]).toContain("'receiving', 'manual'");
+    expect(eventCalls[1][0]).toContain("'stock', 'automatic'");
+    expect(eventCalls[1][3]).toBe("product-a");
+    expect(JSON.parse(eventCalls[1][4] as string)).toMatchObject({
+      stockDelta: 3, source: "receiving",
+    });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
@@ -89,6 +99,24 @@ describe("Neon receiving stock release", () => {
     const response = await handleMobFlowReceiving(request("finalize_decisions", { "product-a": "aceitar" }));
     expect(await response.json()).toEqual({ ok: true, data: false });
     expect(client.query).not.toHaveBeenCalledWith(expect.stringContaining("UPDATE public.app_state"), expect.anything());
+    expect(releaseTransaction).toHaveBeenCalledWith(client, false);
+  });
+
+
+  it("does not commit or append events when the existing product stock is invalid", async () => {
+    state.products[0].stock = "not-a-number" as unknown as number;
+    const response = await handleMobFlowReceiving(request("finalize_decisions", {
+      "product-a": "aceitar",
+      "product-b": "devolver",
+    }));
+
+    expect(response.status).toBe(500);
+    expect(client.query.mock.calls.some((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    )).toBe(false);
+    expect(client.query.mock.calls.some((call) =>
+      String(call[0]).includes("UPDATE public.app_state"),
+    )).toBe(false);
     expect(releaseTransaction).toHaveBeenCalledWith(client, false);
   });
 
