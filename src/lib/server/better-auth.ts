@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { betterAuth } from "better-auth";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import bcrypt from "bcryptjs";
@@ -54,8 +55,9 @@ export function getMobFlowBetterAuth() {
     },
     advanced: {
       database: {
-        // MobFlow profiles and company rows use UUID IDs.
-        generateId: "uuid",
+        // IDs are stored as text in the existing MobFlow auth tables.
+        // Generate UUID strings in the app instead of relying on a DB UUID default.
+        generateId: () => randomUUID(),
       },
     },
     plugins: [tanstackStartCookies()],
