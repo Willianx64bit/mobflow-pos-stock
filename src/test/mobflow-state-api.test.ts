@@ -96,7 +96,9 @@ describe("MobFlow Neon state API", () => {
   });
 
   it("updates state only when the expected timestamp matches", async () => {
-    client.query.mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] });
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: { products: [{ id: "p1", quantity: 4 }] } }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] });
 
     const response = await handlers.PUT({
       request: put(JSON.stringify({ state: { products: [{ id: "p1", quantity: 8 }] }, expectedUpdatedAt: VERSION_1 })),
@@ -113,7 +115,9 @@ describe("MobFlow Neon state API", () => {
 
   it("preserves PostgreSQL microsecond precision in the returned version", async () => {
     const preciseVersion = "2026-11-06T22:00:00.000001Z";
-    client.query.mockResolvedValueOnce({ rows: [{ updated_at: preciseVersion }] });
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: { products: [] } }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: preciseVersion }] });
 
     const response = await handlers.PUT({
       request: put(JSON.stringify({ state: { products: [] }, expectedUpdatedAt: VERSION_1 })),
@@ -156,13 +160,13 @@ describe("MobFlow Neon state API", () => {
     );
     expect(eventCalls).toHaveLength(2);
     expect(eventCalls[0][0]).toContain("'stock', 'automatic'");
-    expect(eventCalls[0][3]).toBe("p1");
-    expect(JSON.parse(eventCalls[0][4] as string)).toMatchObject({
+    expect(eventCalls[0][2]).toBe("p1");
+    expect(JSON.parse(eventCalls[0][3] as string)).toMatchObject({
       stockDelta: -2, resultingStock: 8, source: "state_update",
     });
     expect(eventCalls[1][0]).toContain("'price', 'automatic'");
-    expect(eventCalls[1][3]).toBe("p1");
-    expect(JSON.parse(eventCalls[1][4] as string)).toMatchObject({
+    expect(eventCalls[1][2]).toBe("p1");
+    expect(JSON.parse(eventCalls[1][3] as string)).toMatchObject({
       price: 6, previousPrice: 5, source: "state_update",
     });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
@@ -210,11 +214,14 @@ describe("MobFlow Neon state API", () => {
   it("allows only one of two concurrent writes using the same version", async () => {
     let updateCount = 0;
     client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("SELECT state") && sql.includes("FOR UPDATE")) {
+        return { rows: [{ state: { products: [] } }] };
+      }
       if (sql.includes("UPDATE public.app_state")) {
         updateCount += 1;
         return updateCount === 1 ? { rows: [{ updated_at: VERSION_2 }] } : { rows: [] };
       }
-      if (sql.includes("SELECT state, updated_at")) {
+      if (sql.includes("SELECT state, to_char")) {
         return { rows: [{ state: { winner: true }, updated_at: VERSION_2 }] };
       }
       return { rows: [] };
