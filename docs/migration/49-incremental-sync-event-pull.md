@@ -84,3 +84,27 @@ Commit:
 Not yet build- or integration-tested. No runtime test has exercised accepting a receiving note, returned lines, retries, or rollback against Neon. The existing receiving route is active only when `MOBFLOW_AUTH_PROVIDER=better-auth`; the legacy Supabase RPC path was not changed and does not yet emit these new events. The event-pull route also has not yet been called by the client.
 
 Do not remove polling or change client sync behavior based on this implementation alone.
+
+
+## Automatic stock and price event integration — 2026-11-07
+
+The existing authenticated `PUT /api/mobflow/state` CAS path now detects stock and price changes for existing products:
+
+- It locks the matching `app_state` version using the caller's expected timestamp.
+- It compares previous and incoming product arrays by stable product ID.
+- A changed stock value appends an automatic `stock` event containing the delta, resulting stock, and source marker.
+- A changed price appends an automatic `price` event containing the new and previous price.
+- New products and deleted products are not classified by this comparison; catalog synchronization remains a separate manual-sync task.
+- Event append and the existing snapshot update share the same transaction. If event append fails, the snapshot update rolls back.
+- A stale CAS request does not append events; it follows the existing conflict response path.
+- Product values are not copied into broad company snapshots; each event is a small product-scoped payload.
+
+Files changed:
+- `src/routes/api/mobflow/state.ts`
+
+Commit:
+- `a2a7f872434bc5d45f92f95008c11f11a076dc8b`
+
+## Current validation status
+
+These code changes have not yet passed a local TypeScript build or live API integration tests. The existing app snapshot/CAS path and 3-second polling remain in place. This implementation is on the migration branch only; it is not deployed to production.
