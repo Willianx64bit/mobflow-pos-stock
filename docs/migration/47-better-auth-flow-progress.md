@@ -35,6 +35,7 @@ PDV repository. No work was performed on MobFlow Admin or ColetaFlow.
   password setup, and SHA-256 re-authentication.
 - `POST /api/mobflow/signup`: company signup, Pix generation, and manager
   bootstrap.
+- `POST /api/mobflow/receiving`: transactional replacement for `accept_receiving` and `finalize_receiving_decisions`, with accepted quantities released once inside a locked app-state transaction.
 - `POST /api/mobflow/manager-password-recovery`: one-time recovery token,
   rate limit, Gmail SMTP delivery, and reset of the separate manager-security
   password.
@@ -49,8 +50,8 @@ The Preview flag `VITE_MOBFLOW_AUTH_PROVIDER=better-auth` switches:
 - login and sign-out to Better Auth;
 - app bootstrap to `/api/mobflow/session-context`;
 - state API calls to same-origin HttpOnly cookies;
-- manager settings, user management, manager re-authentication, and recovery
-  screens to the new Neon routes;
+- manager settings, user management, manager re-authentication, receiving
+  decisions, and recovery screens to the new Neon routes;
 - company signup to the Neon signup route.
 
 The default Supabase branch remains in place when the flag is absent.
@@ -76,7 +77,7 @@ need to sign in again after a future cutover.
 ## Automated validation
 
 Latest GitHub Actions run on this branch: **success**.
-- 32 unit tests passed.
+- 35 unit tests passed.
 - migration utility syntax check passed.
 - full Vite/TanStack build passed.
 
