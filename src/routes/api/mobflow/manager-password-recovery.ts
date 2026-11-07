@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash, randomBytes } from "node:crypto";
-import nodemailer from "nodemailer";
 import { getNeonPool } from "@/lib/server/neon";
 
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
@@ -9,16 +8,13 @@ const genericResponse = () => Response.json({ ok: true, message: genericMessage 
 
 async function requestRecovery(body: Record<string, unknown>) {
   const email = String(body.email ?? "").trim().toLowerCase();
-  const cnpj = String(body.cnpj ?? "").replace(/\D/g, "");
+  const cnpj = String(body.cnpj ?? "").replace(/\\D/g, "");
   if (!email || !email.includes("@") || cnpj.length !== 14) {
     return Response.json({ ok: false, error: "Informe um e-mail válido e o CNPJ completo da empresa." }, { status: 400 });
   }
 
-  const smtpHost = process.env.GMAIL_SMTP_HOST;
-  const smtpPort = Number(process.env.GMAIL_SMTP_PORT || "465");
-  const smtpUser = process.env.GMAIL_SMTP_USER;
-  const smtpPassword = process.env.GMAIL_SMTP_APP_PASSWORD;
-  if (!smtpHost || !smtpUser || !smtpPassword || smtpPort !== 465) {
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
     return Response.json({ ok: false, error: "O envio de e-mail ainda não está configurado. Tente novamente mais tarde." }, { status: 503 });
   }
 
@@ -51,33 +47,50 @@ async function requestRecovery(body: Record<string, unknown>) {
       [accountId, tokenHash],
     );
 
-    const baseUrl = (process.env.MOBFLOW_APP_URL || "https://mobflow-pos-stock.vercel.app").replace(/\/+$/, "");
+    const baseUrl = (process.env.MOBFLOW_APP_URL || "https://mobflow-pos-stock.vercel.app").replace(/\\/+$/, "");
     const resetUrl = baseUrl + "/recuperar-senha?token=" + encodeURIComponent(token);
-    try {
-      const transport = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: true,
-        auth: { user: smtpUser, pass: smtpPassword },
-      });
-      await transport.sendMail({
-        from: "MobFlow <" + smtpUser + ">",
-        to: email,
-        subject: "Recuperação da senha da Gerência — MobFlow",
-        html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#222">
+    const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#222">
 <h2>Recuperar senha da Gerência</h2>
 <p>Recebemos uma solicitação para criar uma nova senha da Gerência da sua empresa no MobFlow.</p>
 <p>O link é válido por 30 minutos e pode ser usado uma única vez.</p>
 <p style="margin:28px 0"><a href="${resetUrl}" style="background:#111;color:#fff;padding:12px 18px;border-radius:8px;text-decoration:none">Criar nova senha</a></p>
 <p>Se você não solicitou essa alteração, ignore este e-mail. Sua senha atual continuará funcionando.</p>
-</div>`,
+</div>`;
+    const text = [
+      "Recuperar senha da Gerência — MobFlow",
+      "",
+      "Recebemos uma solicitação para criar uma nova senha da Gerência da sua empresa no MobFlow.",
+      "O link é válido por 30 minutos e pode ser usado uma única vez.",
+      "",
+      "Criar nova senha: " + resetUrl,
+      "",
+      "Se você não solicitou essa alteração, ignore este e-mail. Sua senha atual continuará funcionando.",
+    ].join("\\n");
+
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + resendApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "MobFlow <onboarding@resend.dev>",
+          to: [email],
+          subject: "Recuperação da senha da Gerência — MobFlow",
+          html,
+          text,
+        }),
       });
+      if (!response.ok) {
+        throw new Error("Resend API request failed with status " + response.status);
+      }
     } catch (error) {
       await client.query(
         "UPDATE public.manager_password_recovery_tokens SET used_at=now() WHERE token_hash=$1 AND used_at IS NULL",
         [tokenHash],
       );
-      console.error("[MobFlow recovery email]", error instanceof Error ? error.message : "SMTP error");
+      console.error("[MobFlow recovery email]", error instanceof Error ? error.message : "Resend API error");
       return Response.json({ ok: false, error: "Não foi possível enviar o e-mail. Verifique a configuração do serviço de e-mail." }, { status: 502 });
     }
     return genericResponse();
