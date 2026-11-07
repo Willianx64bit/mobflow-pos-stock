@@ -286,6 +286,71 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 }
               }
 
+              // Manual stock-operation audit events. The corresponding product balance
+              // changes remain emitted separately as automatic stock delta events below.
+              const stockOperationSpecs = [
+                { key: "stockAdjustments", entityType: "stock_adjustment", project: (item: Record<string, unknown>) => ({
+                  id: String(item.id ?? ""), date: item.date, reason: item.reason, operator: item.operator,
+                  items: Array.isArray(item.items) ? item.items.map((line: Record<string, unknown>) => ({
+                    productId: line.productId, code: line.code, name: line.name, unit: line.unit,
+                    mode: line.mode, quantity: line.quantity, previousStock: line.previousStock, newStock: line.newStock,
+                  })) : [],
+                }) },
+                { key: "stockWriteoffs", entityType: "stock_writeoff", project: (item: Record<string, unknown>) => ({
+                  id: String(item.id ?? ""), number: item.number, date: item.date, reason: item.reason,
+                  costMode: item.costMode, operator: item.operator,
+                  items: Array.isArray(item.items) ? item.items.map((line: Record<string, unknown>) => ({
+                    productId: line.productId, code: line.code, name: line.name, unit: line.unit,
+                    quantity: line.quantity, previousStock: line.previousStock, newStock: line.newStock,
+                  })) : [],
+                }) },
+                { key: "stockTransfers", entityType: "stock_transfer", project: (item: Record<string, unknown>) => ({
+                  id: String(item.id ?? ""), number: item.number, date: item.date, reason: item.reason,
+                  destinationName: item.destinationName, costMode: item.costMode, operator: item.operator,
+                  items: Array.isArray(item.items) ? item.items.map((line: Record<string, unknown>) => ({
+                    productId: line.productId, code: line.code, name: line.name, unit: line.unit,
+                    quantity: line.quantity, previousStock: line.previousStock, newStock: line.newStock,
+                  })) : [],
+                }) },
+              ] as const;
+              for (const spec of stockOperationSpecs) {
+                const oldItems = Array.isArray(previousState[spec.key])
+                  ? previousState[spec.key] as Array<Record<string, unknown>> : [];
+                const nextItems = Array.isArray(nextState[spec.key])
+                  ? nextState[spec.key] as Array<Record<string, unknown>> : [];
+                const oldMap = new Map(oldItems.map((item) => [String(item.id ?? ""), item]));
+                const nextMap = new Map(nextItems.map((item) => [String(item.id ?? ""), item]));
+                for (const item of nextItems) {
+                  const id = String(item.id ?? "");
+                  if (!id) continue;
+                  const projection = spec.project(item);
+                  const previous = oldMap.get(id);
+                  if (!previous || JSON.stringify(spec.project(previous)) !== JSON.stringify(projection)) {
+                    const payload = JSON.stringify({ operation: "upsert", stockOperation: projection });
+                    if (new TextEncoder().encode(payload).byteLength > 15000) {
+                      throw new Error("A operação de estoque excede o limite seguro de sincronização.");
+                    }
+                    await client.query(
+                      `SELECT public.mobflow_append_sync_event(
+                        $1::uuid, $2::uuid, 'stock', 'manual', $3, $4, $5::jsonb
+                      )`,
+                      [randomUUID(), randomUUID(), spec.entityType, id, payload],
+                    );
+                  }
+                }
+                for (const previous of oldItems) {
+                  const id = String(previous.id ?? "");
+                  if (id && !nextMap.has(id)) {
+                    await client.query(
+                      `SELECT public.mobflow_append_sync_event(
+                        $1::uuid, $2::uuid, 'stock', 'manual', $3, $4, $5::jsonb
+                      )`,
+                      [randomUUID(), randomUUID(), spec.entityType, id, JSON.stringify({ operation: "delete" })],
+                    );
+                  }
+                }
+              }
+
               for (const product of nextProducts) {
                 const id = String(product.id ?? "");
                 const previous = oldById.get(id);
