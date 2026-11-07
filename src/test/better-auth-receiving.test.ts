@@ -88,8 +88,8 @@ describe("Neon receiving stock release", () => {
     expect(eventCalls).toHaveLength(2);
     expect(eventCalls[0][0]).toContain("'receiving', 'manual'");
     expect(eventCalls[1][0]).toContain("'stock', 'automatic'");
-    expect(eventCalls[1][3]).toBe("product-a");
-    expect(JSON.parse(eventCalls[1][4] as string)).toMatchObject({
+    expect(eventCalls[1][2]).toBe("product-a");
+    expect(JSON.parse(eventCalls[1][3] as string)).toMatchObject({
       stockDelta: 3, source: "receiving",
     });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
