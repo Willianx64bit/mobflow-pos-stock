@@ -336,12 +336,12 @@ describe("MobFlow Neon state API", () => {
       operation: "upsert",
       stockOperation: { id: "adj-new", items: [{ productId: "p1", newStock: 5 }] },
     });
-    const transferPayload = JSON.parse(events[2][1][4] as string);
+    const transferPayload = JSON.parse(events[3][1][4] as string);
     expect(transferPayload.stockOperation.destinationName).toBe("Filial Centro");
     expect(JSON.stringify(transferPayload)).not.toContain("123456789");
     expect(JSON.stringify(transferPayload)).not.toContain("11999999999");
     expect(JSON.stringify(transferPayload)).not.toContain("unitCost");
-    expect(JSON.parse(events[3][1][4] as string)).toEqual({ operation: "delete" });
+    expect(JSON.parse(events[1][1][4] as string)).toEqual({ operation: "delete" });
   });
 
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
