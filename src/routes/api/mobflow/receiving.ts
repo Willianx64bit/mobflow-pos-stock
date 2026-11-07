@@ -1,8 +1,17 @@
+import { createHash, randomUUID } from "node:crypto";
 import { createFileRoute } from "@tanstack/react-router";
 import { beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
 type ReceiveLine = { productId?: string; received?: number };
+function stableIdempotencyUuid(value: string): string {
+  const bytes = createHash("sha256").update(value).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 type ReceivingNote = {
   id?: string;
   status?: string;
@@ -75,13 +84,11 @@ export async function handleMobFlowReceiving(request: Request) {
       additions.set(line.productId!, (additions.get(line.productId!) ?? 0) + quantity);
     }
 
-    if (action === "finalize_decisions") {
-      const productIds = new Set(products.map((product) => String(product.id ?? "")));
-      if ([...additions.keys()].some((id) => !productIds.has(id))) {
-        await releaseTransaction(client, false);
-        transaction = null;
-        return Response.json({ ok: true, data: false });
-      }
+    const productIds = new Set(products.map((product) => String(product.id ?? "")));
+    if ([...additions.keys()].some((id) => !productIds.has(id))) {
+      await releaseTransaction(client, false);
+      transaction = null;
+      return Response.json({ ok: true, data: false });
     }
 
     const nextProducts = products.map((product) => {
@@ -100,6 +107,45 @@ export async function handleMobFlowReceiving(request: Request) {
     });
 
     const nextState = { ...state, products: nextProducts, receiving: nextReceiving };
+
+    // Append the manual receiving event and each actual stock delta in this
+    // same transaction as the app_state mutation. Deterministic idempotency
+    // keys protect retries; stockReleased prevents a second stock release.
+    const acceptedLineCount = lines.filter((line) => decisions[line.productId!] === "aceitar" && Number(line.received ?? 0) > 0).length;
+    const returnedLineCount = lines.filter((line) => decisions[line.productId!] === "devolver").length;
+    const operationKey = `${transaction.identity.accountId}:receiving:${receivingId}:release`;
+    await client.query(
+      `SELECT public.mobflow_append_sync_event(
+        $1::uuid, $2::uuid, 'receiving', 'manual', 'receiving', $3, $4::jsonb
+      )`,
+      [
+        randomUUID(),
+        stableIdempotencyUuid(`${operationKey}:manual`),
+        receivingId,
+        JSON.stringify({
+          status: "aceito",
+          decisionCompleted: true,
+          acceptedLineCount,
+          returnedLineCount,
+        }),
+      ],
+    );
+
+    for (const [productId, delta] of additions) {
+      if (delta <= 0) continue;
+      await client.query(
+        `SELECT public.mobflow_append_sync_event(
+          $1::uuid, $2::uuid, 'stock', 'automatic', 'product', $3, $4::jsonb
+        )`,
+        [
+          randomUUID(),
+          stableIdempotencyUuid(`${operationKey}:stock:${productId}`),
+          productId,
+          JSON.stringify({ stockDelta: delta, source: "receiving" }),
+        ],
+      );
+    }
+
     await client.query(
       "UPDATE public.app_state SET state=$2::jsonb,updated_at=now() WHERE owner_id=$1",
       [transaction.identity.accountId, JSON.stringify(nextState)],
