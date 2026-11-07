@@ -36,7 +36,10 @@ Scope: MobFlow PDV only.
 - The client calls `finalize_receiving_decisions(p_receiving_id, p_decisions)`; it waits for the pending persist queue before the RPC.
 - On successful decision finalization, the client updates local receiving state and starts a background full-store hydration.
 - The RPC migrations update `app_state.state` under a row lock, including product stock and receiving status. They do not write to a separate stock table.
-- The new design must classify the receipt document/conference/decisions as manual-sync data while emitting the resulting stock delta through the immediate stock channel.
+- The first `accept_receiving` migration handled `items`; the later extras migration concatenates `items` and `extras`. The stock movement ledger migration also has newer definitions of both receiving RPCs. Before adding event emission, the actual deployed function definitions and migration history must be checked, because the repository contains successive definitions.
+- The ledger migration creates stock movement JSON objects inside `app_state.state`; it does not normalize stock movements into a dedicated database table.
+- Receiving document/conference/decisions must be manual-sync data while the resulting stock delta is emitted immediately. This is required for both receiving RPCs, and both events must be committed atomically with the state mutation.
+- In `finalize_receiving_decisions`, only lines marked `aceitar` contribute to stock. The event implementation must preserve this filtering and must not duplicate a stock delta when a client retries an RPC.
 
 ## Sidebar integration point
 
