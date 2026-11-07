@@ -172,6 +172,38 @@ describe("MobFlow Neon state API", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
+  it("emits manual catalog upsert and delete events without photo data", async () => {
+    const previousState = { products: [
+      { id: "old", code: "001", name: "Antigo", photo: "data:image/png;base64,secret" },
+    ] };
+    const nextState = { products: [
+      { id: "new", code: "002", name: "Novo", photo: "data:image/png;base64,private" },
+    ] };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const events = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(events).toHaveLength(2);
+    expect(events[0][0]).toContain("'catalog', 'manual'");
+    expect(events[0][1][2]).toBe("new");
+    expect(JSON.parse(events[0][1][3] as string)).toMatchObject({
+      operation: "upsert", product: { code: "002", name: "Novo" },
+    });
+    expect(JSON.parse(events[0][1][3] as string)).not.toHaveProperty("product.photo");
+    expect(events[1][1][2]).toBe("old");
+    expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
     const previousState = { products: [{ id: "p1", stock: null, price: undefined }] };
     const nextState = { products: [{ id: "p1", stock: null, price: null }] };
