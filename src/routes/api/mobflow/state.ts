@@ -193,6 +193,51 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 }
               }
 
+              // Promotions are manual catalog operations. Keep the event projection
+              // small and exclude unrelated state, customer data and payment settings.
+              const oldPromotions = Array.isArray(previousState.promotions)
+                ? previousState.promotions as Array<Record<string, unknown>>
+                : [];
+              const nextPromotions = Array.isArray(nextState.promotions)
+                ? nextState.promotions as Array<Record<string, unknown>>
+                : [];
+              const oldPromotionsById = new Map(oldPromotions.map((promotion) => [String(promotion.id ?? ""), promotion]));
+              const nextPromotionsById = new Map(nextPromotions.map((promotion) => [String(promotion.id ?? ""), promotion]));
+              const promotionProjection = (promotion: Record<string, unknown>) => ({
+                id: String(promotion.id ?? ""),
+                productId: String(promotion.productId ?? ""),
+                productName: String(promotion.productName ?? ""),
+                originalPrice: finiteStateNumber(promotion.originalPrice),
+                promoPrice: finiteStateNumber(promotion.promoPrice),
+                startsAt: typeof promotion.startsAt === "string" ? promotion.startsAt : "",
+                endsAt: typeof promotion.endsAt === "string" ? promotion.endsAt : "",
+              });
+              for (const promotion of nextPromotions) {
+                const id = String(promotion.id ?? "");
+                if (!id) continue;
+                const previous = oldPromotionsById.get(id);
+                const currentProjection = promotionProjection(promotion);
+                if (!previous || JSON.stringify(promotionProjection(previous)) !== JSON.stringify(currentProjection)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'promotions', 'manual', 'promotion', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "upsert", promotion: currentProjection })],
+                  );
+                }
+              }
+              for (const previous of oldPromotions) {
+                const id = String(previous.id ?? "");
+                if (id && !nextPromotionsById.has(id)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'promotions', 'manual', 'promotion', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "delete" })],
+                  );
+                }
+              }
+
               for (const product of nextProducts) {
                 const id = String(product.id ?? "");
                 const previous = oldById.get(id);
