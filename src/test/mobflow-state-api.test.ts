@@ -131,6 +131,61 @@ describe("MobFlow Neon state API", () => {
     );
   });
 
+
+  it("appends automatic stock and price events only for valid changed numeric values", async () => {
+    const previousState = { products: [
+      { id: "p1", stock: 10, price: 5 },
+      { id: "p2", stock: null, price: null },
+    ] };
+    const nextState = { products: [
+      { id: "p1", stock: 8, price: 6 },
+      { id: "p2", stock: 3, price: 4 },
+    ] };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const eventCalls = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(eventCalls).toHaveLength(2);
+    expect(eventCalls[0][0]).toContain("'stock', 'automatic'");
+    expect(eventCalls[0][3]).toBe("p1");
+    expect(JSON.parse(eventCalls[0][4] as string)).toMatchObject({
+      stockDelta: -2, resultingStock: 8, source: "state_update",
+    });
+    expect(eventCalls[1][0]).toContain("'price', 'automatic'");
+    expect(eventCalls[1][3]).toBe("p1");
+    expect(JSON.parse(eventCalls[1][4] as string)).toMatchObject({
+      price: 6, previousPrice: 5, source: "state_update",
+    });
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("does not create stock or price events for unchanged or missing numeric values", async () => {
+    const previousState = { products: [{ id: "p1", stock: null, price: undefined }] };
+    const nextState = { products: [{ id: "p1", stock: null, price: null }] };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    expect(client.query.mock.calls.some((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    )).toBe(false);
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
   it("returns HTTP 409 and the latest remote state after a stale-version conflict", async () => {
     const remoteState = { products: [{ id: "p1", quantity: 9 }] };
     client.query
