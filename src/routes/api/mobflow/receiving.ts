@@ -114,6 +114,26 @@ export async function handleMobFlowReceiving(request: Request) {
     const acceptedLineCount = lines.filter((line) => decisions[line.productId!] === "aceitar" && Number(line.received ?? 0) > 0).length;
     const returnedLineCount = lines.filter((line) => decisions[line.productId!] === "devolver").length;
     const operationKey = `${transaction.identity.accountId}:receiving:${receivingId}:release`;
+    const receivingEventPayload = {
+      status: "aceito",
+      decisionCompleted: true,
+      acceptedLineCount,
+      returnedLineCount,
+      lines: lines.map((line) => ({
+        productId: line.productId,
+        received: Number(line.received ?? 0),
+        decision: decisions[line.productId!],
+      })),
+    };
+    const serializedReceivingEvent = JSON.stringify(receivingEventPayload);
+    if (new TextEncoder().encode(serializedReceivingEvent).byteLength > 15_000) {
+      await releaseTransaction(client, false);
+      transaction = null;
+      return Response.json(
+        { ok: false, error: "O recebimento contém dados demais para sincronização segura.", code: "receiving_event_too_large" },
+        { status: 413 },
+      );
+    }
     await client.query(
       `SELECT public.mobflow_append_sync_event(
         $1::uuid, $2::uuid, 'receiving', 'manual', 'receiving', $3, $4::jsonb
@@ -122,12 +142,7 @@ export async function handleMobFlowReceiving(request: Request) {
         randomUUID(),
         stableIdempotencyUuid(`${operationKey}:manual`),
         receivingId,
-        JSON.stringify({
-          status: "aceito",
-          decisionCompleted: true,
-          acceptedLineCount,
-          returnedLineCount,
-        }),
+        serializedReceivingEvent,
       ],
     );
 
