@@ -116,6 +116,19 @@ issue has not been treated as a code failure.
    companies, allowlist, manager security, recovery tokens, and account
    management still need a final review before Preview activation.
 
+## Git branch safety note
+
+Two route-file commits were briefly created on `main` because the GitHub
+file-creation action defaulted to the repository's default branch when the
+branch parameter was omitted. Both files were immediately removed in two
+follow-up commits. Verification confirms:
+- neither migration route remains in the current `main` tree;
+- both routes exist on `migration/neon-preparation`;
+- Vercel has no production deployment for either accidental commit SHA.
+
+No production deployment was made from those commits. All further file changes
+use explicit Git-tree commits to `migration/neon-preparation`.
+
 ## Remaining migration work
 
 - Port and verify the Admin integration without changing the Admin project
