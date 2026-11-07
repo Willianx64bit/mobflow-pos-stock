@@ -129,6 +129,45 @@ follow-up commits. Verification confirms:
 No production deployment was made from those commits. All further file changes
 use explicit Git-tree commits to `migration/neon-preparation`.
 
+## Preview environment preparation — 2026-11-06
+
+The Vercel Preview environment variables below are now configured only for
+`migration/neon-preparation`:
+
+- `NEON_DATABASE_URL` points to the isolated PostgreSQL 18 branch
+  `br-wild-night-bds1bdfk` in project `proud-star-34734307`.
+- `BETTER_AUTH_SECRET` is set as an encrypted Preview-only secret.
+- `BETTER_AUTH_URL` and `BETTER_AUTH_TRUSTED_ORIGINS` use the stable branch
+  Preview origin.
+
+The previous Preview `NEON_DATABASE_URL` pointed to the older PG17 test
+endpoint. It was corrected so the migration branch uses the isolated PG18
+test database. No Production environment variable was changed.
+
+The provider flags `MOBFLOW_AUTH_PROVIDER` and
+`VITE_MOBFLOW_AUTH_PROVIDER` are intentionally **not enabled yet**. The
+account import must finish and be verified before the login cutover is enabled.
+
+## TESTE.MOBFLOW account verification
+
+Read-only checks on Supabase confirmed:
+- original auth user ID is preserved and matches the profile UUID;
+- the account is active, role `manager`, with CNPJ matching the requested
+  company;
+- company subscription is `active` and not expired at the time of verification;
+- the supplied existing password was verified against the stored bcrypt hash
+  using a boolean database-side comparison;
+- a separate manager-security credential exists.
+
+The isolated Neon target has no collision for this user ID, username, CNPJ,
+company account ID, or manager-security account ID.
+
+The actual password hash and manager-security hash were not copied. The
+attempted direct credential transfer was blocked by the secure database
+operation boundary. No credential material was exposed in repository files or
+Preview environment values. Therefore the account import is still pending,
+and the Better Auth provider flags remain off.
+
 ## Remaining migration work
 
 - Port and verify the Admin integration without changing the Admin project
