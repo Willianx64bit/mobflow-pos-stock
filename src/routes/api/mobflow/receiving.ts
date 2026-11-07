@@ -95,7 +95,13 @@ export async function handleMobFlowReceiving(request: Request) {
       const id = String(product.id ?? "");
       const amount = additions.get(id) ?? 0;
       if (!amount) return product;
-      return { ...product, stock: Number(product.stock ?? 0) + amount };
+      const currentStock = product.stock === null || product.stock === undefined || product.stock === ""
+        ? 0
+        : Number(product.stock);
+      if (!Number.isFinite(currentStock) || currentStock < 0) {
+        throw new Error("Estoque atual inválido para concluir o recebimento.");
+      }
+      return { ...product, stock: currentStock + amount };
     });
 
     const nextReceiving = receiving.map((current, currentIndex) => {
