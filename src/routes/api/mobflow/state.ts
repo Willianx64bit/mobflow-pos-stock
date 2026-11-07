@@ -147,6 +147,51 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 ? nextState.products as Array<Record<string, unknown>>
                 : [];
               const oldById = new Map(oldProducts.map((product) => [String(product.id ?? ""), product]));
+              const nextById = new Map(nextProducts.map((product) => [String(product.id ?? ""), product]));
+              const catalogFields = ["code", "barcodes", "ref", "name", "cost", "minStock", "category", "unit"] as const;
+              const catalogSnapshot = (product: Record<string, unknown>) =>
+                Object.fromEntries(catalogFields
+                  .filter((field) => product[field] !== undefined)
+                  .map((field) => [field, product[field]]));
+
+              // Catalog events deliberately exclude photos, stock and sale price:
+              // photos move to object storage later; stock/price have dedicated events.
+              for (const product of nextProducts) {
+                const id = String(product.id ?? "");
+                if (!id) continue;
+                const previous = oldById.get(id);
+                const currentCatalog = catalogSnapshot(product);
+                if (!previous) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'catalog', 'manual', 'product', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "upsert", product: currentCatalog })],
+                  );
+                  continue;
+                }
+                const previousCatalog = catalogSnapshot(previous);
+                if (JSON.stringify(previousCatalog) !== JSON.stringify(currentCatalog)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'catalog', 'manual', 'product', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "upsert", product: currentCatalog })],
+                  );
+                }
+              }
+
+              for (const previous of oldProducts) {
+                const id = String(previous.id ?? "");
+                if (id && !nextById.has(id)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'catalog', 'manual', 'product', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "delete" })],
+                  );
+                }
+              }
 
               for (const product of nextProducts) {
                 const id = String(product.id ?? "");
