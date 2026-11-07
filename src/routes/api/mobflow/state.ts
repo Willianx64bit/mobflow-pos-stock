@@ -7,6 +7,13 @@ const MAX_STATE_BYTES = 8 * 1024 * 1024;
 
 type StateRow = { state: unknown; updated_at: string };
 
+function finiteStateNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function readRemoteState(client: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>["client"], accountId: string) {
   const result = await client.query<StateRow>(
     "SELECT state, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
@@ -146,9 +153,9 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 const previous = oldById.get(id);
                 if (!id || !previous) continue;
 
-                const oldStock = Number(previous.stock);
-                const nextStock = Number(product.stock);
-                if (Number.isFinite(oldStock) && Number.isFinite(nextStock) && oldStock !== nextStock) {
+                const oldStock = finiteStateNumber(previous.stock);
+                const nextStock = finiteStateNumber(product.stock);
+                if (oldStock !== null && nextStock !== null && oldStock !== nextStock) {
                   await client.query(
                     `SELECT public.mobflow_append_sync_event(
                       $1::uuid, $2::uuid, 'stock', 'automatic', 'product', $3, $4::jsonb
@@ -162,9 +169,9 @@ export const Route = createFileRoute("/api/mobflow/state")({
                   );
                 }
 
-                const oldPrice = Number(previous.price);
-                const nextPrice = Number(product.price);
-                if (Number.isFinite(oldPrice) && Number.isFinite(nextPrice) && oldPrice !== nextPrice) {
+                const oldPrice = finiteStateNumber(previous.price);
+                const nextPrice = finiteStateNumber(product.price);
+                if (oldPrice !== null && nextPrice !== null && oldPrice !== nextPrice) {
                   await client.query(
                     `SELECT public.mobflow_append_sync_event(
                       $1::uuid, $2::uuid, 'price', 'automatic', 'product', $3, $4::jsonb
