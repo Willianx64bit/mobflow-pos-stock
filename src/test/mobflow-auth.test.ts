@@ -191,7 +191,7 @@ describe("MobFlow Neon API authentication", () => {
 
     const forgedRequest = new Request("https://mobflow.test/api/mobflow/session-context", {
       method: "POST",
-      headers: { authorization: "Bearer valid-token", "content-type": "application/json" },
+      headers: { cookie: "better-auth.session_token=valid-token", "content-type": "application/json" },
       body: JSON.stringify({ userId: "attacker", accountId: "other-tenant", role: "admin", permissions: ["*"] }),
     });
 
