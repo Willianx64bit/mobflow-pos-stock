@@ -40,6 +40,7 @@ export async function subscribeToTenantEvents(
   const subscription = client.subscribe(sealedQuery);
   let lastEventId: string | null | undefined;
   let stopped = false;
+  let currentExpiry = sealedQuery.expiresAt;
   let renewalTimer: ReturnType<typeof setTimeout> | null = null;
 
   const scheduleRenewal = (expiresAt: number, delayOverride?: number) => {
@@ -55,13 +56,14 @@ export async function subscribeToTenantEvents(
     try {
       next = await fetchSealedQuery();
     } catch (error) {
-      scheduleRenewal(sealedQuery.expiresAt, RETRY_MS);
+      scheduleRenewal(currentExpiry, RETRY_MS);
       if (Date.now() >= sealedQuery.expiresAt) {
         onError?.(error instanceof Error ? error.message : "Não foi possível renovar a assinatura.");
       }
       return;
     }
-    scheduleRenewal(next.expiresAt);
+    currentExpiry = next.expiresAt;
+    scheduleRenewal(currentExpiry);
     try {
       await subscription.renew(next);
     } catch (error) {
