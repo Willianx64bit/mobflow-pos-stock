@@ -66,6 +66,7 @@ export async function handleMobFlowSale(request: Request) {
     if (!(identity.role === "manager" || (identity.role === "pdv" && Array.isArray(identity.permissions) && identity.permissions.includes("PDV")))) fail("Usuário sem permissão para realizar vendas.", 403, "permission_denied");
     await ready(client);
 
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [identity.accountId + ":sale-idempotency:" + body.idempotencyKey]);
     const replay = await client.query("SELECT id,total::text,subtotal::text,discount_amount::text,discount_type,payment_method,payment_status,cash_session_id,customer_name_snapshot,customer_document_snapshot,occurred_at FROM public.sales WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE", [identity.accountId, body.idempotencyKey]);
     if (replay.rows.length) {
       const existing = replay.rows[0];
