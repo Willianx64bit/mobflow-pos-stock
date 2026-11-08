@@ -58,6 +58,7 @@ export type State = { contacts: BusinessContact[]; products: Product[]; cart: Ca
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
+const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const currentOperator = () => typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined;
 const movementEntry = (input: Omit<StockMovement, "id" | "operator"> & { id?: string; operator?: string }): StockMovement => ({ ...input, id: input.id ?? uid(), operator: input.operator ?? currentOperator() });
@@ -327,23 +328,54 @@ async function callMobFlowApi(path: string, init: RequestInit = {}) {
   return { response, body };
 }
 
+function readOutboxBackup(): import("@/lib/sync-outbox").SyncCommand[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(OUTBOX_BACKUP_KEY) ?? "[]");
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+function writeOutboxBackup(commands: import("@/lib/sync-outbox").SyncCommand[]) {
+  try {
+    if (commands.length) localStorage.setItem(OUTBOX_BACKUP_KEY, JSON.stringify(commands));
+    else localStorage.removeItem(OUTBOX_BACKUP_KEY);
+    return true;
+  } catch { return false; }
+}
+
+async function restoreOutboxBackup(tenantId: string) {
+  const commands = readOutboxBackup();
+  const remaining: import("@/lib/sync-outbox").SyncCommand[] = [];
+  for (const command of commands) {
+    if (command.tenantId !== tenantId) { remaining.push(command); continue; }
+    try { await syncOutbox.enqueue(command); }
+    catch { remaining.push(command); }
+  }
+  writeOutboxBackup(remaining);
+}
+
 function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
   if (!incrementalSyncEnabled() || typeof window === "undefined") return false;
   const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
   if (!tenantId) return false;
   try {
     const command = createSyncCommand({ tenantId, domain, payload });
+    // localStorage backup is synchronous, so closing the tab before IndexedDB commits
+    // cannot silently discard an operation created by the UI.
+    const backup = readOutboxBackup().filter((item) => item.id !== command.id);
+    if (!writeOutboxBackup([...backup, command])) return false;
     void syncOutbox.enqueue(command).then(() => {
+      writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
       if (cloudReady && typeof navigator !== "undefined" && navigator.onLine) {
         void syncNow().catch((error) => console.warn("[MobFlow Sync] Incremental send deferred:", error));
       }
     }).catch((error) => {
-      console.error("[MobFlow Sync] Could not persist command locally; restoring snapshot fallback.", error);
-      if (cloudReady) void persistState();
+      // Keep the synchronous backup. The next sync attempt restores it into IndexedDB.
+      console.warn("[MobFlow Sync] IndexedDB enqueue deferred; command retained in local backup.", error);
     });
     return true;
   } catch (error) {
-    console.error("[MobFlow Sync] Could not create command; restoring snapshot fallback.", error);
+    console.error("[MobFlow Sync] Could not create command; using legacy snapshot persistence.", error);
     return false;
   }
 }
@@ -630,6 +662,7 @@ export async function syncNow() {
   const tenantId = cloudAccountId ?? (typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
   if (!tenantId || !cloudReady) throw new Error("Entre na empresa para sincronizar os dados.");
   if (persistWorker) await persistQueue;
+  await restoreOutboxBackup(tenantId);
   await syncOutbox.retryFailed(tenantId);
   try {
     return await runIncrementalSync({
