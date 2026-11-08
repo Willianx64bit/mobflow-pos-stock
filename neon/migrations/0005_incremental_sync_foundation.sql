@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.mobflow_sync_events (
   actor_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   category text NOT NULL CHECK (category IN (
     'stock', 'price', 'catalog', 'receiving', 'conference',
-    'promotions', 'users', 'settings', 'master_data'
+    'promotions', 'users', 'settings', 'master_data', 'sales', 'cash'
   )),
   delivery_mode text NOT NULL CHECK (delivery_mode IN ('automatic', 'manual')),
   entity_type text NOT NULL CHECK (length(entity_type) BETWEEN 1 AND 80),
