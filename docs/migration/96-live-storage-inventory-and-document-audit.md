@@ -1,8 +1,8 @@
-# 96 — Inventário real do Storage e conferência de documentos
+# 96 — Inventário real do Storage, cobrança e conferência de dados
 
 Data: 2026-11-08
 Branch: `migration/neon-preparation`
-Escopo: consultas somente de leitura no Supabase PDV e teste sintético no Cloudflare R2. Nenhuma origem foi apagada ou modificada.
+Escopo: consultas somente de leitura no Supabase PDV/Neon e teste sintético no Cloudflare R2. Nenhuma origem foi apagada ou sobrescrita.
 
 ## 1. Supabase Storage — projeto mobflow-pos-stock
 
@@ -39,27 +39,43 @@ Teste realizado pela API de gerenciamento Cloudflare, usando chave sintética:
 
 Limite da evidência: esse teste confirma o serviço R2 e o bucket, mas não valida as credenciais S3 instaladas na Vercel nem os endpoints do PDV/Admin. O teste ponta a ponta de cada aplicação permanece pendente.
 
-## 4. Admin Supabase
+## 4. Cobrança pública — PDV Preview
 
-O projeto de origem `mobflow-admin` (`xsitutjpdshmidzpgxpx`) foi consultado e está com status `INACTIVE`. Não foi reativado. A auditoria de suas tabelas e Storage depende de restaurar o projeto; não presumir que esteja vazio.
+O endpoint `GET /api/mobflow/signup` foi consultado no deployment Preview mais recente da branch e respondeu HTTP 200 com `ok=true`, preço mensal e método Pix vindos de `admin_billing_settings` no Neon. O valor/chave Pix não foi reproduzido nesta auditoria.
 
-## 5. Previews e variáveis
+A tela de cadastro usa esse endpoint para exibir o preço, e o `POST /api/mobflow/signup` também consulta a mesma tabela para gerar o payload Pix. Não foi encontrada chamada frontend para a antiga Edge Function `mobflow-public-billing` no fluxo Better Auth/Preview. Portanto, a cobrança pública já tem caminho Neon no PDV Preview; ainda falta teste de cadastro completo e leitura pelo Admin.
 
-- PDV e Admin têm deployments Preview READY na branch `migration/neon-preparation`.
-- Os checks Vercel dos commits consultados estão em sucesso.
-- As quatro variáveis R2 existem nos ambientes Preview dos dois projetos; as credenciais não foram reveladas nem lidas.
+## 5. Reconciliação de dados — alerta de cutover
+
+A comparação foi feita por fingerprints não reversíveis de IDs, sem expor IDs ou dados pessoais.
+
+- Supabase PDV de origem: 7 perfis, 2 empresas e 2 snapshots `app_state`. O snapshot com dados operacionais contém 4 produtos, 73 vendas, 29 baixas e 3 transferências.
+- Neon Preview `realtime-validation`: 9 perfis, 2 empresas e 4 snapshots `app_state`; os fingerprints de empresas/tenants não coincidem com os da origem.
+- O banco Neon de ensaio contém dados sintéticos de validação. A branch `mobflow-0006-rehearsal-isolated` também foi documentada como ensaio com fixtures sintéticas, sem importação real.
+
+Conclusão: **a migração de dados reais PDV → Neon ainda não foi concluída**. Contagens isoladas semelhantes não comprovam migração. É obrigatório importar preservando IDs e reconciliar cada tenant/domínio antes de cutover. Nenhum dado real foi copiado nesta auditoria.
+
+## 6. Projeto Supabase Admin
+
+A restauração do projeto `mobflow-admin` (`xsitutjpdshmidzpgxpx`) foi solicitada para inventário. O último status observado foi `COMING_UP`; o banco ainda retornou indisponível. As Edge Functions antigas aparecem ativas, mas isso não comprova que o banco/Storage esteja acessível. Não presumir que estejam vazios.
+
+## 7. Previews e variáveis
+
+- PDV: deployment Preview da branch `migration/neon-preparation` READY após o commit desta auditoria.
+- Admin: deployment anterior da branch READY; o commit documental mais recente encontrou bloqueio de build por limite de builds da Vercel.
+- As quatro variáveis R2 existem nos ambientes Preview dos dois projetos; os segredos não foram revelados nem lidos.
 - PDV usa credencial de leitura/gravação; Admin usa credencial somente leitura.
 
-## 6. Pendências reais após este inventário
+## 8. Pendências reais após este inventário
 
 1. Implementar upload/leitura/remoção de fotos de produto no R2 e persistir somente a chave no Neon. O catálogo atual ainda não possui esse fluxo.
-2. Concluir a compatibilidade de comprovantes legados e executar upload real pelo cadastro PDV, leitura pelo Admin e teste de isolamento entre tenants.
-3. Mapear se algum fluxo de baixa/transferência precisa de um arquivo binário além dos 32 registros JSON existentes; não tratar esses registros como anexos.
-4. Restaurar temporariamente o projeto Supabase Admin somente após autorização, para inventariar seu banco e Storage.
-5. Fazer a reconciliação dos dados relacionais PDV/Admin em Neon com contagens, IDs e checksums; o banco Neon de ensaio consultado não é prova de paridade com a origem.
-6. Executar testes HTTP autenticados no Preview e testes de rollback/replay.
+2. Executar upload real pelo cadastro PDV, leitura pelo Admin e teste de isolamento entre tenants; validar credenciais S3 da Vercel, não apenas a API de gerenciamento.
+3. Mapear se algum fluxo de baixa/transferência precisa de arquivo binário além dos 32 registros JSON existentes; não tratar esses registros como anexos.
+4. Concluir inventário do banco e Storage do Supabase Admin após a restauração ficar ACTIVE.
+5. Planejar e executar backfill real do Supabase PDV para uma branch Neon de ensaio, preservando IDs e verificando contagens/checksums; manter a origem intacta.
+6. Concluir contratos incrementais, rollback/replay e testes HTTP autenticados PDV/Admin antes de ativar leitura relacional ou cutover.
 
-## 7. Segurança e limites
+## 9. Segurança e limites
 
 - Nenhuma alteração em `main` ou Production.
 - Nenhuma alteração em ColetaFlow.
