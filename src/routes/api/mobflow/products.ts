@@ -59,6 +59,7 @@ function errorResponse(e:unknown){
  return jsonError(e);
 }
 async function getProducts(request:Request){
+ if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  const u=new URL(request.url),raw=u.searchParams.get("limit")??"50";
  if(!/^\d+$/.test(raw)||Number(raw)<1)return Response.json({ok:false,error:"Limite inválido.",code:"invalid_product_query"},{status:400});
  const limit=Math.min(Number(raw),100),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active");
@@ -67,7 +68,7 @@ async function getProducts(request:Request){
  try{
   tx=await beginAuthenticatedTransaction(request);const c=tx.client;await ready(c);
   const result=await c.query(
-   "SELECT "+columns+",COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
+   "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
    "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
    "WHERE p.tenant_id=$1 AND ($2::boolean IS NULL OR p.active=$2) "+
    "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
@@ -80,6 +81,7 @@ async function getProducts(request:Request){
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 async function writeProduct(request:Request,method:"POST"|"PATCH"){
+ if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  let tx:any=null;
  try{
   const body=await request.json().catch(()=>null);
@@ -91,7 +93,8 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
    const id=field(body.id,"id",true,80)!,code=field(body.code,"código",true,80)!,name=field(body.name,"nome",true,160)!;
    const ref=field(body.ref,"referência",false,80),category=field(body.category,"categoria",false,100);
    const unit=body.unit;if(unit!=="un"&&unit!=="kg")fail("Unidade inválida.");
-   const price=amount(body.price,"preço"),cost=amount(body.cost,"custo",0),stock=qty(body.stock,"estoque inicial",unit),min=qty(body.minStock,"estoque mínimo",unit,0),codes=barcodes(body.barcodes);
+   const price=amount(body.price,"preço"),cost=amount(body.cost,"custo",0),stock=qty(body.stock,"estoque inicial",unit,0),min=qty(body.minStock,"estoque mínimo",unit,0),codes=barcodes(body.barcodes);
+   if(stock!==0)fail("O saldo inicial será liberado por uma operação de estoque auditável. Cadastre o produto com estoque zero.",400,"initial_stock_command_required");
    if(body.photo!==undefined||body.photoObjectKey!==undefined)fail("Fotos devem usar o fluxo seguro do R2.",400,"photo_upload_required");
    const prior=await c.query("SELECT "+columns+" FROM public.products WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[i.accountId,id]);
    if(prior.rows.length){
