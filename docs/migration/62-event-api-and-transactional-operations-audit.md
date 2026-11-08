@@ -48,7 +48,9 @@ Arquivo: `src/routes/api/mobflow/receiving.ts`
 
 A rota de recebimento aplica liberação de estoque, atualiza `app_state` e acrescenta evento de recebimento + evento automático de estoque na mesma transação Neon. O campo `stockReleased` evita liberar novamente o mesmo recebimento; os testes cobrem aceite, decisão ausente, estoque inválido e repetição do aceite.
 
-Ponto pendente: os IDs de evento e as chaves de idempotência também são `randomUUID()`. O bloqueio de repetição depende do estado do recebimento, não de uma chave estável de comando fornecida pelo dispositivo. Antes da fila offline universal, padronizar idempotência por operação e garantir que o evento e a mutação de negócio compartilhem essa identidade.
+**Correção após conferência do código completo:** ao contrário do que uma leitura parcial poderia sugerir, a rota já usa chaves de idempotência determinísticas derivadas de empresa + ID do recebimento + tipo de evento (`stableIdempotencyUuid`). O `event_id` é novo em cada tentativa, mas a chave única de idempotência faz a função retornar a sequência do evento original. Portanto, a rota de recebimento tem proteção de repetição melhor do que a rota geral de snapshot.
+
+Ponto pendente: essa chave é específica do domínio e não é um `operationId` genérico persistido na fila do dispositivo. Ao desenhar a fila offline universal, preservar essa proteção e padronizar o mesmo contrato para venda, caixa e estoque. Não substituir a chave estável de recebimento por UUID aleatório.
 
 ## 5. Vendas, caixa e demais operações
 
