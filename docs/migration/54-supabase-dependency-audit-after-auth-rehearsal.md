@@ -48,7 +48,7 @@ This is not an account migration and does not authorize production cutover.
 - The current 3-second reconciliation timer calls `GET /api/mobflow/state`, whose implementation reads Neon through `beginAuthenticatedTransaction`. It is not a direct browser-to-Supabase database poll in Better Auth mode.
 - Keep the 3-second timer until durable local pending operations, event pull/apply, cursor advancement, retry/recovery, and multi-device concurrency are tested. Reducing it now could hide missed updates.
 - The store still contains legacy Supabase RPC fallback calls for receiving operations. They must be traced and verified against the Better Auth route before the Supabase client can be removed.
-- This targeted source review did not establish the source of the remaining Supabase Realtime log activity. A complete repository-wide search and runtime attribution are still required; do not infer that Realtime is unused from this partial audit.
+- The last-24-hour Realtime log sample contained 29 `realtime_logs` records, and the sampled messages were service `/health` checks. This does not prove that the app has no Realtime subscriptions; a complete repository-wide search and broader runtime attribution are still required before disabling the service.
 
 ## Work order from this audit
 
