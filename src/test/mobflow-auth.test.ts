@@ -59,10 +59,17 @@ describe("MobFlow Neon API authentication", () => {
     else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
   });
 
+  it("fails closed when the Preview auth provider is not Better Auth", async () => {
+    delete process.env.MOBFLOW_AUTH_PROVIDER;
+    await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({ status: 503, code: "better_auth_required" });
+    expect(getSession).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+  });
+
   it("rejects a request without a Better Auth cookie before opening Neon", async () => {
     await expect(beginAuthenticatedTransaction(request())).rejects.toMatchObject({
       status: 401,
-      code: "missing_token",
+      code: "invalid_token",
     });
     expect(fetch).not.toHaveBeenCalled();
     expect(connect).not.toHaveBeenCalled();
@@ -95,7 +102,6 @@ describe("MobFlow Neon API authentication", () => {
   });
 
   it("rejects inactive profiles and rolls back", async () => {
-    vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
     client.query
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
