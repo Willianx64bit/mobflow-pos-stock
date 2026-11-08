@@ -11,6 +11,11 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 -- Catalog
 -- ---------------------------------------------------------------------------
+-- The current profile model uses account_id = id for managers and account_id
+-- = manager.id for PDV users. This composite key enforces same-tenant operators.
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_account_id_id_uidx
+  ON public.profiles (account_id, id);
+
 CREATE TABLE IF NOT EXISTS public.products (
   tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   id text NOT NULL,
@@ -58,7 +63,7 @@ CREATE INDEX IF NOT EXISTS product_barcodes_product_idx
 CREATE TABLE IF NOT EXISTS public.cash_sessions (
   tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   id text NOT NULL,
-  operator_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  operator_profile_id uuid NOT NULL,
   operator_snapshot text NOT NULL,
   status text NOT NULL CHECK (status IN ('open', 'closed')),
   opening_amount numeric(14,2) NOT NULL DEFAULT 0 CHECK (opening_amount >= 0),
@@ -74,6 +79,9 @@ CREATE TABLE IF NOT EXISTS public.cash_sessions (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, id),
+  CONSTRAINT cash_sessions_operator_tenant_fk
+    FOREIGN KEY (tenant_id, operator_profile_id)
+    REFERENCES public.profiles(account_id, id) ON DELETE RESTRICT,
   CONSTRAINT cash_sessions_close_fields_check CHECK (
     (status = 'open' AND closed_at IS NULL AND counted_amount IS NULL)
     OR
@@ -99,6 +107,9 @@ CREATE TABLE IF NOT EXISTS public.cash_movements (
   idempotency_key uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, id),
+  CONSTRAINT cash_movements_operator_tenant_fk
+    FOREIGN KEY (tenant_id, operator_profile_id)
+    REFERENCES public.profiles(account_id, id) ON DELETE RESTRICT,
   CONSTRAINT cash_movements_session_fk
     FOREIGN KEY (tenant_id, cash_session_id)
     REFERENCES public.cash_sessions(tenant_id, id) ON DELETE RESTRICT,
@@ -114,7 +125,7 @@ CREATE TABLE IF NOT EXISTS public.sales (
   tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   id text NOT NULL,
   cash_session_id text,
-  seller_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  seller_profile_id uuid NOT NULL,
   seller_snapshot text NOT NULL,
   customer_id text,
   customer_name_snapshot text,
@@ -137,6 +148,9 @@ CREATE TABLE IF NOT EXISTS public.sales (
   idempotency_key uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, id),
+  CONSTRAINT sales_seller_tenant_fk
+    FOREIGN KEY (tenant_id, seller_profile_id)
+    REFERENCES public.profiles(account_id, id) ON DELETE RESTRICT,
   CONSTRAINT sales_cash_session_fk
     FOREIGN KEY (tenant_id, cash_session_id)
     REFERENCES public.cash_sessions(tenant_id, id) ON DELETE RESTRICT,
@@ -204,6 +218,9 @@ CREATE TABLE IF NOT EXISTS public.receivable_payments (
   idempotency_key uuid NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, id),
+  CONSTRAINT receivable_payments_operator_tenant_fk
+    FOREIGN KEY (tenant_id, operator_profile_id)
+    REFERENCES public.profiles(account_id, id) ON DELETE RESTRICT,
   CONSTRAINT receivable_payments_sale_fk
     FOREIGN KEY (tenant_id, sale_id)
     REFERENCES public.sales(tenant_id, id) ON DELETE RESTRICT,
@@ -231,7 +248,7 @@ CREATE TABLE IF NOT EXISTS public.stock_movements (
   stock_before numeric(14,3),
   stock_after numeric(14,3),
   delta numeric(14,3) NOT NULL,
-  operator_profile_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  operator_profile_id uuid,
   operator_snapshot text,
   details text,
   occurred_at timestamptz NOT NULL,
@@ -243,6 +260,9 @@ CREATE TABLE IF NOT EXISTS public.stock_movements (
   idempotency_key uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (tenant_id, id),
+  CONSTRAINT stock_movements_operator_tenant_fk
+    FOREIGN KEY (tenant_id, operator_profile_id)
+    REFERENCES public.profiles(account_id, id) ON DELETE SET NULL (operator_profile_id),
   CONSTRAINT stock_movements_operation_line_key
     UNIQUE (tenant_id, operation_id, line_key)
 );
