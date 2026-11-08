@@ -321,20 +321,31 @@ async function callMobFlowApi(path: string, init: RequestInit = {}) {
 async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
   if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon" || !isBetterAuthEnabled()) return fallbackProducts;
   try {
-    const { response, body } = await callMobFlowApi("/api/mobflow/products?limit=100");
-    if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
+    const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
-    return body.products.map((raw: any): Product => {
-      const previous = existing.get(String(raw.id));
-      return { id: String(raw.id), code: String(raw.code ?? ""),
-        barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
-        ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
-        price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
-        minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
-        unit: raw.unit === "kg" ? "kg" : "un", photo: previous?.photo };
-    });
+    let cursor: string | null = null;
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ limit: "100" });
+      if (cursor) query.set("cursor", cursor);
+      const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
+      if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
+      for (const raw of body.products as any[]) {
+        const previous = existing.get(String(raw.id));
+        products.push({ id: String(raw.id), code: String(raw.code ?? ""),
+          barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
+          ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
+          price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
+          minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
+          unit: raw.unit === "kg" ? "kg" : "un", photo: previous?.photo });
+      }
+      if (body.hasMore !== true) return products;
+      if (typeof body.nextCursor !== "string" || !body.nextCursor) return fallbackProducts;
+      cursor = body.nextCursor;
+    }
+    return fallbackProducts;
   } catch { return fallbackProducts; }
 }
+
 async function refreshFromCloud(accountId: string, forceLatest = false) {
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
     refreshAfterPersist = true;
