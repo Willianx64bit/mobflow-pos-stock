@@ -3,8 +3,6 @@ import type { PoolClient } from "@neondatabase/serverless";
 import { getNeonPool } from "@/lib/server/neon";
 import { getMobFlowBetterAuth } from "@/lib/server/better-auth";
 
-const SUPABASE_URL = "https://ezkwubdpblqkdfampopa.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_UYLcJXGRBbP9aq4sPAD3Eg_jcKTuk6A";
 const NEON_AUTH_PROVIDER = "neon";
 const JWKS_CACHE_MS = 5 * 60 * 1000;
 
@@ -176,72 +174,26 @@ async function resolveAuthProfileId(client: PoolClient, authUserId: string): Pro
 }
 
 export async function beginAuthenticatedTransaction(request: Request): Promise<AuthenticatedTransaction> {
-  let authUserId: string;
-
-  if (process.env.MOBFLOW_AUTH_PROVIDER === "better-auth") {
-    let authSession: Awaited<ReturnType<ReturnType<typeof getMobFlowBetterAuth>["api"]["getSession"]>>;
-    try {
-      authSession = await getMobFlowBetterAuth().api.getSession({ headers: request.headers });
-    } catch {
-      throw new ApiAuthError("Não foi possível validar a sessão agora.", 503, "auth_unavailable");
-    }
-
-    if (!authSession?.user || typeof authSession.user.id !== "string" || !authSession.user.id) {
-      throw new ApiAuthError("Sessão ausente ou expirada. Entre novamente no MobFlow.", 401, "invalid_token");
-    }
-    authUserId = authSession.user.id;
-  } else {
-    const authorization = request.headers.get("authorization");
-    const match = authorization?.match(/^Bearer\s+(.+)$/i);
-    if (!match?.[1]) {
-      throw new ApiAuthError("Sessão ausente. Entre novamente no MobFlow.", 401, "missing_token");
-    }
-
-    const token = match[1].trim();
-    if (!token || token.length > 8192) {
-      throw new ApiAuthError("Sessão inválida. Entre novamente no MobFlow.", 401, "invalid_token");
-    }
-
-    if (process.env.MOBFLOW_AUTH_PROVIDER === NEON_AUTH_PROVIDER) {
-      authUserId = await verifyNeonAccessToken(token);
-    } else {
-      let authResponse: Response;
-      try {
-        authResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-          method: "GET",
-          headers: {
-            apikey: SUPABASE_PUBLISHABLE_KEY,
-            authorization: `Bearer ${token}`,
-            accept: "application/json",
-          },
-          signal: AbortSignal.timeout(10_000),
-        });
-      } catch {
-        throw new ApiAuthError("Não foi possível validar a sessão agora.", 503, "auth_unavailable");
-      }
-
-      if (!authResponse.ok) {
-        if (authResponse.status === 401 || authResponse.status === 403) {
-          throw new ApiAuthError("Sessão inválida ou expirada. Entre novamente.", 401, "invalid_token");
-        }
-        throw new ApiAuthError("O serviço de autenticação está indisponível.", 503, "auth_unavailable");
-      }
-
-      const authUser = (await authResponse.json().catch(() => null)) as { id?: unknown } | null;
-      if (!authUser || typeof authUser.id !== "string") {
-        throw new ApiAuthError("Não foi possível confirmar a identidade da sessão.", 401, "invalid_token");
-      }
-      authUserId = authUser.id;
-    }
+  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+    throw new ApiAuthError(
+      "Este Preview exige Better Auth com Neon; autenticação alternativa está desativada.",
+      503,
+      "better_auth_required",
+    );
   }
 
-  // Reject malformed Supabase subjects before opening a database connection.
-  // Managed Neon Auth uses opaque subject IDs and resolves them through the
-  // explicit auth_identity_links table below.
-  if (
-    process.env.MOBFLOW_AUTH_PROVIDER !== NEON_AUTH_PROVIDER &&
-    !/^[0-9a-f-]{36}$/i.test(authUserId)
-  ) {
+  let authSession: Awaited<ReturnType<ReturnType<typeof getMobFlowBetterAuth>["api"]["getSession"]>>;
+  try {
+    authSession = await getMobFlowBetterAuth().api.getSession({ headers: request.headers });
+  } catch {
+    throw new ApiAuthError("Não foi possível validar a sessão agora.", 503, "auth_unavailable");
+  }
+
+  if (!authSession?.user || typeof authSession.user.id !== "string" || !authSession.user.id) {
+    throw new ApiAuthError("Sessão ausente ou expirada. Entre novamente no MobFlow.", 401, "invalid_token");
+  }
+  const authUserId = authSession.user.id;
+  if (!/^[0-9a-f-]{36}$/i.test(authUserId)) {
     throw new ApiAuthError("A identidade da sessão não é válida para este perfil.", 401, "invalid_token");
   }
 
@@ -249,10 +201,7 @@ export async function beginAuthenticatedTransaction(request: Request): Promise<A
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL ROLE mobflow_api");
-    if (process.env.MOBFLOW_AUTH_PROVIDER === NEON_AUTH_PROVIDER) {
-      await client.query("SELECT set_config('app.auth_user_id', $1, true)", [authUserId]);
-    }
-    const profileId = await resolveAuthProfileId(client, authUserId);
+        const profileId = await resolveAuthProfileId(client, authUserId);
     await client.query("SELECT set_config('app.user_id', $1, true)", [profileId]);
 
     const profileResult = await client.query<{
