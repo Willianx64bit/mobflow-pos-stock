@@ -37,78 +37,80 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     const payload = event.payload ?? {};
 
     if (event.category === "sales" && event.entity_type === "sale") {
-      const rawSale = record(payload.sale);
-      if (!rawSale || typeof rawSale.id !== "string" || !Array.isArray(rawSale.items)) throw new UnsupportedSyncEventError(event);
-      const sale = rawSale as unknown as Sale;
-      next.sales = upsert(next.sales, sale);
+      const rawSale = record(payload["sale"]);
+      if (!rawSale || typeof rawSale["id"] !== "string" || !Array.isArray(rawSale["items"])) throw new UnsupportedSyncEventError(event);
+      next.sales = upsert(next.sales, rawSale as unknown as Sale);
       continue;
     }
 
     if (event.category === "cash" && event.entity_type === "cash_session") {
-      const sessionId = String(payload.sessionId ?? event.entity_id);
+      const sessionId = String(payload["sessionId"] ?? event.entity_id);
       const existing = next.cashSessions.find((item) => item.id === sessionId);
-      if (payload.status === "open") {
-        const openingAmount = number(payload.openingAmount);
-        if (openingAmount === null || typeof payload.openedAt !== "string") throw new UnsupportedSyncEventError(event);
-        const openedBy = typeof payload.operator === "string" ? payload.operator : existing?.openedBy ?? "";
+      if (payload["status"] === "open") {
+        const openingAmount = number(payload["openingAmount"]);
+        if (openingAmount === null || typeof payload["openedAt"] !== "string") throw new UnsupportedSyncEventError(event);
+        const openedBy = typeof payload["operator"] === "string" ? payload["operator"] : existing?.openedBy ?? "";
+        const note = typeof payload["note"] === "string" ? { note: payload["note"] } : {};
         next.cashSessions = upsert(next.cashSessions, {
-          id: sessionId, openedAt: payload.openedAt, openedBy, openingAmount,
-          status: "open", note: typeof payload.note === "string" ? payload.note : undefined,
+          id: sessionId, openedAt: payload["openedAt"], openedBy, openingAmount,
+          status: "open", ...note,
         });
-      } else if (payload.status === "closed") {
+      } else if (payload["status"] === "closed") {
         if (!existing) throw new UnsupportedSyncEventError(event);
-        const countedCash = number(payload.countedAmount), expectedCash = number(payload.expectedAmount), difference = number(payload.difference);
+        const countedCash = number(payload["countedAmount"]), expectedCash = number(payload["expectedAmount"]), difference = number(payload["difference"]);
         if (countedCash === null || expectedCash === null || difference === null) throw new UnsupportedSyncEventError(event);
+        const closedAt = typeof payload["closedAt"] === "string" ? payload["closedAt"] : event.created_at;
+        const closedBy = typeof payload["operator"] === "string" ? payload["operator"] : existing.openedBy;
+        const noteValue = typeof payload["note"] === "string" ? [existing.note, payload["note"]].filter(Boolean).join(" · ") : existing.note;
+        const note = noteValue ? { note: noteValue } : {};
         next.cashSessions = upsert(next.cashSessions, {
-          ...existing, status: "closed", closedAt: typeof payload.closedAt === "string" ? payload.closedAt : event.created_at,
-          closedBy: typeof payload.operator === "string" ? payload.operator : existing.openedBy,
-          countedCash, expectedCash, difference,
-          note: typeof payload.note === "string" ? [existing.note, payload.note].filter(Boolean).join(" · ") : existing.note,
+          ...existing, status: "closed", closedAt, closedBy, countedCash, expectedCash, difference, ...note,
         });
       } else throw new UnsupportedSyncEventError(event);
       continue;
     }
 
     if (event.category === "cash" && event.entity_type === "cash_movement") {
-      const rawMovement = record(payload.movement);
-      if (!rawMovement || typeof rawMovement.id !== "string" || typeof rawMovement.sessionId !== "string") throw new UnsupportedSyncEventError(event);
-      const amount = number(rawMovement.amount);
-      if (amount === null || (rawMovement.type !== "sangria" && rawMovement.type !== "reforco")) throw new UnsupportedSyncEventError(event);
+      const rawMovement = record(payload["movement"]);
+      if (!rawMovement || typeof rawMovement["id"] !== "string" || typeof rawMovement["sessionId"] !== "string") throw new UnsupportedSyncEventError(event);
+      const amount = number(rawMovement["amount"]);
+      if (amount === null || (rawMovement["type"] !== "sangria" && rawMovement["type"] !== "reforco")) throw new UnsupportedSyncEventError(event);
       next.cashMovements = upsert(next.cashMovements, {
-        id: rawMovement.id, sessionId: rawMovement.sessionId, type: rawMovement.type,
-        amount, reason: String(rawMovement.reason ?? ""), operator: String(rawMovement.operator ?? ""),
-        date: typeof rawMovement.date === "string" ? rawMovement.date : event.created_at,
+        id: rawMovement["id"], sessionId: rawMovement["sessionId"], type: rawMovement["type"],
+        amount, reason: String(rawMovement["reason"] ?? ""), operator: String(rawMovement["operator"] ?? ""),
+        date: typeof rawMovement["date"] === "string" ? rawMovement["date"] : event.created_at,
       });
       continue;
     }
 
     if (event.category === "stock" && event.entity_type === "product") {
       const product = next.products.find((item) => item.id === event.entity_id);
-      const stockAfter = number(payload.stockAfter ?? payload.resultingStock);
+      const stockAfter = number(payload["stockAfter"] ?? payload["resultingStock"]);
       if (!product || stockAfter === null) throw new UnsupportedSyncEventError(event);
       next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, stock: stockAfter } : item);
-      const operationId = typeof payload.operationId === "string" ? payload.operationId : undefined;
-      const quantity = number(payload.quantity);
-      const stockBefore = number(payload.stockBefore);
+      const operationId = typeof payload["operationId"] === "string" ? payload["operationId"] : undefined;
+      const quantity = number(payload["quantity"]);
+      const stockBefore = number(payload["stockBefore"]);
       if (operationId && quantity !== null && stockBefore !== null) {
-        const delta = number(payload.delta ?? payload.stockDelta) ?? stockAfter - stockBefore;
-        const operationType = String(payload.operationType ?? payload.source ?? "");
-        const movementType = operationType === "sale" || payload.source === "sale" ? "Venda"
+        const delta = number(payload["delta"] ?? payload["stockDelta"]) ?? stockAfter - stockBefore;
+        const operationType = String(payload["operationType"] ?? payload["source"] ?? "");
+        const movementType = operationType === "sale" || payload["source"] === "sale" ? "Venda"
           : operationType === "writeoff" ? "Baixa"
           : operationType === "entry" ? "Entrada"
-          : /balanço/i.test(String(payload.reason ?? "")) ? "Balanço"
+          : /balanço/i.test(String(payload["reason"] ?? "")) ? "Balanço"
           : operationType === "adjustment" ? "Ajuste de estoque" : "Movimentação";
+        const operator = typeof payload["operator"] === "string" ? { operator: payload["operator"] } : {};
         const movement: StockMovement = {
           id: `${operationId}:${event.entity_id}`, operationId,
-          date: typeof payload.occurredAt === "string" ? payload.occurredAt : event.created_at,
+          date: typeof payload["occurredAt"] === "string" ? payload["occurredAt"] : event.created_at,
           type: movementType, productId: event.entity_id,
-          productCode: typeof payload.productCode === "string" ? payload.productCode : product.code,
-          productName: typeof payload.productName === "string" ? payload.productName : product.name,
-          unit: payload.unit === "kg" ? "kg" : product.unit,
-          quantity, totalValue: number(payload.totalValue) ?? 0,
+          productCode: typeof payload["productCode"] === "string" ? payload["productCode"] : product.code,
+          productName: typeof payload["productName"] === "string" ? payload["productName"] : product.name,
+          unit: payload["unit"] === "kg" ? "kg" : product.unit,
+          quantity, totalValue: number(payload["totalValue"]) ?? 0,
           stockBefore, stockAfter, delta,
-          operator: typeof payload.operator === "string" ? payload.operator : undefined,
-          details: typeof payload.reason === "string" ? payload.reason : `${movementType} ${operationId}`,
+          ...operator,
+          details: typeof payload["reason"] === "string" ? payload["reason"] : `${movementType} ${operationId}`,
         };
         next.stockMovements = upsert(next.stockMovements, movement);
       }
@@ -116,8 +118,8 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     }
 
     if (event.category === "stock" && event.entity_type === "stock_operation") {
-      const rawAdjustment = record(payload.stockAdjustment);
-      if (rawAdjustment && typeof rawAdjustment.id === "string" && Array.isArray(rawAdjustment.items)) {
+      const rawAdjustment = record(payload["stockAdjustment"]);
+      if (rawAdjustment && typeof rawAdjustment["id"] === "string" && Array.isArray(rawAdjustment["items"])) {
         next.stockAdjustments = upsert(next.stockAdjustments, rawAdjustment as unknown as State["stockAdjustments"][number]);
       }
       // The per-product ledger events carry the authoritative balance changes.
@@ -126,7 +128,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "price" && event.entity_type === "product") {
       const product = next.products.find((item) => item.id === event.entity_id);
-      const price = number(payload.price);
+      const price = number(payload["price"]);
       if (!product || price === null) throw new UnsupportedSyncEventError(event);
       next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, price } : item);
       continue;
