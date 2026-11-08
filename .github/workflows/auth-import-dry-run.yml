@@ -2,6 +2,12 @@ name: Auth migration rehearsal (dry-run)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - migration/neon-preparation
+    paths:
+      - .github/workflows/auth-import-dry-run.yml
+      - docs/migration/53-auth-import-rehearsal-environment.md
 
 permissions:
   contents: read
