@@ -55,3 +55,34 @@ Status: correções estáticas aplicadas; testes automatizados/DB ainda não exe
 ## Segurança / escopo
 
 Nenhuma tela foi conectada. Nenhuma migração foi aplicada nesta revisão. Nenhum dado real foi importado. Nenhuma configuração de produção foi alterada. MobFlow Admin e ColetaFlow permanecem intocados.
+
+## Validação executada em sandbox independente (2026-11-08)
+
+Para contornar a indisponibilidade de builds do Vercel por `build-rate-limit`, a branch foi clonada em sandbox Node 24 separado, sem publicar deployment.
+
+- Instalação: `npm install --no-audit --no-fund` concluída. O repositório não contém `package-lock.json`, então `npm ci` não se aplica.
+- Testes direcionados: **5 arquivos / 26 testes aprovados** (vendas, caixa, estoque, catálogo e sync).
+- Suíte completa: **13 arquivos / 72 testes aprovados**.
+- Build: `npm run build` concluído com sucesso (client, SSR e worker Cloudflare).
+- TypeScript: `npx tsc --noEmit` continua falhando por diversos erros de tipagem no repositório. Foram identificados também erros estritos em handlers novos (body nullable, acesso a propriedades indexadas e rotas ainda não registradas no tipo gerado), além de erros preexistentes em autenticação, telas e estado. O build Vite não substitui essa verificação; a limpeza de tipos continua pendente.
+
+## Inspeção read-only da branch Neon isolada
+
+Alvo exato: projeto `proud-star-34734307`, branch `br-square-waterfall-bdi7kysd`, banco `mobflow_pdv_test`, role de inspeção `mobflow_pdv_test_owner`.
+
+- As tabelas relacionais usadas pelos comandos existem: products, cash_sessions, cash_movements, sales, sale_items, sale_payments, stock_movements e mobflow_sync_events.
+- Colunas consultadas pelas rotas foram encontradas com tipos compatíveis com os IDs/textos e valores numéricos esperados.
+- RLS está habilitado nas tabelas operacionais consultadas; policies de tenant estão vinculadas ao role `mobflow_api`.
+- Teste de leitura com `SET LOCAL ROLE mobflow_api` e contexto transacional: tenant C enxerga 1 produto, 1 caixa, 1 venda e 1 movimento de estoque; ao trocar o contexto para tenant A, a mesma consulta retorna 0 para todas essas tabelas. Isso confirma o isolamento básico de leitura para esse par sintético.
+- A inspeção foi somente leitura. Nenhuma linha foi criada, atualizada ou removida; nenhum SQL de migração foi aplicado nesta etapa.
+
+## O que ainda não está comprovado
+
+- Concorrência real de duas requisições HTTP nas rotas.
+- Retry depois de resposta perdida após commit, contra Neon real.
+- Testes de escrita com `mobflow_api`, incluindo evento, ledger e rollback conjunto.
+- Isolamento de escrita e autorização por operador em operações reais.
+- TypeScript estrito limpo em todo o repositório e nos novos handlers.
+- Transferência com destino e fluxo Fiado/recebíveis.
+
+**Decisão:** manter as rotas sem conexão com telas. Os testes unitários e o build estão aprovados, mas a etapa de integração com banco e concorrência ainda precisa ser concluída antes de habilitar uso no PDV.
