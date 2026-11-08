@@ -63,7 +63,7 @@ describe("MobFlow Neon state API", () => {
 
   it("reads the state and version for the authenticated account", async () => {
     client.query.mockResolvedValueOnce({
-      rows: [{ state: { products: [{ id: "p1", quantity: 4 }] }, updated_at: VERSION_1 }],
+      rows: [{ state: { products: [{ id: "p1", quantity: 4 }] }, updated_at: VERSION_1, sync_cursor: "42" }],
     });
 
     const response = await handlers.GET({ request: new Request("https://mobflow.test/api/mobflow/state") });
@@ -73,9 +73,10 @@ describe("MobFlow Neon state API", () => {
       ok: true,
       state: { products: [{ id: "p1", quantity: 4 }] },
       updatedAt: VERSION_1,
+      syncCursor: "42",
     });
     expect(client.query).toHaveBeenCalledWith(
-      expect.stringContaining("to_char(updated_at AT TIME ZONE 'UTC'"),
+      expect.stringContaining("LEFT JOIN public.mobflow_sync_counters"),
       [ACCOUNT_ID],
     );
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
