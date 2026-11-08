@@ -143,6 +143,32 @@ BEGIN
 
     IF EXISTS (
       SELECT 1
+      FROM jsonb_array_elements(COALESCE(src.state->'cashMovements', '[]'::jsonb)) movement
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.account_id = src.owner_id
+          AND (lower(p.username) = lower(COALESCE(movement->>'operator',''))
+            OR lower(COALESCE(p.display_name,'')) = lower(COALESCE(movement->>'operator','')))
+      )
+      OR NOT EXISTS (
+        SELECT 1 FROM public.cash_sessions cs
+        WHERE cs.tenant_id = src.owner_id AND cs.id = movement->>'sessionId'
+      )
+    ) THEN
+      RAISE EXCEPTION 'A legacy cash movement has no same-tenant operator or cash session for tenant %', src.owner_id;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(COALESCE(src.state->'cashMovements', '[]'::jsonb)) movement
+      WHERE lower(COALESCE(movement->>'type',movement->>'movementType','')) NOT IN
+        ('addition','reforco','entrada','withdrawal','sangria','saida')
+    ) THEN
+      RAISE EXCEPTION 'Unknown legacy cash movement type for tenant %; map it explicitly before backfill', src.owner_id;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
       FROM jsonb_array_elements(COALESCE(src.state->'sales', '[]'::jsonb)) sale
       WHERE lower(COALESCE(sale->>'payment','')) NOT LIKE '%dinheiro%'
         AND lower(COALESCE(sale->>'payment','')) NOT LIKE '%cash%'
