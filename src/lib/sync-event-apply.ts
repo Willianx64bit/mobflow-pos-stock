@@ -126,6 +126,28 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       continue;
     }
 
+    if (event.category === "promotions" && event.entity_type === "promotion") {
+      if (payload["operation"] === "delete") {
+        next.promotions = next.promotions.filter((item) => item.id !== event.entity_id);
+        continue;
+      }
+      const rawPromotion = record(payload["promotion"]);
+      if (!rawPromotion || typeof rawPromotion["id"] !== "string") throw new UnsupportedSyncEventError(event);
+      const originalPrice = number(rawPromotion["originalPrice"]);
+      const promoPrice = number(rawPromotion["promoPrice"]);
+      if (originalPrice === null || promoPrice === null) throw new UnsupportedSyncEventError(event);
+      next.promotions = upsert(next.promotions, {
+        id: rawPromotion["id"],
+        productId: String(rawPromotion["productId"] ?? ""),
+        productName: String(rawPromotion["productName"] ?? ""),
+        originalPrice,
+        promoPrice,
+        startsAt: typeof rawPromotion["startsAt"] === "string" ? rawPromotion["startsAt"] : "",
+        endsAt: typeof rawPromotion["endsAt"] === "string" ? rawPromotion["endsAt"] : "",
+      });
+      continue;
+    }
+
     if (event.category === "price" && event.entity_type === "product") {
       const product = next.products.find((item) => item.id === event.entity_id);
       const price = number(payload["price"]);
