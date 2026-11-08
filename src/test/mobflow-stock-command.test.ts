@@ -1,0 +1,40 @@
+import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
+const {client,beginAuthenticatedTransaction,releaseTransaction}=vi.hoisted(()=>{const query=vi.fn();const client={query,release:vi.fn()};return{client,beginAuthenticatedTransaction:vi.fn(),releaseTransaction:vi.fn(async()=>undefined)};});
+vi.mock("@/lib/server/mobflow-auth",()=>({beginAuthenticatedTransaction,jsonError:(e:unknown)=>Response.json({error:String(e)},{status:500})}));
+vi.mock("@/lib/server/neon",()=>({releaseTransaction}));
+import {handleMobFlowStock} from "@/routes/api/mobflow/stock";
+const USER="6c47eaac-2abf-4cd6-b614-24e27077bdf6",ACCOUNT="9c47eaac-2abf-4cd6-b614-24e27077bdf6",KEY="7c47eaac-2abf-4cd6-b614-24e27077bdf6";
+const req=(body:Record<string,unknown>)=>new Request("https://mobflow.test/api/mobflow/stock",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+describe("Neon stock commands",()=>{
+ const old=process.env.MOBFLOW_AUTH_PROVIDER;
+ beforeEach(()=>{vi.clearAllMocks();process.env.MOBFLOW_AUTH_PROVIDER="better-auth";client.query.mockImplementation(async(sql:string)=>{
+  if(sql.includes("to_regclass"))return{rows:[{products:"products",ledger:"stock_movements",events:"mobflow_sync_events",append_fn:"fn"}]};
+  if(sql.includes("FROM public.stock_movements WHERE tenant_id=$1 AND operation_id"))return{rows:[]};
+  if(sql.includes("FROM public.products"))return{rows:[{id:"p1",code:"SKU",name:"Produto",unit:"un",cost:"4",price:"10",stock:"10",active:true}]};
+  if(sql.includes("UPDATE public.products"))return{rowCount:1,rows:[]};return{rows:[]};
+ });beginAuthenticatedTransaction.mockResolvedValue({client,identity:{userId:USER,accountId:ACCOUNT,role:"manager",username:"gerente",displayName:"Gerente",permissions:[]}});});
+ afterEach(()=>{if(old===undefined)delete process.env.MOBFLOW_AUTH_PROVIDER;else process.env.MOBFLOW_AUTH_PROVIDER=old;});
+ it("applies an entry with stock and ledger in one commit",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-entry",idempotencyKey:KEY,operationType:"entry",reason:"Compra",items:[{productId:"p1",quantity:5}]}));
+  const body=await res.json();expect(res.status).toBe(201);expect(body.operation.items[0]).toMatchObject({stockBefore:10,stockAfter:15,delta:5});
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(true);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.stock_movements"))).toBe(true);
+  expect(releaseTransaction).toHaveBeenCalledWith(client,true);
+ });
+ it("rejects a writeoff that would create negative stock",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-loss",idempotencyKey:KEY,operationType:"writeoff",reason:"Perda",items:[{productId:"p1",quantity:11}]}));
+  expect(res.status).toBe(409);expect((await res.json()).code).toBe("insufficient_stock");
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
+  expect(releaseTransaction).toHaveBeenCalledWith(client,false);
+ });
+ it("replays the same operation without applying stock twice",async()=>{
+  client.query.mockImplementation(async(sql:string)=>{
+   if(sql.includes("to_regclass"))return{rows:[{products:"products",ledger:"stock_movements",events:"mobflow_sync_events",append_fn:"fn"}]};
+   if(sql.includes("FROM public.stock_movements WHERE tenant_id=$1 AND operation_id"))return{rows:[{operation_id:"op-entry",operation_type:"entry",product_id:"p1",quantity:"5",delta:"5",idempotency_key:"c8e1a6a0-4b1e-5b1f-9a4f-2c8d52f8d92c"}]};
+   return{rows:[]};
+  });
+  const res=await handleMobFlowStock(req({operationId:"op-entry",idempotencyKey:KEY,operationType:"entry",reason:"Compra",items:[{productId:"p1",quantity:5}]}));
+  expect(res.status).toBe(409); // stable per-tenant key must match the original command key
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
+ });
+});
