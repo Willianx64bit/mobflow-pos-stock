@@ -77,8 +77,14 @@ describe("MobFlow Neon state API", () => {
     });
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("LEFT JOIN public.mobflow_sync_counters"),
-      [ACCOUNT_ID],
+      [ACCOUNT_ID, false],
     );
+    const bootstrapSql = String(client.query.mock.calls[0][0]);
+    expect(bootstrapSql).toContain("mobflow_legacy_backfill_runs");
+    expect(bootstrapSql).toContain("public.sale_items");
+    expect(bootstrapSql).toContain("public.stock_movements");
+    expect(bootstrapSql).toContain("public.promotions");
+    expect(bootstrapSql).toContain("$2::boolean");
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
