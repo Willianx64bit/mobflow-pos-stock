@@ -29,7 +29,7 @@ Commits:
 - `bfcd8c417f423b1bd364f4fbba99d1bb8d2a2dd2`
 - `db7538ceb2370b6cf928ac4d53d4d27ff8d1428d`
 
-No commit mais recente, os checks `test` e `validate` terminaram com sucesso. Nenhuma regra de negócio ou autenticação de produção foi alterada.
+No commit de código `db7538c`, o CI terminou com 15 arquivos de teste e 86 testes aprovados (86/86); os checks `test` e `validate` passaram. O commit documental mais recente não altera runtime. Nenhuma regra de negócio ou autenticação de produção foi alterada.
 
 ## 3. Teste real de objeto no R2
 
@@ -54,7 +54,7 @@ O fluxo PDV em `src/routes/api/mobflow/signup.ts` já:
 - grava a chave em `companies.payment_proof_path` no Neon;
 - remove o objeto recém-enviado se a atualização do banco falhar.
 
-O Admin tem leitura por URL assinada temporária e validação do prefixo do tenant.
+O Admin tem leitura por URL assinada temporária e validação do prefixo do tenant. O schema Neon de ensaio contém `payment_request_token`, `payment_proof_path` e `payment_submitted_at` em `companies`; a tabela está vazia, portanto o contrato de coluna existe, mas ainda não há solicitação de pagamento para teste ponta a ponta.
 
 Pendente: teste ponta a ponta pelo formulário de cadastro, leitura pelo Admin e isolamento entre tenants usando as credenciais S3 instaladas nos ambientes Preview. Não declarar o fluxo completo antes desse teste.
 
