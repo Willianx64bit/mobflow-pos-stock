@@ -83,7 +83,9 @@ Contagens da massa isolada no momento da leitura: companies 2, admin_billing_set
 
 A fonte antiga `supabase/functions/mobflow-public-billing/index.ts` lê `admin_billing_settings` e devolve mensalidade, método Pix e chave Pix, além de nome/cidade do recebedor. O Admin novo já lê e atualiza essa tabela por `api/admin.ts`; o cadastro Neon do PDV também consulta essa tabela.
 
-Ainda falta identificar e substituir todas as chamadas do frontend que consultavam a Edge Function pública antiga. A substituição deve manter exatamente o contrato JSON consumido pelo cadastro/QR Pix e continuar pública apenas para os campos que já eram públicos. Não alterar preço, método, chave ou regras de cobrança.
+Na branch atual do PDV, o frontend `src/components/LoginScreen.tsx` consulta `GET /api/mobflow/signup` para carregar somente `monthly_price` e `payment_method`. Essa rota já lê `admin_billing_settings` no Neon. O POST de cadastro também lê a mesma tabela e monta o payload Pix no servidor; o envio de comprovante segue pelo mesmo endpoint POST com a ação `submit_payment_proof`.
+
+A função antiga `mobflow-public-billing` do projeto Supabase administrativo permanece no repositório como referência de origem, mas não foi encontrada como chamada ativa no frontend da branch de migração consultada. Portanto, não criar uma segunda API pública sem necessidade. Preservar o contrato efetivamente consumido por `GET /api/mobflow/signup` e testar a resposta e o fluxo de QR Pix em Preview. Não alterar preço, método, chave ou regras de cobrança.
 
 ## 9. Próximos passos técnicos, sem cutover
 
