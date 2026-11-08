@@ -196,12 +196,15 @@ function normalizeState() {
   // Build a read-only bridge for historical operations created before the ledger existed.
   // Legacy rows are explicitly marked so they never participate in stock delta reconciliation.
   const knownMovementIds = new Set(state.stockMovements.map((movement) => movement.id));
+  const hasRelationalLegacyMovement = (operationId: string, productId: string) =>
+    state.stockMovements.some((movement) => movement.operationId === operationId && movement.productId === productId);
   const legacyCandidates: StockMovement[] = [];
   for (const sale of state.sales) {
     if (state.stockMovements.some((movement) => movement.operationId === sale.id && !movement.legacy)) continue;
     (sale.items ?? []).forEach((item, index) => {
       const product = state.products.find((p) => p.id === item.productId) ?? state.products.find((p) => p.name.trim().toLocaleLowerCase() === item.name.trim().toLocaleLowerCase());
       const productId = product?.id ?? `legacy-product:${item.name.trim().toLocaleLowerCase()}`;
+      if (hasRelationalLegacyMovement(sale.id, productId)) return;
       const id = `legacy:sale:${sale.id}:${productId}:${index}`;
       if (knownMovementIds.has(id)) return;
       legacyCandidates.push({ id, operationId: sale.id, date: sale.date, type: "Venda", productId, productCode: product?.code, productName: item.name, unit: item.unit === "kg" ? "kg" : product?.unit ?? "un", quantity: item.qty, totalValue: Math.round(item.price * item.qty * 100) / 100, stockBefore: 0, stockAfter: 0, delta: -item.qty, operator: sale.seller, details: `Venda histórica ${sale.id}`, legacy: true });
@@ -210,6 +213,7 @@ function normalizeState() {
   for (const adjustment of state.stockAdjustments) {
     if (state.stockMovements.some((movement) => movement.operationId === adjustment.id && !movement.legacy)) continue;
     for (const item of adjustment.items) {
+      if (hasRelationalLegacyMovement(adjustment.id, item.productId)) continue;
       const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       const delta = item.newStock - item.previousStock;
@@ -219,6 +223,7 @@ function normalizeState() {
   for (const writeoff of state.stockWriteoffs) {
     if (state.stockMovements.some((movement) => movement.operationId === writeoff.id && !movement.legacy)) continue;
     for (const item of writeoff.items) {
+      if (hasRelationalLegacyMovement(writeoff.id, item.productId)) continue;
       const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       legacyCandidates.push({ id, operationId: writeoff.id, date: writeoff.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: writeoff.operator, details: `${writeoff.number} · ${writeoff.reason}`, legacy: true });
@@ -227,6 +232,7 @@ function normalizeState() {
   for (const transfer of state.stockTransfers) {
     if (state.stockMovements.some((movement) => movement.operationId === transfer.id && !movement.legacy)) continue;
     for (const item of transfer.items) {
+      if (hasRelationalLegacyMovement(transfer.id, item.productId)) continue;
       const id = `legacy:transfer:${transfer.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       legacyCandidates.push({ id, operationId: transfer.id, date: transfer.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: transfer.operator, details: `${transfer.number} · Destino: ${transfer.destinationName}`, legacy: true });
@@ -244,6 +250,7 @@ function normalizeState() {
       totals.set(line.productId, { quantity: (previous?.quantity ?? 0) + quantity, name: line.name, unit: line.unit });
     }
     for (const [productId, line] of totals) {
+      if (hasRelationalLegacyMovement(note.id, productId)) continue;
       const id = `legacy:receiving:${note.id}:${productId}`;
       if (knownMovementIds.has(id)) continue;
       const product = state.products.find((p) => p.id === productId);
