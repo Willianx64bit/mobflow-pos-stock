@@ -3,6 +3,8 @@
 -- Scope: catalog, sales/payments, cash, and auditable stock ledger.
 -- This is additive: it does not alter app_state, auth, existing routes, or production.
 -- IDs remain TEXT where the current client uses string IDs; tenant identity remains UUID.
+-- Tenant root deletion is RESTRICT: historical sales, cash and stock ledger must not cascade away.
+-- Operator profile references use composite tenant FKs only (no redundant single-column FK).
 -- Business-policy checks (negative stock, split tender, offline acceptance) belong to
 -- transactional commands and are intentionally not decided by this schema.
 
@@ -17,7 +19,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS profiles_account_id_id_uidx
   ON public.profiles (account_id, id);
 
 CREATE TABLE IF NOT EXISTS public.products (
-  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   id text NOT NULL,
   code text NOT NULL,
   name text NOT NULL,
@@ -61,7 +63,7 @@ CREATE INDEX IF NOT EXISTS product_barcodes_product_idx
 -- Cash sessions and movements
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.cash_sessions (
-  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   id text NOT NULL,
   operator_profile_id uuid NOT NULL,
   operator_snapshot text NOT NULL,
@@ -101,7 +103,7 @@ CREATE TABLE IF NOT EXISTS public.cash_movements (
   movement_type text NOT NULL CHECK (movement_type IN ('withdrawal', 'addition')),
   amount numeric(14,2) NOT NULL CHECK (amount > 0),
   reason text NOT NULL CHECK (length(trim(reason)) > 0),
-  operator_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  operator_profile_id uuid NOT NULL,
   operator_snapshot text NOT NULL,
   occurred_at timestamptz NOT NULL,
   idempotency_key uuid NOT NULL,
@@ -122,7 +124,7 @@ CREATE INDEX IF NOT EXISTS cash_movements_session_date_idx
 -- Sales, immutable item snapshots, and payments
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.sales (
-  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   id text NOT NULL,
   cash_session_id text,
   seller_profile_id uuid NOT NULL,
@@ -234,7 +236,7 @@ CREATE INDEX IF NOT EXISTS receivable_payments_sale_idx
 -- not FKs: history survives product deletion and catalog replacement.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.stock_movements (
-  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tenant_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   id text NOT NULL,
   operation_id text NOT NULL,
   operation_type text NOT NULL,
@@ -322,3 +324,5 @@ COMMIT;
 -- 4. Review RLS policies/grants against the production security model.
 -- 5. Add command APIs and tests before enabling these tables as authoritative.
 -- 6. Do not backfill app_state until collision report and reconciliation are approved.
+-- 7. Tenant root profile deletion is blocked while operational records exist; deactivate accounts instead.
+-- 8. Operator profile deletion from stock history nulls only operator_profile_id (PostgreSQL 15+ column-list SET NULL).
