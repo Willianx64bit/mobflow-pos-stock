@@ -21,6 +21,7 @@ export async function handleMobFlowStock(request:Request){
   const operationId=str(body.operationId,100),operationType=body.operationType as Operation,reason=str(body.reason,500);
   if(!operationId||!uuid(body.idempotencyKey)||!["adjustment","writeoff","entry","transfer"].includes(String(operationType))||!reason)fail("Identificação, tipo ou motivo inválido.");
   if(!Array.isArray(body.items)||body.items.length<1||body.items.length>300)fail("Itens inválidos.");
+  if(operationType==="transfer") fail("Transferência exige origem e destino definidos. Esta rota ainda não registra transferência entre estoques.",409,"transfer_destination_required");
   tx=await beginAuthenticatedTransaction(request);const {client,identity}=tx;
   if(!(identity.role==="manager"||(identity.role==="pdv"&&Array.isArray(identity.permissions)&&identity.permissions.includes("Operações"))))fail("Usuário sem permissão para movimentar estoque.",403,"permission_denied");
   await schema(client);
@@ -29,7 +30,7 @@ export async function handleMobFlowStock(request:Request){
    const productId=str(raw?.productId,100),quantity=Number(raw?.quantity),mode=raw?.mode==="set"?"set":"add";
    if(!productId||!Number.isFinite(quantity)||quantity<0||Math.round(quantity*1000)!==quantity*1000||(quantity===0&&!(operationType==="adjustment"&&mode==="set")))fail("Produto ou quantidade inválida.");
    if(operationType!=="adjustment"&&mode!=="add")fail("Modo de quantidade inválido para esta operação.");
-   const old=aggregated.get(productId);if(old&&old.mode!==mode)fail("Não misture modos de ajuste para o mesmo produto.");
+   const old=aggregated.get(productId);if(old&&old.mode!==mode)fail("Não misture modos de ajuste para o mesmo produto.");if(old&&mode==="set")fail("Informe cada produto uma única vez em ajuste por saldo final.");
    aggregated.set(productId,{quantity:qty3((old?.quantity??0)+quantity),mode});
   }
   const ids=[...aggregated.keys()].sort();
@@ -50,7 +51,7 @@ export async function handleMobFlowStock(request:Request){
    else {delta=operationType==="entry"?item.quantity:-item.quantity;if(operationType==="adjustment")delta=item.quantity;after=qty3(before+delta);}
    if(after<0)fail("Estoque insuficiente para "+p.name+".",409,"insufficient_stock");
    if(p.unit==="un"&&(!Number.isInteger(item.quantity)||!Number.isInteger(after)))fail("Produto por unidade não aceita quantidade fracionada.");
-   const unitValue=operationType==="writeoff"||operationType==="transfer"?Number(p.cost):Number(p.cost);
+   const unitValue=Number(p.cost);
    return {p,item,before,after,delta,lineKey:String(index+1),value:money(Math.abs(delta)*unitValue)};
   });
   const now=new Date().toISOString();
