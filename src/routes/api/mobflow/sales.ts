@@ -150,7 +150,7 @@ export async function handleMobFlowSale(request: Request) {
         identity.accountId, movementId, saleId, line.lineKey, p.id, p.code, p.name, line.unit, line.quantity, line.lineTotal, Number(p.stock), stockAfter, -line.quantity, identity.userId, identity.displayName || identity.username, "Venda " + saleId, now.toISOString(), stableUuid(identity.accountId + ":sale:" + saleId + ":stock:" + p.id),
       ]);
       await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'stock','automatic','product',$3,$4::jsonb)", [
-        randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":stock-event:" + p.id), p.id, JSON.stringify({ stockDelta: -line.quantity, source: "sale", saleId }),
+        randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":stock-event:" + p.id), p.id, JSON.stringify({ stockDelta: -line.quantity, resultingStock: stockAfter, source: "sale", saleId, operationId: saleId, quantity: line.quantity, stockBefore: Number(p.stock), stockAfter, productCode: p.code, productName: p.name, unit: line.unit, totalValue: line.lineTotal, operator: identity.displayName || identity.username, occurredAt: now.toISOString() }),
       ]);
     }
 
@@ -159,7 +159,7 @@ export async function handleMobFlowSale(request: Request) {
       identity.accountId, paymentId, saleId, paymentMethod, paid ? total : 0, paid ? received : 0, change, now.toISOString(), stableUuid(identity.accountId + ":sale:" + saleId + ":payment"),
     ]);
     await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'sales','manual','sale',$3,$4::jsonb)", [
-      randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":event"), saleId, JSON.stringify({ saleId, cashSessionId, total, paymentMethod, paymentStatus: paid ? "paid" : "unpaid", items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })) }),
+      randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":event"), saleId, JSON.stringify({ sale: { id: saleId, date: now.toISOString(), cashSessionId, seller: identity.displayName || identity.username, total, subtotal, discount, discountType: body.discountType === "percentage" ? "%" : "R$", profit: paid ? money(total - costTotal) : 0, payment: paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : "Cartão", received, customer: customerName ?? undefined, paid, paidAt: paid ? now.toISOString() : undefined, items: lines.map((l) => ({ productId: l.product.id, name: l.product.name, price: l.price, cost: l.cost, qty: l.quantity, unit: l.unit })) }, saleId, cashSessionId, total, paymentMethod, paymentStatus: paid ? "paid" : "unpaid" }),
     ]);
     await releaseTransaction(client, true); tx = null;
     return Response.json({ ok: true, replayed: false, sale: { id: saleId, total, subtotal, discount, paymentMethod, paymentStatus: paid ? "paid" : "unpaid", change, items: lines.map((l) => ({ productId: l.product.id, code: l.product.code, name: l.product.name, quantity: l.quantity, unitPrice: l.price, total: l.lineTotal })) } }, { status: 201 });
