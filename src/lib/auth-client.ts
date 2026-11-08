@@ -1,10 +1,8 @@
 import { createAuthClient } from "better-auth/react";
 
 /**
- * Browser client for the self-managed Better Auth server.
- * It uses the current MobFlow origin, so Preview and Production stay isolated.
- * Existing Supabase login remains active until the migration cutover is approved.
+ * The migration Preview is Better Auth + Neon only.
+ * Do not select the legacy Supabase authentication path based on a missing env flag.
  */
 export const mobflowAuthClient = createAuthClient();
-
-export const isBetterAuthEnabled = import.meta.env.VITE_MOBFLOW_AUTH_PROVIDER === "better-auth";
+export const isBetterAuthEnabled = true;
