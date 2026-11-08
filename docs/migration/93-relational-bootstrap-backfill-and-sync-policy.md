@@ -57,10 +57,14 @@ The test branch contained four app_state tenant snapshots:
 
 Backfill results matched those source counts. Current stock balances copied from the snapshot were 999 and 250 respectively. Historical stock movements were labeled `legacy_reconstructed`. Re-running the migration completed successfully without duplicating rows. Tenant isolation was verified under `SET LOCAL ROLE mobflow_api` with transaction-local account context: each test tenant could see only its own product rows. The relational GET query was executed directly against Neon with the bootstrap gate both true and false; the enabled query returned the relational product/sale/cash/ledger projection and cursor from the same statement, while the disabled query returned the legacy snapshot.
 
+## Rollback preparation
+
+The outbox now stops sending later commands after a permanent business rejection and blocks automatic queue progress while a failed command remains. This protects command ordering, but it is not the optimistic rollback itself: the failed command's local effects still need to be reversed by command ID, and later pending operations need to be replayed safely.
+
 ## Still required before enabling the mode
 
+- Implement and test command-ID rollback/replay for sales, cash and stock, including dependencies between opening a cash session, movements and sales.
 - Complete dual-write / cutover rules for every remaining legacy writer so snapshot saves cannot overwrite authoritative relational stock or leave sales/cash stale.
-- Complete optimistic rollback/replay by command ID, preserving later pending commands.
 - Add real API integration tests using the runtime role and tenant context, including two devices, offline retries and app restart.
 - Keep `MOBFLOW_RELATIONAL_BOOTSTRAP_ENABLED`, `VITE_MOBFLOW_INCREMENTAL_SYNC` and `VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY` off until those checks pass.
 - Do not remove `app_state` or disable Supabase during this stage.
