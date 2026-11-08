@@ -171,7 +171,7 @@ describe("MobFlow Neon state API", () => {
     expect(JSON.parse(eventCalls[0][1][3] as string)).toMatchObject({
       stockDelta: -2, resultingStock: 8, source: "state_update",
     });
-    expect(eventCalls[1][0]).toContain("'price', 'automatic'");
+    expect(eventCalls[1][0]).toContain("'price', 'manual'");
     expect(eventCalls[1][1][2]).toBe("p1");
     expect(JSON.parse(eventCalls[1][1][3] as string)).toMatchObject({
       price: 6, previousPrice: 5, source: "state_update",
