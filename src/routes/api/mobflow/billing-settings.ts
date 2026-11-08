@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getNeonPool } from "@/lib/server/neon";
 
-export const Route = createFileRoute("/api/mobflow/billing-settings")({
+export const Route = createFileRoute("/api/mobflow/billing-settings" as any)({
   server: {
     handlers: {
       GET: async () => {
