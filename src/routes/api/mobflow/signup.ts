@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { getNeonPool } from "@/lib/server/neon";
@@ -7,6 +8,31 @@ import { getNeonPool } from "@/lib/server/neon";
 const SUPABASE_URL = process.env.MOBFLOW_SUPABASE_URL || "https://ezkwubdpblqkdfampopa.supabase.co";
 const STORAGE_BUCKET = "mobflow-payment-proofs";
 const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerência"];
+const R2_ACCOUNT_ID = process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim() ?? "";
+const R2_ACCESS_KEY_ID = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() ?? "";
+const R2_SECRET_ACCESS_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim() ?? "";
+const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME?.trim() ?? "";
+let r2Client: S3Client | null = null;
+
+function getR2Storage() {
+  if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET_NAME) return null;
+  if (!r2Client) {
+    r2Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+    });
+  }
+  return { client: r2Client, bucket: R2_BUCKET_NAME };
+}
+
+function hasValidFileSignature(bytes: Buffer, mimeType: string) {
+  if (mimeType === "image/jpeg") return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === "image/png") return bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
+  if (mimeType === "image/webp") return bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (mimeType === "application/pdf") return bytes.length >= 5 && bytes.toString("ascii", 0, 5) === "%PDF-";
+  return false;
+}
 
 const cleanDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeUsername = (value: unknown) => String(value ?? "").trim().toUpperCase();
@@ -47,8 +73,13 @@ async function submitPaymentProof(body: Record<string, unknown>) {
   if (!allowedTypes.includes(mimeType)) return errorResponse("Envie uma imagem JPG, PNG, WEBP ou um PDF.");
   if (!base64 || base64.length > 7_000_000) return errorResponse("O comprovante deve ter até 5 MB.");
 
+  const r2EnvCount = [R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME].filter(Boolean).length;
+  if (r2EnvCount > 0 && r2EnvCount < 4) {
+    return errorResponse("Armazenamento R2 incompleto neste ambiente. Configure as quatro variáveis do Preview.", 503);
+  }
+  const r2 = getR2Storage();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceKey) return errorResponse("Envio de comprovante temporariamente indisponível neste ambiente.", 503);
+  if (!r2 && !serviceKey) return errorResponse("Armazenamento de comprovantes não configurado neste ambiente.", 503);
 
   const client = await getNeonPool().connect();
   let path = "";
@@ -63,17 +94,34 @@ async function submitPaymentProof(body: Record<string, unknown>) {
     if (company.subscription_status === "active") return errorResponse("Esta conta já está ativa.", 409);
 
     const bytes = Buffer.from(base64, "base64");
-    if (bytes.byteLength > 5 * 1024 * 1024) return errorResponse("O comprovante deve ter até 5 MB.");
+    if (bytes.byteLength === 0 || bytes.byteLength > 5 * 1024 * 1024) return errorResponse("O comprovante deve ter até 5 MB.");
+    if (!hasValidFileSignature(bytes, mimeType)) return errorResponse("O arquivo não corresponde ao formato informado.");
+
     const extension = mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
-    path = requestToken + "/" + randomUUID() + "." + extension;
-    storageAdmin = createClient(SUPABASE_URL, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-    const { error: uploadError } = await storageAdmin.storage.from(STORAGE_BUCKET).upload(path, bytes, {
-      contentType: mimeType,
-      upsert: false,
-    });
-    if (uploadError) {
-      console.error("[MobFlow payment proof upload]", uploadError.message);
-      return errorResponse("Não foi possível enviar o comprovante. Tente novamente.", 500);
+    if (r2) {
+      const now = new Date();
+      path = `tenants/${company.account_id}/pix-proofs/${now.getUTCFullYear()}/${String(now.getUTCMonth()+1).padStart(2,"0")}/${randomUUID()}.${extension}`;
+      await r2.client.send(new PutObjectCommand({
+        Bucket: r2.bucket,
+        Key: path,
+        Body: bytes,
+        ContentLength: bytes.byteLength,
+        ContentType: mimeType,
+        CacheControl: "private, no-store",
+        Metadata: { purpose: "pix-proof", requesttoken: requestToken },
+      }));
+    } else {
+      // Temporary compatibility path for environments not yet provisioned with R2.
+      path = requestToken + "/" + randomUUID() + "." + extension;
+      storageAdmin = createClient(SUPABASE_URL, serviceKey!, { auth: { autoRefreshToken: false, persistSession: false } });
+      const { error: uploadError } = await storageAdmin.storage.from(STORAGE_BUCKET).upload(path, bytes, {
+        contentType: mimeType,
+        upsert: false,
+      });
+      if (uploadError) {
+        console.error("[MobFlow payment proof upload]", uploadError.message);
+        return errorResponse("Não foi possível enviar o comprovante. Tente novamente.", 500);
+      }
     }
 
     const update = await client.query(
@@ -83,12 +131,14 @@ async function submitPaymentProof(body: Record<string, unknown>) {
       [requestToken, path],
     );
     if (!update.rowCount) {
-      await storageAdmin.storage.from(STORAGE_BUCKET).remove([path]);
+      if (r2) await r2.client.send(new DeleteObjectCommand({ Bucket: r2.bucket, Key: path })).catch(() => undefined);
+      else if (storageAdmin) await storageAdmin.storage.from(STORAGE_BUCKET).remove([path]);
       return errorResponse("Não foi possível registrar o comprovante. Confira o status da solicitação.", 409);
     }
     return Response.json({ ok: true, message: "Solicitação enviada. Aguarde a análise do administrador." });
   } catch (error) {
-    if (path && storageAdmin) await storageAdmin.storage.from(STORAGE_BUCKET).remove([path]).catch(() => undefined);
+    if (path && r2) await r2.client.send(new DeleteObjectCommand({ Bucket: r2.bucket, Key: path })).catch(() => undefined);
+    else if (path && storageAdmin) await storageAdmin.storage.from(STORAGE_BUCKET).remove([path]).catch(() => undefined);
     console.error("[MobFlow payment proof]", error instanceof Error ? error.message : "unknown error");
     return errorResponse("Não foi possível registrar o comprovante agora.", 500);
   } finally {
