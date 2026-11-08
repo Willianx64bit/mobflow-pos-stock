@@ -101,7 +101,10 @@ let syncWakeListenersInstalled = false;
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
 const syncOutbox = new SyncOutbox();
-const incrementalSyncEnabled = () => import.meta.env.VITE_MOBFLOW_INCREMENTAL_SYNC === "true";
+// Keep the command cutover fail-closed until the Neon snapshot bootstrap has relational projections.
+const incrementalSyncEnabled = () =>
+  import.meta.env.VITE_MOBFLOW_INCREMENTAL_SYNC === "true" &&
+  import.meta.env.VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY === "true";
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
