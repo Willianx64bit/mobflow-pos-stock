@@ -1,11 +1,11 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useStore } from "@/lib/store";
+import { useStore, syncNow } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
@@ -30,7 +30,23 @@ export function AppHeader() {
   const [pdvAuthorized, setPdvAuthorized] = useState(false);
   const [username, setUsername] = useState("Usuário");
   const [permissions, setPermissions] = useState<string[]>(["PDV"]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
   const settings = useStore((s) => s.settings);
+
+  const handleManualSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncMessage("");
+    try {
+      const result = await syncNow();
+      setSyncMessage(result.pending > 0 ? `${result.pending} operação(ões) aguardando envio` : "Sincronização concluída");
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Falha ao sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     setOpen(() => {
@@ -129,6 +145,11 @@ export function AppHeader() {
     <>
       {(pathname === "/" || pathname === "/operacoes") && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
+          {pdvAuthorized && (
+            <button type="button" onClick={() => void handleManualSync()} disabled={syncing} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
+              <RefreshCw className={`h-4 w-4 text-green-600 ${syncing ? "animate-spin" : ""}`} />
+            </button>
+          )}
           <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
             <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
           </button>
