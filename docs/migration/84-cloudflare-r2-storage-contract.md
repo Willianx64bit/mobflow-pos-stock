@@ -1,6 +1,6 @@
 # MobFlow PDV — contrato técnico de armazenamento Cloudflare R2
 
-Status: planejamento técnico; **nenhum bucket, credencial, upload ou migração foi criado/aplicado**.
+Status: contrato técnico em execução no Preview. Bucket privado `mobflow-preview-files` e token R2 restrito ao bucket foram provisionados em 2026-11-08. As quatro variáveis R2 estão configuradas como secrets/valores de servidor somente na branch `migration/neon-preparation` dos projetos Vercel PDV e Admin. Nenhum objeto de teste foi enviado; nenhuma migração de arquivos existentes foi iniciada.
 
 ## 1. Objetivo e fronteira
 
@@ -101,17 +101,23 @@ Esses endpoints não devem aceitar `tenant_id`, bucket, chave arbitrária ou URL
 
 ## 9. Ordem de implementação
 
-1. Confirmar conta/bucket R2 e políticas de acesso sem alterar storage atual.
-2. Definir limites por finalidade, MIME allowlist, retenção e autorização por tipo de arquivo.
-3. Implementar cliente server-side R2 e configuração por ambiente (Preview primeiro).
-4. Implementar metadados/intenção e APIs de upload/download/delete.
-5. Testar isoladamente no Preview com objetos sintéticos.
-6. Integrar fotos de produto e validar leitura/edição.
-7. Integrar comprovantes Pix após auditoria read-only do consumidor no Admin e do fluxo de cadastro.
-8. Integrar logos/documentos/anexos.
-9. Só então preparar migração de objetos existentes com manifesto e rollback.
+1. [Concluído no Preview] Confirmar conta/bucket privado `mobflow-preview-files` e token S3 restrito a esse bucket com leitura e gravação.
+2. [Parcial] Cliente server-side R2 e variáveis de ambiente configurados no PDV; upload de comprovante Pix do cadastro já grava no R2 quando as quatro variáveis estão presentes, mantendo fallback legado apenas para ambientes sem R2.
+3. [Em andamento] Admin Preview recebeu cliente R2 server-side e endpoint autenticado que gera URL assinada de leitura por 60 segundos, validando o prefixo `tenants/{account_id}/pix-proofs/`.
+4. [Pendente] Validar visualização de comprovantes no Admin Preview com arquivo sintético pequeno; isso gera uma operação de escrita/leitura dentro da franquia gratuita disponível.
+5. [Pendente] Definir metadados/intenção, limites por finalidade, allowlist MIME e retenção antes de criar APIs genéricas de upload/download/delete.
+6. [Pendente] Integrar fotos de produto, logos, documentos e anexos.
+7. [Pendente] Preparar migração de objetos existentes somente após inventário, manifesto, checksum, rollback e autorização expressa.
 
-## 10. Critérios de aceite
+## 10. Estado do provisionamento Preview
+
+- Token ativo verificado via Cloudflare API, com `Workers R2 Storage Bucket Item Read` e `Workers R2 Storage Bucket Item Write` limitados ao recurso do bucket `mobflow-preview-files`.
+- Token S3: Access Key ID deriva do ID do token e Secret Access Key é o SHA-256 do valor do token, conforme documentação oficial Cloudflare.
+- Vercel Preview variables confirmadas nos projetos `mobflow-pos-stock` e `mobflow-will`, exclusivamente para `migration/neon-preparation`.
+- `last_used_on` do token ainda está nulo na verificação; não houve upload/consulta S3 até este checkpoint.
+- Não foi criado plano adicional nem iniciado upload em massa. O bucket Standard vazio não gera custo de armazenamento enquanto não houver objetos; o uso deve permanecer dentro das franquias gratuitas enquanto não ultrapassar 10 GB-mês, 1 milhão de operações Classe A e 10 milhões Classe B.
+
+## 11. Critérios de aceite
 
 - Bucket privado e nenhuma credencial exposta ao cliente.
 - Isolamento por tenant verificado por testes negativos.
