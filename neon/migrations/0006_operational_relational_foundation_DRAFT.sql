@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS public.cash_sessions (
   opened_at timestamptz NOT NULL,
   opening_note text,
   closed_at timestamptz,
+  closed_by_snapshot text,
   counted_amount numeric(14,2),
   expected_amount numeric(14,2),
   difference_amount numeric(14,2),
@@ -122,6 +123,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
     CHECK (status IN ('completed', 'cancelled', 'reversed')),
   payment_status text NOT NULL DEFAULT 'paid'
     CHECK (payment_status IN ('paid', 'partial', 'unpaid')),
+  paid_at timestamptz,
+  hidden_from_fiado boolean NOT NULL DEFAULT false,
   payment_method text NOT NULL
     CHECK (payment_method IN ('cash', 'pix', 'card', 'fiado')),
   occurred_at timestamptz NOT NULL,
