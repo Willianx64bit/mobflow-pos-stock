@@ -2,6 +2,8 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 import { isBetterAuthEnabled } from "@/lib/auth-client";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
+import { SyncOutbox, createSyncCommand, runIncrementalSync } from "@/lib/sync-outbox";
+import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
 export type Product = { id: string; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
@@ -52,7 +54,7 @@ export type Conference = {
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
 export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string; details?: string; legacy?: boolean };
-type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+export type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
 const OWNER_KEY = "mobflow:owner";
@@ -98,6 +100,8 @@ let syncWakeListenersInstalled = false;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
+const syncOutbox = new SyncOutbox();
+const incrementalSyncEnabled = () => import.meta.env.VITE_MOBFLOW_INCREMENTAL_SYNC === "true";
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
@@ -320,6 +324,27 @@ async function callMobFlowApi(path: string, init: RequestInit = {}) {
   return { response, body };
 }
 
+function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
+  if (!incrementalSyncEnabled() || typeof window === "undefined") return false;
+  const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
+  if (!tenantId) return false;
+  try {
+    const command = createSyncCommand({ tenantId, domain, payload });
+    void syncOutbox.enqueue(command).then(() => {
+      if (cloudReady && typeof navigator !== "undefined" && navigator.onLine) {
+        void syncNow().catch((error) => console.warn("[MobFlow Sync] Incremental send deferred:", error));
+      }
+    }).catch((error) => {
+      console.error("[MobFlow Sync] Could not persist command locally; restoring snapshot fallback.", error);
+      if (cloudReady) void persistState();
+    });
+    return true;
+  } catch (error) {
+    console.error("[MobFlow Sync] Could not create command; restoring snapshot fallback.", error);
+    return false;
+  }
+}
+
 async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
   if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon" || !isBetterAuthEnabled()) return fallbackProducts;
   try {
@@ -381,6 +406,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     state.products = await readPreviewNeonCatalog(state.products ?? remote.products ?? []);
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
+    if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
     listeners.forEach((listener) => listener());
@@ -408,7 +434,7 @@ function startRealtime(accountId: string) {
   if (!syncWakeListenersInstalled) {
     const refreshWhenVisible = () => {
       if (document.visibilityState !== "visible" || !cloudAccountId) return;
-      void refreshFromCloud(cloudAccountId);
+      void syncNow().catch(() => undefined);
       if (!stopRealtimeSubscription) {
         realtimeOwnerId = null;
         startRealtime(cloudAccountId);
@@ -416,7 +442,7 @@ function startRealtime(accountId: string) {
     };
     const refreshWhenOnline = () => {
       if (!cloudAccountId) return;
-      void refreshFromCloud(cloudAccountId);
+      void syncNow().catch(() => undefined);
       if (!stopRealtimeSubscription) {
         realtimeOwnerId = null;
         startRealtime(cloudAccountId);
@@ -428,10 +454,9 @@ function startRealtime(accountId: string) {
     syncWakeListenersInstalled = true;
   }
 
-  // Realtime only signals that this tenant has new committed events.
-  // The existing authenticated API remains responsible for state reconciliation.
+  // Realtime is only a wake-up signal; the client drains the durable outbox and pulls events by cursor.
   void subscribeToTenantEvents(
-    () => { void refreshFromCloud(accountId, true); },
+    () => { void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error)); },
     (message) => {
       console.warn("[MobFlow Realtime] Subscription stopped:", message);
       stopRealtimeSubscription?.();
@@ -545,6 +570,7 @@ export async function hydrateStore() {
       }
 
       const remoteState = stateResult.body.state;
+      if (typeof stateResult.body.syncCursor === "string") await syncOutbox.setCursor(accountId, stateResult.body.syncCursor);
       if (remoteState && typeof remoteState === "object") {
         const remote = remoteState as State;
         const remoteContacts = Array.isArray(remote.contacts) ? remote.contacts : [];
@@ -583,11 +609,44 @@ export async function hydrateStore() {
   return hydrating;
 }
 
-function set(next: Partial<State>) {
+function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-  if (cloudReady) void persistState();
+  if (cloudReady && options.persist !== false) void persistState();
   listeners.forEach((l) => l());
+}
+
+export function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
+  const next = applySyncEventsToState(state, events);
+  state = next;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  listeners.forEach((listener) => listener());
+}
+
+export async function syncNow() {
+  const tenantId = cloudAccountId ?? (typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
+  if (!tenantId || !cloudReady) throw new Error("Entre na empresa para sincronizar os dados.");
+  if (persistWorker) await persistQueue;
+  await syncOutbox.retryFailed(tenantId);
+  try {
+    return await runIncrementalSync({
+      outbox: syncOutbox,
+      tenantId,
+      applyEvents: (events) => applyIncrementalEvents(events),
+    });
+  } catch (error) {
+    if (error instanceof UnsupportedSyncEventError) {
+      // Until every legacy domain has an event projection, recover unsupported pages
+      // from one authenticated snapshot and atomically adopt that snapshot's cursor.
+      await refreshFromCloud(tenantId, true);
+      return {
+        sent: 0, failed: await syncOutbox.failedCount(tenantId),
+        pending: await syncOutbox.pendingCount(tenantId), applied: 0,
+        cursor: await syncOutbox.getCursor(tenantId), hasMore: false, recoveredFromSnapshot: true,
+      };
+    }
+    throw error;
+  }
 }
 
 const serverState = state;
@@ -612,7 +671,8 @@ export const actions = {
     if (!operator || !Number.isFinite(openingAmount) || openingAmount < 0) return false;
     if ((state.cashSessions ?? []).some((session) => session.status === "open" && session.openedBy === operator)) return false;
     const session: CashSession = { id: uid(), openedAt: new Date().toISOString(), openedBy: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
-    set({ cashSessions: [session, ...(state.cashSessions ?? [])] });
+    const queued = enqueueDomainCommand("cash", { action: "open", sessionId: session.id, openingAmount: session.openingAmount, note: session.note ?? "" });
+    set({ cashSessions: [session, ...(state.cashSessions ?? [])] }, { persist: !queued });
     return session.id;
   },
   addCashMovement(type: "sangria" | "reforco", amount: number, reason: string) {
@@ -620,7 +680,8 @@ export const actions = {
     const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
     if (!session || !Number.isFinite(amount) || amount <= 0 || !reason.trim()) return false;
     const movement: CashMovement = { id: uid(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
-    set({ cashMovements: [movement, ...(state.cashMovements ?? [])] });
+    const queued = enqueueDomainCommand("cash", { action: "movement", sessionId: session.id, amount: movement.amount, movementType: type === "reforco" ? "addition" : "withdrawal", reason: movement.reason });
+    set({ cashMovements: [movement, ...(state.cashMovements ?? [])] }, { persist: !queued });
     return movement.id;
   },
   closeCashSession(countedCash: number, note = "") {
@@ -634,7 +695,8 @@ export const actions = {
     const additions = movements.filter((item) => item.type === "reforco").reduce((sum, item) => sum + item.amount, 0);
     const expectedCash = Math.round((session.openingAmount + cashSales - withdrawals + additions) * 100) / 100;
     const counted = Math.round(countedCash * 100) / 100;
-    set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) });
+    const queued = enqueueDomainCommand("cash", { action: "close", sessionId: session.id, countedAmount: counted, note: note.trim() });
+    set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) }, { persist: !queued });
     return { expectedCash, countedCash: counted, difference: Math.round((counted - expectedCash) * 100) / 100 };
   },
   saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
@@ -694,7 +756,15 @@ export const actions = {
       const stockAfter = Math.round((p.stock - c.qty) * 1000) / 1000;
       return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
     });
-    set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
+    const queued = payment !== "Fiado" && enqueueDomainCommand("sales", {
+      saleId: sale.id, cashSessionId: activeCash.id,
+      paymentMethod: payment === "Dinheiro" ? "cash" : payment === "Pix" ? "pix" : "card",
+      receivedAmount: payment === "Dinheiro" ? received ?? total : total,
+      discountAmount: discount, discountType: discountType === "%" ? "percentage" : "fixed",
+      customerName: customer || undefined, customerDocument: cpf || undefined,
+      items: state.cart.map((item) => ({ productId: item.productId, quantity: item.qty })),
+    });
+    set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
     return sale;
   },
   addFiadoPayment(id: string, value: number) {
@@ -825,7 +895,11 @@ export const actions = {
       return changed ? { ...product, stock: changed.newStock } : product;
     });
     const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: /balanço/i.test(reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
-    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
+    const queued = enqueueDomainCommand("stock", {
+      operationId: id, operationType: "adjustment", reason,
+      items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
+    });
+    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
     return id;
   },
   applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
