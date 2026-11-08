@@ -78,7 +78,8 @@
     "bcryptjs": "^3.0.2",
     "pg": "^8.16.3",
     "nodemailer": "^7.0.10",
-    "@aws-sdk/client-s3": "^3.800.0"
+    "@aws-sdk/client-s3": "^3.800.0",
+    "@neon/realtime": "0.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
