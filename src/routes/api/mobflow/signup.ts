@@ -8,10 +8,10 @@ import { getNeonPool } from "@/lib/server/neon";
 const SUPABASE_URL = process.env.MOBFLOW_SUPABASE_URL || "https://ezkwubdpblqkdfampopa.supabase.co";
 const STORAGE_BUCKET = "mobflow-payment-proofs";
 const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerência"];
-const R2_ACCOUNT_ID = process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim() ?? "";
-const R2_ACCESS_KEY_ID = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim() ?? "";
-const R2_SECRET_ACCESS_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim() ?? "";
-const R2_BUCKET_NAME = process.env.CLOUDFLARE_R2_BUCKET_NAME?.trim() ?? "";
+const R2_ACCOUNT_ID = process.env["CLOUDFLARE_R2_ACCOUNT_ID"]?.trim() ?? "";
+const R2_ACCESS_KEY_ID = process.env["CLOUDFLARE_R2_ACCESS_KEY_ID"]?.trim() ?? "";
+const R2_SECRET_ACCESS_KEY = process.env["CLOUDFLARE_R2_SECRET_ACCESS_KEY"]?.trim() ?? "";
+const R2_BUCKET_NAME = process.env["CLOUDFLARE_R2_BUCKET_NAME"]?.trim() ?? "";
 let r2Client: S3Client | null = null;
 
 function getR2Storage() {
