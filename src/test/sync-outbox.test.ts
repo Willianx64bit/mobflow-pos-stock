@@ -116,6 +116,19 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(result).toMatchObject({ applied: 1, cursor: "4", hasMore: false });
   });
 
+  it("rejects duplicate or out-of-order event sequences without applying the page", async () => {
+    const events: SyncEvent[] = [
+      { event_id: "event-6", sequence: "6", category: "stock", delivery_mode: "automatic", entity_type: "product", entity_id: "p1", payload: {}, created_at: "2026-11-08T12:00:00.000Z" },
+      { event_id: "event-5", sequence: "5", category: "stock", delivery_mode: "automatic", entity_type: "product", entity_id: "p1", payload: {}, created_at: "2026-11-08T12:00:01.000Z" },
+    ];
+    const outbox = outboxMock({ getCursor: vi.fn().mockResolvedValue("4") });
+    const transport = vi.fn().mockResolvedValue(response({ ok: true, events, nextCursor: "5", hasMore: false }));
+    const apply = vi.fn();
+    await expect(pullSyncEvents(outbox, TENANT, apply, transport)).rejects.toThrow("fora de ordem");
+    expect(apply).not.toHaveBeenCalled();
+    expect(outbox.setCursor).not.toHaveBeenCalled();
+  });
+
   it("does not advance the cursor if applying an event page fails", async () => {
     const event: SyncEvent = {
       event_id: "event-2", sequence: "5", category: "sales", delivery_mode: "manual",
