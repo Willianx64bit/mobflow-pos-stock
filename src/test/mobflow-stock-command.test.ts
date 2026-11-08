@@ -27,6 +27,12 @@ describe("Neon stock commands",()=>{
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
   expect(releaseTransaction).toHaveBeenCalledWith(client,false);
  });
+
+ it("does not pretend an external transfer is a complete stock transfer",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-transfer",idempotencyKey:KEY,operationType:"transfer",reason:"Transferência",items:[{productId:"p1",quantity:2}]}));
+  expect(res.status).toBe(409);expect((await res.json()).code).toBe("transfer_destination_required");
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
+ });
  it("replays the same operation without applying stock twice",async()=>{
   client.query.mockImplementation(async(sql:string)=>{
    if(sql.includes("to_regclass"))return{rows:[{products:"products",ledger:"stock_movements",events:"mobflow_sync_events",append_fn:"fn"}]};
