@@ -131,6 +131,30 @@ describe("Neon receiving stock release", () => {
     expect(body).toEqual({ ok: true, data: true });
     expect(saved.products[0].stock).toBe(13);
     expect(saved.receiving[0].stockReleased).toBe(true);
+    const eventCalls = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(eventCalls).toHaveLength(2);
+    expect(eventCalls[0][0]).toContain("'receiving', 'manual'");
+    expect(eventCalls[1][0]).toContain("'stock', 'automatic'");
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("does not append or apply stock events when the same receiving is accepted again", async () => {
+    state.receiving[0].decisionCompleted = true;
+    state.receiving[0].decisions = { "product-a": "aceitar", "product-b": "devolver" };
+    state.receiving[0].stockReleased = true;
+    state.products[0].stock = 13;
+
+    const response = await handleMobFlowReceiving(request("accept"));
+
+    expect(await response.json()).toEqual({ ok: true, data: true });
+    expect(client.query.mock.calls.some((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    )).toBe(false);
+    expect(client.query.mock.calls.some((call) =>
+      String(call[0]).includes("UPDATE public.app_state"),
+    )).toBe(false);
+    expect(releaseTransaction).toHaveBeenCalledWith(client, false);
   });
 });
