@@ -75,6 +75,7 @@ export async function handleMobFlowCash(request: Request) {
     if(action==="movement") {
       const amount=Number(body.amount), type=str(body.movementType,20), reason=str(body.reason,500);
       if(!Number.isFinite(amount)||amount<=0||!["addition","withdrawal"].includes(type)||!reason) fail("Tipo, valor ou motivo da movimentação inválido.");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[identity.accountId+":cash-movement:"+body.idempotencyKey]);
       const prior=await client.query("SELECT id,cash_session_id,movement_type,amount::text,reason,occurred_at,operator_profile_id FROM public.cash_movements WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE",[identity.accountId,body.idempotencyKey]);
       if(prior.rows.length) {
         const p=prior.rows[0];
