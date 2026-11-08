@@ -634,6 +634,7 @@ export async function hydrateStore() {
       cloudAccountId = accountId;
       cloudReady = true;
       startRealtime(accountId);
+      void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
       if (hadLegacyLogo) void persistState();
       if (!remoteState) await persistState();
       listeners.forEach((l) => l());
