@@ -69,7 +69,26 @@ export async function handleMobFlowSale(request: Request) {
     if (replay.rows.length) {
       const existing = replay.rows[0];
       if (existing.id !== saleId || existing.cash_session_id !== cashSessionId || existing.payment_method !== paymentMethod) fail("Chave de idempotência reutilizada com outra venda.", 409, "idempotency_conflict");
-      const items = await client.query("SELECT product_id,quantity::text,line_total::text FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY line_key", [identity.accountId, saleId]);
+      const items = await client.query("SELECT product_id,quantity::text FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY product_id", [identity.accountId, saleId]);
+      const requested = new Map<string, number>();
+      for (const raw of body.items as Array<Record<string, unknown>>) {
+        const productId = text(raw?.productId, 100), quantity = Number(raw?.quantity);
+        if (!productId || !Number.isFinite(quantity) || quantity <= 0) fail("Itens inválidos na repetição da venda.");
+        requested.set(productId, quantity3((requested.get(productId) ?? 0) + quantity));
+      }
+      const stored = items.rows.map((row: any) => [row.product_id, Number(row.quantity)] as [string, number]);
+      const sameItems = stored.length === requested.size && stored.every(([productId, quantity]) => requested.has(productId) && Math.abs(requested.get(productId)! - quantity) < 0.0005);
+      const requestedDiscountAmount = Number(body.discountAmount ?? 0);
+      const requestedDiscount = body.discountType === "percentage"
+        ? money(Number(existing.subtotal) * Math.min(requestedDiscountAmount, 100) / 100)
+        : money(Math.min(Number(existing.subtotal), requestedDiscountAmount));
+      const payments = await client.query("SELECT received_amount::text FROM public.sale_payments WHERE tenant_id=$1 AND sale_id=$2 ORDER BY occurred_at", [identity.accountId, saleId]);
+      const requestedReceived = paymentMethod === "fiado" ? 0 : Number(body.receivedAmount ?? Number(existing.total));
+      if (!sameItems || Math.abs(Number(existing.discount_amount) - requestedDiscount) > 0.005 ||
+        existing.discount_type !== (body.discountType ?? "fixed") || payments.rows.length !== 1 ||
+        Math.abs(Number(payments.rows[0].received_amount) - requestedReceived) > 0.005) {
+        fail("A chave de idempotência foi reutilizada com conteúdo diferente.", 409, "idempotency_conflict");
+      }
       await releaseTransaction(client, true); tx = null;
       return Response.json({ ok: true, replayed: true, sale: { id: existing.id, total: Number(existing.total), paymentMethod: existing.payment_method, paymentStatus: existing.payment_status, items: items.rows } });
     }
