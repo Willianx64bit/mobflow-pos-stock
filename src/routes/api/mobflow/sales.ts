@@ -62,10 +62,10 @@ export async function handleMobFlowSale(request: Request) {
 
     tx = await beginAuthenticatedTransaction(request);
     const { client, identity } = tx;
-    if (!["manager", "pdv"].includes(identity.role) && !(Array.isArray(identity.permissions) && identity.permissions.includes("PDV"))) fail("Usuário sem permissão para realizar vendas.", 403, "permission_denied");
+    if (!(identity.role === "manager" || (identity.role === "pdv" && Array.isArray(identity.permissions) && identity.permissions.includes("PDV")))) fail("Usuário sem permissão para realizar vendas.", 403, "permission_denied");
     await ready(client);
 
-    const replay = await client.query("SELECT id,total::text,payment_method,payment_status,cash_session_id,occurred_at FROM public.sales WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE", [identity.accountId, body.idempotencyKey]);
+    const replay = await client.query("SELECT id,total::text,subtotal::text,discount_amount::text,discount_type,payment_method,payment_status,cash_session_id,occurred_at FROM public.sales WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE", [identity.accountId, body.idempotencyKey]);
     if (replay.rows.length) {
       const existing = replay.rows[0];
       if (existing.id !== saleId || existing.cash_session_id !== cashSessionId || existing.payment_method !== paymentMethod) fail("Chave de idempotência reutilizada com outra venda.", 409, "idempotency_conflict");
