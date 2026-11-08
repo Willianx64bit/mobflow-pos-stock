@@ -25,6 +25,7 @@ const fail = (message: string, status = 400, code = "invalid_sale"): never => { 
 const uuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const text = (v: unknown, max = 160) => typeof v === "string" ? v.trim().slice(0, max) : "";
 const money = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
+const quantity3 = (v: number) => Math.round((v + Number.EPSILON) * 1000) / 1000;
 function stableUuid(value: string) {
   const b = createHash("sha256").update(value).digest().subarray(0, 16);
   b[6] = (b[6] & 15) | 0x50; b[8] = (b[8] & 0x3f) | 0x80;
@@ -82,7 +83,7 @@ export async function handleMobFlowSale(request: Request) {
       const item = body.items[index] as Record<string, unknown>;
       const productId = text(item?.productId, 100), quantity = Number(item?.quantity);
       if (!productId || !Number.isFinite(quantity) || quantity <= 0 || Math.round(quantity * 1000) !== quantity * 1000) fail("Produto ou quantidade inválida.");
-      quantities.set(productId, money((quantities.get(productId) ?? 0) + quantity));
+      quantities.set(productId, quantity3((quantities.get(productId) ?? 0) + quantity));
     }
     const ids = [...quantities.keys()].sort();
     const productResult = await client.query("SELECT id,code,name,unit,price::text,cost::text,stock::text,active FROM public.products WHERE tenant_id=$1 AND id=ANY($2::text[]) ORDER BY id FOR UPDATE", [identity.accountId, ids]);
@@ -120,9 +121,10 @@ export async function handleMobFlowSale(request: Request) {
       await client.query("INSERT INTO public.sale_items(tenant_id,id,sale_id,product_id,product_code_snapshot,product_name_snapshot,unit,quantity,unit_price,unit_cost,line_discount,line_total,line_cost,line_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,0,$11,$12,$13)", [
         identity.accountId, saleId + ":" + p.id, saleId, p.id, p.code, p.name, line.unit, line.quantity, line.price, line.cost, line.lineTotal, line.lineCost, line.lineKey,
       ]);
-      const stockAfter = money(Number(p.stock) - line.quantity);
+      const stockAfter = quantity3(Number(p.stock) - line.quantity);
       const movementId = saleId + ":" + p.id;
-      await client.query("UPDATE public.products SET stock=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND stock >= $4", [identity.accountId, p.id, stockAfter, line.quantity]);
+      const stockUpdate = await client.query("UPDATE public.products SET stock=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND stock >= $4", [identity.accountId, p.id, stockAfter, line.quantity]);
+      if (stockUpdate.rowCount !== 1) fail("Estoque alterado por outra operação. Atualize e tente novamente.", 409, "stock_conflict");
       await client.query("INSERT INTO public.stock_movements(tenant_id,id,operation_id,operation_type,line_key,product_id,product_code,product_name,unit,quantity,total_value,stock_before,stock_after,delta,operator_profile_id,operator_snapshot,details,occurred_at,idempotency_key) VALUES($1,$2,$3,'sale',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)", [
         identity.accountId, movementId, saleId, line.lineKey, p.id, p.code, p.name, line.unit, line.quantity, line.lineTotal, Number(p.stock), stockAfter, -line.quantity, identity.userId, identity.displayName || identity.username, "Venda " + saleId, now.toISOString(), stableUuid(identity.accountId + ":sale:" + saleId + ":stock:" + p.id),
       ]);
