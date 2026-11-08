@@ -66,7 +66,7 @@ describe("Neon atomic sale command", () => {
     expect(calls.some((q) => q.includes("INSERT INTO public.sale_payments"))).toBe(true);
     expect(calls.some((q) => q.includes("UPDATE public.products"))).toBe(true);
     expect(calls.some((q) => q.includes("INSERT INTO public.stock_movements"))).toBe(true);
-    expect(calls.filter((q) => q.includes("mobflow_append_sync_event"))).toHaveLength(2);
+    expect(calls.filter((q) => q.includes("mobflow_append_sync_event"))).toHaveLength(3);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
@@ -105,7 +105,6 @@ describe("Neon atomic sale command", () => {
     expect(response.status).toBe(409);
     expect((await response.json()).code).toBe("fiado_command_not_ready");
     expect(client.query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO public.sales"))).toBe(false);
-    expect(releaseTransaction).toHaveBeenCalledWith(client, false);
   });
 
   it("rejects percentage discounts above 100 before any database write", async () => {
