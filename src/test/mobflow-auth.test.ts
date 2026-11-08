@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { client, connect } = vi.hoisted(() => {
+const { client, connect, getSession } = vi.hoisted(() => {
   const query = vi.fn();
   const release = vi.fn();
   const client = { query, release };
-  return { client, connect: vi.fn(async () => client) };
+  return { client, connect: vi.fn(async () => client), getSession: vi.fn() };
 });
 
 vi.mock("@/lib/server/neon", () => ({
   getNeonPool: () => ({ connect }),
+}));
+vi.mock("@/lib/server/better-auth", () => ({
+  getMobFlowBetterAuth: () => ({ api: { getSession } }),
 }));
 
 import { ApiAuthError, beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
@@ -18,7 +21,7 @@ const ACCOUNT_ID = "9c47eaac-2abf-4cd6-b614-24e27077bdf6";
 
 function request(token?: string) {
   return new Request("https://mobflow.test/api/mobflow/session-context", {
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    headers: token ? { cookie: `better-auth.session_token=${token}` } : {},
   });
 }
 
@@ -36,8 +39,14 @@ function profile(overrides: Record<string, unknown> = {}) {
 }
 
 describe("MobFlow Neon API authentication", () => {
+  const originalProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    getSession.mockImplementation(async ({ headers }: { headers: Headers }) =>
+      headers.get("cookie") ? { user: { id: USER_ID } } : null,
+    );
     vi.stubGlobal("fetch", vi.fn());
     client.query.mockReset();
     client.release.mockReset();
@@ -46,9 +55,11 @@ describe("MobFlow Neon API authentication", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    if (originalProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
+    else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
   });
 
-  it("rejects a request without a bearer token before contacting either service", async () => {
+  it("rejects a request without a Better Auth cookie before opening Neon", async () => {
     await expect(beginAuthenticatedTransaction(request())).rejects.toMatchObject({
       status: 401,
       code: "missing_token",
@@ -57,8 +68,8 @@ describe("MobFlow Neon API authentication", () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
-  it("rejects an invalid Supabase session without opening a Neon connection", async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response("{}", { status: 401 }));
+  it("rejects an invalid Better Auth session without opening a Neon connection", async () => {
+    getSession.mockResolvedValue(null);
 
     await expect(beginAuthenticatedTransaction(request("expired-token"))).rejects.toMatchObject({
       status: 401,
@@ -68,7 +79,7 @@ describe("MobFlow Neon API authentication", () => {
   });
 
   it("rolls back and releases the connection when the profile is not migrated", async () => {
-    vi.mocked(fetch).mockResolvedValue(Response.json({ id: USER_ID }));
+    
     client.query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [] });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
@@ -126,8 +137,8 @@ describe("MobFlow Neon API authentication", () => {
   });
 
 
-  it("maps Supabase Auth outages to 503 without opening a Neon connection", async () => {
-    vi.mocked(fetch).mockResolvedValue(new Response("{}", { status: 503 }));
+  it("maps Better Auth outages to 503 without opening a Neon connection", async () => {
+    getSession.mockRejectedValue(new Error("auth unavailable"));
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 503,
@@ -136,8 +147,8 @@ describe("MobFlow Neon API authentication", () => {
     expect(connect).not.toHaveBeenCalled();
   });
 
-  it("rejects a successful Auth response without a valid user UUID", async () => {
-    vi.mocked(fetch).mockResolvedValue(Response.json({ id: "not-a-uuid" }));
+  it("rejects a Better Auth session without a valid user UUID", async () => {
+    getSession.mockResolvedValue({ user: { id: "not-a-uuid" } });
 
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({
       status: 401,
