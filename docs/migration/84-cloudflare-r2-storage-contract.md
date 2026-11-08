@@ -106,8 +106,10 @@ Esses endpoints não devem aceitar `tenant_id`, bucket, chave arbitrária ou URL
 3. [Em andamento] Admin Preview recebeu cliente R2 server-side e endpoint autenticado que gera URL assinada de leitura por 60 segundos, validando o prefixo `tenants/{account_id}/pix-proofs/`.
 4. [Pendente] Validar visualização de comprovantes no Admin Preview com arquivo sintético pequeno; isso gera uma operação de escrita/leitura dentro da franquia gratuita disponível.
 5. [Pendente] Definir metadados/intenção, limites por finalidade, allowlist MIME e retenção antes de criar APIs genéricas de upload/download/delete.
-6. [Pendente] Integrar fotos de produto, logos, documentos e anexos.
-7. [Pendente] Preparar migração de objetos existentes somente após inventário, manifesto, checksum, rollback e autorização expressa.
+6. [Pendente] Fotos de produto: a API de catálogo já usa a coluna `photo_object_key`, mas rejeita explicitamente payloads com `photo`/`photoObjectKey` até existir o fluxo seguro de upload e leitura; não há endpoint genérico R2 pronto.
+7. [Pendente] Logo da empresa: a tela ainda lê imagem como Data URL/base64; o store remove `settings.companyLogo` do estado compartilhado para evitar payloads grandes. Não está integrada ao R2 e precisa de referência por chave + URL curta autorizada.
+8. [Pendente] Documentos/anexos: sem fluxo R2 integrado identificado nesta auditoria.
+9. [Pendente] Preparar migração de objetos existentes somente após inventário, manifesto, checksum, rollback e autorização expressa.
 
 ## 10. Estado do provisionamento Preview
 
