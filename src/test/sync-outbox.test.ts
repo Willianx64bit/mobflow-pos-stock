@@ -76,6 +76,19 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(result.pending).toBe(1);
   });
 
+  it("keeps commands pending when the session needs authentication again", async () => {
+    const command = createSyncCommand({ tenantId: TENANT, domain: "cash", id: ID, idempotencyKey: ID, payload: { action: "open", sessionId: "cash-1" } });
+    const outbox = outboxMock({
+      listPending: vi.fn().mockResolvedValue([command]),
+      pendingCount: vi.fn().mockResolvedValue(1),
+    });
+    const transport = vi.fn().mockResolvedValue(response({ ok: false, code: "unauthorized" }, 401));
+    const result = await flushSyncOutbox(outbox, TENANT, transport);
+    expect(outbox.acknowledge).not.toHaveBeenCalled();
+    expect(outbox.markFailed).not.toHaveBeenCalled();
+    expect(result.pending).toBe(1);
+  });
+
   it("marks permanent business errors for explicit user retry instead of looping forever", async () => {
     const command = createSyncCommand({ tenantId: TENANT, domain: "sales", id: ID, idempotencyKey: ID, payload: { saleId: "sale-1" } });
     const outbox = outboxMock({
