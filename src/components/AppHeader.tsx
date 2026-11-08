@@ -16,6 +16,15 @@ const tabs = [
   { to: "/gerencia", label: "Acesso Gerência", icon: "management" },
 ] as const;
 
+const permissionByPath: Record<(typeof tabs)[number]["to"], string> = {
+  "/": "PDV",
+  "/operacoes": "Operações",
+  "/validade": "Validade",
+  "/fiado": "Fiado",
+  "/historico-vendas": "PDV",
+  "/gerencia": "Gerência",
+};
+
 export function AppHeader() {
   const navigate = useNavigate();
   const [time, setTime] = useState("");
@@ -101,7 +110,7 @@ export function AppHeader() {
   }, []);
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
-    const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" };
+    const required = permissionByPath;
     const operationsOnly = permissions.includes("Operações") && !permissions.some((permission) => permission !== "Operações");
     if (operationsOnly && to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
     if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
@@ -213,7 +222,7 @@ export function AppHeader() {
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).slice(0, 3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
+              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(0, 3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
               {permissions.includes("PDV") && <div className="mt-1">
                 <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
@@ -227,7 +236,7 @@ export function AppHeader() {
                   <button type="button" onClick={() => selectCashAction("historico")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><History className="h-4 w-4 shrink-0 text-green-600" />Histórico</button>
                 </div>}
               </div>}
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).slice(3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
+              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
             </nav>
             <div className="p-2 border-t border-border space-y-1">
               <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>
