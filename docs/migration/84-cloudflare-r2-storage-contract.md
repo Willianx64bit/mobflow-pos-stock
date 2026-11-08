@@ -111,9 +111,9 @@ Esses endpoints não devem aceitar `tenant_id`, bucket, chave arbitrária ou URL
 
 ## 10. Estado do provisionamento Preview
 
-- Token ativo verificado via Cloudflare API, com `Workers R2 Storage Bucket Item Read` e `Workers R2 Storage Bucket Item Write` limitados ao recurso do bucket `mobflow-preview-files`.
+- Dois tokens ativos verificados via Cloudflare API: PDV com `Workers R2 Storage Bucket Item Read` + `Workers R2 Storage Bucket Item Write`; Admin com `Workers R2 Storage Bucket Item Read` somente. Ambos limitados ao recurso do bucket `mobflow-preview-files`.
 - Token S3: Access Key ID deriva do ID do token e Secret Access Key é o SHA-256 do valor do token, conforme documentação oficial Cloudflare.
-- Vercel Preview variables confirmadas nos projetos `mobflow-pos-stock` e `mobflow-will`, exclusivamente para `migration/neon-preparation`.
+- Vercel Preview variables confirmadas nos projetos `mobflow-pos-stock` e `mobflow-will`, exclusivamente para `migration/neon-preparation`; o Admin usa a credencial read-only e o PDV usa a credencial read/write.
 - `last_used_on` do token ainda está nulo na verificação; não houve upload/consulta S3 até este checkpoint.
 - Não foi criado plano adicional nem iniciado upload em massa. O bucket Standard vazio não gera custo de armazenamento enquanto não houver objetos; o uso deve permanecer dentro das franquias gratuitas enquanto não ultrapassar 10 GB-mês, 1 milhão de operações Classe A e 10 milhões Classe B.
 
