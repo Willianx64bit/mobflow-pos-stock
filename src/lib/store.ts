@@ -1,6 +1,4 @@
 import { useSyncExternalStore } from "react";
-import { supabase } from "@/lib/supabase";
-import { isBetterAuthEnabled } from "@/lib/auth-client";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
@@ -311,29 +309,11 @@ type MobFlowApiBody = {
 
 async function callMobFlowApi(path: string, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
-
-  if (import.meta.env.VITE_MOBFLOW_AUTH_PROVIDER === "better-auth") {
-    // Better Auth stores the session in an HttpOnly cookie; never copy it to JS storage.
-    if (init.body !== undefined && !headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/json");
-    }
-    const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
-    const body = await response.json().catch(() => ({})) as MobFlowApiBody;
-    return { response, body };
-  }
-
-  const { data, error } = await supabase.auth.getSession();
-  const accessToken = data.session?.access_token;
-  if (error || !accessToken) throw new Error("Sessão MobFlow indisponível para sincronizar com o Neon.");
-
-  headers.set("Authorization", `Bearer ${accessToken}`);
-  if (init.body !== undefined && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const response = await fetch(path, { ...init, headers });
+  if (init.body !== undefined && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
   const body = await response.json().catch(() => ({})) as MobFlowApiBody;
   return { response, body };
+
 }
 
 function readOutboxBackup(): import("@/lib/sync-outbox").SyncCommand[] {
@@ -389,7 +369,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
 }
 
 async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
-  if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon" || !isBetterAuthEnabled) return fallbackProducts;
+  if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon") return fallbackProducts;
   try {
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
@@ -1151,20 +1131,12 @@ export const actions = {
   async acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || (note.status !== "analisando" && note.status !== "divergente" && note.status !== "conferido") || note.stockReleased || !note.decisionCompleted) return false;
-    let data: unknown;
-    let error: unknown;
-    if (isBetterAuthEnabled) {
-      const result = await callMobFlowApi("/api/mobflow/receiving", {
-        method: "POST",
-        body: JSON.stringify({ action: "accept", receivingId: id }),
-      });
-      data = result.body.data;
-      error = result.response.ok ? null : result.body.error;
-    } else {
-      const result = await supabase.rpc("accept_receiving", { p_receiving_id: id });
-      data = result.data;
-      error = result.error;
-    }
+    const result = await callMobFlowApi("/api/mobflow/receiving", {
+      method: "POST",
+      body: JSON.stringify({ action: "accept", receivingId: id }),
+    });
+    const data = result.body.data;
+    const error = result.response.ok ? null : result.body.error;
     if (error || data !== true) {
       await hydrateStore();
       return false;
@@ -1199,21 +1171,14 @@ export const actions = {
     await persistQueue;
     const rpcResult = await Promise.race([
       (async () => {
-        if (isBetterAuthEnabled) {
-          const result = await callMobFlowApi("/api/mobflow/receiving", {
-            method: "POST",
-            body: JSON.stringify({ action: "finalize_decisions", receivingId: id, decisions }),
-          });
-          return {
-            data: result.body.data,
-            error: result.response.ok ? null : { message: String(result.body.error || "Falha ao finalizar o recebimento.") },
-          };
-        }
-        const result = await supabase.rpc("finalize_receiving_decisions", {
-          p_receiving_id: id,
-          p_decisions: decisions,
+        const result = await callMobFlowApi("/api/mobflow/receiving", {
+          method: "POST",
+          body: JSON.stringify({ action: "finalize_decisions", receivingId: id, decisions }),
         });
-        return { data: result.data, error: result.error };
+        return {
+          data: result.body.data,
+          error: result.response.ok ? null : { message: String(result.body.error || "Falha ao finalizar o recebimento.") },
+        };
       })(),
       new Promise<{ data: null; error: { message: string } }>((resolve) =>
         setTimeout(() => resolve({ data: null, error: { message: "Tempo limite ao atualizar o estoque." } }), 20000)
