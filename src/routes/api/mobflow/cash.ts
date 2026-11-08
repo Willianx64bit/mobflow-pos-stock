@@ -75,10 +75,10 @@ export async function handleMobFlowCash(request: Request) {
     if(action==="movement") {
       const amount=Number(body.amount), type=str(body.movementType,20), reason=str(body.reason,500);
       if(!Number.isFinite(amount)||amount<=0||!["addition","withdrawal"].includes(type)||!reason) fail("Tipo, valor ou motivo da movimentação inválido.");
-      const prior=await client.query("SELECT id,cash_session_id,movement_type,amount::text,reason,occurred_at FROM public.cash_movements WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE",[identity.accountId,body.idempotencyKey]);
+      const prior=await client.query("SELECT id,cash_session_id,movement_type,amount::text,reason,occurred_at,operator_profile_id FROM public.cash_movements WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE",[identity.accountId,body.idempotencyKey]);
       if(prior.rows.length) {
         const p=prior.rows[0];
-        if(p.cash_session_id!==sessionId||p.movement_type!==type||Number(p.amount)!==cents(amount)||p.reason!==reason) fail("Chave de idempotência reutilizada com dados diferentes.",409,"idempotency_conflict");
+        if(p.operator_profile_id!==identity.userId||p.cash_session_id!==sessionId||p.movement_type!==type||Number(p.amount)!==cents(amount)||p.reason!==reason) fail("Chave de idempotência reutilizada com dados diferentes.",409,"idempotency_conflict");
         await releaseTransaction(client,true); tx=null;
         return Response.json({ok:true,replayed:true,movement:{id:p.id,sessionId:p.cash_session_id,type:p.movement_type,amount:Number(p.amount),reason:p.reason,date:p.occurred_at}});
       }
@@ -97,6 +97,7 @@ export async function handleMobFlowCash(request: Request) {
     const session=sessionResult.rows[0];
     if(!session) fail("Caixa não encontrado.",404,"cash_session_not_found");
     if(session.status==="closed") {
+      if(session.operator_profile_id!==identity.userId) fail("Somente o operador responsável pode consultar o fechamento deste caixa.",403,"cash_operator_mismatch");
       if(session.close_idempotency_key!==body.idempotencyKey||Number(session.counted_amount)!==cents(counted)) fail("Caixa já foi fechado com outra operação.",409,"cash_already_closed");
       await releaseTransaction(client,true); tx=null;
       return Response.json({ok:true,replayed:true,closing:{sessionId,status:"closed",countedAmount:Number(session.counted_amount),expectedAmount:Number(session.expected_amount),difference:Number(session.difference_amount),closedAt:session.closed_at}});
@@ -106,7 +107,8 @@ export async function handleMobFlowCash(request: Request) {
     const movements=await client.query("SELECT COALESCE(SUM(amount) FILTER(WHERE movement_type='addition'),0)::text AS additions,COALESCE(SUM(amount) FILTER(WHERE movement_type='withdrawal'),0)::text AS withdrawals FROM public.cash_movements WHERE tenant_id=$1 AND cash_session_id=$2",[identity.accountId,sessionId]);
     const expected=cents(Number(session.opening_amount)+Number(sales.rows[0].total)+Number(movements.rows[0].additions)-Number(movements.rows[0].withdrawals));
     const difference=cents(counted-expected);
-    await client.query("UPDATE public.cash_sessions SET status='closed',closed_at=$3,closed_by_snapshot=$4,counted_amount=$5,expected_amount=$6,difference_amount=$7,closing_note=$8,close_idempotency_key=$9,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='open'",[identity.accountId,sessionId,now,operatorName,cents(counted),expected,difference,str(body.note,500)||null,body.idempotencyKey]);
+    const closed = await client.query("UPDATE public.cash_sessions SET status='closed',closed_at=$3,closed_by_snapshot=$4,counted_amount=$5,expected_amount=$6,difference_amount=$7,closing_note=$8,close_idempotency_key=$9,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='open'",[identity.accountId,sessionId,now,operatorName,cents(counted),expected,difference,str(body.note,500)||null,body.idempotencyKey]);
+    if(closed.rowCount!==1) fail("O caixa mudou durante o fechamento. Tente novamente.",409,"cash_close_conflict");
     await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','manual','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-close:"+sessionId),sessionId,JSON.stringify({sessionId,status:"closed",countedAmount:cents(counted),expectedAmount:expected,difference,operator:operatorName})]);
     await releaseTransaction(client,true); tx=null;
     return Response.json({ok:true,replayed:false,closing:{sessionId,status:"closed",countedAmount:cents(counted),expectedAmount:expected,difference,closedAt:now}},{status:200});
