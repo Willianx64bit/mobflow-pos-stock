@@ -214,7 +214,7 @@ CREATE TABLE IF NOT EXISTS public.receivable_payments (
   sale_id text NOT NULL,
   amount numeric(14,2) NOT NULL CHECK (amount > 0),
   payment_method text NOT NULL CHECK (payment_method IN ('cash', 'pix', 'card')),
-  operator_profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
+  operator_profile_id uuid NOT NULL,
   operator_snapshot text NOT NULL,
   occurred_at timestamptz NOT NULL,
   idempotency_key uuid NOT NULL,
