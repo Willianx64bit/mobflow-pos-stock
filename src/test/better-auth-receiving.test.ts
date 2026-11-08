@@ -148,7 +148,7 @@ describe("Neon receiving stock release", () => {
 
     const response = await handleMobFlowReceiving(request("accept"));
 
-    expect(await response.json()).toEqual({ ok: true, data: true });
+    expect(await response.json()).toEqual({ ok: true, data: false });
     expect(client.query.mock.calls.some((call) =>
       String(call[0]).includes("mobflow_append_sync_event"),
     )).toBe(false);
