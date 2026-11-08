@@ -397,6 +397,88 @@ export const Route = createFileRoute("/api/mobflow/state")({
                 }
               }
 
+              // Redacted operational metadata events. The full records continue to
+              // travel through the authenticated app_state snapshot; the event
+              // ledger intentionally never copies customer contact details,
+              // supplier documents, sale/customer data, or payment secrets.
+              const metadataCollections = [
+                { key: "contacts", category: "master_data", entityType: "business_contact", idOf: (item: Record<string, unknown>) => String(item.id ?? ""), project: (item: Record<string, unknown>) => ({ id: String(item.id ?? ""), type: item.type }) },
+                { key: "cashSessions", category: "master_data", entityType: "cash_session", idOf: (item: Record<string, unknown>) => String(item.id ?? ""), project: (item: Record<string, unknown>) => ({ id: String(item.id ?? ""), status: item.status, openedAt: item.openedAt, closedAt: item.closedAt }) },
+                { key: "cashMovements", category: "master_data", entityType: "cash_movement", idOf: (item: Record<string, unknown>) => String(item.id ?? ""), project: (item: Record<string, unknown>) => ({ id: String(item.id ?? ""), sessionId: item.sessionId, type: item.type, amount: finiteStateNumber(item.amount), date: item.date }) },
+              ] as const;
+              for (const spec of metadataCollections) {
+                const oldItems = Array.isArray(previousState[spec.key]) ? previousState[spec.key] as Array<Record<string, unknown>> : [];
+                const nextItems = Array.isArray(nextState[spec.key]) ? nextState[spec.key] as Array<Record<string, unknown>> : [];
+                const oldMap = new Map(oldItems.map((item) => [spec.idOf(item), item]));
+                const nextMap = new Map(nextItems.map((item) => [spec.idOf(item), item]));
+                for (const item of nextItems) {
+                  const id = spec.idOf(item);
+                  if (!id) continue;
+                  const projection = spec.project(item);
+                  const previous = oldMap.get(id);
+                  if (!previous || JSON.stringify(spec.project(previous)) !== JSON.stringify(projection)) {
+                    await client.query(
+                      `SELECT public.mobflow_append_sync_event(
+                        $1::uuid, $2::uuid, $3, 'manual', $4, $5, $6::jsonb
+                      )`,
+                      [randomUUID(), randomUUID(), spec.category, spec.entityType, id, JSON.stringify({ operation: "upsert", metadata: projection })],
+                    );
+                  }
+                }
+                for (const previous of oldItems) {
+                  const id = spec.idOf(previous);
+                  if (id && !nextMap.has(id)) {
+                    await client.query(
+                      `SELECT public.mobflow_append_sync_event(
+                        $1::uuid, $2::uuid, $3, 'manual', $4, $5, $6::jsonb
+                      )`,
+                      [randomUUID(), randomUUID(), spec.category, spec.entityType, id, JSON.stringify({ operation: "delete" })],
+                    );
+                  }
+                }
+              }
+
+              const oldSuppliers = Array.isArray(previousState.suppliers) ? previousState.suppliers as Array<Record<string, unknown>> : [];
+              const nextSuppliers = Array.isArray(nextState.suppliers) ? nextState.suppliers as Array<Record<string, unknown>> : [];
+              const supplierKey = (item: Record<string, unknown>) => typeof item.name === "string" ? item.name.trim().toLocaleLowerCase() : "";
+              const oldSupplierKeys = new Set(oldSuppliers.map(supplierKey).filter(Boolean));
+              const nextSupplierKeys = new Set(nextSuppliers.map(supplierKey).filter(Boolean));
+              for (const key of nextSupplierKeys) {
+                const previous = oldSuppliers.find((item) => supplierKey(item) === key);
+                const current = nextSuppliers.find((item) => supplierKey(item) === key);
+                if (!previous || JSON.stringify({ name: previous.name }) !== JSON.stringify({ name: current?.name })) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'master_data', 'manual', 'supplier', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), key.slice(0, 160), JSON.stringify({ operation: "upsert", name: current?.name })],
+                  );
+                }
+              }
+              for (const key of oldSupplierKeys) {
+                if (!nextSupplierKeys.has(key)) {
+                  await client.query(
+                    `SELECT public.mobflow_append_sync_event(
+                      $1::uuid, $2::uuid, 'master_data', 'manual', 'supplier', $3, $4::jsonb
+                    )`,
+                    [randomUUID(), randomUUID(), key.slice(0, 160), JSON.stringify({ operation: "delete" })],
+                  );
+                }
+              }
+
+              const oldSettings = previousState.settings && typeof previousState.settings === "object" ? previousState.settings as Record<string, unknown> : {};
+              const nextSettings = nextState.settings && typeof nextState.settings === "object" ? nextState.settings as Record<string, unknown> : {};
+              const safeSettingsKeys = ["companyName", "companyCnpj", "companyPhone", "companyStreet", "companyNumber", "companyCep", "companyComplement", "companyNeighborhood", "companyCity", "companyState"];
+              const changedSettingsKeys = safeSettingsKeys.filter((key) => oldSettings[key] !== nextSettings[key]);
+              if (changedSettingsKeys.length) {
+                await client.query(
+                  `SELECT public.mobflow_append_sync_event(
+                    $1::uuid, $2::uuid, 'settings', 'manual', 'company_settings', 'company', $3::jsonb
+                  )`,
+                  [randomUUID(), randomUUID(), JSON.stringify({ operation: "changed", keys: changedSettingsKeys })],
+                );
+              }
+
               for (const product of nextProducts) {
                 const id = String(product.id ?? "");
                 const previous = oldById.get(id);
