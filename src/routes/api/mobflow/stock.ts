@@ -34,6 +34,7 @@ export async function handleMobFlowStock(request:Request){
    aggregated.set(productId,{quantity:qty3((old?.quantity??0)+quantity),mode});
   }
   const ids=[...aggregated.keys()].sort();
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[identity.accountId+":stock-operation:"+operationId]);
   const prior=await client.query("SELECT operation_id,operation_type,product_id,quantity::text,delta::text,stock_before::text,details,idempotency_key FROM public.stock_movements WHERE tenant_id=$1 AND operation_id=$2 ORDER BY product_id FOR UPDATE",[identity.accountId,operationId]);
   if(prior.rows.length){
    const same=prior.rows.length===ids.length&&prior.rows.every((r:any)=>{const wanted=aggregated.get(r.product_id);return r.operation_type===operationType&&!!wanted&&Math.abs(Number(r.quantity)-wanted.quantity)<0.0005&&r.details===reason&&Math.abs(Number(r.delta)-(operationType==="adjustment"&&wanted.mode==="set"?wanted.quantity-Number(r.stock_before):operationType==="entry"||operationType==="adjustment"?wanted.quantity:-wanted.quantity))<0.0005&&r.idempotency_key===stableUuid(identity.accountId+":stock:"+body.idempotencyKey+":"+r.product_id);});
