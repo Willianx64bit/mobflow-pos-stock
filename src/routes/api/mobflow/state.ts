@@ -29,7 +29,20 @@ export const Route = createFileRoute("/api/mobflow/state")({
         let transaction: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
         try {
           transaction = await beginAuthenticatedTransaction(request);
-          const remote = await readRemoteState(transaction.client, transaction.identity.accountId);
+          // Read the snapshot and its event high-water mark in one SQL statement.
+          // This gives the client a cursor consistent with the bootstrap snapshot.
+          const remoteResult = await transaction.client.query<{
+            state: Record<string, unknown> | null;
+            updated_at: string | null;
+            sync_cursor: string;
+          }>(
+            `SELECT s.state, s.updated_at, COALESCE(c.last_sequence::text, '0') AS sync_cursor
+             FROM (SELECT $1::uuid AS owner_id) AS scope
+             LEFT JOIN public.app_state AS s ON s.owner_id = scope.owner_id
+             LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
+            [transaction.identity.accountId],
+          );
+          const remote = remoteResult.rows[0];
           await releaseTransaction(transaction.client, true);
           transaction = null;
 
@@ -37,6 +50,7 @@ export const Route = createFileRoute("/api/mobflow/state")({
             ok: true,
             state: remote?.state ?? null,
             updatedAt: remote?.updated_at ?? null,
+            syncCursor: remote?.sync_cursor ?? "0",
           });
         } catch (error) {
           if (transaction) {
