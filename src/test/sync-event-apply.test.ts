@@ -45,6 +45,22 @@ describe("MobFlow incremental event projection", () => {
     expect(next.cashMovements[0]).toMatchObject({ id: "movement-1", type: "reforco", amount: 20 });
   });
 
+  it("applies promotion upserts and deletes idempotently", () => {
+    const promotionEvent = event({
+      category: "promotions", entity_type: "promotion", entity_id: "promo-1",
+      payload: { operation: "upsert", promotion: { id: "promo-1", productId: "p1", productName: "Arroz", originalPrice: 10, promoPrice: 8, startsAt: "2026-11-08", endsAt: "2026-11-10" } },
+    });
+    const once = applySyncEventsToState(state, [promotionEvent]);
+    const twice = applySyncEventsToState(once, [promotionEvent]);
+    expect(twice.promotions).toHaveLength(1);
+    expect(twice.promotions[0]).toMatchObject({ id: "promo-1", promoPrice: 8 });
+    const deleted = applySyncEventsToState(twice, event({
+      category: "promotions", entity_type: "promotion", entity_id: "promo-1",
+      payload: { operation: "delete" },
+    }));
+    expect(deleted.promotions).toHaveLength(0);
+  });
+
   it("does not silently advance over event categories without an application contract", () => {
     const unsupported = event({ category: "conference", entity_type: "conference", entity_id: "conf-1", payload: { operation: "upsert" } });
     expect(() => applySyncEventsToState(state, [unsupported])).toThrow(UnsupportedSyncEventError);
