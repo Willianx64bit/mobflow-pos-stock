@@ -40,7 +40,7 @@ export function AppHeader() {
     setSyncMessage("");
     try {
       const result = await syncNow();
-      setSyncMessage(result.pending > 0 ? `${result.pending} operação(ões) aguardando envio` : "Sincronização concluída");
+      setSyncMessage(result.failed > 0 ? `${result.failed} operação(ões) com erro` : result.pending > 0 ? `${result.pending} operação(ões) aguardando envio` : "Sincronização concluída");
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Falha ao sincronizar");
     } finally {
