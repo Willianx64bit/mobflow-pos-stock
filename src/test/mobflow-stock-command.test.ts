@@ -30,11 +30,11 @@ describe("Neon stock commands",()=>{
  it("replays the same operation without applying stock twice",async()=>{
   client.query.mockImplementation(async(sql:string)=>{
    if(sql.includes("to_regclass"))return{rows:[{products:"products",ledger:"stock_movements",events:"mobflow_sync_events",append_fn:"fn"}]};
-   if(sql.includes("FROM public.stock_movements WHERE tenant_id=$1 AND operation_id"))return{rows:[{operation_id:"op-entry",operation_type:"entry",product_id:"p1",quantity:"5",delta:"5",idempotency_key:"c8e1a6a0-4b1e-5b1f-9a4f-2c8d52f8d92c"}]};
+   if(sql.includes("FROM public.stock_movements WHERE tenant_id=$1 AND operation_id"))return{rows:[{operation_id:"op-entry",operation_type:"entry",product_id:"p1",quantity:"5",delta:"5",idempotency_key:"bdb989b2-0f0a-5b37-8149-00911f6eb6f4"}]};
    return{rows:[]};
   });
   const res=await handleMobFlowStock(req({operationId:"op-entry",idempotencyKey:KEY,operationType:"entry",reason:"Compra",items:[{productId:"p1",quantity:5}]}));
-  expect(res.status).toBe(409); // stable per-tenant key must match the original command key
+  expect(res.status).toBe(200);expect((await res.json()).replayed).toBe(true);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
  });
 });
