@@ -66,8 +66,8 @@ Nenhuma dessas flags foi configurada por esta etapa. O padrão permanece desliga
 
 ## Validação e limites
 
-- Os testes novos de outbox/event projection e os testes de API de vendas/caixa/estoque/snapshot foram adicionados ao workflow de migração.
-- A execução do GitHub Actions para o commit desta etapa está em andamento; não declarar build/testes aprovados até conclusão.
-- O Vercel Preview continua sujeito ao bloqueio de build-rate-limit; nenhum deploy foi considerado atualizado.
+- GitHub Actions run `42514160387`: testes de API, outbox, aplicação de eventos e bootstrap **aprovados**; build de produção **aprovado**.
+- O passo `tsc --noEmit` continua não bloqueante e aponta 538 erros de tipagem distribuídos no legado. Os novos módulos `sync-outbox.ts` e `sync-event-apply.ts`, e as novas linhas de integração no `store.ts`, não aparecem na lista de erros dessa execução. Há erros antigos ainda em `AppHeader.tsx` e em outros módulos.
+- O Vercel Preview continua sujeito ao bloqueio de `build-rate-limit`; nenhum deploy foi considerado atualizado.
 - Nenhuma flag foi ativada, nenhuma migração de banco foi aplicada nesta etapa e nenhum dado de produção foi alterado.
 - MobFlow Admin, main/produção e ColetaFlow permanecem intocados.
