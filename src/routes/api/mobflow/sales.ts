@@ -56,9 +56,10 @@ export async function handleMobFlowSale(request: Request) {
     if (!["cash", "pix", "card", "fiado"].includes(String(paymentMethod))) fail("Forma de pagamento inválida.");
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 200) fail("Itens da venda inválidos.");
     const discountAmountInput = body.discountAmount === undefined ? 0 : Number(body.discountAmount);
-    if (!Number.isFinite(discountAmountInput) || discountAmountInput < 0 || !["fixed", "percentage", undefined].includes(body.discountType as any)) fail("Desconto inválido.");
+    if (!Number.isFinite(discountAmountInput) || discountAmountInput < 0 || !["fixed", "percentage", undefined].includes(body.discountType as any) || (body.discountType === "percentage" && discountAmountInput > 100)) fail("Desconto inválido.");
     const customerName = text(body.customerName, 160) || null;
     const customerDocument = text(body.customerDocument, 32) || null;
+    if (paymentMethod === "fiado") fail("Venda Fiado depende do cadastro relacional do cliente e do comando de recebimento. Este fluxo ainda não está habilitado no Neon.", 409, "fiado_command_not_ready");
 
     tx = await beginAuthenticatedTransaction(request);
     const { client, identity } = tx;
