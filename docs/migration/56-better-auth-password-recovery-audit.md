@@ -4,9 +4,9 @@ Date: 2026-11-08
 Branch: `migration/neon-preparation`
 Scope: read-only source audit. No application code, database, credentials, deployment, or production settings changed.
 
-## Finding — manager password recovery does not update the login credential
+## Clarification — manager security-password recovery is intentional
 
-Severity: **high; Preview acceptance blocker**.
+Severity: **not a defect in the intended design**. This feature is specifically for the separate Gerência security password, not the primary account login password.
 
 Files reviewed:
 - `src/routes/api/mobflow/login.ts`
@@ -15,23 +15,27 @@ Files reviewed:
 - `src/routes/api/mobflow/users.ts`
 
 Observed behavior:
-1. The Better Auth login route verifies the supplied password against `public."account".password` using `bcrypt.compare`.
-2. The manager recovery reset route consumes the one-time recovery token and updates only `public.manager_security_by_account.password_hash`, using SHA-256.
-3. The login route does not read `manager_security_by_account.password_hash`; it reads the Better Auth credential hash in `public."account"`.
-4. The manager re-authentication route reads `manager_security_by_account.password_hash` and compares SHA-256. This is a separate secondary security password, not the credential used by the login route.
+1. The Better Auth login route verifies the primary login password against `public."account".password` using `bcrypt.compare`.
+2. The manager recovery route consumes a one-time recovery token and updates `public.manager_security_by_account.password_hash` using SHA-256.
+3. The manager re-authentication route reads that same `manager_security_by_account.password_hash` and compares SHA-256.
+4. This is a separate Gerência security password used to revalidate sensitive management actions; it is not the primary login credential.
 
-Impact:
-- The recovery endpoint can report that the manager password was changed, while the account's actual login password remains unchanged.
-- The new password may work for manager re-authentication, but not for signing in; the previous login password may continue to work.
-- This is a functional/security lifecycle mismatch and must be fixed and tested before Better Auth Preview can be accepted or Supabase Auth can be detached.
+Intended behavior to preserve:
+- Keep recovery restricted to Gerência, using the registered company email and CNPJ validation already present.
+- Do not add password recovery for ordinary PDV users.
+- Do not change the primary login password when recovering the separate Gerência security password.
+- Keep the security password separate from the user's primary sign-in password.
 
-Required safe correction (not implemented):
-- Decide and document whether manager recovery resets the primary Better Auth credential, the separate manager re-authentication secret, or both.
-- For a primary login-password reset, update the credential row in `public."account"` with a bcrypt hash in the same database transaction that consumes the one-time token; verify exactly one credential row was updated.
-- If the separate manager security password is intended to remain distinct, do not silently treat it as the login password in the UI/message. If both are intentionally reset, update both atomically and clearly describe that behavior.
-- Revoke existing sessions after a successful credential reset (the code already uses session deletion in the manager-setup and user-reset flows; recovery should have an explicit equivalent).
-- Add automated tests for valid token, expired token, reused token, missing credential row, rollback on failure, old password rejected, new password accepted by the actual login credential check, and session invalidation.
-- Keep generic response/rate limiting and one-time token semantics.
+Small UX clarification:
+- The current success message says the user can now "entrar com a nova senha". That wording may imply the primary login password changed. Before changing any behavior, clarify the message to say the Gerência security password was changed and can be used when the system asks to revalidate a sensitive action.
+
+Tests to preserve the intended design:
+- Recovery is only available to Gerência and validates the company email/CNPJ.
+- Valid token, expired token, reused token, rate limit, generic response for non-matching account, and rollback on failure.
+- New security password succeeds in manager re-authentication; primary login credential remains unchanged.
+- Ordinary PDV users have no recovery route/UI.
+
+Keep generic response/rate limiting and one-time token semantics.
 
 ## Other reviewed observations
 
@@ -42,7 +46,7 @@ Required safe correction (not implemented):
 
 ## Status / boundaries
 
-- This is a source-level finding only; no passwords or user rows were read or changed.
+- This is a source-level clarification only; no passwords or user rows were read or changed.
 - Do not run the auth import `--apply`.
 - Do not change the production provider flags, Supabase Auth, Neon production, or Vercel Production.
 - Fix and test this in the isolated Preview branch/database before approving the auth migration.
