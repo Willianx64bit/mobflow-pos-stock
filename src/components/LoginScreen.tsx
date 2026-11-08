@@ -61,7 +61,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   useEffect(() => {
     if (mode !== "empresa" || !showSignup || signupResult) return;
     let cancelled = false;
-    fetch("/api/mobflow/billing-settings", { method: "GET", credentials: "same-origin" })
+    fetch("/api/mobflow/signup", { method: "GET", credentials: "same-origin" })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Configuração indisponível")))
       .then((settings) => {
         const price = Number(settings?.monthly_price);
