@@ -312,7 +312,7 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
                 }
               }
 
-              // Promotions are manual catalog operations. Keep the event projection
+              // Promotions are small, high-priority projections delivered in realtime. Keep the event projection
               // small and exclude unrelated state, customer data and payment settings.
               const oldPromotions = Array.isArray(previousState.promotions)
                 ? previousState.promotions as Array<Record<string, unknown>>
