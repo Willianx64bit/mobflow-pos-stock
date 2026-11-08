@@ -54,10 +54,10 @@ describe("MobFlow incremental event projection", () => {
     const twice = applySyncEventsToState(once, [promotionEvent]);
     expect(twice.promotions).toHaveLength(1);
     expect(twice.promotions[0]).toMatchObject({ id: "promo-1", promoPrice: 8 });
-    const deleted = applySyncEventsToState(twice, event({
+    const deleted = applySyncEventsToState(twice, [event({
       category: "promotions", entity_type: "promotion", entity_id: "promo-1",
       payload: { operation: "delete" },
-    }));
+    })]);
     expect(deleted.promotions).toHaveLength(0);
   });
 
