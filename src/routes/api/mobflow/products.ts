@@ -47,9 +47,9 @@ const mapProduct=(r:ProductRow)=>({
   version:Number(r.version),createdAt:r.created_at,updatedAt:r.updated_at,barcodes:r.barcodes??[],
 });
 const columns="id,code,name,reference,unit,price::text,cost::text,stock::text,min_stock::text,category,photo_object_key,active,version::text,created_at,updated_at";
-async function ready(client:any){
+async function ready(client:any,requireEvents=false){
  const r=await client.query("SELECT to_regclass('public.products')::text AS p,to_regclass('public.product_barcodes')::text AS b,to_regclass('public.mobflow_sync_events')::text AS e,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS fn");
- if(!r.rows[0]?.p||!r.rows[0]?.b||!r.rows[0]?.e||!r.rows[0]?.fn)throw new ProductApiError("O catálogo e os eventos incrementais ainda não foram preparados neste ambiente.",503,"catalog_schema_not_ready");
+ if(!r.rows[0]?.p||!r.rows[0]?.b||(requireEvents&&(!r.rows[0]?.e||!r.rows[0]?.fn)))throw new ProductApiError("O catálogo relacional ainda não foi preparado neste ambiente.",503,"catalog_schema_not_ready");
 }
 function stableUuid(value:string){
  const b=createHash("sha256").update(value).digest().subarray(0,16);
@@ -99,7 +99,7 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   if(!body||typeof body!=="object"||Array.isArray(body))fail("Corpo inválido.");
   tx=await beginAuthenticatedTransaction(request);const c=tx.client,i=tx.identity;
   if(!canWrite(i))fail("Somente a Gerência pode cadastrar ou alterar produtos.",403,"permission_denied");
-  await ready(c);
+  await ready(c,true);
   if(method==="POST"){
    const id=field(body.id,"id",true,80)!,code=field(body.code,"código",true,80)!,name=field(body.name,"nome",true,160)!;
    const ref=field(body.ref,"referência",false,80),category=field(body.category,"categoria",false,100);
