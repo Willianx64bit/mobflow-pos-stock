@@ -10,11 +10,12 @@ Scope: read-only source review and migration documentation. No runtime source co
 
 - `src/components/LoginScreen.tsx` still contains both branches:
   - Better Auth: calls `POST /api/mobflow/login`, then `mobflowAuthClient.signIn.email`.
-  - Legacy: uses `supabase.auth.signOut({ scope: "local" })` and invokes Supabase Edge Function `mobflow-login`.
+  - Legacy: uses `supabase.auth.signOut({ scope: "local" })`, invokes Supabase Edge Function `mobflow-login`, and later restores the Supabase session with `supabase.auth.setSession`.
 - In legacy PDV mode, the login component also calls `supabase.auth.getSession()` and reads `public.profiles` to resolve the current company's CNPJ/role.
 - `src/lib/server/mobflow-auth.ts` validates HttpOnly Better Auth sessions when `MOBFLOW_AUTH_PROVIDER=better-auth`; legacy mode validates Supabase bearer tokens against `/auth/v1/user`.
 - `src/routes/api/auth/$` delegates Better Auth endpoints to the Better Auth server.
 - `src/routes/api/mobflow/manager-password-recovery.ts`, `reauth-manager.ts`, and `users.ts` explicitly return 503 unless the server auth provider is Better Auth. Their Better Auth implementations use Neon.
+- The signup UI in `src/components/LoginScreen.tsx` also branches: Better Auth mode calls `POST /api/mobflow/signup`; legacy mode invokes Supabase Edge Function `mobflow-signup`.
 - `src/lib/auth-client.ts` keeps the browser-side mode controlled by `VITE_MOBFLOW_AUTH_PROVIDER`; it does not automatically follow the server-side `MOBFLOW_AUTH_PROVIDER`. Both Preview variables must remain aligned.
 
 ### 2. Receiving operations
