@@ -104,8 +104,8 @@ const listeners = new Set<() => void>();
 const syncOutbox = new SyncOutbox();
 // Keep the command cutover fail-closed until the Neon snapshot bootstrap has relational projections.
 const incrementalSyncEnabled = () =>
-  import.meta.env.VITE_MOBFLOW_INCREMENTAL_SYNC === "true" &&
-  import.meta.env.VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY === "true";
+  import.meta.env["VITE_MOBFLOW_INCREMENTAL_SYNC"] === "true" &&
+  import.meta.env["VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY"] === "true";
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 
@@ -295,6 +295,7 @@ type MobFlowApiBody = {
   accountId?: string;
   state?: unknown;
   updatedAt?: string | null;
+  syncCursor?: string;
   status?: string;
   remoteState?: unknown;
   remoteUpdatedAt?: string | null;
