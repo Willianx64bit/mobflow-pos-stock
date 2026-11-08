@@ -99,7 +99,21 @@ describe("Neon atomic sale command", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
-  it("rejects a reused idempotency key for another sale id", async () => {
+
+  it("blocks Fiado until customer and receivable commands are relational", async () => {
+    const response = await handleMobFlowSale(request({ ...payload(), paymentMethod: "fiado", receivedAmount: 0 }));
+    expect(response.status).toBe(409);
+    expect((await response.json()).code).toBe("fiado_command_not_ready");
+    expect(client.query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO public.sales"))).toBe(false);
+    expect(releaseTransaction).toHaveBeenCalledWith(client, false);
+  });
+
+  it("rejects percentage discounts above 100 before any database write", async () => {
+    const response = await handleMobFlowSale(request({ ...payload(), discountType: "percentage", discountAmount: 101 }));
+    expect(response.status).toBe(400);
+    expect(client.query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO public.sales"))).toBe(false);
+  });
+\n  it("rejects a reused idempotency key for another sale id", async () => {
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("to_regclass")) return { rows: [{ sales: "sales", items: "sale_items", payments: "sale_payments", stock: "stock_movements", events: "mobflow_sync_events", append_fn: "mobflow_append_sync_event" }] };
       if (sql.includes("FROM public.sales WHERE")) return { rows: [{ id: "different-sale", total: "20", payment_method: "cash", payment_status: "paid", cash_session_id: "cash-1" }] };
