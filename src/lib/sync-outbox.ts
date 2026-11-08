@@ -108,7 +108,12 @@ export class SyncOutbox {
   }
 
   async enqueue(command: SyncCommand): Promise<SyncCommand> {
-    if (!UUID_RE.test(command.id) || !UUID_RE.test(command.idempotencyKey)) throw new Error("Comando incremental inválido.");
+    const expectedEndpoint = command.domain === "sales" ? "/api/mobflow/sales" : command.domain === "cash" ? "/api/mobflow/cash" : command.domain === "stock" ? "/api/mobflow/stock" : null;
+    if (!UUID_RE.test(command.id) || !UUID_RE.test(command.idempotencyKey) ||
+      !command.tenantId.trim() || command.endpoint !== expectedEndpoint ||
+      command.payload?.idempotencyKey !== command.idempotencyKey) {
+      throw new Error("Comando incremental inválido.");
+    }
     const db = await this.db();
     const transaction = db.transaction(COMMANDS, "readwrite");
     const store = transaction.objectStore(COMMANDS);
