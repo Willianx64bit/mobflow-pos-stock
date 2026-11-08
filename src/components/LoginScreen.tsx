@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { isBetterAuthEnabled, mobflowAuthClient } from "@/lib/auth-client";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { useStore } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
 
@@ -28,8 +27,7 @@ export async function logout() {
   sessionStorage.removeItem("mobflow-username");
   sessionStorage.removeItem("mobflow-management");
   sessionStorage.removeItem("mobflow-pdv-authorized");
-  if (isBetterAuthEnabled) await mobflowAuthClient.signOut().catch(() => undefined);
-  else await supabase.auth.signOut();
+  await mobflowAuthClient.signOut().catch(() => undefined);
 }
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
@@ -81,8 +79,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }, [mode]);
 
   const logoutAccount = async () => {
-    if (isBetterAuthEnabled) await mobflowAuthClient.signOut().catch(() => undefined);
-    else await supabase.auth.signOut();
+    await mobflowAuthClient.signOut().catch(() => undefined);
     localStorage.removeItem(AUTH_KEY);
     sessionStorage.removeItem("mobflow-role");
     sessionStorage.removeItem("mobflow-username");
@@ -108,28 +105,13 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       let loginCnpj = cnpj.replace(/\D/g, "");
       if (mode === "pdv") {
         loginCnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
-        if (!isBetterAuthEnabled) {
-          const { data: sessionData } = await supabase.auth.getSession();
-          const currentUser = sessionData.session?.user;
-          if (currentUser) {
-            const { data: currentProfile, error: profileError } = await supabase
-              .from("profiles")
-              .select("cnpj, role")
-              .eq("id", currentUser.id)
-              .maybeSingle();
-            if (!profileError && currentProfile?.cnpj && ["manager", "pdv"].includes(currentProfile.role)) {
-              loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
-              localStorage.setItem("mobflow-company-cnpj", loginCnpj);
-            }
-          }
-        }
         if (loginCnpj.length !== 14) {
           setError("Não foi possível identificar a empresa. Entre novamente na gerência.");
           return;
         }
       }
 
-      if (isBetterAuthEnabled) {
+      {
         await mobflowAuthClient.signOut().catch(() => undefined);
         sessionStorage.removeItem("mobflow-management");
         sessionStorage.removeItem("mobflow-pdv-authorized");
@@ -180,86 +162,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         return;
       }
 
-      // Limpa apenas a sessão local antes de autenticar. O signOut remoto pode
-      // ficar preso quando o serviço Auth está instável, impedindo o login de começar.
-      await withTimeout(supabase.auth.signOut({ scope: "local" }), 5000);
-      sessionStorage.removeItem("mobflow-management");
-      sessionStorage.removeItem("mobflow-pdv-authorized");
-      sessionStorage.removeItem("mobflow-role");
-      sessionStorage.removeItem("mobflow-username");
 
-      const { data, error } = await withTimeout(
-        supabase.functions.invoke("mobflow-login", {
-          body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
-        }),
-        20000,
-      );
-
-      if (error || !data?.session) {
-        // A 402 is returned by the Supabase platform gateway before the Edge
-        // Function runs. Do not misreport this infrastructure restriction as
-        // an invalid username or password.
-        const invokeStatus = typeof error?.context?.status === "number" ? error.context.status : undefined;
-        if (invokeStatus === 402) {
-          setError("O serviço de autenticação está bloqueado temporariamente pelo Supabase (HTTP 402). Suas credenciais ainda não foram verificadas. Verifique os limites e a situação de cobrança do projeto.");
-          return;
-        }
-        if (invokeStatus === 503 || invokeStatus === 502) {
-          setError("O serviço de autenticação está temporariamente indisponível. Tente novamente em instantes.");
-          return;
-        }
-        let serverMessage = String(data?.error || "");
-        if (error && !serverMessage && error.context && typeof error.context.clone === "function") {
-          try { const detail = await error.context.clone().json(); serverMessage = String(detail?.error || ""); } catch { /* mantém mensagem genérica */ }
-        }
-        if (mode === "empresa") {
-          const saved = savedPendingPayment;
-          const enteredUsername = username.trim().toUpperCase();
-          const enteredCnpj = cnpj.replace(/\D/g, "");
-          if (saved && saved.username === enteredUsername && saved.cnpj === enteredCnpj && saved.amount && saved.pixCopyPaste && saved.pixQrCode) {
-            setPendingPayment(saved);
-            setError("");
-            return;
-          }
-          if (/aguarda confirmação e ativação|assinatura ainda aguarda confirmação|pagamento pendente/i.test(serverMessage)) {
-            setError("Pagamento pendente. Se você fez o cadastro neste dispositivo, informe o mesmo usuário e CNPJ para abrir o Pix.");
-            return;
-          }
-        }
-        // Nunca revelar se o usuário existe ou se pertence a outra empresa.
-        setError("Usuário ou senha inválido.");
-        return;
-      }
-
-      if (mode === "pdv" && data.profile?.role !== "pdv") {
-        setError("Usuário ou senha inválido.");
-        return;
-      }
-
-      const { error: sessionError } = await withTimeout(
-        supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        }),
-        15000,
-      );
-
-      if (sessionError) {
-        setError("Não foi possível iniciar a sessão.");
-        return;
-      }
-
-      localStorage.setItem(AUTH_KEY, "1");
-      if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
-      if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
-      sessionStorage.setItem("mobflow-role", data.profile?.role || (mode === "pdv" ? "pdv" : "manager"));
-      sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
-      const savedPermissions = data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
-      const normalizedPermissions = Array.from(new Set(savedPermissions.map((p: string) => p === "Conferência" ? "Operações" : p)));
-      sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
-      const firstManagerLogin = mode === "empresa" && data.firstManagerLogin === true;
-      if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
-      onLogin({ firstManagerLogin });
     } catch (err) {
       setError(err instanceof Error && err.message === "LOGIN_TIMEOUT"
         ? "O servidor está demorando para responder. Tente novamente em instantes."
@@ -282,22 +185,14 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         email: signupForm.email.trim().toLowerCase(),
         phone: signupForm.phone,
       };
-      let data: any;
-      let error: any;
-      if (isBetterAuthEnabled) {
-        const response = await withTimeout(fetch("/api/mobflow/signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify(signupBody),
-        }), 20000);
-        data = await response.json().catch(() => ({}));
-        if (!response.ok) error = { message: data?.error };
-      } else {
-        const result = await supabase.functions.invoke("mobflow-signup", { body: signupBody });
-        data = result.data;
-        error = result.error;
-      }
+      const response = await withTimeout(fetch("/api/mobflow/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(signupBody),
+      }), 20000);
+      const data = await response.json().catch(() => ({}));
+      const error = response.ok ? null : { message: data?.error };
       if (error || !data?.ok) {
         let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";
         if (error && !data?.error && error.context && typeof error.context.json === "function") {
