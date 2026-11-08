@@ -38,14 +38,14 @@ export const Route = createFileRoute("/api/mobflow/state")({
           }>(
             `WITH scope AS (SELECT $1::uuid AS owner_id),
 readiness AS (
-  SELECT (
+  SELECT ($2::boolean AND (
     EXISTS (SELECT 1 FROM public.mobflow_legacy_backfill_runs r WHERE r.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.products p WHERE p.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.sales x WHERE x.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.cash_sessions x WHERE x.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.stock_movements x WHERE x.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.promotions x WHERE x.tenant_id = scope.owner_id)
-  ) AS relational_ready
+  )) AS relational_ready
   FROM scope
 )
 SELECT
@@ -145,7 +145,7 @@ FROM scope
 CROSS JOIN readiness
 LEFT JOIN public.app_state AS s ON s.owner_id = scope.owner_id
 LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
-            [transaction.identity.accountId],
+            [transaction.identity.accountId, process.env.MOBFLOW_RELATIONAL_BOOTSTRAP_ENABLED === "true"],
           );
           const remote = remoteResult.rows[0];
           await releaseTransaction(transaction.client, true);
