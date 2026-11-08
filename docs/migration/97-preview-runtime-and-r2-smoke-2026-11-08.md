@@ -106,3 +106,13 @@ Esses caminhos não devem ser removidos antes de provar a equivalência Better A
 6. Completar rollback/replay e os testes autenticados antes de habilitar flags ou cutover.
 
 Nenhuma alteração em `main`, Production, ColetaFlow ou Supabase de produção. Nenhum dado de origem foi removido ou movido.
+
+
+## 9. Schema operacional ainda não aplicado ao database unificado
+
+Foram revisados os arquivos:
+- `0006_operational_relational_foundation_DRAFT.sql`: define produtos (incluindo `photo_object_key`), códigos de barras, vendas, pagamentos, caixa e ledger de estoque.
+- `0007_incremental_sales_cash_event_compatibility_DRAFT.sql`: substitui constraints de categorias/payload dos eventos.
+- `0008_app_state_relational_backfill_DRAFT.sql`: cria promoções/controle de backfill e importa snapshots para as tabelas relacionais sem apagar `app_state`.
+
+Esses arquivos continuam DRAFT. Eles contêm substituição de policies/constraints e o próprio cabeçalho exige revisão/aprovação antes da aplicação. Não foram aplicados ao database `mobflow_auth_import_rehearsal` nesta execução. Isso explica por que a tabela `products` e as tabelas operacionais ainda não aparecem nesse database. Aplicá-los exige uma etapa explícita de revisão do SQL e confirmação antes de qualquer DDL que remova/substitua objetos.
