@@ -100,8 +100,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
 
     try {
-      // Reutiliza o CNPJ da empresa atual sem pedir que o operador o digite.
-      // O login da gerência o salva; se existir sessão ativa, confirmamos pelo perfil.
+      // Reutiliza o CNPJ da empresa atual no acesso do operador.
       let loginCnpj = cnpj.replace(/\D/g, "");
       if (mode === "pdv") {
         loginCnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
@@ -111,8 +110,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
       }
 
-      {
-        await mobflowAuthClient.signOut().catch(() => undefined);
+      await mobflowAuthClient.signOut().catch(() => undefined);
         sessionStorage.removeItem("mobflow-management");
         sessionStorage.removeItem("mobflow-pdv-authorized");
         sessionStorage.removeItem("mobflow-role");
@@ -160,9 +158,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
         onLogin({ firstManagerLogin });
         return;
-      }
-
-
     } catch (err) {
       setError(err instanceof Error && err.message === "LOGIN_TIMEOUT"
         ? "O servidor está demorando para responder. Tente novamente em instantes."
