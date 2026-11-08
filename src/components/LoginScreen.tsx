@@ -111,12 +111,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       }
 
       await mobflowAuthClient.signOut().catch(() => undefined);
-        sessionStorage.removeItem("mobflow-management");
-        sessionStorage.removeItem("mobflow-pdv-authorized");
-        sessionStorage.removeItem("mobflow-role");
-        sessionStorage.removeItem("mobflow-username");
+      sessionStorage.removeItem("mobflow-management");
+      sessionStorage.removeItem("mobflow-pdv-authorized");
+      sessionStorage.removeItem("mobflow-role");
+      sessionStorage.removeItem("mobflow-username");
 
-        const validationResponse = await withTimeout(fetch("/api/mobflow/login", {
+      const validationResponse = await withTimeout(fetch("/api/mobflow/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
@@ -187,13 +187,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         body: JSON.stringify(signupBody),
       }), 20000);
       const data = await response.json().catch(() => ({}));
-      const error = response.ok ? null : { message: data?.error };
-      if (error || !data?.ok) {
-        let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";
-        if (error && !data?.error && error.context && typeof error.context.json === "function") {
-          try { const detail = await error.context.json(); if (detail?.error) message = detail.error; } catch { /* mantém a mensagem padrão */ }
-        }
-        throw new Error(message);
+      if (!response.ok || !data?.ok) {
+        throw new Error(String(data?.error || "Não foi possível concluir o cadastro."));
       }
       setSignupResult({
         amount: Number(data.amount),
