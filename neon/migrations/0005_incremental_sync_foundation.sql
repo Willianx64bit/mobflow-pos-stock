@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS public.mobflow_sync_events (
   entity_type text NOT NULL CHECK (length(entity_type) BETWEEN 1 AND 80),
   entity_id text NOT NULL CHECK (length(entity_id) BETWEEN 1 AND 160),
   payload jsonb NOT NULL DEFAULT '{}'::jsonb
-    CHECK (jsonb_typeof(payload) = 'object' AND octet_length(payload::text) <= 16384),
+    CHECK (jsonb_typeof(payload) = 'object' AND octet_length(payload::text) <= 131072),
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT mobflow_sync_events_tenant_sequence_key UNIQUE (tenant_id, sequence),
   CONSTRAINT mobflow_sync_events_tenant_idempotency_key UNIQUE (tenant_id, idempotency_key),
