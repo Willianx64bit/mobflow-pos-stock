@@ -50,6 +50,7 @@ describe("Neon cash commands",()=>{
    if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE"))return{rows:[{id:SESSION,status:"open",operator_profile_id:USER,opening_amount:"100"}]};
    if(sql.includes("FROM public.sales"))return{rows:[{total:"50"}]};
    if(sql.includes("FROM public.cash_movements"))return{rows:[{additions:"10",withdrawals:"5"}]};
+   if(sql.includes("UPDATE public.cash_sessions"))return{rowCount:1,rows:[]};
    return{rows:[]};
   });
   const res=await handleMobFlowCash(req({action:"close",sessionId:SESSION,idempotencyKey:KEY,countedAmount:155}));
