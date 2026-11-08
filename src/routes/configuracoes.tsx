@@ -74,7 +74,11 @@ function Configuracoes() {
   const [companyNeighborhood, setCompanyNeighborhood] = useState(settings.companyNeighborhood ?? "");
   const [companyCity, setCompanyCity] = useState(settings.companyCity ?? "");
   const [companyState, setCompanyState] = useState(settings.companyState ?? "");
-  const [logo, setLogo] = useState(settings.companyLogo ?? "");
+  const [logo, setLogo] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoObjectKey, setLogoObjectKey] = useState(settings.companyLogoObjectKey ?? "");
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const [logoSaving, setLogoSaving] = useState(false);
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
   const [pixEditing, setPixEditing] = useState(false);
@@ -226,10 +230,27 @@ function Configuracoes() {
     setCompanyNeighborhood(settings.companyNeighborhood ?? "");
     setCompanyCity(settings.companyCity ?? "");
     setCompanyState(settings.companyState ?? "");
-    setLogo(settings.companyLogo ?? "");
+    setLogoObjectKey(settings.companyLogoObjectKey ?? "");
     setPixKey(settings.pixKey ?? "");
     setPixKeyType(settings.pixKeyType ?? "aleatoria");
   }, [settings]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    const loadLogo = async () => {
+      if (!settings.companyLogoObjectKey) { setLogo(""); return; }
+      try {
+        const response = await fetch(`/api/mobflow/company-logo?key=${encodeURIComponent(settings.companyLogoObjectKey)}`, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("logo_load_failed");
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setLogo(objectUrl);
+      } catch { if (active) setLogo(""); }
+    };
+    void loadLogo();
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [settings.companyLogoObjectKey]);
 
   const loadPdvUsers = async () => {
     setUsersLoading(true);
@@ -343,19 +364,44 @@ function Configuracoes() {
   const chooseLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("A logo deve ter no máximo 5 MB.");
+    if (file.size > 2 * 1024 * 1024) {
+      alert("A logo deve ter no máximo 2 MB.");
       return;
     }
     const reader = new FileReader();
+    setLogoFile(file);
+    setLogoRemoved(false);
     reader.onload = () => setLogo(String(reader.result));
     reader.readAsDataURL(file);
   };
 
-  const save = () => {
-    actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+  const save = async () => {
+    if (logoSaving) return;
+    setLogoSaving(true);
+    try {
+      let nextLogoKey = logoObjectKey;
+      if (logoFile) {
+        const form = new FormData();
+        form.append("file", logoFile);
+        const response = await fetch("/api/mobflow/company-logo", { method: "POST", credentials: "same-origin", body: form });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.ok || typeof result.objectKey !== "string") throw new Error(result?.error || "Não foi possível enviar a logo para o Cloudflare R2.");
+        nextLogoKey = result.objectKey;
+      } else if (logoRemoved && logoObjectKey) {
+        const response = await fetch(`/api/mobflow/company-logo?key=${encodeURIComponent(logoObjectKey)}`, { method: "DELETE", credentials: "same-origin" });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.ok) throw new Error(result?.error || "Não foi possível remover a logo do Cloudflare R2.");
+        nextLogoKey = "";
+      }
+      actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: undefined, companyLogoObjectKey: nextLogoKey || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
+      setLogoObjectKey(nextLogoKey);
+      setLogoFile(null);
+      setLogoRemoved(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível salvar as configurações.");
+    } finally { setLogoSaving(false); }
   };
 
   const unlockPixEditing = async () => {
@@ -589,13 +635,13 @@ function Configuracoes() {
                     </div>
                     <label className="block cursor-pointer">
                       <span className="label-mono">Logo da empresa</span>
-                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(até 5 MB)</span></div>
+                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(PNG, JPG ou WEBP · até 2 MB)</span></div>
                       <input type="file" accept="image/*" onChange={chooseLogo} className="hidden" />
                     </label>
-                    {logo && <button type="button" onClick={() => setLogo("")} className="text-xs text-destructive hover:underline">Remover logo</button>}
+                    {logo && <button type="button" onClick={() => { setLogo(""); setLogoFile(null); setLogoRemoved(true); }} className="text-xs text-destructive hover:underline">Remover logo</button>}
                   </div>
                 </div>
-                <button onClick={save} className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90">{saved ? "✓ Salvo" : "Salvar configurações"}</button>
+                <button onClick={save} disabled={logoSaving} className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">{logoSaving ? "Salvando..." : saved ? "✓ Salvo" : "Salvar configurações"}</button>
               </div>
             )}
           </div>
