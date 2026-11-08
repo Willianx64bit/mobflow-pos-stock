@@ -107,7 +107,7 @@ Esses endpoints não devem aceitar `tenant_id`, bucket, chave arbitrária ou URL
 4. [Pendente] Validar visualização de comprovantes no Admin Preview com arquivo sintético pequeno; isso gera uma operação de escrita/leitura dentro da franquia gratuita disponível.
 5. [Pendente] Definir metadados/intenção, limites por finalidade, allowlist MIME e retenção antes de criar APIs genéricas de upload/download/delete.
 6. [Pendente] Fotos de produto: a API de catálogo já usa a coluna `photo_object_key`, mas rejeita explicitamente payloads com `photo`/`photoObjectKey` até existir o fluxo seguro de upload e leitura; não há endpoint genérico R2 pronto.
-7. [Pendente] Logo da empresa: a tela ainda lê imagem como Data URL/base64; o store remove `settings.companyLogo` do estado compartilhado para evitar payloads grandes. Não está integrada ao R2 e precisa de referência por chave + URL curta autorizada.
+7. [Implementado no código da branch; aguardando build e Preview] Logo da empresa: upload autenticado pelo endpoint `/api/mobflow/company-logo`, bucket privado R2, máximo 2 MB, PNG/JPG/WEBP com assinatura do arquivo verificada, somente gerente, chave fixa isolada por tenant; leitura e remoção passam pelo servidor autenticado. O Neon guarda apenas `settings.companyLogoObjectKey`; a imagem não entra no estado sincronizado nem em Base64 persistido. Não há cópia automática de arquivos antigos; nenhum objeto de origem foi excluído.
 8. [Pendente] Documentos/anexos: sem fluxo R2 integrado identificado nesta auditoria.
 9. [Pendente] Preparar migração de objetos existentes somente após inventário, manifesto, checksum, rollback e autorização expressa.
 
@@ -119,7 +119,7 @@ Esses endpoints não devem aceitar `tenant_id`, bucket, chave arbitrária ou URL
 - `last_used_on` do token ainda está nulo na verificação; não houve upload/consulta S3 até este checkpoint.
 - Não foi criado plano adicional nem iniciado upload em massa. O bucket Standard vazio não gera custo de armazenamento enquanto não houver objetos; o uso deve permanecer dentro das franquias gratuitas enquanto não ultrapassar 10 GB-mês, 1 milhão de operações Classe A e 10 milhões Classe B.
 
-## 11. Critérios de aceite
+## 11. Logo da empresa — implementação atual\n\n- O endpoint PDV usa credenciais R2 somente no servidor e valida a sessão Better Auth via `beginAuthenticatedTransaction`.\n- Somente perfil `manager` pode enviar, visualizar ou remover a logo.\n- Upload é limitado a 2 MiB e aos formatos PNG/JPEG/WEBP; o servidor confere assinatura binária antes do PUT.\n- O caminho é construído pelo servidor como `tenants/{account_id}/company-logos/logo`; o cliente não escolhe bucket nem caminho.\n- A leitura é transmitida pelo endpoint autenticado, sem URL pública e sem URL assinada permanente.\n- O app_state/Neon guarda apenas `companyLogoObjectKey`; o Base64 é usado somente como prévia temporária em memória antes do upload.\n- Ainda falta validar em runtime no Preview. A exclusão de qualquer arquivo antigo do Supabase está bloqueada até inventário e autorização.\n\n## 12. Critérios de aceite
 
 - Bucket privado e nenhuma credencial exposta ao cliente.
 - Isolamento por tenant verificado por testes negativos.
