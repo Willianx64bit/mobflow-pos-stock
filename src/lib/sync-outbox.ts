@@ -138,6 +138,9 @@ export class SyncOutbox {
     const transaction = db.transaction(COMMANDS, "readonly");
     const records = await requestValue(transaction.objectStore(COMMANDS).getAll()) as SyncCommand[];
     await transactionDone(transaction);
+    // A permanent failure blocks later commands until the user explicitly retries
+    // the failed operation. This preserves causal order for dependent cash/sales/stock work.
+    if (records.some((item) => item.tenantId === tenantId && item.status === "failed")) return [];
     return records.filter((item) => item.tenantId === tenantId && item.status === "pending")
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, Math.max(1, Math.min(limit, 250)));
   }
@@ -254,6 +257,8 @@ export async function flushSyncOutbox(
       } else {
         await outbox.markFailed(command.id, body.error ?? `Falha HTTP ${response.status}`);
         failed++;
+        // Do not send later commands that may depend on the rejected operation.
+        break;
       }
     } catch {
       // Keep the command pending. Its stable idempotency key makes retry safe after a lost response.
