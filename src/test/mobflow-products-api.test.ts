@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { client, beginAuthenticatedTransaction, releaseTransaction } = vi.hoisted(() => ({
   client: { query: vi.fn() },
   beginAuthenticatedTransaction: vi.fn(),
@@ -47,7 +47,7 @@ describe("Neon product catalog API",()=>{
  });
  it("creates product and its barcode in the same transaction",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[product]});
-  const response=await handlers.POST({request:req("POST",{id:"p1",code:"001",name:"Arroz",unit:"un",price:10,stock:5,barcodes:["7890001"]})});
+  const response=await handlers.POST({request:req("POST",{id:"p1",code:"001",name:"Arroz",unit:"un",price:10,stock:0,barcodes:["7890001"]})});
   expect(response.status).toBe(201);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.products"))).toBe(true);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.product_barcodes"))).toBe(true);
