@@ -61,7 +61,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   useEffect(() => {
     if (mode !== "empresa" || !showSignup || signupResult) return;
     let cancelled = false;
-    fetch("https://xsitutjpdshmidzpgxpx.supabase.co/functions/v1/mobflow-public-billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
+    fetch("/api/mobflow/billing-settings", { method: "GET", credentials: "same-origin" })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Configuração indisponível")))
       .then((settings) => {
         const price = Number(settings?.monthly_price);
