@@ -1,4 +1,4 @@
-# Retry after user refreshed the Supabase Session Pooler credentials.
+# Retry after user confirmed the full Session Pooler URI was replaced in GitHub Actions secrets.
 name: Auth migration rehearsal (dry-run)
 
 on:
