@@ -56,10 +56,10 @@ export async function handleMobFlowCash(request: Request) {
     if(action==="open") {
       const opening=Number(body.openingAmount);
       if(!Number.isFinite(opening)||opening<0) fail("Valor inicial inválido.");
-      const prior=await client.query("SELECT id,status,opening_amount::text,opened_at FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[identity.accountId,sessionId]);
+      const prior=await client.query("SELECT id,status,operator_profile_id,opening_amount::text,opened_at FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[identity.accountId,sessionId]);
       if(prior.rows.length) {
         const p=prior.rows[0];
-        if(p.operator_profile_id&&p.operator_profile_id!==identity.userId) fail("Identificador de caixa já utilizado.",409,"idempotency_conflict");
+        if(p.operator_profile_id!==identity.userId) fail("Identificador de caixa já utilizado.",409,"idempotency_conflict");
         if(p.status!=="open"||Number(p.opening_amount)!==cents(opening)) fail("Identificador de caixa reutilizado com dados diferentes.",409,"idempotency_conflict");
         await releaseTransaction(client,true); tx=null;
         return Response.json({ok:true,replayed:true,session:{id:p.id,status:p.status,openingAmount:Number(p.opening_amount),openedAt:p.opened_at}});
