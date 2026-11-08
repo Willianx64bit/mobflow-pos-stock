@@ -634,9 +634,8 @@ export async function hydrateStore() {
       cloudAccountId = accountId;
       cloudReady = true;
       startRealtime(accountId);
+      if (hadLegacyLogo || !remoteState) await persistState();
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
-      if (hadLegacyLogo) void persistState();
-      if (!remoteState) await persistState();
       listeners.forEach((l) => l());
     } catch {
       // Mantém a cópia local disponível; a sincronização será retomada quando a sessão/API responder.
