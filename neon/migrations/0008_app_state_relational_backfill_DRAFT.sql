@@ -136,7 +136,7 @@ BEGIN
       SELECT 1
       FROM jsonb_array_elements(COALESCE(src.state->'cashSessions', '[]'::jsonb)) cash
       WHERE COALESCE(cash->>'status','open') = 'closed'
-        AND (NULLIF(cash->>'closedAt','') IS NULL OR NULLIF(cash->>'countedAmount','') IS NULL)
+        AND (NULLIF(cash->>'closedAt','') IS NULL OR NULLIF(cash->>'countedCash','') IS NULL)
     ) THEN
       RAISE EXCEPTION 'A closed legacy cash session lacks closing timestamp/count; refusing to invent closing data for tenant %', src.owner_id;
     END IF;
@@ -227,8 +227,8 @@ BEGIN
       NULLIF(cash->>'openingNote',''),
       CASE WHEN cash->>'status'='closed' THEN (cash->>'closedAt')::timestamptz ELSE NULL END,
       NULLIF(cash->>'closedBy',''),
-      CASE WHEN cash->>'status'='closed' THEN (cash->>'countedAmount')::numeric ELSE NULL END,
-      NULLIF(cash->>'expectedAmount','')::numeric,
+      CASE WHEN cash->>'status'='closed' THEN (cash->>'countedCash')::numeric ELSE NULL END,
+      NULLIF(cash->>'expectedCash','')::numeric,
       NULLIF(cash->>'difference','')::numeric,
       NULLIF(cash->>'closingNote',''),
       CASE WHEN cash->>'status'='closed' THEN md5(src.owner_id::text||':legacy-cash-close:'||(cash->>'id'))::uuid ELSE NULL END
@@ -261,7 +261,7 @@ BEGIN
       CASE
         WHEN lower(sale->>'payment') LIKE '%dinheiro%' OR lower(sale->>'payment') LIKE '%cash%' THEN 'cash'
         WHEN lower(sale->>'payment') LIKE '%pix%' THEN 'pix'
-        WHEN lower(sale->>'payment') LIKE '%cart%' OR lower(sale->>'payment') LIKE '%card%' THEN 'card'
+        WHEN lower(sale->>'payment') LIKE '%cart%' OR lower(sale->>'payment') LIKE '%card%' OR lower(sale->>'payment') LIKE '%credi%' THEN 'card'
         ELSE 'fiado'
       END,
       COALESCE(NULLIF(sale->>'date','')::timestamptz,src.updated_at),
