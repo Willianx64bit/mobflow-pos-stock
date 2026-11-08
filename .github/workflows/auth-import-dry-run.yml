@@ -1,4 +1,4 @@
-# Retry after updating the Supabase source connection secret to Session Pooler.
+# Retry after user refreshed the Supabase Session Pooler credentials.
 name: Auth migration rehearsal (dry-run)
 
 on:
