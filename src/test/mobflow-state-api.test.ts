@@ -299,6 +299,48 @@ describe("MobFlow Neon state API", () => {
     expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
   });
 
+  it("emits redacted contact, cash, supplier and settings metadata events", async () => {
+    const previousState = {
+      contacts: [],
+      cashSessions: [],
+      cashMovements: [],
+      suppliers: [],
+      settings: { companyName: "Mercado A", pixKey: "secret-old", companyPhone: "11900000000" },
+    };
+    const nextState = {
+      contacts: [{ id: "contact-1", type: "Cliente", name: "Maria", document: "12345678900", phone: "11999999999" }],
+      cashSessions: [{ id: "cash-1", status: "open", openedAt: "2026-11-07T10:00:00Z", openedBy: "Caixa 1" }],
+      cashMovements: [{ id: "move-1", sessionId: "cash-1", type: "sangria", amount: 20, reason: "Troco", operator: "Caixa 1", date: "2026-11-07T11:00:00Z" }],
+      suppliers: [{ name: "Fornecedor A", cnpj: "12345678000199" }],
+      settings: { companyName: "Mercado B", pixKey: "secret-new", companyPhone: "11911111111" },
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({ state: nextState, expectedUpdatedAt: VERSION_1 })),
+    });
+
+    expect(response.status).toBe(200);
+    const calls = client.query.mock.calls.filter((call) =>
+      String(call[0]).includes("mobflow_append_sync_event"),
+    );
+    expect(calls.length).toBeGreaterThanOrEqual(5);
+    const serialized = calls.map((call) => String(call[1]?.[call[1].length - 1] ?? "")).join("|");
+    expect(serialized).toContain("contact-1");
+    expect(serialized).toContain("cash-1");
+    expect(serialized).toContain("move-1");
+    expect(serialized).toContain("Fornecedor A");
+    expect(serialized).toContain("companyName");
+    expect(serialized).not.toContain("12345678900");
+    expect(serialized).not.toContain("11999999999");
+    expect(serialized).not.toContain("12345678000199");
+    expect(serialized).not.toContain("secret-new");
+    expect(serialized).not.toContain("11911111111");
+  });
+
   it("emits manual expiry create, update and delete events without unrelated fields", async () => {
     const previousState = {
       manualExpiries: [
