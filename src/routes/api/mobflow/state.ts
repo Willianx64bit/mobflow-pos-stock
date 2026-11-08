@@ -624,7 +624,7 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
                 if (oldPrice !== null && nextPrice !== null && oldPrice !== nextPrice) {
                   await client.query(
                     `SELECT public.mobflow_append_sync_event(
-                      $1::uuid, $2::uuid, 'price', 'automatic', 'product', $3, $4::jsonb
+                      $1::uuid, $2::uuid, 'price', 'manual', 'product', $3, $4::jsonb
                     )`,
                     [
                       randomUUID(),
