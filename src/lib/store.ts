@@ -389,7 +389,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
 }
 
 async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
-  if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon" || !isBetterAuthEnabled()) return fallbackProducts;
+  if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon" || !isBetterAuthEnabled) return fallbackProducts;
   try {
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
