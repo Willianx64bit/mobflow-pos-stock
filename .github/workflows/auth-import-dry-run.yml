@@ -1,3 +1,4 @@
+# Retry after updating the Supabase source connection secret to Session Pooler.
 name: Auth migration rehearsal (dry-run)
 
 on:
