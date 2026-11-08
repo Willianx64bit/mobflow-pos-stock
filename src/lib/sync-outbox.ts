@@ -281,9 +281,16 @@ export async function pullSyncEvents(
     if (body.ok !== true || !Array.isArray(body.events) || typeof body.nextCursor !== "string" || !/^\d+$/.test(body.nextCursor)) {
       throw new Error("Resposta inválida ao receber alterações do Neon.");
     }
+    if (BigInt(body.nextCursor) < BigInt(cursor)) throw new Error("O cursor recebido regrediu.");
     if (body.events.length) {
-      const lastSequence = body.events[body.events.length - 1]?.sequence;
-      if (!lastSequence || BigInt(body.nextCursor) !== BigInt(lastSequence)) throw new Error("A página de eventos não corresponde ao cursor informado.");
+      let previousSequence = BigInt(cursor);
+      for (const event of body.events) {
+        if (!/^\d+$/.test(event.sequence) || BigInt(event.sequence) <= previousSequence) {
+          throw new Error("A página de eventos contém sequência inválida ou fora de ordem.");
+        }
+        previousSequence = BigInt(event.sequence);
+      }
+      if (BigInt(body.nextCursor) !== previousSequence) throw new Error("A página de eventos não corresponde ao cursor informado.");
       await applyEvents(body.events);
       await outbox.setCursor(tenantId, body.nextCursor);
       cursor = body.nextCursor;
