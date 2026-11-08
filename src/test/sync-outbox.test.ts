@@ -102,6 +102,21 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(result.failed).toBe(1);
   });
 
+  it("stops the queue after a permanent failure so later dependent commands are not sent", async () => {
+    const first = createSyncCommand({ tenantId: TENANT, domain: "cash", id: ID, idempotencyKey: ID, payload: { action: "open", sessionId: "cash-1" } });
+    const secondId = "b6c47ea1-2abf-4cd6-b614-24e27077bdf6";
+    const second = createSyncCommand({ tenantId: TENANT, domain: "cash", id: secondId, idempotencyKey: secondId, payload: { action: "movement", sessionId: "cash-1" } });
+    const outbox = outboxMock({
+      listPending: vi.fn().mockResolvedValue([first, second]),
+      pendingCount: vi.fn().mockResolvedValue(1),
+    });
+    const transport = vi.fn().mockResolvedValue(response({ ok: false, error: "Caixa já existe." }, 409));
+    const result = await flushSyncOutbox(outbox, TENANT, transport);
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(outbox.markFailed).toHaveBeenCalledWith(ID, "Caixa já existe.");
+    expect(result).toMatchObject({ sent: 0, failed: 1, pending: 1 });
+  });
+
   it("persists the pull cursor only after the event page is applied", async () => {
     const event: SyncEvent = {
       event_id: "event-1", sequence: "4", category: "stock", delivery_mode: "automatic",
