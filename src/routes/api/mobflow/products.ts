@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { createHash, randomUUID } from "node:crypto";
 import { beginAuthenticatedTransaction, jsonError, ApiAuthError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
@@ -47,8 +48,18 @@ const mapProduct=(r:ProductRow)=>({
 });
 const columns="id,code,name,reference,unit,price::text,cost::text,stock::text,min_stock::text,category,photo_object_key,active,version::text,created_at,updated_at";
 async function ready(client:any){
- const r=await client.query("SELECT to_regclass('public.products')::text AS p,to_regclass('public.product_barcodes')::text AS b");
- if(!r.rows[0]?.p||!r.rows[0]?.b)throw new ProductApiError("O catálogo relacional ainda não foi preparado neste ambiente.",503,"catalog_schema_not_ready");
+ const r=await client.query("SELECT to_regclass('public.products')::text AS p,to_regclass('public.product_barcodes')::text AS b,to_regclass('public.mobflow_sync_events')::text AS e,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS fn");
+ if(!r.rows[0]?.p||!r.rows[0]?.b||!r.rows[0]?.e||!r.rows[0]?.fn)throw new ProductApiError("O catálogo e os eventos incrementais ainda não foram preparados neste ambiente.",503,"catalog_schema_not_ready");
+}
+function stableUuid(value:string){
+ const b=createHash("sha256").update(value).digest().subarray(0,16);
+ b[6]=(b[6]&15)|0x50;b[8]=(b[8]&0x3f)|0x80;
+ const h=b.toString("hex");return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
+}
+async function appendCatalogEvent(client:any,tenant:string,actor:string,id:string,version:number,payload:unknown){
+ await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[
+  randomUUID(),stableUuid(tenant+":catalog:"+id+":"+version),id,JSON.stringify(payload)
+ ]);
 }
 function errorResponse(e:unknown){
  if(e instanceof ProductApiError)return Response.json({ok:false,error:e.message,code:e.code},{status:e.status});
@@ -104,6 +115,7 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
    }
    const inserted=await c.query("INSERT INTO public.products(tenant_id,id,code,name,reference,unit,price,cost,stock,min_stock,category) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING "+columns,[i.accountId,id,code,name,ref,unit,price,cost,stock,min,category]);
    for(let n=0;n<codes.length;n++)await c.query("INSERT INTO public.product_barcodes(tenant_id,id,product_id,barcode,is_primary) VALUES($1,$2,$3,$4,$5)",[i.accountId,id+":barcode:"+n,id,codes[n],n===0]);
+   await appendCatalogEvent(c,i.accountId,i.userId,id,1,{operation:"upsert",product:{id,code,name,reference:ref,unit,price,cost,minStock:min,category,active:true,version:1,barcodes:codes}});
    await releaseTransaction(c,true);tx=null;
    return Response.json({ok:true,product:mapProduct({...inserted.rows[0],barcodes:codes}),replayed:false},{status:201});
   }
@@ -131,6 +143,7 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
    for(let n=0;n<codes.length;n++)await c.query("INSERT INTO public.product_barcodes(tenant_id,id,product_id,barcode,is_primary) VALUES($1,$2,$3,$4,$5)",[i.accountId,id+":barcode:"+n,id,codes[n],n===0]);
   }
   const b=await c.query("SELECT barcode FROM public.product_barcodes WHERE tenant_id=$1 AND product_id=$2 ORDER BY is_primary DESC,created_at",[i.accountId,id]);
+  await appendCatalogEvent(c,i.accountId,i.userId,id,Number(upd.rows[0].version),{operation:"upsert",product:{id,code:values[0],name:values[1],reference:values[2],unit:values[4],price:values[5],cost:values[6],minStock:values[7],category:values[3],active:values[8],version:Number(upd.rows[0].version),barcodes:b.rows.map((x:any)=>x.barcode)}});
   await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)})});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
