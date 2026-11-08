@@ -65,10 +65,10 @@ export async function handleMobFlowSale(request: Request) {
     if (!(identity.role === "manager" || (identity.role === "pdv" && Array.isArray(identity.permissions) && identity.permissions.includes("PDV")))) fail("Usuário sem permissão para realizar vendas.", 403, "permission_denied");
     await ready(client);
 
-    const replay = await client.query("SELECT id,total::text,subtotal::text,discount_amount::text,discount_type,payment_method,payment_status,cash_session_id,occurred_at FROM public.sales WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE", [identity.accountId, body.idempotencyKey]);
+    const replay = await client.query("SELECT id,total::text,subtotal::text,discount_amount::text,discount_type,payment_method,payment_status,cash_session_id,customer_name_snapshot,customer_document_snapshot,occurred_at FROM public.sales WHERE tenant_id=$1 AND idempotency_key=$2 FOR UPDATE", [identity.accountId, body.idempotencyKey]);
     if (replay.rows.length) {
       const existing = replay.rows[0];
-      if (existing.id !== saleId || existing.cash_session_id !== cashSessionId || existing.payment_method !== paymentMethod) fail("Chave de idempotência reutilizada com outra venda.", 409, "idempotency_conflict");
+      if (existing.id !== saleId || existing.cash_session_id !== cashSessionId || existing.payment_method !== paymentMethod || existing.customer_name_snapshot !== customerName || existing.customer_document_snapshot !== customerDocument) fail("Chave de idempotência reutilizada com outra venda.", 409, "idempotency_conflict");
       const items = await client.query("SELECT product_id,quantity::text FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY product_id", [identity.accountId, saleId]);
       const requested = new Map<string, number>();
       for (const raw of body.items as Array<Record<string, unknown>>) {
