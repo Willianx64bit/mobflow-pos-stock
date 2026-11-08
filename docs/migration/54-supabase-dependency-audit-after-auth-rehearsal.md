@@ -12,6 +12,7 @@ The GitHub Actions dry-run completed successfully against the production Supabas
 - 7 bcrypt-compatible password hashes.
 - 7 matching MobFlow profiles.
 - 7 email identities; no unsupported identity provider was reported by the script.
+- A read-only aggregate comparison confirmed all 7 source auth emails match the synthetic Better Auth email alias generated from each MobFlow username; 0 mismatches. No email addresses were displayed or exported by this check.
 - Destination Better Auth tables were empty (0 users, 0 accounts, 0 sessions).
 - Result: `mode=dry-run`; no user or password hash was written.
 
