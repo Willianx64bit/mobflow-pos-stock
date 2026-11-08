@@ -92,6 +92,7 @@ let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let stopRealtimeSubscription: (() => void) | null = null;
 let syncFallbackInFlight = false;
+let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
@@ -387,6 +388,10 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     // A próxima reconexão, foco da janela ou retorno da conexão recupera a sincronização.
   } finally {
     syncFallbackInFlight = false;
+    if (syncRefreshPending) {
+      syncRefreshPending = false;
+      void refreshFromCloud(accountId, true);
+    }
   }
 }
 
