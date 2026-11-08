@@ -1,0 +1,35 @@
+name: Auth migration rehearsal (dry-run)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-import-dry-run:
+    name: Validate Supabase accounts against isolated Neon database
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migration/neon-preparation
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate source and empty Neon target (dry-run only)
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          MOBFLOW_AUTH_DATABASE_URL: ${{ secrets.MOBFLOW_AUTH_DATABASE_URL }}
+        run: |
+          test -n "$SUPABASE_DATABASE_URL" || (echo "Missing SUPABASE_DATABASE_URL secret" && exit 1)
+          test -n "$MOBFLOW_AUTH_DATABASE_URL" || (echo "Missing MOBFLOW_AUTH_DATABASE_URL secret" && exit 1)
+          node scripts/migrate-supabase-auth-to-better-auth.mjs
