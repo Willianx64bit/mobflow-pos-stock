@@ -22,6 +22,12 @@ Escopo: somente MobFlow PDV. Não habilitado em produção.
 - Ajuste de estoque: `POST /api/mobflow/stock`.
 - Fiado, baixa de estoque, transferência, recebimento, importação e alterações gerais de cadastro ainda não foram conectados ao outbox.
 
+### Compatibilidade do schema de eventos
+
+- A migration `0005_incremental_sync_foundation.sql` foi atualizada para incluir as categorias `sales` e `cash` e aceitar payloads limitados a 128 KiB.
+- Como o schema de eventos já existe no Neon de ensaio, foi criado o draft aditivo `0007_incremental_sales_cash_event_compatibility_DRAFT.sql` para atualizar a constraint de categoria e o limite de payload em branches que já receberam a 0005.
+- **A 0007 não foi aplicada.** Antes de habilitar os comandos no Preview, validar a constraint real do banco e aplicar a migration somente na branch Neon isolada aprovada.
+
 ### Recebimento incremental
 
 - Novo módulo `src/lib/sync-event-apply.ts` aplica projeções de venda, caixa, estoque e preço de forma idempotente.
@@ -47,7 +53,8 @@ Nenhuma dessas flags foi configurada por esta etapa. O padrão permanece desliga
 
 ## Bloqueios antes de habilitar o outbox no Preview
 
-1. **Bootstrap relacional:** os comandos sales/cash/stock gravam tabelas normalizadas e eventos, mas o GET inicial ainda lê o snapshot `app_state`. Um dispositivo novo poderia receber snapshot antigo e adotar um cursor que já inclui comandos incrementais; precisa de projeção relacional no bootstrap ou atualização atômica do snapshot pelo servidor.
+1. **Schema de eventos:** confirmar e aplicar a migration draft 0007 na branch Neon isolada; sem ela, as categorias `sales` e `cash` podem ser rejeitadas pela constraint existente.
+2. **Bootstrap relacional:** os comandos sales/cash/stock gravam tabelas normalizadas e eventos, mas o GET inicial ainda lê o snapshot `app_state`. Um dispositivo novo poderia receber snapshot antigo e adotar um cursor que já inclui comandos incrementais; precisa de projeção relacional no bootstrap ou atualização atômica do snapshot pelo servidor.
 2. **Rollback de erro de negócio:** as telas ainda fazem atualização otimista local. Se o servidor rejeitar estoque insuficiente, caixa fechado ou permissão, o comando fica visível como falho, mas a reversão da alteração otimista por ID ainda precisa ser implementada e testada.
 3. **Cobertura de domínios:** Fiado/recebimentos, baixas, transferências, importação, catálogo, promoções, contatos, fornecedores, validade, conferências, documentos e configurações ainda precisam de comandos/projeções próprios.
 4. **Projeções de eventos:** eventos legados ainda acionam fallback de snapshot; cada categoria precisa de payload completo, aplicação idempotente e teste antes de remover esse fallback.
