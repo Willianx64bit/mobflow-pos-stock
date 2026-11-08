@@ -38,6 +38,7 @@ The local normalizer avoids reconstructing a second legacy stock movement when t
 | Data | Delivery |
 | --- | --- |
 | Product stock balance | Automatic / realtime event |
+| Regular product price and catalog changes | Manual |
 | Promotion upsert/delete | Automatic / realtime event |
 | Sale detail/history | Manual event; its stock-balance effects are automatic |
 | Cash history and movements | Manual event |
