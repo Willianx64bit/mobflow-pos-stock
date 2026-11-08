@@ -56,10 +56,12 @@ export async function subscribeToTenantEvents(
     try {
       next = await fetchSealedQuery();
     } catch (error) {
-      scheduleRenewal(currentExpiry, RETRY_MS);
-      if (Date.now() >= sealedQuery.expiresAt) {
+      if (Date.now() >= currentExpiry) {
         onError?.(error instanceof Error ? error.message : "Não foi possível renovar a assinatura.");
+        stop();
+        return;
       }
+      scheduleRenewal(currentExpiry, RETRY_MS);
       return;
     }
     currentExpiry = next.expiresAt;
@@ -85,7 +87,10 @@ export async function subscribeToTenantEvents(
   });
 
   const removeStateListener = subscription.onStateChange((state) => {
-    if (state.status === "error") onError?.(state.error.message);
+    if (state.status === "error") {
+      onError?.(state.error.message);
+      stop();
+    }
   });
 
   function stop() {
