@@ -227,7 +227,7 @@ export class SyncOutbox {
 export type SyncTransport = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 export type OutboxFlushResult = { sent: number; failed: number; pending: number };
 
-const isRetryable = (status: number) => status === 408 || status === 425 || status === 429 || status >= 500;
+const isRetryable = (status: number) => status === 401 || status === 403 || status === 408 || status === 425 || status === 429 || status >= 500;
 
 export async function flushSyncOutbox(
   outbox: SyncOutbox,
