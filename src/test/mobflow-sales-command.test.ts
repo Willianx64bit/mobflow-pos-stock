@@ -88,8 +88,9 @@ describe("Neon atomic sale command", () => {
   it("returns the original sale on retry with the same idempotency key", async () => {
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("to_regclass")) return { rows: [{ sales: "sales", items: "sale_items", payments: "sale_payments", stock: "stock_movements", events: "mobflow_sync_events", append_fn: "mobflow_append_sync_event" }] };
-      if (sql.includes("FROM public.sales WHERE")) return { rows: [{ id: "sale-100", total: "20", payment_method: "cash", payment_status: "paid", cash_session_id: "cash-1" }] };
+      if (sql.includes("FROM public.sales WHERE")) return { rows: [{ id: "sale-100", total: "20", subtotal: "20", discount_amount: "0", discount_type: "fixed", payment_method: "cash", payment_status: "paid", cash_session_id: "cash-1", customer_name_snapshot: null, customer_document_snapshot: null }] };
       if (sql.includes("FROM public.sale_items")) return { rows: [{ product_id: "product-1", quantity: "2", line_total: "20" }] };
+      if (sql.includes("FROM public.sale_payments")) return { rows: [{ received_amount: "25" }] };
       return { rows: [] };
     });
     const response = await handleMobFlowSale(request());
