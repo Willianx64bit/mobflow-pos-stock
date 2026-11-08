@@ -19,15 +19,16 @@ function r2() {
   return new S3Client({region:"auto",endpoint:`https://${accountId}.r2.cloudflarestorage.com`,credentials:{accessKeyId,secretAccessKey}});
 }
 function bucket(){const value=process.env.CLOUDFLARE_R2_BUCKET_NAME;if(!value)throw new Error("Bucket R2 não configurado.");return value;}
-function keyFor(tenant:string,ext:string){return `tenants/${tenant}/company-logos/logo.${ext}`;}
-function validKey(key:string,tenant:string){return new RegExp(`^tenants/${tenant}/company-logos/logo\\.(png|jpg|webp)$`).test(key);}
+function keyFor(tenant:string){return `tenants/${tenant}/company-logos/logo`;}
+function validKey(key:string,tenant:string){return key===`tenants/${tenant}/company-logos/logo`;}
 async function withIdentity(request:Request, action:(tenant:string)=>Promise<Response>){
  let tx:any=null;
  try{
   tx=await beginAuthenticatedTransaction(request);
-  if(tx.identity.role!=="manager") return Response.json({ok:false,error:"Somente a gerência pode alterar a logo da empresa."},{status:403});
   const tenant=tx.identity.accountId;
+  const allowedRole=tx.identity.role==="manager";
   await releaseTransaction(tx.client,true);tx=null;
+  if(!allowedRole)return Response.json({ok:false,error:"Somente a gerência pode alterar a logo da empresa."},{status:403});
   return await action(tenant);
  }catch(error){
   if(tx)await releaseTransaction(tx.client,false).catch(()=>{});
@@ -44,7 +45,7 @@ async function upload(request:Request){
   if(!rule)return Response.json({ok:false,error:"Formato permitido: PNG, JPG ou WEBP."},{status:415});
   const bytes=new Uint8Array(await file.arrayBuffer());
   if(!rule.signature(bytes))return Response.json({ok:false,error:"O conteúdo do arquivo não corresponde ao formato informado."},{status:415});
-  const key=keyFor(tenant,rule.ext);
+  const key=keyFor(tenant);
   await r2().send(new PutObjectCommand({Bucket:bucket(),Key:key,Body:bytes,ContentType:file.type,ContentLength:bytes.length,CacheControl:"private, max-age=300",Metadata:{"mobflow-tenant":tenant,"mobflow-purpose":"company-logo","mobflow-upload-id":randomUUID()}}));
   return Response.json({ok:true,objectKey:key});
  });
