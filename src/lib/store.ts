@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabase";
 import { isBetterAuthEnabled } from "@/lib/auth-client";
+import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 
 export type Product = { id: string; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
 export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
@@ -89,7 +90,7 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
-let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
+let stopRealtimeSubscription: (() => void) | null = null;
 let syncFallbackInFlight = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
@@ -383,26 +384,38 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
     listeners.forEach((listener) => listener());
   } catch {
-    // A próxima tentativa de polling ou o retorno da conexão recupera a sincronização.
+    // A próxima reconexão, foco da janela ou retorno da conexão recupera a sincronização.
   } finally {
     syncFallbackInFlight = false;
   }
 }
 
 function startRealtime(accountId: string) {
-  if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
-  if (syncFallbackTimer) {
-    clearInterval(syncFallbackTimer);
-    syncFallbackTimer = null;
+  if (typeof window === "undefined") return;
+  if (realtimeOwnerId !== accountId) {
+    stopRealtimeSubscription?.();
+    stopRealtimeSubscription = null;
+    realtimeOwnerId = accountId;
+  } else if (stopRealtimeSubscription) {
+    return;
   }
-  realtimeOwnerId = accountId;
 
   if (!syncWakeListenersInstalled) {
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible" && cloudAccountId) void refreshFromCloud(cloudAccountId);
+      if (document.visibilityState !== "visible" || !cloudAccountId) return;
+      void refreshFromCloud(cloudAccountId);
+      if (!stopRealtimeSubscription) {
+        realtimeOwnerId = null;
+        startRealtime(cloudAccountId);
+      }
     };
     const refreshWhenOnline = () => {
-      if (cloudAccountId) void refreshFromCloud(cloudAccountId);
+      if (!cloudAccountId) return;
+      void refreshFromCloud(cloudAccountId);
+      if (!stopRealtimeSubscription) {
+        realtimeOwnerId = null;
+        startRealtime(cloudAccountId);
+      }
     };
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -410,11 +423,27 @@ function startRealtime(accountId: string) {
     syncWakeListenersInstalled = true;
   }
 
-  // Neon Realtime fica para a etapa seguinte. Enquanto isso, a API Neon
-  // reconcilia o estado a cada 3 segundos sem acessar o banco pelo navegador.
-  syncFallbackTimer = setInterval(() => {
+  // Realtime only signals that this tenant has new committed events.
+  // The existing authenticated API remains responsible for state reconciliation.
+  void subscribeToTenantEvents(
+    () => { void refreshFromCloud(accountId, true); },
+    (message) => {
+      console.warn("[MobFlow Realtime] Subscription stopped:", message);
+      stopRealtimeSubscription?.();
+      stopRealtimeSubscription = null;
+      realtimeOwnerId = null;
+    },
+  ).then((stop) => {
+    if (realtimeOwnerId !== accountId || cloudAccountId !== accountId) {
+      stop();
+      return;
+    }
+    stopRealtimeSubscription = stop;
+  }).catch((error) => {
+    console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
+    realtimeOwnerId = null;
     void refreshFromCloud(accountId, true);
-  }, 3000);
+  });
 }
 
 function persistState() {
