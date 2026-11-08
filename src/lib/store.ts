@@ -658,18 +658,19 @@ export function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncE
   listeners.forEach((listener) => listener());
 }
 
-export async function syncNow() {
+export async function syncNow(options: { retryFailed?: boolean } = {}) {
   const tenantId = cloudAccountId ?? (typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
   if (!tenantId || !cloudReady) throw new Error("Entre na empresa para sincronizar os dados.");
   if (persistWorker) await persistQueue;
   await restoreOutboxBackup(tenantId);
-  await syncOutbox.retryFailed(tenantId);
+  if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
   try {
-    return await runIncrementalSync({
+    const result = await runIncrementalSync({
       outbox: syncOutbox,
       tenantId,
       applyEvents: (events) => applyIncrementalEvents(events),
     });
+    return { ...result, failed: await syncOutbox.failedCount(tenantId) };
   } catch (error) {
     if (error instanceof UnsupportedSyncEventError) {
       // Until every legacy domain has an event projection, recover unsupported pages
