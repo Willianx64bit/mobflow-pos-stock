@@ -21,14 +21,14 @@ function r2() {
 function bucket(){const value=process.env.CLOUDFLARE_R2_BUCKET_NAME;if(!value)throw new Error("Bucket R2 não configurado.");return value;}
 function keyFor(tenant:string){return `tenants/${tenant}/company-logos/logo`;}
 function validKey(key:string,tenant:string){return key===`tenants/${tenant}/company-logos/logo`;}
-async function withIdentity(request:Request, action:(tenant:string)=>Promise<Response>){
+async function withIdentity(request:Request, action:(tenant:string)=>Promise<Response>, requireManager=true){
  let tx:any=null;
  try{
   tx=await beginAuthenticatedTransaction(request);
   const tenant=tx.identity.accountId;
   const allowedRole=tx.identity.role==="manager";
   await releaseTransaction(tx.client,true);tx=null;
-  if(!allowedRole)return Response.json({ok:false,error:"Somente a gerência pode alterar a logo da empresa."},{status:403});
+  if(requireManager&&!allowedRole)return Response.json({ok:false,error:"Somente a gerência pode alterar a logo da empresa."},{status:403});
   return await action(tenant);
  }catch(error){
   if(tx)await releaseTransaction(tx.client,false).catch(()=>{});
@@ -58,7 +58,7 @@ async function read(request:Request){
   if(!result.Body)return new Response(null,{status:404});
   const bytes=await result.Body.transformToByteArray();
   return new Response(bytes,{headers:{"Content-Type":result.ContentType??"application/octet-stream","Content-Length":String(bytes.byteLength),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
- });
+ },false);
 }
 async function remove(request:Request){
  return withIdentity(request,async tenant=>{
