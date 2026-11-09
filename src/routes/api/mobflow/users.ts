@@ -149,7 +149,7 @@ async function handleUsers(request: Request) {
         [identity.accountId],
       );
       const state = verify.rows[0]?.state;
-      const arraysEmpty = !!state && ["products","cart","sales","conferences","receiving","manualExpiries","promotions","suppliers"]
+      const arraysEmpty = !!state && ["contacts","products","cart","sales","stockMovements","cashSessions","cashMovements","conferences","receiving","manualExpiries","stockAdjustments","stockWriteoffs","stockTransfers","promotions","suppliers"]
         .every((key) => Array.isArray(state[key]) && (state[key] as unknown[]).length === 0);
       const settings = state?.settings && typeof state.settings === "object" ? state.settings as Record<string, unknown> : {};
       const relational = await client.query<{ remaining: string }>(
@@ -168,7 +168,7 @@ async function handleUsers(request: Request) {
           (SELECT count(*) FROM public.mobflow_legacy_backfill_runs WHERE tenant_id=$1) AS remaining`,
         [identity.accountId],
       );
-      if (!arraysEmpty || Number(relational.rows[0]?.remaining ?? 0) !== 0 || settings.pixKey || settings.companyLogo) {
+      if (!arraysEmpty || Number(relational.rows[0]?.remaining ?? 0) !== 0 || settings.pixKey || settings.companyLogo || settings.companyLogoObjectKey) {
         deny("A limpeza foi solicitada, mas a verificação final no Neon não confirmou todos os dados vazios.", 500);
       }
 
