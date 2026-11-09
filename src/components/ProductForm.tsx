@@ -48,18 +48,18 @@ export function ProductForm({ product, onClose }: Props) {
         const create=await fetch("/api/mobflow/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,stock:0,minStock:minStock??0,barcodes:cleanBarcodes})});
         const created=await create.json().catch(()=>null);if(!create.ok||!created?.ok)throw new Error(created?.error||"Não foi possível cadastrar o produto no catálogo.");
       }
-      let photoUrl=f.photo||undefined;
+      let photoUrl=f.photo||undefined;\n      let photoObjectKey=product?.photoObjectKey;
       if(photoFile){
         const form=new FormData();form.append("file",photoFile);
         const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(id),{method:"POST",body:form});
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível enviar a foto.");
-        photoUrl=result.photoUrl;
+        photoUrl=result.photoUrl;photoObjectKey=result.photoObjectKey;
       } else if(product?.id&&!f.photo&&product.photo){
         const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(product.id),{method:"DELETE"});
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
-        photoUrl=undefined;
+        photoUrl=undefined;photoObjectKey=undefined;
       }
-      actions.saveProduct({id,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey:product?.photoObjectKey});onClose();
+      actions.saveProduct({id,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey});onClose();
     } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
   const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){alert("A foto deve ter no máximo 5 MB.");return;}if(!["image/png","image/jpeg","image/webp"].includes(file.type)){alert("Formato permitido: PNG, JPG ou WEBP.");return;}setPhotoFile(file);setF(v=>({...v,photo:URL.createObjectURL(file)}));};
