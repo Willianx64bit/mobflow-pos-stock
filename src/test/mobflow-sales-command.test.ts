@@ -67,6 +67,8 @@ describe("Neon atomic sale command", () => {
     expect(calls.some((q) => q.includes("UPDATE public.products"))).toBe(true);
     expect(calls.some((q) => q.includes("INSERT INTO public.stock_movements"))).toBe(true);
     expect(calls.filter((q) => q.includes("mobflow_append_sync_event"))).toHaveLength(3);
+    expect(calls.some((q) => q.includes("'sales','automatic','sale'"))).toBe(true);
+    expect(calls.some((q) => q.includes("'stock','automatic','product'"))).toBe(true);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
