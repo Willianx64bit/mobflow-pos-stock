@@ -158,7 +158,7 @@ export async function handleMobFlowSale(request: Request) {
     await client.query("INSERT INTO public.sale_payments(tenant_id,id,sale_id,method,amount,received_amount,change_amount,occurred_at,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)", [
       identity.accountId, paymentId, saleId, paymentMethod, paid ? total : 0, paid ? received : 0, change, now.toISOString(), stableUuid(identity.accountId + ":sale:" + saleId + ":payment"),
     ]);
-    await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'sales','manual','sale',$3,$4::jsonb)", [
+    await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'sales','automatic','sale',$3,$4::jsonb)", [
       randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":event"), saleId, JSON.stringify({ sale: { id: saleId, date: now.toISOString(), cashSessionId, seller: identity.displayName || identity.username, total, subtotal, discount, discountType: body.discountType === "percentage" ? "%" : "R$", profit: paid ? money(total - costTotal) : 0, payment: paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : "Cartão", received, customer: customerName ?? undefined, paid, paidAt: paid ? now.toISOString() : undefined, items: lines.map((l) => ({ productId: l.product.id, name: text(l.product.name, 160), price: l.price, cost: l.cost, qty: l.quantity, unit: l.unit })) }, saleId, cashSessionId, total, paymentMethod, paymentStatus: paid ? "paid" : "unpaid" }),
     ]);
     await releaseTransaction(client, true); tx = null;
