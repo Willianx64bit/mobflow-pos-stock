@@ -2,7 +2,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
-import { supabase } from "@/lib/supabase";
 import { productHasBarcode, actions, brl, useStore, formatCpfCnpj, normalizeDocument, type Product, type BusinessContact } from "@/lib/store";
 import { ArrowLeft, PackageMinus, Search, Trash2, CheckCircle2, Pencil, Save, Download, Loader2, Filter, History } from "lucide-react";
 
@@ -10,7 +9,7 @@ export const Route = createFileRoute("/transferencias")({ head: () => ({ meta: [
 function Transferencias() {
  const navigate=useNavigate(), products=useStore(s=>s.products), history=useStore(s=>s.stockTransfers??[]), otherHistory=useStore(s=>s.stockWriteoffs??[]), settings=useStore(s=>s.settings), companyName=useStore(s=>s.settings?.companyName??"");
  const [companyCnpj,setCompanyCnpj]=useState(String((settings as any)?.companyCnpj??"").trim());
- useEffect(()=>{ let active=true; const loadCnpj=async()=>{ try { const {data:{user},error:userError}=await supabase.auth.getUser(); if(userError) throw userError; if(!user){if(active)setCompanyCnpj(String((settings as any)?.companyCnpj??"").trim());return;} const {data:profile,error:profileError}=await supabase.from("profiles").select("cnpj").eq("id",user.id).maybeSingle(); if(profileError)throw profileError; if(active)setCompanyCnpj(String(profile?.cnpj??(settings as any)?.companyCnpj??"").trim()); } catch { if(active)setCompanyCnpj(String((settings as any)?.companyCnpj??"").trim()); } }; void loadCnpj(); return ()=>{active=false}; },[settings]);
+ useEffect(()=>{ let active=true; const loadCnpj=async()=>{ try { if(active)setCompanyCnpj(String(localStorage.getItem("mobflow-company-cnpj")??settings?.companyCnpj??"").trim()); } catch { if(active)setCompanyCnpj(String(settings?.companyCnpj??"").trim()); } }; void loadCnpj(); return ()=>{active=false}; },[settings]);
  const contacts=useStore(s=>s.contacts??[]);
  const [contactSearch,setContactSearch]=useState(""), [showContactSuggestions,setShowContactSuggestions]=useState(false);
  const contactQuery=contactSearch.trim();
