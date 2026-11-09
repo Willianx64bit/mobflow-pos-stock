@@ -436,7 +436,7 @@ function Configuracoes() {
     const result = await callUsers({ body: { action: "reset_application", managerPassword: securityPassword } });
     setSecurityBusy(false);
     if (result.error || !result.data?.ok || result.data?.cloudCleared !== true) {
-      setSecurityError(result.data?.error || "O Supabase não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
+      setSecurityError(result.data?.error || "O Neon/R2 não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
     }
     await hydrateStore(); actions.resetAppData();
     setName(""); setLogo(""); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
