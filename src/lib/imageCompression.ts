@@ -24,7 +24,7 @@ export async function compressImageTo200KB(file: File): Promise<File> {
       for (const quality of [0.86, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38]) {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/webp", quality));
         if (blob && blob.size <= MAX_IMAGE_BYTES) {
-          const base = file.name.replace(/\\.[^.]+$/, "") || "imagem";
+          const base = "imagem";
           return new File([blob], base + ".webp", { type: "image/webp", lastModified: Date.now() });
         }
       }
