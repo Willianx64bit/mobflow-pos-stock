@@ -39,9 +39,10 @@ async function deleteOperationalR2Objects(tenantId: string) {
   let continuationToken: string | undefined;
   do {
     const page = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: continuationToken }));
-    const keys = (page.Contents ?? [])
-      .map((item) => item.Key)
-      .filter((key): key is string => !!key && (key.startsWith(`${prefix}products/`) || key.startsWith(`${prefix}company-logos/`)));
+    const keys = (page.Contents ?? []).flatMap((item) => {
+      const key = item.Key;
+      return key && (key.startsWith(`${prefix}products/`) || key.startsWith(`${prefix}company-logos/`)) ? [key] : [];
+    });
     if (keys.length) {
       const removed = await s3.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: false } }));
       if (removed.Errors?.length) throw new Error("R2 não confirmou a remoção de todos os arquivos operacionais.");
