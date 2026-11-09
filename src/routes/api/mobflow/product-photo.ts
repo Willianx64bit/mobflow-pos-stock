@@ -22,9 +22,17 @@ async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db
  let tx:any=null, action:ProductActionResult|Response|null=null;
  try{
   const id=productIdFrom(request);tx=await beginAuthenticatedTransaction(request);const {accountId:tenant,userId:user,role,permissions}=tx.identity;
-  if(requireManager&&role!=="manager"&&!(Array.isArray(permissions)&&permissions.includes("Gerência")))return Response.json({ok:false,error:"Somente a Gerência pode alterar fotos."},{status:403});
-  const db=tx.client;const found=await db.query("SELECT id,photo_object_key,version FROM public.products WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[tenant,id]);
-  if(!found.rows.length)return Response.json({ok:false,error:"Produto não encontrado no catálogo da empresa."},{status:404});
+  if(requireManager&&role!=="manager"&&!(Array.isArray(permissions)&&permissions.includes("Gerência"))){
+   await releaseTransaction(tx.client,false);tx=null;
+   return Response.json({ok:false,error:"Somente a Gerência pode alterar fotos."},{status:403});
+  }
+  const db=tx.client;
+  const lockClause=requireManager?" FOR UPDATE":"";
+  const found=await db.query("SELECT id,photo_object_key,version FROM public.products WHERE tenant_id=$1 AND id=$2"+lockClause,[tenant,id]);
+  if(!found.rows.length){
+   await releaseTransaction(tx.client,false);tx=null;
+   return Response.json({ok:false,error:"Produto não encontrado no catálogo da empresa."},{status:404});
+  }
   action=await fn({tenant,user,db,id});
   const response=action instanceof Response?action:action.response;
   await releaseTransaction(db,true);tx=null;
