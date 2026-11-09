@@ -46,6 +46,12 @@ async function deleteOperationalR2Objects(tenantId: string) {
     }
     continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (continuationToken);
+  const check = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, MaxKeys: 1000 }));
+  const remaining = (check.Contents ?? []).filter((item) => {
+    const key = item.Key ?? "";
+    return key.startsWith(`${prefix}products/`) || key.startsWith(`${prefix}company-logos/`);
+  });
+  if (remaining.length) throw new Error("Ainda existem fotos/logo no R2 desta empresa.");
 }
 
 const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
