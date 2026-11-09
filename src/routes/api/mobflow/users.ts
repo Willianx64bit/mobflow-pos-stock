@@ -8,8 +8,10 @@ import { getNeonPool, releaseTransaction } from "@/lib/server/neon";
 const ALLOWED_PERMISSIONS = ["PDV", "Operações", "Conferência", "Validade", "Fiado", "Gerência"];
 const DEFAULT_PERMISSIONS = ["PDV", "Operações"];
 const EMPTY_STATE = {
-  products: [], cart: [], sales: [], conferences: [], receiving: [],
-  manualExpiries: [], promotions: [], suppliers: [], settings: { companyName: "" },
+  contacts: [], products: [], cart: [], sales: [], stockMovements: [],
+  cashSessions: [], cashMovements: [], conferences: [], receiving: [],
+  manualExpiries: [], stockAdjustments: [], stockWriteoffs: [], stockTransfers: [],
+  promotions: [], suppliers: [], settings: { companyName: "" },
 };
 
 class UsersError extends Error {
