@@ -31,6 +31,7 @@ describe("Neon cash commands",()=>{
   const res=await handleMobFlowCash(req({action:"open",sessionId:SESSION,idempotencyKey:KEY,openingAmount:100}));
   expect(res.status).toBe(201);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.cash_sessions"))).toBe(true);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("'cash','automatic','cash_session'"))).toBe(true);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
  it("records an idempotent cash addition or withdrawal",async()=>{
@@ -43,6 +44,7 @@ describe("Neon cash commands",()=>{
   const res=await handleMobFlowCash(req({action:"movement",sessionId:SESSION,idempotencyKey:KEY,movementType:"addition",amount:20,reason:"Troco"}));
   expect(res.status).toBe(201);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.cash_movements"))).toBe(true);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("'cash','automatic','cash_movement'"))).toBe(true);
  });
  it("closes and reconciles cash using server-side sales and movements",async()=>{
   client.query.mockImplementation(async(sql:string)=>{
@@ -57,6 +59,7 @@ describe("Neon cash commands",()=>{
   const body=await res.json();
   expect(res.status).toBe(200);
   expect(body.closing).toMatchObject({expectedAmount:155,difference:0,status:"closed"});
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("'cash','automatic','cash_session'"))).toBe(true);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
  it("rejects an unauthenticated role without PDV permission",async()=>{
