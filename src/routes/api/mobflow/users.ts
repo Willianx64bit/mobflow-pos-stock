@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import bcrypt from "bcryptjs";
 import { createHash, randomUUID } from "node:crypto";
+import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 import { beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
 import { getNeonPool, releaseTransaction } from "@/lib/server/neon";
 
@@ -16,6 +17,36 @@ class UsersError extends Error {
 }
 const deny = (message: string, status = 400): never => { throw new UsersError(message, status); };
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+
+function getR2() {
+  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+  if (!accountId || !accessKeyId || !secretAccessKey) throw new Error("R2 não configurado para limpar os arquivos da empresa.");
+  return new S3Client({ region: "auto", endpoint: `https://${accountId}.r2.cloudflarestorage.com`, credentials: { accessKeyId, secretAccessKey } });
+}
+function getR2Bucket() {
+  const value = process.env.CLOUDFLARE_R2_BUCKET_NAME;
+  if (!value) throw new Error("Bucket R2 não configurado.");
+  return value;
+}
+async function deleteOperationalR2Objects(tenantId: string) {
+  const s3 = getR2();
+  const bucket = getR2Bucket();
+  const prefix = `tenants/${tenantId}/`;
+  let continuationToken: string | undefined;
+  do {
+    const page = await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix, ContinuationToken: continuationToken }));
+    const keys = (page.Contents ?? [])
+      .map((item) => item.Key)
+      .filter((key): key is string => !!key && (key.startsWith(`${prefix}products/`) || key.startsWith(`${prefix}company-logos/`)));
+    if (keys.length) {
+      await s3.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true }));
+    }
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+}
+
 const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
 
 function normalizePermissions(value: unknown) {
@@ -71,6 +102,20 @@ async function handleUsers(request: Request) {
       if (!security.rows[0]?.password_hash) deny("Não foi possível validar a senha da gerência.", 500);
       if (sha256(managerPassword) !== security.rows[0].password_hash) deny("Senha da gerência incorreta.", 401);
 
+      // Limpa primeiro os registros operacionais dependentes, sem tocar no perfil/auth da Gerência.
+      await client.query("DELETE FROM public.receivable_payments WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.sale_items WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.sale_payments WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.cash_movements WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.sales WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.cash_sessions WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.stock_movements WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.promotions WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.products WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.mobflow_sync_events WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.mobflow_sync_counters WHERE tenant_id=$1", [identity.accountId]);
+      await client.query("DELETE FROM public.mobflow_legacy_backfill_runs WHERE tenant_id=$1", [identity.accountId]);
+
       await client.query(
         `INSERT INTO public.app_state (owner_id,state,updated_at)
          VALUES ($1,$2::jsonb,now())
@@ -107,6 +152,12 @@ async function handleUsers(request: Request) {
 
       await client.query("COMMIT");
       transactionOpen = false;
+      try {
+        await deleteOperationalR2Objects(identity.accountId);
+      } catch (cleanupError) {
+        console.error("[MobFlow reset R2 cleanup]", cleanupError instanceof Error ? cleanupError.message : "unknown");
+        return Response.json({ ok: false, deleted: ids.length, cloudCleared: false, error: "Os dados operacionais do Neon foram limpos, mas não foi possível confirmar a remoção de todas as fotos/logo no R2. Repita a operação para concluir a limpeza dos arquivos." }, { status: 503 });
+      }
       return Response.json({ ok: true, deleted: ids.length, cloudCleared: true, updatedAt: verify.rows[0].updated_at });
     }
 
