@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, LockKeyhole, Trash2, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { compressImageTo200KB } from "@/lib/imageCompression";
-import { actions, hydrateStore, useStore } from "@/lib/store";
+import { actions, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { isBetterAuthEnabled } from "@/lib/auth-client";
 import { verifyManagerPassword } from "@/lib/manager-auth";
@@ -438,7 +438,7 @@ function Configuracoes() {
     if (result.error || !result.data?.ok || result.data?.cloudCleared !== true) {
       setSecurityError(result.data?.error || "O Neon/R2 não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
     }
-    await hydrateStore(); actions.resetAppData();
+    await actions.resetAppData();
     setName(""); setLogo(""); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
     setPdvUsers([]); setUsersDetailsOpen(true); setAddUserOpen(true);
     setResetOpen(false); setSecurityModal(null); setSecurityPassword(""); setSecurityError(""); setResetError("");
