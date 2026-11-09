@@ -123,16 +123,18 @@ describe("applySyncEventsToState", () => {
     const result = applySyncEventsToState(emptyState(), [first, second]);
 
     expect(result.products[0]?.stock).toBe(11);
-    expect(result.stockMovements.map((movement) => movement.operationId)).toEqual(["op-2:product-1", "op-1:product-1"]);
+    expect(result.stockMovements.map((movement) => movement.id)).toEqual(["op-2:product-1", "op-1:product-1"]);
   });
 
-  it("rejects legacy/incomplete payloads instead of inventing missing movement data", () => {
+  it("applies a state-update balance without inventing a missing ledger movement", () => {
     const legacy = event({
       sequence: "1", category: "stock", entity_type: "product", entity_id: "product-1",
       payload: { source: "state_update", stockDelta: -1, resultingStock: 9 },
     });
 
-    expect(() => applySyncEventsToState(emptyState(), [legacy])).toThrow(UnsupportedSyncEventError);
+    const result = applySyncEventsToState(emptyState(), [legacy]);
+    expect(result.products[0]?.stock).toBe(9);
+    expect(result.stockMovements).toHaveLength(0);
   });
 
   it("rejects unsupported legacy catalog and cash-session event shapes", () => {
