@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
+
 import { UserRound, Printer, Trash2, ArrowLeft, ReceiptText, LockKeyhole } from "lucide-react";
 
 export const Route = createFileRoute("/fiado")({
@@ -59,10 +59,14 @@ function Fiado() {
     setAuthorizing(true);
     setPasswordError("");
     try {
-      const { data, error } = await supabase.functions.invoke("mobflow-login", {
-        body: { username, password: passwordInput, cnpj, expectedRole: "pdv" },
+      const response = await fetch("/api/mobflow/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ username, password: passwordInput, cnpj, expectedRole: "pdv" }),
       });
-      if (error || !data?.session || data?.profile?.role !== "pdv") {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok || data?.profile?.role !== "pdv") {
         setPasswordError("Senha incorreta ou usuário do PDV inválido.");
         return;
       }
