@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { beginAuthenticatedTransaction, ApiAuthError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
-const MAX_BYTES=5*1024*1024;
+const MAX_BYTES=200*1024;
 const formats={
  "image/png":{ext:"png",valid:(b:Uint8Array)=>b.length>=8&&[137,80,78,71,13,10,26,10].every((v,i)=>b[i]===v)},
  "image/jpeg":{ext:"jpg",valid:(b:Uint8Array)=>b.length>=3&&b[0]===255&&b[1]===216&&b[2]===255},
@@ -41,7 +41,7 @@ async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db
 async function upload(request:Request){
  return withProduct(request,async({tenant,user,db,id})=>{
   const form=await request.formData().catch(()=>null),file=form?.get("file");
-  if(!(file instanceof File)||file.size<1||file.size>MAX_BYTES)return Response.json({ok:false,error:"Envie uma imagem de até 5 MB."},{status:400});
+  if(!(file instanceof File)||file.size<1||file.size>MAX_BYTES)return Response.json({ok:false,error:"Envie uma imagem de até 200 KB."},{status:400});
   const rule=formats[file.type as keyof typeof formats];if(!rule)return Response.json({ok:false,error:"Formato permitido: PNG, JPG ou WEBP."},{status:415});
   const bytes=new Uint8Array(await file.arrayBuffer());if(!rule.valid(bytes))return Response.json({ok:false,error:"O conteúdo não corresponde ao formato informado."},{status:415});
   const key=`tenants/${tenant}/products/${id}/${randomUUID()}.${rule.ext}`;
