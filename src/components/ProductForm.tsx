@@ -49,7 +49,8 @@ export function ProductForm({ product, onClose }: Props) {
       if(neonCatalog){
         if(!product?.id&&(stock??0)!==0)throw new Error("No catálogo Neon, cadastre primeiro com estoque zero. Depois registre o saldo pela operação de estoque, que mantém o histórico auditável.");
         if(product?.id&&!Number.isSafeInteger(product.version))throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
-        const payload={id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,stock:0,minStock:minStock??0,barcodes:cleanBarcodes};
+        if(product?.id&&(stock??0)!==product.stock)throw new Error("A alteração de estoque deve ser feita pela tela de movimentação de estoque, para manter o histórico auditável.");
+        const payload={id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,minStock:minStock??0,barcodes:cleanBarcodes};
         const response=await fetch("/api/mobflow/products",{method:product?.id?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product?.id?{...payload,expectedVersion:product.version}:{...payload,stock:0})});
         const saved=await response.json().catch(()=>null);if(!response.ok||!saved?.ok||!saved.product)throw new Error(saved?.error||"O Neon não confirmou o cadastro do produto.");
         savedVersion=Number(saved.product.version);
