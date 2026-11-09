@@ -67,7 +67,7 @@ export async function handleMobFlowCash(request: Request) {
       const active=await client.query("SELECT id FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id=$2 AND status='open' FOR UPDATE",[identity.accountId,identity.userId]);
       if(active.rows.length) fail("Você já possui um caixa aberto.",409,"cash_already_open");
       await client.query("INSERT INTO public.cash_sessions(tenant_id,id,operator_profile_id,operator_snapshot,status,opening_amount,opened_at,opening_note) VALUES($1,$2,$3,$4,'open',$5,$6,$7)",[identity.accountId,sessionId,identity.userId,operatorName,cents(opening),now,str(body.note,500)||null]);
-      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','manual','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-open:"+sessionId),sessionId,JSON.stringify({sessionId,status:"open",openingAmount:cents(opening),operator:operatorName,openedAt:now,note:str(body.note,500)||undefined})]);
+      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','automatic','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-open:"+sessionId),sessionId,JSON.stringify({sessionId,status:"open",openingAmount:cents(opening),operator:operatorName,openedAt:now,note:str(body.note,500)||undefined})]);
       await releaseTransaction(client,true); tx=null;
       return Response.json({ok:true,replayed:false,session:{id:sessionId,status:"open",openingAmount:cents(opening),openedAt:now}},{status:201});
     }
@@ -110,7 +110,7 @@ export async function handleMobFlowCash(request: Request) {
     const difference=cents(counted-expected);
     const closed = await client.query("UPDATE public.cash_sessions SET status='closed',closed_at=$3,closed_by_snapshot=$4,counted_amount=$5,expected_amount=$6,difference_amount=$7,closing_note=$8,close_idempotency_key=$9,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND status='open'",[identity.accountId,sessionId,now,operatorName,cents(counted),expected,difference,str(body.note,500)||null,body.idempotencyKey]);
     if(closed.rowCount!==1) fail("O caixa mudou durante o fechamento. Tente novamente.",409,"cash_close_conflict");
-    await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','manual','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-close:"+sessionId),sessionId,JSON.stringify({sessionId,status:"closed",countedAmount:cents(counted),expectedAmount:expected,difference,operator:operatorName,closedAt:now,note:str(body.note,500)||undefined})]);
+    await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','automatic','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-close:"+sessionId),sessionId,JSON.stringify({sessionId,status:"closed",countedAmount:cents(counted),expectedAmount:expected,difference,operator:operatorName,closedAt:now,note:str(body.note,500)||undefined})]);
     await releaseTransaction(client,true); tx=null;
     return Response.json({ok:true,replayed:false,closing:{sessionId,status:"closed",countedAmount:cents(counted),expectedAmount:expected,difference,closedAt:now}},{status:200});
   } catch(error) {
