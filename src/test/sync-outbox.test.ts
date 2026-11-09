@@ -117,18 +117,28 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(result).toMatchObject({ sent: 0, failed: 1, pending: 1 });
   });
 
-  it("persists the pull cursor only after the event page is applied", async () => {
+  it("applies automatic events and advances over skipped manual sequences", async () => {
     const event: SyncEvent = {
       event_id: "event-1", sequence: "4", category: "stock", delivery_mode: "automatic",
       entity_type: "product", entity_id: "product-1", payload: { stockDelta: -1 }, created_at: "2026-11-08T12:00:00.000Z",
     };
     const outbox = outboxMock({ getCursor: vi.fn().mockResolvedValue("3") });
-    const transport = vi.fn().mockResolvedValue(response({ ok: true, events: [event], nextCursor: "4", hasMore: false }));
+    const transport = vi.fn().mockResolvedValue(response({ ok: true, events: [event], nextCursor: "6", highWaterMark: "6", hasMore: false }));
     const apply = vi.fn().mockResolvedValue(undefined);
     const result = await pullSyncEvents(outbox, TENANT, apply, transport);
     expect(apply).toHaveBeenCalledWith([event]);
-    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "4");
-    expect(result).toMatchObject({ applied: 1, cursor: "4", hasMore: false });
+    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "6");
+    expect(result).toMatchObject({ applied: 1, cursor: "6", hasMore: false });
+  });
+
+  it("advances the cursor over a page containing only manual events", async () => {
+    const outbox = outboxMock({ getCursor: vi.fn().mockResolvedValue("10") });
+    const transport = vi.fn().mockResolvedValue(response({ ok: true, events: [], nextCursor: "50", highWaterMark: "50", hasMore: false }));
+    const apply = vi.fn();
+    const result = await pullSyncEvents(outbox, TENANT, apply, transport);
+    expect(apply).not.toHaveBeenCalled();
+    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "50");
+    expect(result).toMatchObject({ applied: 0, cursor: "50", hasMore: false });
   });
 
   it("rejects duplicate or out-of-order event sequences without applying the page", async () => {
@@ -146,7 +156,7 @@ describe("MobFlow durable incremental outbox contract", () => {
 
   it("does not advance the cursor if applying an event page fails", async () => {
     const event: SyncEvent = {
-      event_id: "event-2", sequence: "5", category: "sales", delivery_mode: "manual",
+      event_id: "event-2", sequence: "5", category: "sales", delivery_mode: "automatic",
       entity_type: "sale", entity_id: "sale-1", payload: {}, created_at: "2026-11-08T12:00:00.000Z",
     };
     const outbox = outboxMock({ getCursor: vi.fn().mockResolvedValue("4") });
