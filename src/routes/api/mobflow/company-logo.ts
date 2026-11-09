@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { beginAuthenticatedTransaction, ApiAuthError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
-const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const MAX_LOGO_BYTES = 200 * 1024;
 const allowed = {
   "image/png": { ext: "png", signature: (b: Uint8Array) => b.length >= 8 && [137,80,78,71,13,10,26,10].every((v,i)=>b[i]===v) },
   "image/jpeg": { ext: "jpg", signature: (b: Uint8Array) => b.length >= 3 && b[0]===255 && b[1]===216 && b[2]===255 },
@@ -40,7 +40,7 @@ async function withIdentity(request:Request, action:(tenant:string)=>Promise<Res
 async function upload(request:Request){
  return withIdentity(request,async tenant=>{
   const form=await request.formData().catch(()=>null),file=form?.get("file");
-  if(!(file instanceof File)||file.size<1||file.size>MAX_LOGO_BYTES)return Response.json({ok:false,error:"Envie uma imagem de até 2 MB."},{status:400});
+  if(!(file instanceof File)||file.size<1||file.size>MAX_LOGO_BYTES)return Response.json({ok:false,error:"Envie uma imagem de até 200 KB."},{status:400});
   const rule=allowed[file.type as keyof typeof allowed];
   if(!rule)return Response.json({ok:false,error:"Formato permitido: PNG, JPG ou WEBP."},{status:415});
   const bytes=new Uint8Array(await file.arrayBuffer());
