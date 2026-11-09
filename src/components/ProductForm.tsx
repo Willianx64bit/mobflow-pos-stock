@@ -48,7 +48,8 @@ export function ProductForm({ product, onClose }: Props) {
         const create=await fetch("/api/mobflow/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,stock:0,minStock:minStock??0,barcodes:cleanBarcodes})});
         const created=await create.json().catch(()=>null);if(!create.ok||!created?.ok)throw new Error(created?.error||"Não foi possível cadastrar o produto no catálogo.");
       }
-      let photoUrl=f.photo||undefined;\n      let photoObjectKey=product?.photoObjectKey;
+      let photoUrl=f.photo||undefined;
+      let photoObjectKey=product?.photoObjectKey;
       if(photoFile){
         const form=new FormData();form.append("file",photoFile);
         const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(id),{method:"POST",body:form});
