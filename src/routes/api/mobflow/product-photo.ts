@@ -52,8 +52,7 @@ async function upload(request:Request){
    if(!updated.rows.length)throw new Error("Produto não encontrado.");
    await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_updated",productId:id,photoObjectKey:key,version:Number(updated.rows[0].version)})]);
   }catch(e){await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key})).catch(()=>{});throw e;}
-  // A foto anterior é mantida até uma rotina de limpeza pós-commit confirmada.
-  return Response.json({ok:true,photoObjectKey:key,photoUrl:`/api/mobflow/product-photo?productId=${encodeURIComponent(id)}`});
+  return {response:Response.json({ok:true,photoObjectKey:key,photoUrl:`/api/mobflow/product-photo?productId=${encodeURIComponent(id)}`}),onRollback:async()=>{await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));},afterCommit:async()=>{if(old&&old!==key&&old.startsWith(`tenants/${tenant}/products/${id}/`))await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
  });
 }
 async function read(request:Request){
@@ -71,8 +70,7 @@ async function remove(request:Request){
   const old=row?.photo_object_key as string|null;if(!old)return Response.json({ok:true,removed:false});
   await db.query("UPDATE public.products SET photo_object_key=NULL,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2",[tenant,id]);
   await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_removed",productId:id,photoObjectKey:null})]);
-  // O objeto antigo fica preservado; a remoção física ocorre somente após confirmação do commit.
-  return Response.json({ok:true,removed:true});
+  return {response:Response.json({ok:true,removed:true}),afterCommit:async()=>{if(old.startsWith(`tenants/${tenant}/products/${id}/`))await client().send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
  });
 }
 export const Route=createFileRoute("/api/mobflow/product-photo")({server:{handlers:{
