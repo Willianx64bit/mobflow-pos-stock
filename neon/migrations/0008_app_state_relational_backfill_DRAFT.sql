@@ -53,6 +53,15 @@ CREATE TABLE IF NOT EXISTS public.mobflow_legacy_backfill_runs (
 );
 REVOKE ALL ON public.mobflow_legacy_backfill_runs FROM PUBLIC;
 
+-- Legacy receipt metadata was not captured; preserve it as explicitly unknown.
+ALTER TABLE public.receivable_payments
+  ALTER COLUMN operator_profile_id DROP NOT NULL;
+ALTER TABLE public.receivable_payments
+  DROP CONSTRAINT IF EXISTS receivable_payments_payment_method_check;
+ALTER TABLE public.receivable_payments
+  ADD CONSTRAINT receivable_payments_payment_method_check
+  CHECK (payment_method IN ('cash','pix','card','legacy_unknown'));
+
 DO $backfill$
 DECLARE
   src record;
@@ -199,6 +208,16 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM jsonb_array_elements(COALESCE(src.state->'sales', '[]'::jsonb)) sale
+      WHERE lower(COALESCE(sale->>'payment','')) LIKE '%fiado%'
+        AND sale ? 'payments'
+        AND jsonb_typeof(sale->'payments') IS DISTINCT FROM 'array'
+    ) THEN
+      RAISE EXCEPTION 'A legacy Fiado payments field is not an array for tenant %', src.owner_id;
+    END IF;
+
+    IF EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(COALESCE(src.state->'sales', '[]'::jsonb)) sale
       CROSS JOIN LATERAL jsonb_array_elements(
         CASE WHEN jsonb_typeof(sale->'payments') = 'array' THEN sale->'payments' ELSE '[]'::jsonb END
       ) WITH ORDINALITY receipt
@@ -206,17 +225,28 @@ BEGIN
         AND (
           jsonb_typeof(receipt.value) <> 'object'
           OR NOT (receipt.value ? 'value')
-          OR COALESCE(receipt.value->>'value','') !~ '^[0-9]+([.][0-9]+)?
+          OR COALESCE(receipt.value->>'value','') !~ '^[0-9]+([.][0-9]+)?$'
+          OR (receipt.value->>'value')::numeric <= 0
+          OR NOT (receipt.value ? 'date')
+          OR NOT pg_input_is_valid(receipt.value->>'date', 'timestamp with time zone')
+        )
+    ) THEN
+      RAISE EXCEPTION 'A legacy Fiado receipt has an invalid amount or date for tenant %', src.owner_id;
+    END IF;
 
-    -- Preserve legacy receipts without inventing payment method or operator metadata.
-    -- These fields were not captured by the old UI for Fiado installments.
-    ALTER TABLE public.receivable_payments
-      ALTER COLUMN operator_profile_id DROP NOT NULL;
-    ALTER TABLE public.receivable_payments
-      DROP CONSTRAINT IF EXISTS receivable_payments_payment_method_check;
-    ALTER TABLE public.receivable_payments
-      ADD CONSTRAINT receivable_payments_payment_method_check
-      CHECK (payment_method IN ('cash','pix','card','legacy_unknown'));
+    IF EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements(COALESCE(src.state->'sales', '[]'::jsonb)) sale
+      WHERE lower(COALESCE(sale->>'payment','')) LIKE '%fiado%'
+        AND COALESCE((
+          SELECT SUM((receipt.value->>'value')::numeric)
+          FROM jsonb_array_elements(
+            CASE WHEN jsonb_typeof(sale->'payments') = 'array' THEN sale->'payments' ELSE '[]'::jsonb END
+          ) receipt
+        ),0) > COALESCE(NULLIF(sale->>'total','')::numeric,0) + 0.005
+    ) THEN
+      RAISE EXCEPTION 'Legacy Fiado receipts exceed the sale total for tenant %; reconcile explicitly', src.owner_id;
+    END IF;
 
     -- Products first; their current stock is copied as the authoritative starting balance.
     INSERT INTO public.products (
