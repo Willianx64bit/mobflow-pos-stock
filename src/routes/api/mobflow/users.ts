@@ -41,7 +41,8 @@ async function deleteOperationalR2Objects(tenantId: string) {
       .map((item) => item.Key)
       .filter((key): key is string => !!key && (key.startsWith(`${prefix}products/`) || key.startsWith(`${prefix}company-logos/`)));
     if (keys.length) {
-      await s3.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: true }));
+      const removed = await s3.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: keys.map((Key) => ({ Key })), Quiet: false } }));
+      if (removed.Errors?.length) throw new Error("R2 não confirmou a remoção de todos os arquivos operacionais.");
     }
     continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
   } while (continuationToken);
@@ -130,10 +131,7 @@ async function handleUsers(request: Request) {
       const ids = users.rows.map((user) => user.id);
       const usernames = users.rows.map((user) => user.username);
       if (usernames.length) {
-        await client.query(
-          "DELETE FROM public.account_allowlist WHERE username=ANY($1::text[]) AND cnpj=$2",
-          [usernames, managerCnpj],
-        );
+        await client.query("DELETE FROM public.account_allowlist WHERE cnpj=$1", [managerCnpj]);
         await client.query("DELETE FROM public.profiles WHERE id=ANY($1::uuid[])", [ids]);
         await client.query('DELETE FROM public."user" WHERE id=ANY($1::text[])', [ids]);
       }
@@ -146,7 +144,23 @@ async function handleUsers(request: Request) {
       const arraysEmpty = !!state && ["products","cart","sales","conferences","receiving","manualExpiries","promotions","suppliers"]
         .every((key) => Array.isArray(state[key]) && (state[key] as unknown[]).length === 0);
       const settings = state?.settings && typeof state.settings === "object" ? state.settings as Record<string, unknown> : {};
-      if (!arraysEmpty || settings.pixKey || settings.companyLogo) {
+      const relational = await client.query<{ remaining: string }>(
+        `SELECT
+          (SELECT count(*) FROM public.receivable_payments WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.sale_items WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.sale_payments WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.cash_movements WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.sales WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.cash_sessions WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.stock_movements WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.promotions WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.products WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.mobflow_sync_events WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.mobflow_sync_counters WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.mobflow_legacy_backfill_runs WHERE tenant_id=$1) AS remaining`,
+        [identity.accountId],
+      );
+      if (!arraysEmpty || Number(relational.rows[0]?.remaining ?? 0) !== 0 || settings.pixKey || settings.companyLogo) {
         deny("A limpeza foi solicitada, mas a verificação final no Neon não confirmou todos os dados vazios.", 500);
       }
 
