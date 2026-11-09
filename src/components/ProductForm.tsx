@@ -39,12 +39,30 @@ export function ProductForm({ product, onClose }: Props) {
   const submit=async(e:React.FormEvent)=>{e.preventDefault();if(!f.name.trim()||photoBusy)return;const stock=f.unit==="kg"?weight(f.stock):num(f.stock),minStock=f.unit==="kg"?weight(f.minStock):num(f.minStock);if(f.unit==="kg"&&(stock===null||minStock===null||stock<0||minStock<0))return;
     setPhotoBusy(true);
     try {
-    if(product?.id && photoFile){const form=new FormData();form.append("file",photoFile);const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(product.id),{method:"POST",body:form});const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível enviar a foto.");f.photo=result.photoUrl; }
-    else if(product?.id && !f.photo && product.photo){const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(product.id),{method:"DELETE"});const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");}
-    actions.saveProduct({id:product?.id,name:f.name.trim(),barcodes:Array.from(new Set(barcodes.map(code=>code.trim()).filter(code=>code && code!==f.code.trim()))),ref:f.ref.trim()||undefined,code:f.code.trim()||String(Date.now()).slice(-10),category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:f.photo||undefined,photoObjectKey:product?.photoObjectKey});onClose();
+      const id=product?.id??crypto.randomUUID();
+      const code=f.code.trim()||String(Date.now()).slice(-10);
+      const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
+      if(!product?.id&&photoFile){
+        if(import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER!=="neon")throw new Error("O envio seguro de fotos exige o catálogo Neon habilitado neste ambiente.");
+        if((stock??0)!==0)throw new Error("Para cadastrar com foto no catálogo Neon, salve primeiro o produto com estoque zero. O estoque inicial é registrado por uma operação auditável.");
+        const create=await fetch("/api/mobflow/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,stock:0,minStock:minStock??0,barcodes:cleanBarcodes})});
+        const created=await create.json().catch(()=>null);if(!create.ok||!created?.ok)throw new Error(created?.error||"Não foi possível cadastrar o produto no catálogo.");
+      }
+      let photoUrl=f.photo||undefined;
+      if(photoFile){
+        const form=new FormData();form.append("file",photoFile);
+        const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(id),{method:"POST",body:form});
+        const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível enviar a foto.");
+        photoUrl=result.photoUrl;
+      } else if(product?.id&&!f.photo&&product.photo){
+        const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(product.id),{method:"DELETE"});
+        const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
+        photoUrl=undefined;
+      }
+      actions.saveProduct({id,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey:product?.photoObjectKey});onClose();
     } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
-  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(!product?.id){alert("Salve o produto primeiro. Depois abra a edição para enviar a foto com segurança.");return;}if(file.size>5*1024*1024){alert("A foto deve ter no máximo 5 MB.");return;}if(!["image/png","image/jpeg","image/webp"].includes(file.type)){alert("Formato permitido: PNG, JPG ou WEBP.");return;}setPhotoFile(file);setF(v=>({...v,photo:URL.createObjectURL(file)}));};
+  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){alert("A foto deve ter no máximo 5 MB.");return;}if(!["image/png","image/jpeg","image/webp"].includes(file.type)){alert("Formato permitido: PNG, JPG ou WEBP.");return;}setPhotoFile(file);setF(v=>({...v,photo:URL.createObjectURL(file)}));};
   const input=(key:keyof typeof f,label:string,opts:{mono?:boolean;ref?:boolean;mode?:"decimal"|"numeric"}={})=><label className="flex flex-col gap-1.5"><span className="label-mono">{label}</span><input ref={opts.ref?first:undefined} inputMode={opts.mode} value={f[key]} onChange={e=>setF({...f,[key]:opts.mode==="decimal"?cleanNumber(e.target.value):e.target.value})} className={`field text-sm text-foreground ${opts.mono?"font-mono":""}`}/></label>;
 
   return <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={onClose}><form onSubmit={submit} onClick={e=>e.stopPropagation()} className="mfb-in w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl bg-popover ring-1 ring-border p-5 space-y-4">
