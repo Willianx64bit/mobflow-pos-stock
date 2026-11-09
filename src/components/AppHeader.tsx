@@ -1,6 +1,6 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useStore, syncNow } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
@@ -140,7 +140,7 @@ export function AppHeader() {
     sessionStorage.removeItem("mobflow-username");
     sessionStorage.removeItem("mobflow-permissions");
     localStorage.removeItem("mobflow-authenticated");
-    await supabase.auth.signOut();
+    await mobflowAuthClient.signOut();
     setPdvAuthorized(false);
     setUsername("Usuário");
     setShowLogoutConfirm(false);
