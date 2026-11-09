@@ -80,7 +80,8 @@ describe("MobFlow Neon state API", () => {
       [ACCOUNT_ID, false],
     );
     const bootstrapSql = String(client.query.mock.calls[0][0]);
-    expect(bootstrapSql).toContain("mobflow_legacy_backfill_runs");
+    expect(bootstrapSql).toContain("AS relational_ready");
+    expect(bootstrapSql).toContain("public.products");
     expect(bootstrapSql).toContain("public.sale_items");
     expect(bootstrapSql).toContain("public.stock_movements");
     expect(bootstrapSql).toContain("public.promotions");
