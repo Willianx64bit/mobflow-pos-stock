@@ -164,6 +164,7 @@ async function handleUsers(request: Request) {
           (SELECT count(*) FROM public.stock_movements WHERE tenant_id=$1) +
           (SELECT count(*) FROM public.promotions WHERE tenant_id=$1) +
           (SELECT count(*) FROM public.products WHERE tenant_id=$1) +
+          (SELECT count(*) FROM public.product_barcodes WHERE tenant_id=$1) +
           (SELECT count(*) FROM public.mobflow_sync_events WHERE tenant_id=$1) +
           (SELECT count(*) FROM public.mobflow_sync_counters WHERE tenant_id=$1) +
           (SELECT count(*) FROM public.mobflow_legacy_backfill_runs WHERE tenant_id=$1) AS remaining`,
