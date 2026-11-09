@@ -650,8 +650,15 @@ export function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncE
 }
 
 export async function syncNow(options: { retryFailed?: boolean } = {}) {
-  const tenantId = cloudAccountId ?? (typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
-  if (!tenantId || !cloudReady) throw new Error("Entre na empresa para sincronizar os dados.");
+  // O botão manual também pode ser acionado antes da hidratação inicial do app.
+  // Revalida a sessão no servidor e carrega o tenant antes de acessar a fila.
+  if (!cloudReady || !cloudAccountId) {
+    await hydrateStore();
+  }
+  const tenantId = cloudAccountId;
+  if (!tenantId || !cloudReady) {
+    throw new Error("Não foi possível validar a sessão da empresa. Entre novamente e tente sincronizar.");
+  }
   if (persistWorker) await persistQueue;
   await restoreOutboxBackup(tenantId);
   if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
