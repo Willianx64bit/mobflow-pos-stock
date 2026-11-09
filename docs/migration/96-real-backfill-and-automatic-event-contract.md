@@ -99,10 +99,11 @@ Limitações funcionais ainda abertas:
 
 ## 7. Validação pendente antes de ativar flags
 
-- Executar a suíte GitHub Actions completa e o build após as alterações de eventos.
-- Apontar um Preview isolado para o banco de backfill somente depois de importar e validar as credenciais.
-- Testar login, isolamento de tenant, venda comum, caixa, estoque, fila offline, retry idempotente, Realtime e cursor em dois dispositivos.
+- A suíte GitHub Actions completa (testes unitários e build) passou no commit `c09161f5f13c44bb807b9fa256877da0d8ceae3f`.
+- O deployment Vercel Preview desse commit ficou `READY`.
+- O novo banco de backfill ainda não foi conectado ao Preview, pois Better Auth e credenciais não foram importados.
+- Ainda faltam testes autenticados de isolamento de tenant, venda comum, caixa, estoque, fila offline, retry idempotente, Realtime e cursor em dois dispositivos.
 - Testar Fiado e operações pesadas pelo botão manual.
 - Só então ativar `VITE_MOBFLOW_INCREMENTAL_SYNC` e `VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY` no Preview.
 
-Produção, `main`, Supabase de origem, MobFlow Admin e ColetaFlow permanecem inalterados.
+Este documento cobre o backfill e a sincronização do MobFlow PDV. O MobFlow Admin tem origem Supabase própria e exige inventário/backfill separado; não foi alterado nesta etapa. Produção, `main`, Supabase de origem e ColetaFlow permanecem inalterados.
