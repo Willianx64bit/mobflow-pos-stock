@@ -18,11 +18,11 @@ function client(){
 function bucket(){const b=process.env.CLOUDFLARE_R2_BUCKET_NAME;if(!b)throw new Error("Bucket R2 não configurado.");return b;}
 function productIdFrom(request:Request){const id=new URL(request.url).searchParams.get("productId")??"";if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))throw new Error("Identificador do produto inválido.");return id;}
 type ProductActionResult={response:Response;afterCommit?:()=>Promise<void>;onRollback?:()=>Promise<void>};
-async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db:any;id:string})=>Promise<ProductActionResult|Response>){
+async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db:any;id:string})=>Promise<ProductActionResult|Response>,requireManager=true){
  let tx:any=null, action:ProductActionResult|Response|null=null;
  try{
   const id=productIdFrom(request);tx=await beginAuthenticatedTransaction(request);const {accountId:tenant,userId:user,role,permissions}=tx.identity;
-  if(role!=="manager"&&!(Array.isArray(permissions)&&permissions.includes("Gerência")))return Response.json({ok:false,error:"Somente a Gerência pode alterar fotos."},{status:403});
+  if(requireManager&&role!=="manager"&&!(Array.isArray(permissions)&&permissions.includes("Gerência")))return Response.json({ok:false,error:"Somente a Gerência pode alterar fotos."},{status:403});
   const db=tx.client;const found=await db.query("SELECT id,photo_object_key,version FROM public.products WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[tenant,id]);
   if(!found.rows.length)return Response.json({ok:false,error:"Produto não encontrado no catálogo da empresa."},{status:404});
   action=await fn({tenant,user,db,id});
