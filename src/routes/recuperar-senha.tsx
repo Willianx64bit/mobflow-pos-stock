@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { isBetterAuthEnabled } from "@/lib/auth-client";
+
 
 export const Route = createFileRoute("/recuperar-senha")({
   head: () => ({ meta: [{ title: "MobFlow — Recuperar senha da Gerência" }] }),
@@ -35,20 +34,16 @@ function RecuperarSenha() {
     }
     setBusy(true);
     try {
-      const resetResult = isBetterAuthEnabled
-        ? await fetch("/api/mobflow/manager-password-recovery", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "same-origin",
-            body: JSON.stringify({ action: "reset", token, password }),
-          }).then(async (response) => ({ data: await response.json().catch(() => ({})), error: response.ok ? null : true }))
-        : await supabase.functions.invoke("mobflow-manager-password-recovery", { body: { action: "reset", token, password } });
-      const { data, error: invokeError } = resetResult;
+      const response = await fetch("/api/mobflow/manager-password-recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ action: "reset", token, password }),
+      });
+      const data = await response.json().catch(() => ({}));
+      const invokeError = !response.ok;
       if (invokeError || !data?.ok) {
         let detail = String(data?.error ?? "");
-        try {
-          if (!detail) detail = String((await (invokeError as { context?: Response })?.context?.json())?.error ?? "");
-        } catch {}
         setError(detail || "Não foi possível alterar a senha. Solicite um novo link e tente novamente.");
         return;
       }
