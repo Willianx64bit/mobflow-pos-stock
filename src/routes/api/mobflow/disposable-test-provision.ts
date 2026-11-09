@@ -32,7 +32,7 @@ async function provision(request: Request) {
   const client = await getNeonPool().connect();
   try {
     await client.query("BEGIN");
-    const guard = await client.query<{ database_name: string; companies: string; profiles: string; users: string; products: string; sales: string; sync_events: string }>(
+    const guard = await client.query<{ database_name: string; companies: string; profiles: string; users: string; auth_accounts: string; allowlist: string; app_states: string; products: string; sales: string; sync_events: string }>(
       `SELECT current_database() AS database_name,
         (SELECT count(*)::text FROM public.companies) AS companies,
         (SELECT count(*)::text FROM public.profiles) AS profiles,
@@ -43,7 +43,7 @@ async function provision(request: Request) {
     );
     const state = guard.rows[0];
     if (!state || state.database_name !== EXPECTED_DATABASE ||
-        [state.companies, state.profiles, state.users, state.products, state.sales, state.sync_events].some(v => v !== "0")) {
+        [state.companies, state.profiles, state.users, state.auth_accounts, state.allowlist, state.app_states, state.products, state.sales, state.sync_events].some(v => v !== "0")) {
       await client.query("ROLLBACK");
       return unavailable();
     }
