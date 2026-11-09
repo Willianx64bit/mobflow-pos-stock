@@ -62,7 +62,7 @@ async function read(request:Request){
   const object=await client().send(new GetObjectCommand({Bucket:bucket(),Key:key}));if(!object.Body)return new Response(null,{status:404});
   const bytes=await object.Body.transformToByteArray();
   return new Response(bytes,{headers:{"Content-Type":object.ContentType??"application/octet-stream","Content-Length":String(bytes.byteLength),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'; sandbox"}});
- });
+ },false);
 }
 async function remove(request:Request){
  return withProduct(request,async({tenant,db,id})=>{
