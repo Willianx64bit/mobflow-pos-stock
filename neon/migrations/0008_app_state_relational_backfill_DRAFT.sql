@@ -296,6 +296,7 @@ BEGIN
           CASE
             WHEN COALESCE((SELECT SUM((receipt.value->>'value')::numeric)
               FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt),0)
+              >= COALESCE(NULLIF(sale->>'total','')::numeric,0) - 0.005
               AND COALESCE(NULLIF(sale->>'total','')::numeric,0) > 0 THEN 'paid'
             WHEN COALESCE((SELECT SUM((receipt.value->>'value')::numeric)
               FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt),0) > 0 THEN 'partial'
@@ -309,6 +310,7 @@ BEGIN
         WHEN lower(COALESCE(sale->>'payment','')) LIKE '%fiado%' THEN
           CASE WHEN COALESCE((SELECT SUM((receipt.value->>'value')::numeric)
             FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt),0)
+            >= COALESCE(NULLIF(sale->>'total','')::numeric,0) - 0.005
             AND COALESCE(NULLIF(sale->>'total','')::numeric,0) > 0
           THEN (SELECT MAX((receipt.value->>'date')::timestamptz)
             FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt)
