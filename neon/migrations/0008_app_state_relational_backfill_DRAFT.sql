@@ -191,7 +191,7 @@ BEGIN
       FROM jsonb_array_elements(COALESCE(src.state->'sales', '[]'::jsonb)) sale
       WHERE lower(COALESCE(sale->>'payment','')) LIKE '%fiado%'
         AND sale ? 'payments'
-        AND jsonb_typeof(sale->'payments') <> 'array'
+        AND jsonb_typeof(sale->'payments') IS DISTINCT FROM 'array'
     ) THEN
       RAISE EXCEPTION 'A legacy Fiado payments field is not an array for tenant %', src.owner_id;
     END IF;
@@ -296,7 +296,7 @@ BEGIN
           CASE
             WHEN COALESCE((SELECT SUM((receipt.value->>'value')::numeric)
               FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt),0)
-              >= COALESCE(NULLIF(sale->>'total','')::numeric,0) - 0.005 THEN 'paid'
+              AND COALESCE(NULLIF(sale->>'total','')::numeric,0) > 0 THEN 'paid'
             WHEN COALESCE((SELECT SUM((receipt.value->>'value')::numeric)
               FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt),0) > 0 THEN 'partial'
             ELSE 'unpaid'
@@ -309,7 +309,7 @@ BEGIN
         WHEN lower(COALESCE(sale->>'payment','')) LIKE '%fiado%' THEN
           CASE WHEN COALESCE((SELECT SUM((receipt.value->>'value')::numeric)
             FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt),0)
-            >= COALESCE(NULLIF(sale->>'total','')::numeric,0) - 0.005
+            AND COALESCE(NULLIF(sale->>'total','')::numeric,0) > 0
           THEN (SELECT MAX((receipt.value->>'date')::timestamptz)
             FROM jsonb_array_elements(COALESCE(sale->'payments','[]'::jsonb)) receipt)
           ELSE NULL END
