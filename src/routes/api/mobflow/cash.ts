@@ -87,7 +87,7 @@ export async function handleMobFlowCash(request: Request) {
       if(!session.rows[0]||session.rows[0].status!=="open"||session.rows[0].operator_profile_id!==identity.userId) fail("Caixa aberto do operador não encontrado.",409,"cash_session_not_open");
       const movementId=str(body.idempotencyKey,100);
       await client.query("INSERT INTO public.cash_movements(tenant_id,id,cash_session_id,movement_type,amount,reason,operator_profile_id,operator_snapshot,occurred_at,idempotency_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",[identity.accountId,movementId,sessionId,type,cents(amount),reason,identity.userId,operatorName,now,body.idempotencyKey]);
-      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','manual','cash_movement',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-movement:"+body.idempotencyKey),movementId,JSON.stringify({sessionId,type,amount:cents(amount),reason,operator:operatorName,movement:{id:movementId,sessionId,type:type==="addition"?"reforco":"sangria",amount:cents(amount),reason,operator:operatorName,date:now}})]);
+      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','automatic','cash_movement',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-movement:"+body.idempotencyKey),movementId,JSON.stringify({sessionId,type,amount:cents(amount),reason,operator:operatorName,movement:{id:movementId,sessionId,type:type==="addition"?"reforco":"sangria",amount:cents(amount),reason,operator:operatorName,date:now}})]);
       await releaseTransaction(client,true); tx=null;
       return Response.json({ok:true,replayed:false,movement:{id:movementId,sessionId,type,amount:cents(amount),reason,date:now}},{status:201});
     }
