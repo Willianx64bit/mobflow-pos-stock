@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
-import { SyncOutbox, createSyncCommand, runIncrementalSync } from "@/lib/sync-outbox";
+import { SyncOutbox, createSyncCommand, flushSyncOutbox, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
 export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
@@ -365,7 +365,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
     });
     return true;
   } catch (error) {
-    console.error("[MobFlow Sync] Could not create command; using legacy snapshot persistence.", error);
+    console.error("[MobFlow Sync] Could not create command; operation remains local until manual full sync.", error);
     return false;
   }
 }
@@ -497,7 +497,7 @@ function startRealtime(accountId: string) {
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
     realtimeOwnerId = null;
-    void refreshFromCloud(accountId, true);
+    console.warn("[MobFlow Realtime] Automatic snapshot recovery is disabled; use the manual sync button.");
   });
 }
 
@@ -562,9 +562,7 @@ function persistState() {
     persistRequested = true;
   }).finally(() => {
     persistWorker = null;
-    if (persistRequested && cloudReady && typeof window !== "undefined" && cloudAccountId) {
-      setTimeout(() => { void persistState(); }, 1800);
-    }
+    // Snapshot retries are deliberately manual; never schedule a background full-state upload.
     if (refreshAfterPersist && cloudReady && typeof window !== "undefined" && cloudAccountId) {
       refreshAfterPersist = false;
       void refreshFromCloud(cloudAccountId);
@@ -614,7 +612,6 @@ export async function hydrateStore() {
         lastSyncedState = null;
       }
 
-      const hadLegacyLogo = Boolean(state.settings?.companyLogo);
       normalizeState();
 
       try {
@@ -624,7 +621,8 @@ export async function hydrateStore() {
       cloudAccountId = accountId;
       cloudReady = true;
       startRealtime(accountId);
-      if (hadLegacyLogo || !remoteState) await persistState();
+      // Full-state bootstrap uploads are never automatic. Local changes stay on-device
+      // until the user explicitly requests a manual full synchronization.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
       listeners.forEach((l) => l());
     } catch {
@@ -638,7 +636,8 @@ export async function hydrateStore() {
 function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
   try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
-  if (cloudReady && options.persist !== false) void persistState();
+  // Mutations are persisted locally only. Supported business commands use the durable
+  // incremental outbox; full-state reconciliation is reserved for the manual button.
   listeners.forEach((l) => l());
 }
 
@@ -649,7 +648,7 @@ export function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncE
   listeners.forEach((listener) => listener());
 }
 
-export async function syncNow(options: { retryFailed?: boolean } = {}) {
+export async function syncNow(options: { retryFailed?: boolean; manualSnapshot?: boolean } = {}) {
   // O botão manual também pode ser acionado antes da hidratação inicial do app.
   // Revalida a sessão no servidor e carrega o tenant antes de acessar a fila.
   if (!cloudReady || !cloudAccountId) {
@@ -662,6 +661,15 @@ export async function syncNow(options: { retryFailed?: boolean } = {}) {
   if (persistWorker) await persistQueue;
   await restoreOutboxBackup(tenantId);
   if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
+  if (options.manualSnapshot) {
+    const pushed = await flushSyncOutbox(syncOutbox, tenantId);
+    if (pushed.failed > 0 || pushed.pending > 0) {
+      return { ...pushed, applied: 0, cursor: await syncOutbox.getCursor(tenantId), hasMore: false, snapshotSkipped: true };
+    }
+    await persistState();
+    if (persistRequested) throw new Error("A atualização completa não foi confirmada. Seus dados locais foram preservados; tente novamente pelo botão.");
+    await refreshFromCloud(tenantId, true);
+  }
   try {
     const result = await runIncrementalSync({
       outbox: syncOutbox,
@@ -671,13 +679,12 @@ export async function syncNow(options: { retryFailed?: boolean } = {}) {
     return { ...result, failed: await syncOutbox.failedCount(tenantId) };
   } catch (error) {
     if (error instanceof UnsupportedSyncEventError) {
-      // Until every legacy domain has an event projection, recover unsupported pages
-      // from one authenticated snapshot and atomically adopt that snapshot's cursor.
-      await refreshFromCloud(tenantId, true);
+      // Do not silently download the full company state during automatic sync.
+      // The cursor remains unchanged so a manual full reconciliation can recover it.
       return {
         sent: 0, failed: await syncOutbox.failedCount(tenantId),
         pending: await syncOutbox.pendingCount(tenantId), applied: 0,
-        cursor: await syncOutbox.getCursor(tenantId), hasMore: false, recoveredFromSnapshot: true,
+        cursor: await syncOutbox.getCursor(tenantId), hasMore: false, reconciliationRequired: true,
       };
     }
     throw error;
