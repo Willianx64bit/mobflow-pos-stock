@@ -60,8 +60,22 @@ describe("MobFlow incremental sync event pull API", () => {
       ok: true, cursor: "10", nextCursor: "12", highWaterMark: "12", hasMore: false, events: rows,
     });
     expect(client.query).toHaveBeenNthCalledWith(1, expect.stringContaining("mobflow_sync_counters"), [TENANT_A]);
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("tenant_id = $1"), [TENANT_A, "10", "12", 3]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("delivery_mode = 'automatic'"), [TENANT_A, "10", "12", 3]);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("advances to the high-water mark after the last automatic event", async () => {
+    const rows = [
+      { event_id: "e1", sequence: "11", category: "sales", delivery_mode: "automatic", entity_type: "sale", entity_id: "s1", payload: {}, created_at: "2026-11-07T12:00:00.000000Z" },
+      { event_id: "e2", sequence: "13", category: "cash", delivery_mode: "automatic", entity_type: "cash_movement", entity_id: "m1", payload: {}, created_at: "2026-11-07T12:00:01.000000Z" },
+    ];
+    client.query
+      .mockResolvedValueOnce({ rows: [{ last_sequence: "17" }] })
+      .mockResolvedValueOnce({ rows });
+    const response = await getHandler({ request: request("?cursor=10&limit=10") });
+    await expect(json(response)).resolves.toMatchObject({
+      nextCursor: "17", highWaterMark: "17", hasMore: false, events: rows,
+    });
   });
 
   it("uses the next cursor only through the last returned event when another page exists", async () => {
@@ -96,15 +110,16 @@ describe("MobFlow incremental sync event pull API", () => {
     expect(client.query).toHaveBeenNthCalledWith(2, expect.any(String), [TENANT_A, "0", "500", 251]);
   });
 
-  it("returns an empty page without advancing the caller cursor", async () => {
+  it("advances through manual-only sequences without returning their payloads", async () => {
     client.query
       .mockResolvedValueOnce({ rows: [{ last_sequence: "50" }] })
       .mockResolvedValueOnce({ rows: [] });
 
-    const response = await getHandler({ request: request("?cursor=50") });
+    const response = await getHandler({ request: request("?cursor=10") });
     await expect(json(response)).resolves.toMatchObject({
-      events: [], cursor: "50", nextCursor: "50", highWaterMark: "50", hasMore: false,
+      events: [], cursor: "10", nextCursor: "50", highWaterMark: "50", hasMore: false,
     });
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("delivery_mode = 'automatic'"), [TENANT_A, "10", "50", 101]);
   });
 
   it("rolls back and releases the transaction if the event query fails", async () => {
