@@ -14,7 +14,8 @@ export function ProductForm({ product, onClose }: Props) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const first = useRef<HTMLInputElement>(null);
-  const codeInput = useRef<HTMLInputElement>(null);\n  const pendingProductId = useRef<string | null>(null);
+  const codeInput = useRef<HTMLInputElement>(null);
+  const pendingProductId = useRef<string | null>(null);
   useEffect(() => {
     (product ? first.current : codeInput.current)?.focus();
   }, []);
