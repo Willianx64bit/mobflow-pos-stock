@@ -176,6 +176,7 @@ export function AppHeader() {
       {(pathname === "/" || pathname === "/operacoes" || pdvAuthorized) && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           {pdvAuthorized && (
+            <>
             <button type="button" onClick={() => void handleManualSync()} disabled={syncing} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 text-green-600 ${syncing ? "animate-spin" : ""}`} />
             </button>
@@ -184,6 +185,7 @@ export function AppHeader() {
                 {syncing ? "Sincronizando dados..." : syncMessage}
               </div>
             )}
+            </>
           )}
           {(pathname === "/" || pathname === "/operacoes") && (
             <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
