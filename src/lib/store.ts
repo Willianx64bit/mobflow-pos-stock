@@ -3,7 +3,7 @@ import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
-export type Product = { id: string; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
+export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
@@ -55,6 +55,8 @@ export type StockMovement = { id: string; operationId: string; date: string; typ
 export type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
+const tenantStateKey = (tenantId: string) => `${KEY}:${tenantId}`;
+let activeStateKey = KEY;
 const OWNER_KEY = "mobflow:owner";
 const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -169,7 +171,7 @@ function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(activeStateKey);
     if (raw) state = { ...state, ...JSON.parse(raw) };
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
     normalizeState();
@@ -381,7 +383,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Prod
       if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
       for (const raw of body.products as any[]) {
         const previous = existing.get(String(raw.id));
-        products.push({ id: String(raw.id), code: String(raw.code ?? ""),
+        products.push({ id: String(raw.id), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
           barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
           ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
           price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
@@ -431,7 +433,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     lastCloudUpdatedAt = remoteUpdatedAt;
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
     listeners.forEach((listener) => listener());
   } catch {
     // A próxima reconexão, foco da janela ou retorno da conexão recupera a sincronização.
@@ -551,7 +553,7 @@ function persistState() {
         lastSyncedState = null;
       }
       lastCloudUpdatedAt = remoteUpdatedAt;
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+      try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
       listeners.forEach((listener) => listener());
       persistRequested = true;
       attempts += 1;
@@ -575,17 +577,18 @@ function persistState() {
 export async function hydrateStore() {
   if (hydrating) return hydrating;
   hydrating = (async () => {
-    load();
-    const localOwner = typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null;
-    const localContacts = [...(state.contacts ?? [])];
-
     try {
       const contextResult = await callMobFlowApi("/api/mobflow/session-context");
       if (!contextResult.response.ok || !contextResult.body.ok || typeof contextResult.body.accountId !== "string") {
         throw new Error("Não foi possível validar a sessão no servidor MobFlow.");
       }
       const accountId = contextResult.body.accountId;
-      const sameOwner = localOwner === accountId;
+      activeStateKey = tenantStateKey(accountId);
+      loaded = false;
+      state = emptyState();
+      load();
+      const localContacts = [...(state.contacts ?? [])];
+      const sameOwner = true;
 
       const stateResult = await callMobFlowApi("/api/mobflow/state");
       if (!stateResult.response.ok || !stateResult.body.ok) {
@@ -616,7 +619,7 @@ export async function hydrateStore() {
 
       try {
         localStorage.setItem(OWNER_KEY, accountId);
-        localStorage.setItem(KEY, JSON.stringify(state));
+        localStorage.setItem(activeStateKey, JSON.stringify(state));
       } catch {}
       cloudAccountId = accountId;
       cloudReady = true;
@@ -634,7 +637,7 @@ export async function hydrateStore() {
 
 function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
   if (cloudReady && options.persist !== false) void persistState();
   listeners.forEach((l) => l());
 }
@@ -642,7 +645,7 @@ function set(next: Partial<State>, options: { persist?: boolean } = {}) {
 export function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
   const next = applySyncEventsToState(state, events);
   state = next;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
   listeners.forEach((listener) => listener());
 }
 
@@ -857,11 +860,14 @@ export const actions = {
     });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
-    if (p.id) {
+    if (p.id && state.products.some((x) => x.id === p.id)) {
       const old = state.products.find((x) => x.id === p.id);
       const updated = { ...old, ...p, id: p.id } as Product;
       const movements = old && old.stock !== updated.stock ? [movementEntry({ operationId: `manual:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: old.id, productCode: old.code, productName: old.name, unit: old.unit, quantity: Math.abs(updated.stock - old.stock), totalValue: Math.round(Math.abs(updated.stock - old.stock) * updated.price * 100) / 100, stockBefore: old.stock, stockAfter: updated.stock, delta: updated.stock - old.stock, details: "Alteração manual do cadastro" })] : [];
       set({ products: state.products.map((x) => (x.id === p.id ? updated : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] });
+    } else if (p.id) {
+      const product = { ...p, id: p.id } as Product;
+      set({ products: [product, ...state.products] });
     } else {
       const id = uid();
       const product = { ...p, id } as Product;
@@ -1208,7 +1214,7 @@ export const actions = {
         ? { ...n, decisions, decisionCompleted: true, status: "aceito", stockReleased: true }
         : n),
     };
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
     listeners.forEach((l) => l());
     void hydrateStore();
     return true;
@@ -1268,7 +1274,7 @@ export function printReceipt(s: Sale, companyName = "") {
   let receiptCompanyName = companyName.trim() || state.settings?.companyName?.trim() || "";
   if (!receiptCompanyName && typeof window !== "undefined") {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(activeStateKey);
       if (raw) receiptCompanyName = JSON.parse(raw)?.settings?.companyName?.trim() || "";
     } catch {}
   }
