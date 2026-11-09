@@ -17,18 +17,22 @@ function client(){
 }
 function bucket(){const b=process.env.CLOUDFLARE_R2_BUCKET_NAME;if(!b)throw new Error("Bucket R2 não configurado.");return b;}
 function productIdFrom(request:Request){const id=new URL(request.url).searchParams.get("productId")??"";if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))throw new Error("Identificador do produto inválido.");return id;}
-async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db:any;id:string})=>Promise<Response>){
- let tx:any=null;
+type ProductActionResult={response:Response;afterCommit?:()=>Promise<void>;onRollback?:()=>Promise<void>};
+async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db:any;id:string})=>Promise<ProductActionResult|Response>){
+ let tx:any=null, action:ProductActionResult|Response|null=null;
  try{
   const id=productIdFrom(request);tx=await beginAuthenticatedTransaction(request);const {accountId:tenant,userId:user,role,permissions}=tx.identity;
-  if(role!=="manager"&&!(Array.isArray(permissions)&&permissions.includes("Gerência"))){await releaseTransaction(tx.client,false);tx=null;return Response.json({ok:false,error:"Somente a Gerência pode alterar fotos."},{status:403});}
+  if(role!=="manager"&&!(Array.isArray(permissions)&&permissions.includes("Gerência")))return Response.json({ok:false,error:"Somente a Gerência pode alterar fotos."},{status:403});
   const db=tx.client;const found=await db.query("SELECT id,photo_object_key,version FROM public.products WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[tenant,id]);
-  if(!found.rows.length){await releaseTransaction(db,false);tx=null;return Response.json({ok:false,error:"Produto não encontrado no catálogo da empresa."},{status:404});}
-  const result=await fn({tenant,user,db,id});
-  if(tx){await releaseTransaction(db,true);tx=null;}
-  return result;
+  if(!found.rows.length)return Response.json({ok:false,error:"Produto não encontrado no catálogo da empresa."},{status:404});
+  action=await fn({tenant,user,db,id});
+  const response=action instanceof Response?action:action.response;
+  await releaseTransaction(db,true);tx=null;
+  if(!(action instanceof Response)&&action.afterCommit)await action.afterCommit().catch(err=>console.error("[MobFlow product photo cleanup]",err));
+  return response;
  }catch(e){
   if(tx)await releaseTransaction(tx.client,false).catch(()=>{});
+  if(action&&!(action instanceof Response)&&action.onRollback)await action.onRollback().catch(()=>{});
   if(e instanceof ApiAuthError)return Response.json({ok:false,error:e.message,code:e.code},{status:e.status});
   console.error("[MobFlow product photo]",e instanceof Error?e.message:"unknown");
   return Response.json({ok:false,error:"Não foi possível concluir a operação da foto."},{status:500});
