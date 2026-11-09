@@ -42,6 +42,27 @@ export function AppHeader() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const settings = useStore((s) => s.settings);
+  const [companyLogoSrc, setCompanyLogoSrc] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    const loadCompanyLogo = async () => {
+      const key = settings.companyLogoObjectKey;
+      if (!key) { setCompanyLogoSrc(""); return; }
+      try {
+        const response = await fetch(`/api/mobflow/company-logo?key=${encodeURIComponent(key)}`, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("logo_load_failed");
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setCompanyLogoSrc(objectUrl);
+      } catch {
+        if (active) setCompanyLogoSrc("");
+      }
+    };
+    void loadCompanyLogo();
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [settings.companyLogoObjectKey]);
 
   const handleManualSync = async () => {
     if (syncing) return;
@@ -218,7 +239,7 @@ export function AppHeader() {
       <aside ref={sidebarRef} aria-hidden={!open} className={`fixed left-0 top-0 z-50 h-screen w-64 transform transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? "translate-x-0 pointer-events-auto" : "-translate-x-full pointer-events-none"}`}>
           <div className="h-full bg-popover/95 backdrop-blur-xl ring-r-1 ring-border flex flex-col">
             <div className="h-20 flex items-center px-4 gap-3">
-              {settings.companyLogo ? <img src={settings.companyLogo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" /> : <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>}
+              {companyLogoSrc ? <img src={companyLogoSrc} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" /> : <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>}
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
