@@ -830,19 +830,27 @@ export const actions = {
     return true;
   },
   deletePromotion(id: string) { set({ promotions: state.promotions.filter((p) => p.id !== id) }); },
-  resetAppData() {
-    // Zera os dados operacionais e a identidade da empresa, preservando o login.
+  async resetAppData() {
+    // Descarta também comandos offline antigos para que vendas/movimentos não reapareçam após a limpeza.
+    if (cloudAccountId) {
+      await persistQueue.catch(() => undefined);
+      await syncOutbox.clearTenant(cloudAccountId);
+      writeOutboxBackup(readOutboxBackup().filter((command) => command.tenantId !== cloudAccountId));
+    }
     set({
+      contacts: [],
       products: [],
       cart: [],
       sales: [],
+      stockMovements: [],
+      cashSessions: [],
+      cashMovements: [],
       conferences: [],
       receiving: [],
       manualExpiries: [],
       stockAdjustments: [],
       stockWriteoffs: [],
       stockTransfers: [],
-      stockMovements: [],
       promotions: [],
       suppliers: [],
       settings: { companyName: "" },
