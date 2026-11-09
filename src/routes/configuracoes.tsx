@@ -439,7 +439,7 @@ function Configuracoes() {
       setSecurityError(result.data?.error || "O Neon/R2 não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
     }
     await actions.resetAppData();
-    setName(""); setLogo(""); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
+    setName(""); setLogo(""); setLogoObjectKey(""); setLogoRemoved(false); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
     setPdvUsers([]); setUsersDetailsOpen(true); setAddUserOpen(true);
     setResetOpen(false); setSecurityModal(null); setSecurityPassword(""); setSecurityError(""); setResetError("");
     setUserMessage("Limpeza confirmada. " + (result.data.deleted ?? 0) + " usuário(s) do PDV excluído(s). A senha da Gerência foi preservada. Cadastre agora o novo usuário do PDV.");
