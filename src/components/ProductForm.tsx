@@ -14,7 +14,7 @@ export function ProductForm({ product, onClose }: Props) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const first = useRef<HTMLInputElement>(null);
-  const codeInput = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLInputElement>(null);\n  const pendingProductId = useRef<string | null>(null);
   useEffect(() => {
     (product ? first.current : codeInput.current)?.focus();
   }, []);
@@ -39,7 +39,7 @@ export function ProductForm({ product, onClose }: Props) {
   const submit=async(e:React.FormEvent)=>{e.preventDefault();if(!f.name.trim()||photoBusy)return;const stock=f.unit==="kg"?weight(f.stock):num(f.stock),minStock=f.unit==="kg"?weight(f.minStock):num(f.minStock);if(f.unit==="kg"&&(stock===null||minStock===null||stock<0||minStock<0))return;
     setPhotoBusy(true);
     try {
-      const id=product?.id??crypto.randomUUID();
+      const id=product?.id??(pendingProductId.current??(pendingProductId.current=crypto.randomUUID()));
       const code=f.code.trim()||String(Date.now()).slice(-10);
       const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
       if(!product?.id&&photoFile){
