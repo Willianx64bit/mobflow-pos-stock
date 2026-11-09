@@ -130,8 +130,8 @@ async function handleUsers(request: Request) {
       );
       const ids = users.rows.map((user) => user.id);
       const usernames = users.rows.map((user) => user.username);
-      if (usernames.length) {
-        await client.query("DELETE FROM public.account_allowlist WHERE cnpj=$1", [managerCnpj]);
+      await client.query("DELETE FROM public.account_allowlist WHERE cnpj=$1", [managerCnpj]);
+      if (ids.length) {
         await client.query("DELETE FROM public.profiles WHERE id=ANY($1::uuid[])", [ids]);
         await client.query('DELETE FROM public."user" WHERE id=ANY($1::text[])', [ids]);
       }
