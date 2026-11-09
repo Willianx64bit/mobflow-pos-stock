@@ -24,7 +24,7 @@ async function provision(request: Request) {
   try { host = new URL(databaseUrl).hostname; } catch { return unavailable(); }
   if (!host.startsWith(EXPECTED_HOST_PREFIX) || !host.endsWith(".neon.tech")) return unavailable();
 
-  const supplied = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "") ?? "";
+  const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   const a = Buffer.from(supplied);
   const b = Buffer.from(expectedSecret);
   if (a.length !== b.length || !timingSafeEqual(a, b)) return unavailable();
@@ -37,6 +37,9 @@ async function provision(request: Request) {
         (SELECT count(*)::text FROM public.companies) AS companies,
         (SELECT count(*)::text FROM public.profiles) AS profiles,
         (SELECT count(*)::text FROM public."user") AS users,
+        (SELECT count(*)::text FROM public."account") AS auth_accounts,
+        (SELECT count(*)::text FROM public.account_allowlist) AS allowlist,
+        (SELECT count(*)::text FROM public.app_state) AS app_states,
         (SELECT count(*)::text FROM public.products) AS products,
         (SELECT count(*)::text FROM public.sales) AS sales,
         (SELECT count(*)::text FROM public.mobflow_sync_events) AS sync_events`,
