@@ -1,8 +1,7 @@
 import { createAuthClient } from "better-auth/react";
 
 /**
- * The migration Preview is Better Auth + Neon only.
- * Do not select the legacy Supabase authentication path based on a missing env flag.
+ * The migration Preview uses Better Auth + Neon exclusively.
  */
 export const mobflowAuthClient = createAuthClient();
 export const isBetterAuthEnabled = true;
