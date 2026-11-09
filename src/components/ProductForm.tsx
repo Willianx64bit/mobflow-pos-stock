@@ -42,13 +42,17 @@ export function ProductForm({ product, onClose }: Props) {
     setPhotoBusy(true);
     try {
       const id=product?.id??(pendingProductId.current??(pendingProductId.current=crypto.randomUUID()));
+      let savedVersion=product?.version;
       const code=f.code.trim()||String(Date.now()).slice(-10);
       const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
-      if(!product?.id&&photoFile){
-        if(import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER!=="neon")throw new Error("O envio seguro de fotos exige o catálogo Neon habilitado neste ambiente.");
-        if((stock??0)!==0)throw new Error("Para cadastrar com foto no catálogo Neon, salve primeiro o produto com estoque zero. O estoque inicial é registrado por uma operação auditável.");
-        const create=await fetch("/api/mobflow/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,stock:0,minStock:minStock??0,barcodes:cleanBarcodes})});
-        const created=await create.json().catch(()=>null);if(!create.ok||!created?.ok)throw new Error(created?.error||"Não foi possível cadastrar o produto no catálogo.");
+      const neonCatalog=import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER==="neon";
+      if(neonCatalog){
+        if(!product?.id&&(stock??0)!==0)throw new Error("No catálogo Neon, cadastre primeiro com estoque zero. Depois registre o saldo pela operação de estoque, que mantém o histórico auditável.");
+        if(product?.id&&!Number.isSafeInteger(product.version))throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
+        const payload={id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,stock:0,minStock:minStock??0,barcodes:cleanBarcodes};
+        const response=await fetch("/api/mobflow/products",{method:product?.id?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product?.id?{...payload,expectedVersion:product.version}:{...payload,stock:0})});
+        const saved=await response.json().catch(()=>null);if(!response.ok||!saved?.ok||!saved.product)throw new Error(saved?.error||"O Neon não confirmou o cadastro do produto.");
+        savedVersion=Number(saved.product.version);
       }
       let photoUrl=f.photo||undefined;
       let photoObjectKey=product?.photoObjectKey;
@@ -62,7 +66,7 @@ export function ProductForm({ product, onClose }: Props) {
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
         photoUrl=undefined;photoObjectKey=undefined;
       }
-      actions.saveProduct({id,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey});onClose();
+      actions.saveProduct({id:neonCatalog?id:undefined,version:savedVersion,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey});onClose();
     } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
   const choosePhoto=async(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;try{const compressed=await compressImageTo200KB(file);setPhotoFile(compressed);setF(v=>({...v,photo:URL.createObjectURL(compressed)}));}catch(error){alert(error instanceof Error?error.message:"Não foi possível compactar a foto.");}finally{e.target.value="";}};
