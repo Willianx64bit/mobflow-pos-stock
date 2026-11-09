@@ -114,6 +114,44 @@ async function provision(request: Request) {
   }
 }
 
+function setupPage() {
+  const html = `<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Provisionar conta temporária MobFlow</title>
+<style>
+body{font:16px system-ui,sans-serif;background:#f5f7fb;color:#172033;margin:0;padding:24px}
+main{max-width:480px;margin:8vh auto;background:white;padding:24px;border-radius:16px;box-shadow:0 8px 32px #18243a18}
+h1{font-size:22px;margin:0 0 8px}p{line-height:1.5;color:#536078}
+input,button{box-sizing:border-box;width:100%;padding:14px;border-radius:10px;font:inherit;margin-top:12px}
+input{border:1px solid #cbd5e1}button{border:0;background:#1769e0;color:white;font-weight:700}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#eef2f8;padding:12px;border-radius:10px}
+small{color:#64748b}
+</style>
+<main><h1>Conta temporária de sincronização</h1>
+<p>Esta página funciona somente no Preview ligado ao banco descartável. A conta será criada uma única vez, se o banco continuar vazio.</p>
+<label for="key">Chave temporária de provisionamento</label>
+<input id="key" type="password" autocomplete="off" placeholder="Cole a chave recebida">
+<button id="go">Criar conta de teste</button>
+<p><small>Não use dados reais. As credenciais serão exibidas uma única vez.</small></p>
+<pre id="result" hidden></pre></main>
+<script>
+document.getElementById("go").addEventListener("click",async()=>{
+ const key=document.getElementById("key").value.trim(),out=document.getElementById("result"),btn=document.getElementById("go");
+ if(!key){alert("Informe a chave temporária.");return}
+ btn.disabled=true;btn.textContent="Criando...";out.hidden=false;out.textContent="Aguarde...";
+ try{
+  const response=await fetch("/api/mobflow/disposable-test-provision",{method:"POST",headers:{"Authorization":"Bearer "+key}});
+  const data=await response.json();out.textContent=JSON.stringify(data,null,2);
+  if(response.ok){document.getElementById("key").value="";btn.textContent="Conta criada";}else{btn.disabled=false;btn.textContent="Tentar novamente";}
+ }catch(e){out.textContent="Falha de comunicação. Tente novamente.";btn.disabled=false;btn.textContent="Tentar novamente";}
+});
+</script></html>`;
+  return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+}
+
 export const Route = createFileRoute("/api/mobflow/disposable-test-provision")({
-  server: { handlers: { POST: ({ request }) => provision(request) } },
+  server: { handlers: {
+    GET: () => setupPage(),
+    POST: ({ request }) => provision(request),
+  } },
 });
