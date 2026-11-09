@@ -268,6 +268,7 @@ describe("MobFlow Neon state API", () => {
       promotion: { id: "promo-new", productId: "p2", promoPrice: 10 },
     });
     expect(JSON.stringify(upsertPayload)).not.toContain("must-not-be-in-event");
+    expect(events[1][0]).toContain("'promotions', 'automatic'");
     expect(events[1][1][2]).toBe("promo-old");
     expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
   });
