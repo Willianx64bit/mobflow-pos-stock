@@ -162,8 +162,9 @@ BEGIN
             OR lower(COALESCE(p.display_name,'')) = lower(COALESCE(movement->>'operator','')))
       )
       OR NOT EXISTS (
-        SELECT 1 FROM public.cash_sessions cs
-        WHERE cs.tenant_id = src.owner_id AND cs.id = movement->>'sessionId'
+        SELECT 1
+        FROM jsonb_array_elements(COALESCE(src.state->'cashSessions', '[]'::jsonb)) legacy_cash
+        WHERE legacy_cash->>'id' = movement->>'sessionId'
       )
     ) THEN
       RAISE EXCEPTION 'A legacy cash movement has no same-tenant operator or cash session for tenant %', src.owner_id;
