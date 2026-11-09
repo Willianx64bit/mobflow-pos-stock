@@ -299,21 +299,30 @@ export async function pullSyncEvents(
       throw new Error("Resposta inválida ao receber alterações do Neon.");
     }
     if (BigInt(body.nextCursor) < BigInt(cursor)) throw new Error("O cursor recebido regrediu.");
-    if (body.events.length) {
-      let previousSequence = BigInt(cursor);
-      for (const event of body.events) {
-        if (!/^\d+$/.test(event.sequence) || BigInt(event.sequence) <= previousSequence) {
-          throw new Error("A página de eventos contém sequência inválida ou fora de ordem.");
-        }
-        previousSequence = BigInt(event.sequence);
+    let previousSequence = BigInt(cursor);
+    for (const event of body.events) {
+      if (!/^\d+$/.test(event.sequence) || BigInt(event.sequence) <= previousSequence) {
+        throw new Error("A página de eventos contém sequência inválida ou fora de ordem.");
       }
-      if (BigInt(body.nextCursor) !== previousSequence) throw new Error("A página de eventos não corresponde ao cursor informado.");
-      await applyEvents(body.events);
-      await outbox.setCursor(tenantId, body.nextCursor);
-      cursor = body.nextCursor;
-      applied += body.events.length;
+      previousSequence = BigInt(event.sequence);
     }
     hasMore = body.hasMore === true;
+    if (hasMore && (body.events.length === 0 || BigInt(body.nextCursor) !== previousSequence)) {
+      throw new Error("A página de eventos não corresponde ao cursor informado.");
+    }
+    if (!hasMore && BigInt(body.nextCursor) < previousSequence) {
+      throw new Error("O cursor final não cobre todos os eventos recebidos.");
+    }
+    if (body.events.length) {
+      await applyEvents(body.events);
+      applied += body.events.length;
+    }
+    // A completed page may advance beyond its last automatic event because manual
+    // sequences are intentionally omitted from the realtime feed and handled by manual snapshot sync.
+    if (BigInt(body.nextCursor) > BigInt(cursor)) {
+      await outbox.setCursor(tenantId, body.nextCursor);
+      cursor = body.nextCursor;
+    }
     if (!hasMore || body.events.length === 0) break;
   }
   return { applied, cursor, hasMore };
