@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, LockKeyhole, Trash2, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
+import { compressImageTo200KB } from "@/lib/imageCompression";
 import { actions, hydrateStore, useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { isBetterAuthEnabled } from "@/lib/auth-client";
@@ -361,18 +362,19 @@ function Configuracoes() {
     await loadPdvUsers();
   };
 
-  const chooseLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const chooseLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("A logo deve ter no máximo 2 MB.");
-      return;
-    }
-    const reader = new FileReader();
-    setLogoFile(file);
-    setLogoRemoved(false);
-    reader.onload = () => setLogo(String(reader.result));
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageTo200KB(file);
+      const reader = new FileReader();
+      setLogoFile(compressed);
+      setLogoRemoved(false);
+      reader.onload = () => setLogo(String(reader.result));
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível compactar a logo.");
+    } finally { e.target.value = ""; }
   };
 
   const save = async () => {
@@ -635,7 +637,7 @@ function Configuracoes() {
                     </div>
                     <label className="block cursor-pointer">
                       <span className="label-mono">Logo da empresa</span>
-                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(PNG, JPG ou WEBP · até 2 MB)</span></div>
+                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(PNG, JPG ou WEBP · compactada até 200 KB)</span></div>
                       <input type="file" accept="image/*" onChange={chooseLogo} className="hidden" />
                     </label>
                     {logo && <button type="button" onClick={() => { setLogo(""); setLogoFile(null); setLogoRemoved(true); }} className="text-xs text-destructive hover:underline">Remover logo</button>}
