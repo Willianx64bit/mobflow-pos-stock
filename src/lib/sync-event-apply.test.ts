@@ -170,7 +170,7 @@ describe("applySyncEventsToState", () => {
 
   it("applies supplier and safe company settings changes", () => {
     const supplier = event({ sequence: "11", category: "master_data", entity_type: "supplier", entity_id: "fornecedor ltda", delivery_mode: "manual", payload: { operation: "upsert", name: "Fornecedor Ltda" } });
-    const settings = event({ sequence: "12", category: "settings", entity_type: "company_settings", entity_id: "company", delivery_mode: "manual", payload: { operation: "changed", values: { companyName: "Mercado Novo", companyCity: "Sorocaba" } } });
+    const settings = event({ sequence: "12", category: "settings", entity_type: "company_settings", entity_id: "company", delivery_mode: "manual", payload: { operation: "changed", keys: ["companyName"], values: { companyName: "Mercado Novo" } } });
     const result = applySyncEventsToState(emptyState(), [supplier, settings]);
     expect(result.suppliers).toEqual([{ name: "Fornecedor Ltda" }]);
     expect(result.settings).toMatchObject({ companyName: "Mercado Novo", companyCity: "Sorocaba" });

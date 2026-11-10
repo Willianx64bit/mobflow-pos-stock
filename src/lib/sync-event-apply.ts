@@ -121,8 +121,10 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "settings" && event.entity_type === "company_settings") {
       const values = record(payload["values"]);
-      const allowed = new Set(["companyName", "companyCnpj", "companyPhone", "companyStreet", "companyNumber", "companyCep", "companyComplement", "companyNeighborhood", "companyCity", "companyState"]);
-      if (!values || Object.keys(values).some((key) => !allowed.has(key))) throw new UnsupportedSyncEventError(event);
+      const keys = Array.isArray(payload["keys"]) ? payload["keys"] : [];
+      // Company phone, address and tax identifiers stay redacted in the event ledger.
+      // Only the non-sensitive display name can be applied from an event.
+      if (!values || keys.some((key) => key !== "companyName") || Object.keys(values).some((key) => key !== "companyName")) throw new UnsupportedSyncEventError(event);
       next.settings = { ...next.settings, ...values } as State["settings"];
       continue;
     }
