@@ -195,6 +195,14 @@ describe("applySyncEventsToState", () => {
     expect(() => applySyncEventsToState(emptyState(), [privateSettings])).toThrow(UnsupportedSyncEventError);
   });
 
+  it("replays stock writeoff and transfer audit events without duplicating them", () => {
+    const writeoff = event({ sequence: "21", category: "stock", entity_type: "stock_writeoff", entity_id: "wo-1", delivery_mode: "manual", payload: { operation: "upsert", stockOperation: { id: "wo-1", number: "NF: 00010", date: "2026-11-10T10:00:00Z", reason: "Perda", costMode: "compra", items: [{ productId: "product-1", code: "789", name: "Produto teste", unit: "un", quantity: 1, previousStock: 10, newStock: 9, costMode: "compra", unitCost: 5, totalCost: 5 }] } } });
+    const once = applySyncEventsToState(emptyState(), [writeoff]);
+    const twice = applySyncEventsToState(once, [writeoff]);
+    expect(twice.stockWriteoffs).toHaveLength(1);
+    expect(twice.stockWriteoffs[0]).toMatchObject({ id: "wo-1", number: "NF: 00010", reason: "Perda", costMode: "compra" });
+  });
+
   it("rejects unsupported legacy catalog and cash-session event shapes", () => {
     const legacyProduct = event({
       sequence: "1", category: "catalog", entity_type: "product", entity_id: "product-1",
