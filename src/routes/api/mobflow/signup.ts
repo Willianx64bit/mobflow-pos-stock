@@ -318,6 +318,15 @@ async function createCompany(body: Record<string, unknown>) {
     }, { status: 201 });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
+    // Temporary, non-sensitive diagnostics: identify the exact database role used by this Preview route.
+    try {
+      const identity = await client.query<{ database_name: string; role_name: string }>(
+        "SELECT current_database() AS database_name, current_user AS role_name",
+      );
+      console.error("[MobFlow company signup DB identity]", JSON.stringify(identity.rows[0] ?? {}));
+    } catch {
+      console.error("[MobFlow company signup DB identity] unavailable");
+    }
     if ((error as { code?: string })?.code === "23505") return errorResponse("Já existe um cadastro com esse CNPJ, usuário ou e-mail.", 409);
     console.error("[MobFlow company signup]", error instanceof Error ? error.message : "unknown error");
     return errorResponse("Não foi possível concluir o cadastro agora.", 500);
