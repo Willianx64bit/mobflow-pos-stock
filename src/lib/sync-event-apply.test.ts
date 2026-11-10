@@ -137,6 +137,25 @@ describe("applySyncEventsToState", () => {
     expect(result.stockMovements).toHaveLength(0);
   });
 
+  it("applies catalog upserts and deletes without overwriting local stock or photo metadata", () => {
+    const current = emptyState();
+    current.products[0] = { ...current.products[0]!, stock: 17, photoObjectKey: "r2/photo.png" };
+    const catalog = event({ sequence: "5", category: "catalog", entity_type: "product", entity_id: "product-1", delivery_mode: "manual", payload: { operation: "upsert", product: { id: "product-1", code: "789", name: "Nome novo", unit: "un", price: 12, cost: 6, minStock: 2, category: "Bebidas", version: 2, barcodes: ["789"] } } });
+    const updated = applySyncEventsToState(current, [catalog]);
+    expect(updated.products[0]).toMatchObject({ name: "Nome novo", price: 12, stock: 17, photoObjectKey: "r2/photo.png" });
+    const deleted = applySyncEventsToState(updated, [event({ sequence: "6", category: "catalog", entity_type: "product", entity_id: "product-1", payload: { operation: "delete" } })]);
+    expect(deleted.products).toHaveLength(0);
+  });
+
+  it("applies conference and expiry events idempotently", () => {
+    const conference = event({ sequence: "7", category: "conference", entity_type: "conference", entity_id: "conf-1", delivery_mode: "manual", payload: { operation: "upsert", conference: { id: "conf-1", name: "Contagem", date: "2026-11-10", status: "aberta", counts: {}, unknown: [] } } });
+    const expiry = event({ sequence: "8", category: "master_data", entity_type: "manual_expiry", entity_id: "expiry-1", delivery_mode: "manual", payload: { operation: "upsert", manualExpiry: { id: "expiry-1", productId: "product-1", name: "Produto teste", quantity: 2, expiry: "2027-01-01", unit: "un" } } });
+    const once = applySyncEventsToState(emptyState(), [conference, expiry]);
+    const twice = applySyncEventsToState(once, [conference, expiry]);
+    expect(twice.conferences).toHaveLength(1);
+    expect(twice.manualExpiries).toHaveLength(1);
+  });
+
   it("rejects unsupported legacy catalog and cash-session event shapes", () => {
     const legacyProduct = event({
       sequence: "1", category: "catalog", entity_type: "product", entity_id: "product-1",

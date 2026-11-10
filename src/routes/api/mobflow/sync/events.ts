@@ -65,7 +65,6 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
              WHERE tenant_id = $1
                AND sequence > $2::bigint
                AND sequence <= $3::bigint
-               AND delivery_mode = 'automatic'
              ORDER BY sequence ASC
              LIMIT $4`,
             [identity.accountId, rawCursor, highWaterMark, limit + 1],
@@ -73,8 +72,7 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
 
           const hasMore = eventsResult.rows.length > limit;
           const page = eventsResult.rows.slice(0, limit);
-          // Automatic consumers intentionally skip manual events; when the page is complete,
-          // advance to the high-water mark so manual-only sequences are not fetched repeatedly.
+          // Keep one ordered tenant cursor across automatic and manual events; never skip sequences.
           const nextCursor = hasMore ? page[page.length - 1].sequence : highWaterMark;
 
           await releaseTransaction(client, true);

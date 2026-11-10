@@ -36,6 +36,52 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
   for (const event of events) {
     const payload = event.payload ?? {};
 
+    if (event.category === "catalog" && event.entity_type === "product") {
+      if (payload["operation"] === "delete") {
+        next.products = next.products.filter((item) => item.id !== event.entity_id);
+        continue;
+      }
+      const raw = record(payload["product"]);
+      if (!raw || typeof raw["id"] !== "string" || typeof raw["code"] !== "string" || typeof raw["name"] !== "string") throw new UnsupportedSyncEventError(event);
+      const unit = raw["unit"] === "kg" ? "kg" : raw["unit"] === "un" ? "un" : null;
+      const price = number(raw["price"]), cost = number(raw["cost"]), minStock = number(raw["minStock"]);
+      if (!unit || price === null || cost === null || minStock === null) throw new UnsupportedSyncEventError(event);
+      const existing = next.products.find((item) => item.id === event.entity_id);
+      next.products = upsert(next.products, {
+        id: raw["id"], code: raw["code"], name: raw["name"],
+        ref: typeof raw["reference"] === "string" ? raw["reference"] : typeof raw["ref"] === "string" ? raw["ref"] : undefined,
+        unit, price, cost, minStock, category: typeof raw["category"] === "string" ? raw["category"] : "",
+        version: number(raw["version"]) ?? existing?.version,
+        barcodes: Array.isArray(raw["barcodes"]) ? raw["barcodes"].filter((item): item is string => typeof item === "string") : existing?.barcodes ?? [],
+        stock: existing?.stock ?? 0, photoObjectKey: existing?.photoObjectKey,
+      });
+      continue;
+    }
+
+    if (event.category === "conference" && event.entity_type === "conference") {
+      if (payload["operation"] === "delete") {
+        next.conferences = next.conferences.filter((item) => item.id !== event.entity_id);
+        continue;
+      }
+      const raw = record(payload["conference"]);
+      if (!raw || typeof raw["id"] !== "string" || typeof raw["name"] !== "string" || !record(raw["counts"])) throw new UnsupportedSyncEventError(event);
+      next.conferences = upsert(next.conferences, raw as unknown as State["conferences"][number]);
+      continue;
+    }
+
+    if (event.category === "master_data" && event.entity_type === "manual_expiry") {
+      if (payload["operation"] === "delete") {
+        next.manualExpiries = next.manualExpiries.filter((item) => item.id !== event.entity_id);
+        continue;
+      }
+      const raw = record(payload["manualExpiry"]);
+      if (!raw || typeof raw["id"] !== "string" || typeof raw["productId"] !== "string" || typeof raw["name"] !== "string" || typeof raw["expiry"] !== "string") throw new UnsupportedSyncEventError(event);
+      const quantity = number(raw["quantity"]);
+      if (quantity === null || (raw["unit"] !== "un" && raw["unit"] !== "kg")) throw new UnsupportedSyncEventError(event);
+      next.manualExpiries = upsert(next.manualExpiries, { id: raw["id"], productId: raw["productId"], name: raw["name"], quantity, expiry: raw["expiry"], unit: raw["unit"] });
+      continue;
+    }
+
     if (event.category === "sales" && event.entity_type === "sale") {
       const rawSale = record(payload["sale"]);
       if (!rawSale || typeof rawSale["id"] !== "string" || !Array.isArray(rawSale["items"])) throw new UnsupportedSyncEventError(event);
@@ -117,10 +163,12 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       continue;
     }
 
-    if (event.category === "stock" && event.entity_type === "stock_operation") {
-      const rawAdjustment = record(payload["stockAdjustment"]);
+    if (event.category === "stock" && ["stock_operation", "stock_adjustment", "stock_writeoff", "stock_transfer"].includes(event.entity_type)) {
+      const rawAdjustment = record(payload["stockAdjustment"] ?? payload["stockOperation"]);
       if (rawAdjustment && typeof rawAdjustment["id"] === "string" && Array.isArray(rawAdjustment["items"])) {
-        next.stockAdjustments = upsert(next.stockAdjustments, rawAdjustment as unknown as State["stockAdjustments"][number]);
+        if (event.entity_type === "stock_writeoff") next.stockWriteoffs = upsert(next.stockWriteoffs, rawAdjustment as unknown as State["stockWriteoffs"][number]);
+        else if (event.entity_type === "stock_transfer") next.stockTransfers = upsert(next.stockTransfers, rawAdjustment as unknown as State["stockTransfers"][number]);
+        else next.stockAdjustments = upsert(next.stockAdjustments, rawAdjustment as unknown as State["stockAdjustments"][number]);
       }
       // The per-product ledger events carry the authoritative balance changes.
       continue;
