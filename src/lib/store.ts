@@ -83,6 +83,7 @@ const emptyState = (): State => ({
 });
 
 let state: State = emptyState();
+let receivingDraftPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
@@ -1133,8 +1134,12 @@ export const actions = {
     }
     const updatedConference = { ...conference, counts: { ...counts }, expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries } };
     set({ conferences: state.conferences.map((c) => c.id === conference!.id ? updatedConference : c) });
+    if (receivingDraftPersistTimer) clearTimeout(receivingDraftPersistTimer);
+    receivingDraftPersistTimer = setTimeout(() => { void persistReceivingConference(updatedConference).catch((error)=>console.error("[MobFlow Receiving draft]",error)); }, 500);
   },
   async saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
+    if (receivingDraftPersistTimer) clearTimeout(receivingDraftPersistTimer);
+    receivingDraftPersistTimer = null;
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);
     if (!note || note.status !== "pendente") return false;
     const extras = Object.entries(extraCounts).filter(([, received]) => received > 0).map(([productId, received]) => {
