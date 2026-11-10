@@ -33,6 +33,9 @@ export async function handleMobFlowLogin(request: Request) {
   try {
     await client.query("BEGIN");
     open = true;
+    // Run authentication queries under the explicitly scoped application role.
+    // The pool connection may use a provisioning/admin database role that cannot execute auth helpers.
+    await client.query("SET LOCAL ROLE mobflow_api");
     const found = await client.query<{
       id: string; username: string; cnpj: string; account_id: string; role: string;
       active: boolean; display_name: string | null; permissions: unknown;
