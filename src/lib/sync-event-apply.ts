@@ -247,11 +247,15 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "stock" && ["stock_operation", "stock_adjustment", "stock_writeoff", "stock_transfer"].includes(event.entity_type)) {
       const rawAdjustment = record(payload["stockAdjustment"] ?? payload["stockOperation"]);
-      if (rawAdjustment && typeof rawAdjustment["id"] === "string" && Array.isArray(rawAdjustment["items"])) {
+      if (payload["operation"] === "delete") {
+        if (event.entity_type === "stock_writeoff") next.stockWriteoffs = next.stockWriteoffs.filter((item) => item.id !== event.entity_id);
+        else if (event.entity_type === "stock_transfer") next.stockTransfers = next.stockTransfers.filter((item) => item.id !== event.entity_id);
+        else if (event.entity_type === "stock_adjustment") next.stockAdjustments = next.stockAdjustments.filter((item) => item.id !== event.entity_id);
+      } else if (rawAdjustment && rawAdjustment["id"] === event.entity_id && Array.isArray(rawAdjustment["items"])) {
         if (event.entity_type === "stock_writeoff") next.stockWriteoffs = upsert(next.stockWriteoffs, rawAdjustment as unknown as State["stockWriteoffs"][number]);
         else if (event.entity_type === "stock_transfer") next.stockTransfers = upsert(next.stockTransfers, rawAdjustment as unknown as State["stockTransfers"][number]);
         else next.stockAdjustments = upsert(next.stockAdjustments, rawAdjustment as unknown as State["stockAdjustments"][number]);
-      }
+      } else if (event.entity_type !== "stock_operation") throw new UnsupportedSyncEventError(event);
       // The per-product ledger events carry the authoritative balance changes.
       continue;
     }
