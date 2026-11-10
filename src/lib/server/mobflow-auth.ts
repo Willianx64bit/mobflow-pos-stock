@@ -234,6 +234,35 @@ export async function beginAuthenticatedTransaction(request: Request): Promise<A
     await client.query("SELECT set_config('app.account_id', $1, true)", [profile.account_id]);
     await client.query("SELECT set_config('app.role', $1, true)", [profile.role]);
 
+    // Re-check the tenant subscription on every authenticated request, not only
+    // at login. This immediately blocks existing sessions after suspension/expiry.
+    if (profile.role !== "admin") {
+      const subscriptionResult = await client.query<{
+        subscription_status: string;
+        subscription_expires_at: Date | string | null;
+      }>(
+        "SELECT subscription_status, subscription_expires_at FROM public.companies WHERE account_id = $1 LIMIT 1",
+        [profile.account_id],
+      );
+      const subscription = subscriptionResult.rows[0];
+      if (!subscription) {
+        throw new ApiAuthError("Assinatura da empresa não encontrada. Entre em contato com o administrador do MobFlow.", 403, "company_not_found");
+      }
+      const expired = Boolean(
+        subscription.subscription_expires_at &&
+        new Date(subscription.subscription_expires_at).getTime() <= Date.now()
+      );
+      if (subscription.subscription_status !== "active" || expired) {
+        throw new ApiAuthError(
+          expired
+            ? "A mensalidade desta empresa venceu. Solicite ao administrador a confirmação do pagamento para liberar o acesso."
+            : "A assinatura desta empresa não está ativa. Entre em contato com o administrador do MobFlow.",
+          403,
+          expired ? "subscription_expired" : "subscription_inactive",
+        );
+      }
+    }
+
     return {
       client,
       identity: {
