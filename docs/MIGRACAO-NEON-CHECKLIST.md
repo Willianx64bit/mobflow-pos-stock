@@ -139,3 +139,26 @@ Referência atual do PDV: https://mobflow-pos-stock.lovable.app
 - Pendente: validar visualmente o painel Admin, confirmar carregamento da lista vazia de empresas e executar o teste R2 pela interface.
 - Pendente: teste ponta a ponta cadastro PDV → pendência → Admin aprova → login PDV liberado.
 - Pendente: executar build/testes automatizados após as últimas alterações e validar sincronização em dois dispositivos.
+
+
+## Limpeza dos ambientes Neon — 2026-11-10
+
+- Autorização do responsável recebida para remover dados de empresas e ambientes de teste Neon, preservando Supabase, o login do Admin e as configurações globais necessárias.
+- Banco conectado ao Preview ativo: `mobflow_pdv_clean_start` na branch `mobflow-historical-rehearsal-20261109`. Limpeza confirmada: companies=0, profiles=0, products=0, sales=0, stock_movements=0; user=0, account=0, session=0; auditoria de exclusão de teste=0.
+- Mantida a única linha de `admin_billing_settings` (configuração global de cobrança, R$ 49,90/Pix).
+- Banco de ensaio `mobflow_pdv_real_backfill` foi limpo: companies=0, profiles=0, products=0, sales=0 e stock_movements=0.
+- Também foram limpos os bancos auxiliares de ensaio no branch padrão: `mobflow_pdv_test`, `mobflow_pdv_import_rehearsal` e `mobflow_auth_import_rehearsal`. Nenhum dado operacional de empresa foi mantido nesses bancos; configuração global de cobrança preservada.
+- Removidos sete branches Neon antigos de validação do projeto PDV. Permanecem o branch padrão vazio (base técnica do projeto) e um único branch de Preview ativo ligado ao Vercel.
+- Excluído o projeto Neon obsoleto `mobflow-pdv-test`, que continha um Preview antigo e dados de empresa de teste.
+- Projeto Neon do Admin mantido com seu único branch `integration-test`; conta Better Auth preservada.
+- Supabase, sites oficiais, ColetaFlow, projetos Vercel e branch `main` não foram alterados.
+- Vercel mantém um Preview estável por aplicação na branch `migration/neon-preparation`. Deploys anteriores continuam apenas no histórico da plataforma.
+- Deploys mais recentes consultados: PDV READY; Admin READY. O log de runtime não pôde ser reconsultado por limitação de retenção do plano Hobby.
+
+### Estado final e pendências
+- [x] Remover dados de empresas e testes dos bancos Neon de Preview/ensaio identificados.
+- [x] Manter somente um branch de Preview ativo para o PDV e um branch de Preview para o Admin.
+- [x] Preservar a autenticação Better Auth do Admin e as configurações globais de cobrança.
+- [ ] Confirmar visualmente o login no painel Admin.
+- [ ] Executar o botão **Testar armazenamento R2** no Admin Preview.
+- [ ] Executar o fluxo controlado de cadastro de uma nova empresa pelo PDV e aprovação no Admin.
