@@ -1011,7 +1011,6 @@ export const actions = {
   newConference(name: string): string {
     const c: Conference = { id: uid(), name: name || `Conferência ${new Date().toLocaleDateString("pt-BR")}`, date: new Date().toISOString(), status: "aberta", counts: {}, unknown: [] };
     set({ conferences: [c, ...(state.conferences ?? [])] });
-    void persistReceivingConference(c).catch((error)=>console.error("[MobFlow Receiving]",error));
     return c.id;
   },
   patchConference(id: string, fn: (c: Conference) => Conference) {
@@ -1134,7 +1133,6 @@ export const actions = {
     }
     const updatedConference = { ...conference, counts: { ...counts }, expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries } };
     set({ conferences: state.conferences.map((c) => c.id === conference!.id ? updatedConference : c) });
-    void persistReceivingConference(updatedConference).catch((error)=>console.error("[MobFlow Receiving]",error));
   },
   async saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);

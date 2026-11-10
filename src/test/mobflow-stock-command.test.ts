@@ -11,7 +11,7 @@ describe("Neon stock commands",()=>{
   if(sql.includes("to_regclass"))return{rows:[{products:"products",ledger:"stock_movements",events:"mobflow_sync_events",append_fn:"fn"}]};
   if(sql.includes("FROM public.stock_movements WHERE tenant_id=$1 AND operation_id"))return{rows:[]};
   if(sql.includes("FROM public.products"))return{rows:[{id:"p1",code:"SKU",name:"Produto",unit:"un",cost:"4",price:"10",stock:"10",active:true}]};
-  if(sql.includes("UPDATE public.products"))return{rowCount:1,rows:[]};return{rows:[]};
+  if(sql.includes("UPDATE public.products"))return{rowCount:1,rows:[]};if(sql.includes("stockTransfers"))return{rowCount:1,rows:[]};return{rows:[]};
  });beginAuthenticatedTransaction.mockResolvedValue({client,identity:{userId:USER,accountId:ACCOUNT,role:"manager",username:"gerente",displayName:"Gerente",permissions:[]}});});
  afterEach(()=>{if(old===undefined)delete process.env.MOBFLOW_AUTH_PROVIDER;else process.env.MOBFLOW_AUTH_PROVIDER=old;});
  it("applies an entry with stock and ledger in one commit",async()=>{
