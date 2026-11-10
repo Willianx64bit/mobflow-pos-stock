@@ -176,6 +176,25 @@ describe("applySyncEventsToState", () => {
     expect(result.settings).toMatchObject({ companyName: "Mercado Novo" });
   });
 
+  it("applies redacted metadata only to existing contacts and cash records", () => {
+    const current = emptyState();
+    current.contacts = [{ id: "contact-1", type: "Cliente", name: "Cliente local", phone: "não substituir" }];
+    current.cashSessions = [{ id: "cash-1", openedAt: "2026-11-10T08:00:00Z", openedBy: "Caixa", openingAmount: 50, status: "open" }];
+    current.cashMovements = [{ id: "move-1", sessionId: "cash-1", type: "sangria", amount: 10, reason: "Troco", operator: "Caixa", date: "2026-11-10T09:00:00Z" }];
+    const contact = event({ sequence: "17", category: "master_data", entity_type: "business_contact", entity_id: "contact-1", delivery_mode: "manual", payload: { operation: "upsert", metadata: { id: "contact-1", type: "Fornecedor" } } });
+    const session = event({ sequence: "18", category: "master_data", entity_type: "cash_session", entity_id: "cash-1", delivery_mode: "manual", payload: { operation: "upsert", metadata: { id: "cash-1", status: "closed", openedAt: "2026-11-10T08:00:00Z", closedAt: "2026-11-10T10:00:00Z" } } });
+    const movement = event({ sequence: "19", category: "master_data", entity_type: "cash_movement", entity_id: "move-1", delivery_mode: "manual", payload: { operation: "upsert", metadata: { id: "move-1", amount: 15, date: "2026-11-10T09:30:00Z" } } });
+    const result = applySyncEventsToState(current, [contact, session, movement]);
+    expect(result.contacts[0]).toMatchObject({ type: "Fornecedor", name: "Cliente local", phone: "não substituir" });
+    expect(result.cashSessions[0]).toMatchObject({ status: "closed", closedAt: "2026-11-10T10:00:00Z", openingAmount: 50 });
+    expect(result.cashMovements[0]).toMatchObject({ amount: 15, reason: "Troco" });
+  });
+
+  it("does not apply private company settings from a redacted event", () => {
+    const privateSettings = event({ sequence: "20", category: "settings", entity_type: "company_settings", entity_id: "company", payload: { operation: "changed", keys: ["companyPhone"], values: {} } });
+    expect(() => applySyncEventsToState(emptyState(), [privateSettings])).toThrow(UnsupportedSyncEventError);
+  });
+
   it("rejects unsupported legacy catalog and cash-session event shapes", () => {
     const legacyProduct = event({
       sequence: "1", category: "catalog", entity_type: "product", entity_id: "product-1",
