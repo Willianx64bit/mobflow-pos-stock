@@ -25,6 +25,7 @@ export async function handleMobFlowStock(request:Request){
   const costMode=body.costMode==="venda"||body.costMode==="media"?body.costMode:"compra";
   const donationDestination=str(body.donationDestination,240);
   const writeoffNumber=str(body.number,40);
+  if(operationType==="writeoff"&&(!["Perda","Consumo","Doação"].includes(reason)||!["compra","venda","media"].includes(String(body.costMode))))fail("Motivo ou base de custo da baixa inválidos.");
   if(operationType==="writeoff"&&reason==="Doação"&&!donationDestination)fail("Informe o destino da doação.");
   tx=await beginAuthenticatedTransaction(request);const {client,identity}=tx;
   if(!(identity.role==="manager"||(identity.role==="pdv"&&Array.isArray(identity.permissions)&&identity.permissions.includes("Operações"))))fail("Usuário sem permissão para movimentar estoque.",403,"permission_denied");
