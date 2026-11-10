@@ -38,13 +38,21 @@ export async function handleMobFlowLogin(request: Request) {
       active: boolean; display_name: string | null; permissions: unknown;
     }>(
       `SELECT id::text, username, cnpj, account_id::text, role, active, display_name, permissions
-       FROM public.profiles WHERE username = $1 LIMIT 1`,
+       FROM public.mobflow_find_login_profile($1)`,
       [username],
     );
     let profile = found.rows[0] ?? null;
     let firstManagerLogin = false;
 
     if (profile?.account_id) {
+      // Establish the tenant/user context before querying RLS-protected tables.
+      await client.query(
+        `SELECT
+           set_config('app.account_id', $1, true),
+           set_config('app.user_id', $2, true),
+           set_config('app.role', $3, true)`,
+        [profile.account_id, profile.id, profile.role],
+      );
       const result = await client.query<{ subscription_status: string; subscription_expires_at: string | null }>(
         "SELECT subscription_status, subscription_expires_at FROM public.companies WHERE account_id = $1 LIMIT 1",
         [profile.account_id],
