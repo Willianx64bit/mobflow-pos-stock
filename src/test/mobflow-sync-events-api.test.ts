@@ -60,11 +60,11 @@ describe("MobFlow incremental sync event pull API", () => {
       ok: true, cursor: "10", nextCursor: "12", highWaterMark: "12", hasMore: false, events: rows,
     });
     expect(client.query).toHaveBeenNthCalledWith(1, expect.stringContaining("mobflow_sync_counters"), [TENANT_A]);
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("delivery_mode = 'automatic'"), [TENANT_A, "10", "12", 3]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "12", 3]);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
-  it("advances to the high-water mark after the last automatic event", async () => {
+  it("advances to the high-water mark after the last event across delivery modes", async () => {
     const rows = [
       { event_id: "e1", sequence: "11", category: "sales", delivery_mode: "automatic", entity_type: "sale", entity_id: "s1", payload: {}, created_at: "2026-11-07T12:00:00.000000Z" },
       { event_id: "e2", sequence: "13", category: "cash", delivery_mode: "automatic", entity_type: "cash_movement", entity_id: "m1", payload: {}, created_at: "2026-11-07T12:00:01.000000Z" },
@@ -110,16 +110,16 @@ describe("MobFlow incremental sync event pull API", () => {
     expect(client.query).toHaveBeenNthCalledWith(2, expect.any(String), [TENANT_A, "0", "500", 251]);
   });
 
-  it("advances through manual-only sequences without returning their payloads", async () => {
+  it("returns manual-only events instead of skipping their payloads", async () => {
     client.query
       .mockResolvedValueOnce({ rows: [{ last_sequence: "50" }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ event_id: "manual-1", sequence: "25", category: "catalog", delivery_mode: "manual", entity_type: "product", entity_id: "p1", payload: { operation: "upsert" }, created_at: "2026-11-07T12:00:00.000000Z" }] });
 
     const response = await getHandler({ request: request("?cursor=10") });
     await expect(json(response)).resolves.toMatchObject({
-      events: [], cursor: "10", nextCursor: "50", highWaterMark: "50", hasMore: false,
+      events: [{ event_id: "manual-1", sequence: "25", delivery_mode: "manual" }], cursor: "10", nextCursor: "50", highWaterMark: "50", hasMore: false,
     });
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("delivery_mode = 'automatic'"), [TENANT_A, "10", "50", 101]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "50", 101]);
   });
 
   it("rolls back and releases the transaction if the event query fails", async () => {
