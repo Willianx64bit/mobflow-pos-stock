@@ -122,6 +122,8 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     }
 
     if (event.category === "settings" && event.entity_type === "company_settings") {
+      // Private settings are rehydrated through the authenticated per-record endpoint.
+      if (payload["privateOnly"] === true) continue;
       const values = record(payload["values"]);
       const keys = Array.isArray(payload["keys"]) ? payload["keys"] : [];
       // Company phone, address and tax identifiers stay redacted in the event ledger.
@@ -132,6 +134,8 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     }
 
     if (event.category === "master_data" && event.entity_type === "business_contact") {
+      // Contact details never travel in the event stream; fetch them by ID via private-data.
+      if (payload["privateDetailsAvailable"] === true) continue;
       if (payload["operation"] === "delete") { next.contacts = next.contacts.filter((item) => item.id !== event.entity_id); continue; }
       const metadata = record(payload["metadata"]);
       const existing = next.contacts.find((item) => item.id === event.entity_id);

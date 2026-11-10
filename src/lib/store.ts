@@ -303,6 +303,9 @@ type MobFlowApiBody = {
   state?: unknown;
   updatedAt?: string | null;
   syncCursor?: string;
+  privateContactIds?: string[];
+  record?: unknown;
+  ids?: unknown[];
   status?: string;
   remoteState?: unknown;
   remoteUpdatedAt?: string | null;
@@ -316,6 +319,37 @@ async function callMobFlowApi(path: string, init: RequestInit = {}) {
   const body = await response.json().catch(() => ({})) as MobFlowApiBody;
   return { response, body };
 
+}
+async function loadPrivateData(contactIds: string[] = []) {
+  const settingsResult = await callMobFlowApi("/api/mobflow/private-data?kind=settings");
+  if (!settingsResult.response.ok || settingsResult.body.ok !== true) throw new Error("Não foi possível recuperar as configurações privadas.");
+  const contacts = await Promise.all(contactIds.map(async (id) => {
+    const result = await callMobFlowApi("/api/mobflow/private-data?kind=contact&id=" + encodeURIComponent(id));
+    if (!result.response.ok || result.body.ok !== true || !result.body.record) throw new Error("Não foi possível recuperar um contato da empresa.");
+    return result.body.record as BusinessContact;
+  }));
+  return { contacts, settings: settingsResult.body.record as AppSettings };
+}
+async function savePrivateRecord(kind: "contact" | "settings", id: string | undefined, value: Record<string, unknown>) {
+  const result = await callMobFlowApi("/api/mobflow/private-data?kind=" + kind, { method: "PATCH", body: JSON.stringify({ id, value }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao salvar dados privados."));
+  return result.body.record;
+}
+async function removePrivateContact(id: string) {
+  const result = await callMobFlowApi("/api/mobflow/private-data?kind=contact&id=" + encodeURIComponent(id), { method: "DELETE" });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir contato."));
+}
+async function persistReceivingRecord(note: ReceivingNote) {
+  const result = await callMobFlowApi("/api/mobflow/receiving", { method: "POST", body: JSON.stringify({ action: "save", note }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao salvar recebimento."));
+}
+async function deleteReceivingRecord(id: string) {
+  const result = await callMobFlowApi("/api/mobflow/receiving", { method: "POST", body: JSON.stringify({ action: "delete", receivingId: id }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir recebimento."));
+}
+async function persistReceivingConference(conference: Conference) {
+  const result = await callMobFlowApi("/api/mobflow/receiving", { method: "POST", body: JSON.stringify({ action: "save_conference", conference }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao salvar conferência do recebimento."));
 }
 
 function readOutboxBackup(): import("@/lib/sync-outbox").SyncCommand[] {
@@ -542,6 +576,8 @@ export async function hydrateStore() {
         lastSyncedState = null;
       }
 
+      const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
+      state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
       normalizeState();
 
       try {
@@ -569,9 +605,15 @@ function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   listeners.forEach((l) => l());
 }
 
-export function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
+export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
   const next = applySyncEventsToState(state, events);
   state = next;
+  if (events.some((event) => (event.category === "master_data" && event.entity_type === "business_contact") || (event.category === "settings" && event.entity_type === "company_settings"))) {
+    const list = await callMobFlowApi("/api/mobflow/private-data?kind=contacts");
+    if (!list.response.ok || list.body.ok !== true || !Array.isArray(list.body.ids)) throw new Error("Falha ao recuperar os contatos atualizados.");
+    const privateData = await loadPrivateData(list.body.ids.filter((id): id is string => typeof id === "string"));
+    state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+  }
   try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
   listeners.forEach((listener) => listener());
 }
@@ -660,14 +702,18 @@ export const actions = {
     set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) }, { persist: !queued });
     return { expectedCash, countedCash: counted, difference: Math.round((counted - expectedCash) * 100) / 100 };
   },
-  saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
+  async saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
     const id = contact.id || uid();
     const value: BusinessContact = { ...contact, id, name: contact.name.trim() };
+    await savePrivateRecord("contact", id, value as unknown as Record<string, unknown>);
     const existing = (state.contacts ?? []).some((c) => c.id === id);
     set({ contacts: existing ? state.contacts.map((c) => c.id === id ? value : c) : [value, ...(state.contacts ?? [])] });
     return id;
   },
-  deleteContact(id: string) { set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) }); },
+  async deleteContact(id: string) {
+    await removePrivateContact(id);
+    set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) });
+  },
   addToCart(productId: string, qty = 1) {
     const p = state.products.find((x) => x.id === productId);
     if (!p) return;
@@ -757,7 +803,10 @@ export const actions = {
     if (!sale || sale.paid) return;
     actions.addFiadoPayment(id, sale.total);
   },
-  updateSettings(settings: AppSettings) { set({ settings }); },
+  async updateSettings(settings: AppSettings) {
+    await savePrivateRecord("settings", undefined, settings as unknown as Record<string, unknown>);
+    set({ settings });
+  },
   savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
     const product = state.products.find((p) => p.id === promotion.productId);
     if (!product || !Number.isFinite(promotion.promoPrice) || promotion.promoPrice < 0 || !promotion.startsAt || !promotion.endsAt || new Date(promotion.endsAt) <= new Date(promotion.startsAt)) return false;
@@ -910,16 +959,47 @@ export const actions = {
     set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
     return entry;
   },
-  applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
+  async applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     if (!input.destinationName.trim() || !input.items.length) return false;
-    const prepared = input.items.map((item) => { const p = state.products.find((x) => x.id === item.productId); if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null; const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity; const purchase = Math.max(0, p.cost ?? 0); const sale = Math.max(0, p.price ?? 0); const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2; return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 }; });
-    if (prepared.some((x) => x === null)) return false; const items = prepared as StockWriteoffItem[]; const existing = state.stockTransfers ?? [];
-    const previousNumbers = existing.map((transfer) => String(transfer.number).match(/^NF:\s*(\d+)$/)).filter((match): match is RegExpMatchArray => Boolean(match)).map((match) => Number(match[1])).filter((number) => Number.isFinite(number));
-    const sequence = previousNumbers.length ? Math.max(...previousNumbers) + 1 : 10;
-    const entry: StockTransfer = { id: uid(), number: `NF:${String(sequence).padStart(4, "0")}`, date: new Date().toISOString(), reason: "Transferência de produtos, Vendas", destinationName: input.destinationName.trim(), destinationDocument: input.destinationDocument?.trim() || undefined, destinationPhone: input.destinationPhone?.trim() || undefined, destinationStreet: input.destinationStreet?.trim() || undefined, destinationNumber: input.destinationNumber?.trim() || undefined, destinationCep: input.destinationCep?.trim() || undefined, destinationNeighborhood: input.destinationNeighborhood?.trim() || undefined, destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined, costMode: input.costMode, operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined, items };
-    const products = state.products.map((p) => { const item = items.find((x) => x.productId === p.id); return item ? { ...p, stock: item.newStock } : p; });
-    const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · Destino: ${entry.destinationName}` }));
-    set({ products, stockTransfers: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }); return entry;
+    const prepared = input.items.map((item) => {
+      const p = state.products.find((x) => x.id === item.productId);
+      if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null;
+      const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
+      const purchase = Math.max(0, p.cost ?? 0), sale = Math.max(0, p.price ?? 0);
+      const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2;
+      return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 };
+    });
+    if (prepared.some((item) => item === null)) return false;
+    const items = prepared as StockWriteoffItem[];
+    const sequence = (state.stockTransfers ?? []).length + 10;
+    const entry: StockTransfer = {
+      id: uid(), number: "NF:" + String(sequence).padStart(4, "0"), date: new Date().toISOString(),
+      reason: "Transferência de produtos, Vendas", destinationName: input.destinationName.trim(),
+      destinationDocument: input.destinationDocument?.trim() || undefined, destinationPhone: input.destinationPhone?.trim() || undefined,
+      destinationStreet: input.destinationStreet?.trim() || undefined, destinationNumber: input.destinationNumber?.trim() || undefined,
+      destinationCep: input.destinationCep?.trim() || undefined, destinationNeighborhood: input.destinationNeighborhood?.trim() || undefined,
+      destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined,
+      costMode: input.costMode, operator: currentOperator(), items,
+    };
+    try {
+      const result = await callMobFlowApi("/api/mobflow/stock", {
+        method: "POST",
+        body: JSON.stringify({
+          operationId: entry.id, idempotencyKey: crypto.randomUUID(), operationType: "transfer",
+          reason: entry.reason, number: entry.number, costMode: input.costMode, destinationName: entry.destinationName,
+          destinationDocument: entry.destinationDocument, destinationPhone: entry.destinationPhone,
+          destinationStreet: entry.destinationStreet, destinationNumber: entry.destinationNumber, destinationCep: entry.destinationCep,
+          destinationNeighborhood: entry.destinationNeighborhood, destinationCity: entry.destinationCity, destinationState: entry.destinationState,
+          items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        }),
+      });
+      if (!result.response.ok || result.body.ok !== true) { console.error("[MobFlow Transfer]", result.body.error ?? result.response.status); return false; }
+      await hydrateStore();
+      return entry;
+      } catch (error) {
+      console.error("[MobFlow Transfer]", error);
+      return false;
+    }
   },
   attachStockTransferDocument(id: string, document: unknown) { if (!(state.stockTransfers ?? []).some((item) => item.id === id)) return false; set({ stockTransfers: (state.stockTransfers ?? []).map((item) => item.id === id ? { ...item, document } : item) }); return true; },
   attachStockWriteoffDocument(id: string, document: unknown) {
@@ -931,6 +1011,7 @@ export const actions = {
   newConference(name: string): string {
     const c: Conference = { id: uid(), name: name || `Conferência ${new Date().toLocaleDateString("pt-BR")}`, date: new Date().toISOString(), status: "aberta", counts: {}, unknown: [] };
     set({ conferences: [c, ...(state.conferences ?? [])] });
+    void persistReceivingConference(c).catch((error)=>console.error("[MobFlow Receiving]",error));
     return c.id;
   },
   patchConference(id: string, fn: (c: Conference) => Conference) {
@@ -987,7 +1068,7 @@ export const actions = {
     set({ manualExpiries: (state.manualExpiries ?? []).filter((e) => e.id !== noteId) });
     return true;
   },
-  createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
+  async createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
     const receiving: ReceivingNote = {
       id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado", supplierCnpj: supplierCnpj?.trim() || undefined,
       date: new Date().toISOString(),
@@ -998,12 +1079,14 @@ export const actions = {
       status: "pendente",
     };
     set({ receiving: [receiving, ...(state.receiving ?? [])], suppliers: supplier.trim() ? (() => { const name = supplier.trim(); const cnpj = supplierCnpj?.trim() || undefined; const existing = (state.suppliers ?? []).find(s => s.name.toLowerCase() === name.toLowerCase()); return existing ? (state.suppliers ?? []).map(s => s.name.toLowerCase() === name.toLowerCase() ? { ...s, name, cnpj: cnpj || s.cnpj } : s) : [{ name, cnpj }, ...(state.suppliers ?? [])]; })() : (state.suppliers ?? []) });
+    await persistReceivingRecord(receiving);
     return receiving.id;
   },
-  updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, ...patch } : n) });
+  async updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, ...patch } : n); set({ receiving: updated });
+    const note = updated.find((n) => n.id === id); if (note) await persistReceivingRecord(note);
   },
-  addReceivingItems(id: string, items: { productId: string; expected: number }[]) {
+  async addReceivingItems(id: string, items: { productId: string; expected: number }[]) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || note.status !== "pendente") return;
     const additions = items
@@ -1022,7 +1105,8 @@ export const actions = {
       if (existing) existing.expected += item.expected;
       else merged.push(item);
     }
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, items: merged } : n) });
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, items: merged } : n); set({ receiving: updated });
+    const saved = updated.find((n) => n.id === id); if (saved) await persistReceivingRecord(saved);
   },
   startReceivingConference(receivingId: string) {
     const n = (state.receiving ?? []).find((x) => x.id === receivingId);
@@ -1047,10 +1131,9 @@ export const actions = {
       };
       set({ conferences: [conference, ...(state.conferences ?? [])] });
     }
-    set({ conferences: state.conferences.map((c) => c.id === conference!.id ? {
-      ...c, counts: { ...counts }, expiries: { ...expiries },
-      extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries },
-    } : c) });
+    const updatedConference = { ...conference, counts: { ...counts }, expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries } };
+    set({ conferences: state.conferences.map((c) => c.id === conference!.id ? updatedConference : c) });
+    void persistReceivingConference(updatedConference).catch((error)=>console.error("[MobFlow Receiving]",error));
   },
   saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);
@@ -1065,18 +1148,17 @@ export const actions = {
       expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries },
     };
     const divergent = extras.length > 0 || note.items.some((i) => (counts[i.productId] ?? 0) !== i.expected);
+    const updatedReceiving = (state.receiving ?? []).map((n) => n.id === note.id ? {
+      ...n,
+      items: n.items.map((i) => ({ ...i, received: counts[i.productId] ?? 0, expiry: expiries[i.productId] || undefined })),
+      extras, status: "analisando" as const, decisions: {}, decisionCompleted: false, stockReleased: false,
+    } : n);
     set({
-      receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
-        ...n,
-        items: n.items.map((i) => ({ ...i, received: counts[i.productId] ?? 0, expiry: expiries[i.productId] || undefined })),
-        extras,
-        status: "analisando",
-        decisions: {},
-        decisionCompleted: false,
-        stockReleased: false,
-      } : n),
+      receiving: updatedReceiving,
       conferences: [conference, ...(state.conferences ?? []).filter((item) => item.receivingId !== receivingId || item.status !== "aberta")],
     });
+    const saved = updatedReceiving.find((n) => n.id === note.id); if (saved) await persistReceivingRecord(saved);
+    void persistReceivingConference(conference).catch((error)=>console.error("[MobFlow Receiving]",error));
     return true;
   },
   async acceptReceiving(id: string) {
@@ -1098,14 +1180,17 @@ export const actions = {
     await hydrateStore();
     return true;
   },
-  finishReceivingAction(id: string) {
+  async finishReceivingAction(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || !note.stockReleased || !Object.values(note.decisions ?? {}).includes("devolver")) return false;
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n) });
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n);
+    set({ receiving: updated });
+    const saved = updated.find((n) => n.id === id); if (saved) void persistReceivingRecord(saved).catch((error)=>console.error("[MobFlow Receiving]",error));
     return true;
   },
-  setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n) });
+  async setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n); set({ receiving: updated });
+    const note = updated.find((n) => n.id === id); if (note) await persistReceivingRecord(note);
   },
   async completeReceivingDecision(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
@@ -1156,10 +1241,12 @@ export const actions = {
     void hydrateStore();
     return true;
   },
-  rejectReceiving(id: string) {
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "rejeitado", stockReleased: false } : n) });
+  async rejectReceiving(id: string) {
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "rejeitado" as const, stockReleased: false } : n); set({ receiving: updated });
+    const note = updated.find((n) => n.id === id); if (note) void persistReceivingRecord(note).catch((error)=>console.error("[MobFlow Receiving]",error));
   },
-  deleteReceiving(id: string) {
+  async deleteReceiving(id: string) {
+    await deleteReceivingRecord(id);
     set({ receiving: (state.receiving ?? []).filter((n) => n.id !== id), conferences: state.conferences.filter((c) => c.receivingId !== id) });
   },
 };

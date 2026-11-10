@@ -150,9 +150,19 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
           await releaseTransaction(transaction.client, true);
           transaction = null;
 
+          const rawState = remote?.state && typeof remote.state === "object" ? remote.state as Record<string,unknown> : null;
+          const privateContactIds = rawState && Array.isArray(rawState.contacts)
+            ? rawState.contacts.map((item:any)=>typeof item?.id==="string"?item.id:null).filter((id):id is string=>!!id)
+            : [];
+          const safeState = rawState ? {
+            ...rawState,
+            contacts: [],
+            settings: { companyName: typeof (rawState.settings as any)?.companyName === "string" ? (rawState.settings as any).companyName : "" },
+          } : null;
           return Response.json({
             ok: true,
-            state: remote?.state ?? null,
+            state: safeState,
+            privateContactIds,
             updatedAt: remote?.updated_at ?? null,
             syncCursor: remote?.sync_cursor ?? "0",
           });

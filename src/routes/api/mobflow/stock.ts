@@ -3,7 +3,7 @@ import {createFileRoute} from "@tanstack/react-router";
 import {beginAuthenticatedTransaction,jsonError,ApiAuthError} from "@/lib/server/mobflow-auth";
 import {releaseTransaction} from "@/lib/server/neon";
 type Operation="adjustment"|"writeoff"|"entry"|"transfer";
-type Input={operationId?:unknown;idempotencyKey?:unknown;operationType?:unknown;reason?:unknown;items?:unknown;costMode?:unknown;donationDestination?:unknown;number?:unknown;};
+type Input={operationId?:unknown;idempotencyKey?:unknown;operationType?:unknown;reason?:unknown;items?:unknown;costMode?:unknown;donationDestination?:unknown;number?:unknown;destinationName?:unknown;destinationDocument?:unknown;destinationPhone?:unknown;destinationStreet?:unknown;destinationNumber?:unknown;destinationCep?:unknown;destinationNeighborhood?:unknown;destinationCity?:unknown;destinationState?:unknown;};
 class StockError extends Error{constructor(message:string,readonly status=400,readonly code="invalid_stock_operation"){super(message);}}
 const fail=(m:string,s=400,c="invalid_stock_operation"):never=>{throw new StockError(m,s,c);};
 const uuid=(v:unknown):v is string=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
@@ -21,11 +21,11 @@ export async function handleMobFlowStock(request:Request){
   const operationId=str(body.operationId,100),operationType=body.operationType as Operation,reason=str(body.reason,500);
   if(!operationId||!uuid(body.idempotencyKey)||!["adjustment","writeoff","entry","transfer"].includes(String(operationType))||!reason)fail("Identificação, tipo ou motivo inválido.");
   if(!Array.isArray(body.items)||body.items.length<1||body.items.length>300)fail("Itens inválidos.");
-  if(operationType==="transfer") fail("Transferência exige origem e destino definidos. Esta rota ainda não registra transferência entre estoques.",409,"transfer_destination_required");
+  const destinationName=str(body.destinationName,160);\n  if(operationType==="transfer"&&!destinationName)fail("Informe o destino da transferência.");
   const costMode=body.costMode==="venda"||body.costMode==="media"?body.costMode:"compra";
   const donationDestination=str(body.donationDestination,240);
   const writeoffNumber=str(body.number,40);
-  if(operationType==="writeoff"&&(!["Perda","Consumo","Doação"].includes(reason)||!["compra","venda","media"].includes(String(body.costMode))))fail("Motivo ou base de custo da baixa inválidos.");
+  if((operationType==="writeoff"||operationType==="transfer")&& !["compra","venda","media"].includes(String(body.costMode)))fail("Base de custo inválida para a operação.");
   if(operationType==="writeoff"&&reason==="Doação"&&!donationDestination)fail("Informe o destino da doação.");
   tx=await beginAuthenticatedTransaction(request);const {client,identity}=tx;
   if(!(identity.role==="manager"||(identity.role==="pdv"&&Array.isArray(identity.permissions)&&identity.permissions.includes("Operações"))))fail("Usuário sem permissão para movimentar estoque.",403,"permission_denied");
@@ -54,7 +54,7 @@ export async function handleMobFlowStock(request:Request){
    const p=products.get(id),item=aggregated.get(id)!;if(!p.active)fail("Produto inativo: "+p.name,409,"product_inactive");
    const before=Number(p.stock);let after:number,delta:number;
    if(operationType==="adjustment"&&item.mode==="set"){after=item.quantity;delta=qty3(after-before);}
-   else {delta=operationType==="entry"?item.quantity:-item.quantity;if(operationType==="adjustment")delta=item.quantity;after=qty3(before+delta);}
+   else {delta=operationType==="entry"||operationType==="adjustment"?item.quantity:-item.quantity;after=qty3(before+delta);}
    if(after<0)fail("Estoque insuficiente para "+p.name+".",409,"insufficient_stock");
    if(p.unit==="un"&&(!Number.isInteger(item.quantity)||!Number.isInteger(after)))fail("Produto por unidade não aceita quantidade fracionada.");
    const purchase=Math.max(0,Number(p.cost)),sale=Math.max(0,Number(p.price));
@@ -70,6 +70,12 @@ export async function handleMobFlowStock(request:Request){
    await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'stock','automatic','product',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":stock-event:"+body.idempotencyKey+":"+x.p.id),x.p.id,JSON.stringify({operationId,operationType,delta:x.delta,stockBefore:x.before,stockAfter:x.after,quantity:x.item.quantity,productCode:str(x.p.code,80),productName:str(x.p.name,160),unit:x.p.unit,totalValue:x.value,reason,operator:identity.displayName||identity.username,occurredAt:now})]);
   }
   await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'stock','manual','stock_operation',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":stock-operation-event:"+body.idempotencyKey),operationId,JSON.stringify({operationId,operationType,reason,operator:identity.displayName||identity.username,occurredAt:now,items:operationType==="adjustment"?undefined:changes.map(x=>({productId:x.p.id,code:str(x.p.code,80),name:str(x.p.name,160),unit:x.p.unit,quantity:x.item.quantity,mode:x.item.mode==="set"?"definir":"somar",previousStock:x.before,newStock:x.after,delta:x.delta,totalValue:x.value})),stockAdjustment:operationType==="adjustment"?{id:operationId,date:now,reason,operator:identity.displayName||identity.username,items:changes.map(x=>({productId:x.p.id,code:str(x.p.code,80),name:str(x.p.name,160),unit:x.p.unit,mode:x.item.mode==="set"?"definir":"somar",quantity:x.item.quantity,previousStock:x.before,newStock:x.after}))}:undefined})]);
+  if(operationType==="transfer") {
+   const transfer={id:operationId,number:writeoffNumber||("TR: "+operationId.slice(-6)),date:now,reason:"Transferência de produtos, Vendas",destinationName,destinationDocument:str(body.destinationDocument,32)||undefined,destinationPhone:str(body.destinationPhone,32)||undefined,destinationStreet:str(body.destinationStreet,160)||undefined,destinationNumber:str(body.destinationNumber,30)||undefined,destinationCep:str(body.destinationCep,16)||undefined,destinationNeighborhood:str(body.destinationNeighborhood,100)||undefined,destinationCity:str(body.destinationCity,100)||undefined,destinationState:str(body.destinationState,2)||undefined,costMode,operator:identity.displayName||identity.username,items:changes.map(x=>({productId:x.p.id,code:str(x.p.code,80),ref:undefined,name:str(x.p.name,160),unit:x.p.unit,quantity:x.item.quantity,previousStock:x.before,newStock:x.after,costMode,unitCost:x.unitValue,totalCost:x.value}))};
+   await client.query("UPDATE public.app_state SET state=jsonb_set(COALESCE(state,'{}'::jsonb),'{stockTransfers}',COALESCE(state->'stockTransfers','[]'::jsonb)||$2::jsonb,true),updated_at=now() WHERE owner_id=$1",[identity.accountId,JSON.stringify([transfer])]);
+   const publicProjection={id:operationId,number:transfer.number,date:now,reason:transfer.reason,destinationName,costMode,operator:transfer.operator,items:transfer.items.map(x=>({productId:x.productId,code:x.code,name:x.name,unit:x.unit,quantity:x.quantity,previousStock:x.previousStock,newStock:x.newStock,costMode:x.costMode,unitCost:x.unitCost,totalCost:x.totalCost}))};
+   await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'stock','manual','stock_transfer',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":stock-transfer-event:"+body.idempotencyKey),operationId,JSON.stringify({operation:"upsert",stockOperation:publicProjection,privateDetailsAvailable:true})]);
+  }
   if(operationType==="writeoff") {
    const projection={id:operationId,number:writeoffNumber||("NF: "+operationId.slice(-5)),date:now,reason,costMode,donationDestination:reason==="Doação"?donationDestination:undefined,operator:identity.displayName||identity.username,items:changes.map(x=>({productId:x.p.id,code:str(x.p.code,80),name:str(x.p.name,160),unit:x.p.unit,quantity:x.item.quantity,previousStock:x.before,newStock:x.after,costMode,unitCost:x.unitValue,totalCost:x.value}))};
    await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'stock','manual','stock_writeoff',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":stock-writeoff-event:"+body.idempotencyKey),operationId,JSON.stringify({operation:"upsert",stockOperation:projection})]);

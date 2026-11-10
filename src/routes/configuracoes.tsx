@@ -337,7 +337,7 @@ function Configuracoes() {
         if (!response.ok || !result?.ok) throw new Error(result?.error || "Não foi possível remover a logo do Cloudflare R2.");
         nextLogoKey = "";
       }
-      actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: undefined, companyLogoObjectKey: nextLogoKey || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
+      await actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: undefined, companyLogoObjectKey: nextLogoKey || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
       setLogoObjectKey(nextLogoKey);
       setLogoFile(null);
       setLogoRemoved(false);
@@ -359,8 +359,9 @@ function Configuracoes() {
     setPixKeyType(settings.pixKeyType ?? "aleatoria");
   };
 
-  const savePix = () => {
-    actions.updateSettings({ ...settings, pixKey: pixKey.trim() || undefined, pixKeyType });
+  const savePix = async () => {
+    try { await actions.updateSettings({ ...settings, pixKey: pixKey.trim() || undefined, pixKeyType }); }
+    catch (error) { alert(error instanceof Error ? error.message : "Não foi possível salvar a chave Pix."); return; }
     setPixEditing(false);
     setPixError("");
     setSaved(true);
