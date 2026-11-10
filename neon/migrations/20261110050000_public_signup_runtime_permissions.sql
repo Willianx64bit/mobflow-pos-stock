@@ -6,7 +6,7 @@
 BEGIN;
 
 GRANT USAGE ON SCHEMA public TO mobflow_admin_auth_preview;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.profiles TO mobflow_admin_auth_preview;
+GRANT SELECT, INSERT, UPDATE, REFERENCES ON TABLE public.profiles TO mobflow_admin_auth_preview;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.companies TO mobflow_admin_auth_preview;
 GRANT SELECT, INSERT ON TABLE public.account_allowlist TO mobflow_admin_auth_preview;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.app_state TO mobflow_admin_auth_preview;
