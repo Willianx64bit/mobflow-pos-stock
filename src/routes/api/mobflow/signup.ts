@@ -284,6 +284,9 @@ async function createCompany(body: Record<string, unknown>) {
     const requestToken = companyResult.rows[0]?.payment_request_token;
     if (!requestToken) throw new Error("payment_request_token missing");
 
+    // Scope the initial state row to the account being provisioned.
+    // The Preview RLS policy requires this transaction-local account context.
+    await client.query("SELECT set_config('app.account_id', $1, true)", [id]);
     const initialState = {
       products: [], cart: [], sales: [], conferences: [], receiving: [],
       manualExpiries: [], promotions: [], suppliers: [], settings: { companyName },
