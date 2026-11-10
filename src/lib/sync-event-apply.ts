@@ -47,11 +47,12 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       const price = number(raw["price"]), cost = number(raw["cost"]), minStock = number(raw["minStock"]);
       if (!unit || price === null || cost === null || minStock === null) throw new UnsupportedSyncEventError(event);
       const existing = next.products.find((item) => item.id === event.entity_id);
+      const productVersion = number(raw["version"]) ?? existing?.version;
       next.products = upsert(next.products, {
         id: raw["id"], code: raw["code"], name: raw["name"],
         ref: typeof raw["reference"] === "string" ? raw["reference"] : typeof raw["ref"] === "string" ? raw["ref"] : undefined,
         unit, price, cost, minStock, category: typeof raw["category"] === "string" ? raw["category"] : "",
-        ...(number(raw["version"]) !== null || existing?.version !== undefined ? { version: number(raw["version"]) ?? existing?.version } : {}),
+        ...(productVersion !== undefined ? { version: productVersion } : {}),
         barcodes: Array.isArray(raw["barcodes"]) ? raw["barcodes"].filter((item): item is string => typeof item === "string") : existing?.barcodes ?? [],
         stock: existing?.stock ?? 0, photoObjectKey: existing?.photoObjectKey,
       });
@@ -94,9 +95,10 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         const quantity = number(line["received"]);
         if (quantity !== null) received.set(line["productId"], quantity);
       }
-      const updateLines = <T extends { productId: string; received?: number }>(items: T[]) => items.map((item) => ({
-        ...item, ...(received.get(item.productId) !== undefined ? { received: received.get(item.productId)! } : {}),
-      }));
+      const updateLines = <T extends { productId: string; received?: number }>(items: T[]): T[] => items.map((item) => {
+        const quantity = received.get(item.productId);
+        return quantity === undefined ? item : { ...item, received: quantity } as T;
+      });
       next.receiving = next.receiving.map((item) => item.id === event.entity_id ? {
         ...item, items: updateLines(item.items), extras: updateLines(item.extras ?? []),
         status: payload["status"] === "aceito" ? "aceito" : item.status,
