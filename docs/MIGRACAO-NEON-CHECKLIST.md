@@ -162,3 +162,13 @@ Referência atual do PDV: https://mobflow-pos-stock.lovable.app
 - [ ] Confirmar visualmente o login no painel Admin.
 - [ ] Executar o botão **Testar armazenamento R2** no Admin Preview.
 - [ ] Executar o fluxo controlado de cadastro de uma nova empresa pelo PDV e aprovação no Admin.
+
+
+## Correção do login após aprovação — 2026-11-10
+
+- Diagnóstico confirmado nos logs do Preview: `POST /api/mobflow/login` falhava com `permission denied for table profiles`.
+- Causa: o login consultava `profiles` antes de estabelecer `app.account_id`, `app.user_id` e `app.role`, exigidos pelas políticas RLS de isolamento por empresa.
+- Criada a função restrita `public.mobflow_find_login_profile(text)` como SECURITY DEFINER, com retorno limitado aos campos necessários para autenticação; execução revogada de PUBLIC e concedida somente a `mobflow_api`.
+- O endpoint agora usa essa função para localizar o perfil e estabelece o contexto da empresa/usuário dentro da transação antes de consultar assinatura e dados protegidos por RLS.
+- Migration aplicada no Preview `mobflow_pdv_clean_start`: `neon/migrations/20261110130000_fix_login_profile_rls.sql`.
+- Verificação SQL confirmou EXECUTE para `mobflow_api`; a função está instalada. O build/deploy da correção ainda precisa ficar READY e o login real deve ser retestado.
