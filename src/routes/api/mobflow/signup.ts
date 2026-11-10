@@ -147,6 +147,7 @@ async function completeManagerSetup(body: Record<string, unknown>) {
       await client.query("ROLLBACK");
       return errorResponse("Link de primeiro acesso inválido ou já utilizado.", 409);
     }
+    await client.query("SELECT set_config('app.account_id', $1, true)", [company.account_id]);
     const duplicate = await client.query(
       "SELECT id FROM public.profiles WHERE username=$1 AND id<>$2 LIMIT 1",
       [username, company.account_id],
@@ -253,6 +254,9 @@ async function createCompany(body: Record<string, unknown>) {
 
     const id = randomUUID();
     const now = new Date();
+    // The dedicated signup role is protected by tenant-scoped RLS policies.
+    // Set tenant context before inserting profiles, companies and initial state.
+    await client.query("SELECT set_config('app.account_id', $1, true)", [id]);
     const passwordHash = await bcrypt.hash(password, 12);
     await client.query(
       `INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
@@ -284,9 +288,6 @@ async function createCompany(body: Record<string, unknown>) {
     const requestToken = companyResult.rows[0]?.payment_request_token;
     if (!requestToken) throw new Error("payment_request_token missing");
 
-    // Scope the initial state row to the account being provisioned.
-    // The Preview RLS policy requires this transaction-local account context.
-    await client.query("SELECT set_config('app.account_id', $1, true)", [id]);
     const initialState = {
       products: [], cart: [], sales: [], conferences: [], receiving: [],
       manualExpiries: [], promotions: [], suppliers: [], settings: { companyName },
