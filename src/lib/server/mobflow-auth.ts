@@ -248,10 +248,13 @@ export async function beginAuthenticatedTransaction(request: Request): Promise<A
       if (!subscription) {
         throw new ApiAuthError("Assinatura da empresa não encontrada. Entre em contato com o administrador do MobFlow.", 403, "company_not_found");
       }
-      const expired = Boolean(
-        subscription.subscription_expires_at &&
-        new Date(subscription.subscription_expires_at).getTime() <= Date.now()
-      );
+      const expiryValue = subscription.subscription_expires_at;
+      const expiryTimestamp = expiryValue instanceof Date
+        ? expiryValue.getTime()
+        : expiryValue
+          ? Date.parse(expiryValue)
+          : null;
+      const expired = expiryTimestamp !== null && expiryTimestamp <= Date.now();
       if (subscription.subscription_status !== "active" || expired) {
         throw new ApiAuthError(
           expired
