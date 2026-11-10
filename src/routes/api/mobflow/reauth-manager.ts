@@ -30,11 +30,11 @@ async function handleReauth(request: Request) {
     const password = String(body.password ?? "");
 
     client = await getNeonPool().connect();
-    const result = await client.query<{ password_hash: string }>(
-      "SELECT password_hash FROM public.manager_security_by_account WHERE account_id=$1 LIMIT 1",
+    const result = await client.query<{ password_hash: string | null }>(
+      "SELECT public.mobflow_get_manager_password_hash($1) AS password_hash",
       [identity.accountId],
     );
-    const stored = result.rows[0]?.password_hash;
+    const stored = result.rows[0]?.password_hash ?? undefined;
 
     if (action === "status") {
       return Response.json({ configured: Boolean(stored), role: identity.role });
@@ -47,16 +47,12 @@ async function handleReauth(request: Request) {
       if (stored) {
         return Response.json({ ok: false, error: "A senha da gerência já foi configurada. Use a senha atual para entrar." }, { status: 409 });
       }
-      try {
-        await client.query(
-          "INSERT INTO public.manager_security_by_account (account_id,password_hash,updated_at) VALUES ($1,$2,now())",
-          [identity.accountId, sha256(password)],
-        );
-      } catch (error) {
-        if ((error as { code?: string })?.code === "23505") {
-          return Response.json({ ok: false, error: "A senha da gerência já foi configurada. Atualize a tela e tente entrar." }, { status: 409 });
-        }
-        throw error;
+      const saved = await client.query<{ saved: boolean }>(
+        "SELECT public.mobflow_set_manager_password_hash($1,$2) AS saved",
+        [identity.accountId, sha256(password)],
+      );
+      if (!saved.rows[0]?.saved) {
+        return Response.json({ ok: false, error: "A senha da gerência já foi configurada. Atualize a tela e tente entrar." }, { status: 409 });
       }
       return Response.json({ ok: true });
     }
