@@ -904,7 +904,7 @@ export const actions = {
     });
     const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · ${reason}` }));
     const queued = enqueueDomainCommand("stock", {
-      operationId: entry.id, operationType: "writeoff", reason, costMode, donationDestination: entry.donationDestination,
+      operationId: entry.id, operationType: "writeoff", reason, costMode: input.costMode, donationDestination: entry.donationDestination,
       number: entry.number, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
     });
     set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
