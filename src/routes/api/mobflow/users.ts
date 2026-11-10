@@ -94,6 +94,39 @@ async function handleUsers(request: Request) {
     await client.query("BEGIN");
     transactionOpen = true;
 
+    if (action === "create") {
+      const username = String(body.username ?? "").trim().toUpperCase();
+      const displayName = String(body.displayName ?? "").trim() || username;
+      const permissions = normalizePermissions(body.permissions);
+      const password = String(body.password ?? "");
+
+      if (!/^[A-Z0-9._-]{3,40}$/.test(username)) deny("Usuário inválido. Use letras, números, ponto, hífen ou underline.");
+      if (password.length < 6) deny("A senha precisa ter pelo menos 6 caracteres.");
+
+      const id = randomUUID();
+      const passwordHash = await bcrypt.hash(password, 12);
+      const created = await client.query<{ created: boolean }>(
+        `SELECT public.mobflow_create_pdv_user(
+          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6::jsonb, $7, $8
+        ) AS created`,
+        [
+          identity.userId,
+          identity.accountId,
+          id,
+          username,
+          displayName,
+          JSON.stringify(permissions),
+          passwordHash,
+          emailFor(username),
+        ],
+      );
+      if (!created.rows[0]?.created) deny("Não foi possível confirmar a criação do usuário.", 500);
+
+      await client.query("COMMIT");
+      transactionOpen = false;
+      return Response.json({ ok: true });
+    }
+
     const managerResult = await client.query<{ cnpj: string }>(
       "SELECT cnpj FROM public.profiles WHERE id=$1 LIMIT 1",
       [identity.userId],
@@ -221,66 +254,6 @@ async function handleUsers(request: Request) {
           permissions: Array.isArray(user.permissions) ? user.permissions : ["PDV", "Conferência"],
         })),
       });
-    }
-
-    if (action === "create") {
-      const username = String(body.username ?? "").trim().toUpperCase();
-      const displayName = String(body.displayName ?? "").trim() || username;
-      const permissions = normalizePermissions(body.permissions);
-      const password = String(body.password ?? "");
-
-      const existingPdv = await client.query(
-        "SELECT id FROM public.profiles WHERE account_id=$1 AND role='pdv' LIMIT 1",
-        [identity.accountId],
-      );
-      if (!existingPdv.rows.length && !permissions.includes("Gerência")) permissions.push("Gerência");
-      if (!/^[A-Z0-9._-]{3,40}$/.test(username)) deny("Usuário inválido. Use letras, números, ponto, hífen ou underline.");
-      if (password.length < 6) deny("A senha precisa ter pelo menos 6 caracteres.");
-
-      const existingProfile = await client.query("SELECT id FROM public.profiles WHERE username=$1 LIMIT 1", [username]);
-      if (existingProfile.rows.length) deny("Esse usuário já existe.", 409);
-
-      const allowlist = await client.query<{ cnpj: string; active: boolean }>(
-        "SELECT cnpj,active FROM public.account_allowlist WHERE username=$1 LIMIT 1",
-        [username],
-      );
-      if (allowlist.rows[0] && allowlist.rows[0].cnpj !== managerCnpj) {
-        deny("Esse usuário já está vinculado a outra empresa.", 409);
-      }
-      if (!allowlist.rows[0]) {
-        await client.query(
-          "INSERT INTO public.account_allowlist (username,cnpj,active) VALUES ($1,$2,true)",
-          [username, managerCnpj],
-        );
-      } else if (!allowlist.rows[0].active) {
-        await client.query(
-          "UPDATE public.account_allowlist SET cnpj=$2,active=true WHERE username=$1",
-          [username, managerCnpj],
-        );
-      }
-
-      const id = randomUUID();
-      const now = new Date();
-      const hash = await bcrypt.hash(password, 12);
-      await client.query(
-        `INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
-         VALUES ($1,$2,$3,true,$4,$4)`,
-        [id, displayName, emailFor(username), now],
-      );
-      await client.query(
-        `INSERT INTO public."account" (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
-         VALUES ($1,$1,'credential',$1,$2,$3,$3)`,
-        [id, hash, now],
-      );
-      await client.query(
-        `INSERT INTO public.profiles (id,username,cnpj,account_id,role,active,display_name,permissions)
-         VALUES ($1,$2,$3,$4,'pdv',true,$5,$6::jsonb)`,
-        [id, username, managerCnpj, identity.accountId, displayName, JSON.stringify(permissions)],
-      );
-
-      await client.query("COMMIT");
-      transactionOpen = false;
-      return Response.json({ ok: true });
     }
 
     const userId = String(body.userId ?? "");
