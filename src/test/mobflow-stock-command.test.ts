@@ -31,7 +31,7 @@ describe("Neon stock commands",()=>{
   expect(payload.stockOperation.items[0]).toMatchObject({unitCost:7,totalCost:14,previousStock:10,newStock:8});
  });
  it("rejects a writeoff that would create negative stock",async()=>{
-  const res=await handleMobFlowStock(req({operationId:"op-loss",idempotencyKey:KEY,operationType:"writeoff",reason:"Perda",items:[{productId:"p1",quantity:11}]}));
+  const res=await handleMobFlowStock(req({operationId:"op-loss",idempotencyKey:KEY,operationType:"writeoff",reason:"Perda",costMode:"compra",items:[{productId:"p1",quantity:11}]}));
   expect(res.status).toBe(409);expect((await res.json()).code).toBe("insufficient_stock");
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
   expect(releaseTransaction).toHaveBeenCalledWith(client,false);
