@@ -21,6 +21,15 @@ describe("Neon stock commands",()=>{
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.stock_movements"))).toBe(true);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
+ it("publishes a complete writeoff event with the selected cost basis",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-writeoff",idempotencyKey:KEY,operationType:"writeoff",reason:"Doação",donationDestination:"Instituição",number:"NF: 00010",costMode:"media",items:[{productId:"p1",quantity:2}]}));
+  expect(res.status).toBe(201);
+  const eventCall=client.query.mock.calls.find(c=>String(c[0]).includes("'stock_writeoff'"));
+  expect(eventCall).toBeTruthy();
+  const payload=JSON.parse(String(eventCall?.[1]?.[3]));
+  expect(payload).toMatchObject({operation:"upsert",stockOperation:{id:"op-writeoff",reason:"Doação",costMode:"media",donationDestination:"Instituição",number:"NF: 00010"}});
+  expect(payload.stockOperation.items[0]).toMatchObject({unitCost:7,totalCost:14,previousStock:10,newStock:8});
+ });
  it("rejects a writeoff that would create negative stock",async()=>{
   const res=await handleMobFlowStock(req({operationId:"op-loss",idempotencyKey:KEY,operationType:"writeoff",reason:"Perda",items:[{productId:"p1",quantity:11}]}));
   expect(res.status).toBe(409);expect((await res.json()).code).toBe("insufficient_stock");
