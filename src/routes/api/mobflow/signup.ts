@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
-import { getNeonPool } from "@/lib/server/neon";
+import { getNeonPool, getSignupPool } from "@/lib/server/neon";
 
 const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerência"];
 const R2_ACCOUNT_ID = process.env["CLOUDFLARE_R2_ACCOUNT_ID"]?.trim() ?? "";
@@ -134,7 +134,7 @@ async function completeManagerSetup(body: Record<string, unknown>) {
   if (!/^[A-Z0-9._-]{3,40}$/.test(username)) return errorResponse("O usuário deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou underline.");
   if (password.length < 8 || password.length > 128) return errorResponse("A senha precisa ter pelo menos 8 caracteres.");
 
-  const client = await getNeonPool().connect();
+  const client = await getSignupPool().connect();
   try {
     await client.query("BEGIN");
     const companyResult = await client.query<{ account_id: string; company_name: string; manager_setup_completed_at: string | null }>(
@@ -207,7 +207,7 @@ async function createCompany(body: Record<string, unknown>) {
 
   let paymentSettings: { pix_phone: string; monthly_price: number; payment_method: "pix"; recipient_name: string; recipient_city: string };
   try {
-    const billingResult = await getNeonPool().query<{
+    const billingResult = await getSignupPool().query<{
       pix_phone: string;
       monthly_price: string | number;
       payment_method: string;
@@ -235,7 +235,7 @@ async function createCompany(body: Record<string, unknown>) {
   const pixKey = paymentSettings.pix_phone;
   const monthlyPrice = paymentSettings.monthly_price;
 
-  const client = await getNeonPool().connect();
+  const client = await getSignupPool().connect();
   try {
     await client.query("BEGIN");
     const duplicates = await client.query(
