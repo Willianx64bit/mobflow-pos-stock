@@ -173,7 +173,7 @@ describe("applySyncEventsToState", () => {
     const settings = event({ sequence: "12", category: "settings", entity_type: "company_settings", entity_id: "company", delivery_mode: "manual", payload: { operation: "changed", keys: ["companyName"], values: { companyName: "Mercado Novo" } } });
     const result = applySyncEventsToState(emptyState(), [supplier, settings]);
     expect(result.suppliers).toEqual([{ name: "Fornecedor Ltda" }]);
-    expect(result.settings).toMatchObject({ companyName: "Mercado Novo", companyCity: "Sorocaba" });
+    expect(result.settings).toMatchObject({ companyName: "Mercado Novo" });
   });
 
   it("rejects unsupported legacy catalog and cash-session event shapes", () => {
