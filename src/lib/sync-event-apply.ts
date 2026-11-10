@@ -51,7 +51,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         id: raw["id"], code: raw["code"], name: raw["name"],
         ref: typeof raw["reference"] === "string" ? raw["reference"] : typeof raw["ref"] === "string" ? raw["ref"] : undefined,
         unit, price, cost, minStock, category: typeof raw["category"] === "string" ? raw["category"] : "",
-        version: number(raw["version"]) ?? existing?.version,
+        ...(number(raw["version"]) !== null || existing?.version !== undefined ? { version: number(raw["version"]) ?? existing?.version } : {}),
         barcodes: Array.isArray(raw["barcodes"]) ? raw["barcodes"].filter((item): item is string => typeof item === "string") : existing?.barcodes ?? [],
         stock: existing?.stock ?? 0, photoObjectKey: existing?.photoObjectKey,
       });
@@ -89,13 +89,13 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       const decisions: Record<string, "aceitar" | "devolver"> = {};
       const received = new Map<string, number>();
       for (const line of lines) {
-        if (typeof line.productId !== "string" || (line.decision !== "aceitar" && line.decision !== "devolver")) throw new UnsupportedSyncEventError(event);
-        decisions[line.productId] = line.decision;
-        const quantity = number(line.received);
-        if (quantity !== null) received.set(line.productId, quantity);
+        if (typeof line["productId"] !== "string" || (line["decision"] !== "aceitar" && line["decision"] !== "devolver")) throw new UnsupportedSyncEventError(event);
+        decisions[line["productId"]] = line["decision"];
+        const quantity = number(line["received"]);
+        if (quantity !== null) received.set(line["productId"], quantity);
       }
       const updateLines = <T extends { productId: string; received?: number }>(items: T[]) => items.map((item) => ({
-        ...item, ...(received.has(item.productId) ? { received: received.get(item.productId) } : {}),
+        ...item, ...(received.get(item.productId) !== undefined ? { received: received.get(item.productId)! } : {}),
       }));
       next.receiving = next.receiving.map((item) => item.id === event.entity_id ? {
         ...item, items: updateLines(item.items), extras: updateLines(item.extras ?? []),
@@ -133,8 +133,9 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       if (payload["operation"] === "delete") { next.contacts = next.contacts.filter((item) => item.id !== event.entity_id); continue; }
       const metadata = record(payload["metadata"]);
       const existing = next.contacts.find((item) => item.id === event.entity_id);
-      if (!metadata || !existing || (metadata["type"] !== "Fornecedor" && metadata["type"] !== "Cliente")) throw new UnsupportedSyncEventError(event);
-      next.contacts = next.contacts.map((item) => item.id === event.entity_id ? { ...item, type: metadata["type"] } : item);
+      const contactType = metadata?.["type"];
+      if (!metadata || !existing || (contactType !== "Fornecedor" && contactType !== "Cliente")) throw new UnsupportedSyncEventError(event);
+      next.contacts = next.contacts.map((item) => item.id === event.entity_id ? { ...item, type: contactType } : item);
       continue;
     }
 
