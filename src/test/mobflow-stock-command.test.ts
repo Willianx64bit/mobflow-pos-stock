@@ -37,10 +37,18 @@ describe("Neon stock commands",()=>{
   expect(releaseTransaction).toHaveBeenCalledWith(client,false);
  });
 
- it("does not pretend an external transfer is a complete stock transfer",async()=>{
-  const res=await handleMobFlowStock(req({operationId:"op-transfer",idempotencyKey:KEY,operationType:"transfer",reason:"Transferência",items:[{productId:"p1",quantity:2}]}));
-  expect(res.status).toBe(409);expect((await res.json()).code).toBe("transfer_destination_required");
-  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
+ it("records an external transfer and redacts private destination details from its event",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-transfer",idempotencyKey:KEY,operationType:"transfer",reason:"Transferência",destinationName:"Cliente de destino",destinationDocument:"12345678900",destinationPhone:"15999999999",destinationStreet:"Rua Teste",costMode:"media",items:[{productId:"p1",quantity:2}]}));
+  expect(res.status).toBe(201);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(true);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.stock_movements"))).toBe(true);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("stockTransfers"))).toBe(true);
+  const eventCall=client.query.mock.calls.find(c=>String(c[0]).includes("'stock_transfer'"));
+  expect(eventCall).toBeTruthy();
+  const payload=JSON.parse(String(eventCall?.[1]?.[3]));
+  expect(payload.stockOperation.destinationName).toBe("Cliente de destino");
+  expect(JSON.stringify(payload)).not.toContain("12345678900");
+  expect(JSON.stringify(payload)).not.toContain("15999999999");
  });
  it("replays the same operation without applying stock twice",async()=>{
   client.query.mockImplementation(async(sql:string)=>{

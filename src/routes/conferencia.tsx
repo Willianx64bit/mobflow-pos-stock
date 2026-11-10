@@ -214,17 +214,18 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     if (reopenCamera) setCameraOpen(true);
   };
 
-  const finish = () => {
+  const finish = async () => {
     if (finishing) return;
     setFinishing(true);
-    window.setTimeout(() => {
-      const saved = actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
-      setFinishing(false);
+    try {
+      const saved = await actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
       setConfirmFinish(false);
       if (saved) onBack();
-      else setConfirmFinish(false);
-      if (!saved) setFinishError(true);
-    }, 2200);
+      else setFinishError(true);
+    } catch (error) {
+      setFinishError(true);
+      alert(error instanceof Error ? error.message : "Não foi possível salvar a conferência.");
+    } finally { setFinishing(false); }
   };
 
   return <section className="glass p-4">

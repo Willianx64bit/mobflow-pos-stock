@@ -1118,6 +1118,7 @@ export const actions = {
       status: "aberta", counts: {}, unknown: [], extraCounts: {}, extraExpiries: {}, receivingId,
     };
     set({ conferences: [c, ...(state.conferences ?? [])] });
+    void persistReceivingConference(c).catch((error)=>console.error("[MobFlow Receiving]",error));
     return c.id;
   },
   saveReceivingConferenceDraft(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
@@ -1135,7 +1136,7 @@ export const actions = {
     set({ conferences: state.conferences.map((c) => c.id === conference!.id ? updatedConference : c) });
     void persistReceivingConference(updatedConference).catch((error)=>console.error("[MobFlow Receiving]",error));
   },
-  saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
+  async saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);
     if (!note || note.status !== "pendente") return false;
     const extras = Object.entries(extraCounts).filter(([, received]) => received > 0).map(([productId, received]) => {
@@ -1158,7 +1159,7 @@ export const actions = {
       conferences: [conference, ...(state.conferences ?? []).filter((item) => item.receivingId !== receivingId || item.status !== "aberta")],
     });
     const saved = updatedReceiving.find((n) => n.id === note.id); if (saved) await persistReceivingRecord(saved);
-    void persistReceivingConference(conference).catch((error)=>console.error("[MobFlow Receiving]",error));
+    await persistReceivingConference(conference);
     return true;
   },
   async acceptReceiving(id: string) {
