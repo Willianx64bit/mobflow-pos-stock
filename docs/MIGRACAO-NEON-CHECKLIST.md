@@ -94,3 +94,48 @@ Referência atual do PDV: https://mobflow-pos-stock.lovable.app
 | 2026-11-10 | Planejamento | Checklist criado; execução e validações ainda precisam ser registradas. |
 
 > Atualizar este arquivo a cada etapa: marcar somente o que foi efetivamente implementado e testado. Registrar bloqueios e evidências; não marcar como concluído apenas porque existe código.
+
+
+## Checkpoint de análise e correções — 2026-11-10
+
+### Origem Supabase — somente inventário, sem copiar dados
+- O PDV de origem contém dados de empresas, perfis, estado e allowlist. Eles foram consultados apenas para identificar o que **não** deve ser migrado.
+- Nenhuma empresa, perfil de cliente, venda, estoque, caixa, movimentação, histórico, token ou arquivo de cliente foi copiado para o Neon.
+- Nenhuma alteração foi feita na origem Supabase.
+- A branch de migração é intencionalmente separada da main, que continua sendo a versão oficial com Supabase. Não fazer merge geral da main sobre esta branch; selecionar mudanças funcionais individualmente se forem necessárias.
+
+### Neon Preview confirmado
+- Projeto Neon PDV: proud-star-34734307.
+- Branch de Preview: mobflow-historical-rehearsal-20261109 (br-red-tree-bdk94c7k).
+- Database usado pelo endpoint de cadastro, confirmado em log de runtime: mobflow_pdv_clean_start, papel mobflow_signup_preview.
+- Tabelas centrais verificadas sem dados operacionais: companies=0, profiles=0, account_allowlist=0, app_state=0, products=0, sales=0, stock_movements=0, cash_sessions=0.
+- Configuração global admin_billing_settings: uma linha; mensalidade R$ 49,90 e Pix configurado.
+- **Resíduos que impedem declarar o banco 100% vazio:** uma linha em admin_internal.company_deletion_audit, dois registros em user, dois em account e uma sessão, sem perfis associados. Não são empresas ativas, mas são registros de teste/histórico. A limpeza desses registros está pendente de autorização explícita; não foram apagados.
+
+### Correções aplicadas somente no Preview
+- Corrigido o contexto de tenant: app.account_id agora é definido antes dos inserts protegidos por RLS e antes do fluxo de primeiro acesso do gerente.
+- Criadas políticas RLS dedicadas para o papel server-side mobflow_signup_preview em companies, profiles e account_allowlist.
+- Concedida leitura mínima de companies ao papel mobflow_api, limitada por RLS ao tenant autenticado.
+- Migration versionada em neon/migrations/20261110070000_signup_rls_and_subscription_gate.sql e aplicada somente ao database Preview acima.
+- Teste controlado executado como mobflow_signup_preview: inserts de identidade/conta/perfil/allowlist/empresa/estado, leitura e atualizações passaram; a transação de teste foi revertida e não deixou empresa de teste.
+- A autenticação do PDV agora revalida o status e vencimento da assinatura em cada requisição autenticada, bloqueando sessões existentes quando a empresa está pendente, suspensa ou vencida.
+
+### Neon Realtime
+- Neon Realtime já estava habilitado na branch de Preview e o alias do PDV estava permitido.
+- Recuperado o segredo existente e restauradas as variáveis NEON_REALTIME_SECRET e VITE_NEON_REALTIME_URL no Vercel, exclusivamente para Preview + migration/neon-preparation.
+- Não registrar o segredo neste arquivo.
+- Pendente: teste visual em dois dispositivos. A API de eventos incrementais ainda não substitui o snapshot completo; manter a reconciliação/fallback atual até testes de concorrência e reconexão.
+
+### Arquivos e armazenamento
+- Código atual contém endpoints server-side R2 para comprovantes Pix, logo da empresa e fotos de produto.
+- Bucket privado de Preview: mobflow-preview-files.
+- O teste anterior via API de gerenciamento Cloudflare confirmou PUT/GET/DELETE no bucket, mas ainda falta provar as credenciais S3 instaladas na Vercel.
+- Pendente: entrar no Admin Preview, abrir Configurações e clicar em **Testar armazenamento R2**. O teste cria e remove um objeto sintético e informa upload/leitura/remoção.
+- Pendente: teste real de upload/visualização de logo e foto de produto, com isolamento entre duas empresas.
+
+### Deploy e testes
+- O Preview do PDV para a branch foi gerado como READY após as correções.
+- O Preview do Admin continua READY e a autenticação Better Auth registrou sign-in HTTP 200 e consulta de sessão HTTP 200.
+- Pendente: validar visualmente o painel Admin, confirmar carregamento da lista vazia de empresas e executar o teste R2 pela interface.
+- Pendente: teste ponta a ponta cadastro PDV → pendência → Admin aprova → login PDV liberado.
+- Pendente: executar build/testes automatizados após as últimas alterações e validar sincronização em dois dispositivos.
