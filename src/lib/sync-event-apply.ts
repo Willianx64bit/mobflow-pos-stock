@@ -215,7 +215,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       const alreadyApplied = next.stockMovements.some((movement) => movement.id === event.event_id);
       if (!alreadyApplied) next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, stock: stockAfter } : item);
       const operationId = typeof payload["operationId"] === "string" ? payload["operationId"] : undefined;
-      const quantity = number(payload["quantity"]) ?? (deltaOnly === null ? null : Math.abs(deltaOnly));
+      const quantity = number(payload["quantity"]) ?? (payload["source"] === "receiving" && deltaOnly !== null ? Math.abs(deltaOnly) : null);
       if (!alreadyApplied && quantity !== null) {
         const delta = number(payload["delta"] ?? payload["stockDelta"]) ?? stockAfter - stockBefore;
         const operationType = String(payload["operationType"] ?? payload["source"] ?? "");
