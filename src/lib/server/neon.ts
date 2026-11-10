@@ -31,3 +31,31 @@ export async function releaseTransaction(client: PoolClient, commit: boolean): P
     client.release();
   }
 }
+
+let signupPool: Pool | null = null;
+
+/** Dedicated server-only database connection for public company onboarding.
+ * The browser never receives this URL. Its PostgreSQL role is separately scoped
+ * to billing lookup and the account-provisioning tables only.
+ */
+export function getSignupPool(): Pool {
+  if (typeof window !== "undefined") {
+    throw new Error("Signup database access is server-only.");
+  }
+
+  const connectionString = process.env.MOBFLOW_SIGNUP_DATABASE_URL?.trim();
+  if (!connectionString) {
+    throw new Error("MOBFLOW_SIGNUP_DATABASE_URL is not configured for this deployment.");
+  }
+
+  if (!signupPool) {
+    signupPool = new Pool({
+      connectionString,
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+    });
+  }
+
+  return signupPool;
+}
