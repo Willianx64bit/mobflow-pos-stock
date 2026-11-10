@@ -21,8 +21,9 @@ export async function handleMobFlowStock(request:Request){
   const operationId=str(body.operationId,100),operationType=body.operationType as Operation,reason=str(body.reason,500);
   if(!operationId||!uuid(body.idempotencyKey)||!["adjustment","writeoff","entry","transfer"].includes(String(operationType))||!reason)fail("Identificação, tipo ou motivo inválido.");
   if(!Array.isArray(body.items)||body.items.length<1||body.items.length>300)fail("Itens inválidos.");
-  const destinationName=str(body.destinationName,160);
-  if(operationType==="transfer"&&!destinationName)fail("Informe o destino da transferência.");
+  const destinationName = str(body.destinationName, 160);
+
+  if (operationType === "transfer" && !destinationName)fail("Informe o destino da transferência.");
   const costMode=body.costMode==="venda"||body.costMode==="media"?body.costMode:"compra";
   const donationDestination=str(body.donationDestination,240);
   const writeoffNumber=str(body.number,40);
