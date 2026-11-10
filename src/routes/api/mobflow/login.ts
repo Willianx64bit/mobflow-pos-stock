@@ -64,7 +64,7 @@ export async function handleMobFlowLogin(request: Request) {
       if (!company) deny("Assinatura da empresa não encontrada. Entre em contato com o MobFlow.", 403);
       const expired = Boolean(company.subscription_expires_at && new Date(company.subscription_expires_at).getTime() <= Date.now());
       if (expired && company.subscription_status === "active") {
-        await client.query("UPDATE public.companies SET subscription_status='past_due', updated_at=now() WHERE account_id=$1 AND subscription_status='active'", [profile.account_id]);
+        await client.query("SELECT public.mobflow_mark_subscription_past_due($1::uuid)", [profile.account_id]);
       }
       if (company.subscription_status !== "active" || expired) {
         deny(expired
@@ -83,15 +83,14 @@ export async function handleMobFlowLogin(request: Request) {
       if (expectedRole === "manager" && !management) deny("Esse usuário não tem permissão de Gerência.", 403);
       if (expectedRole === "manager" && profile.cnpj !== cnpj) deny("CNPJ da empresa inválido.");
       if (expectedRole === "manager" && profile.account_id) {
-        const [security, pdv] = await Promise.all([
-          client.query("SELECT account_id FROM public.manager_security_by_account WHERE account_id=$1 LIMIT 1", [profile.account_id]),
-          client.query("SELECT id FROM public.profiles WHERE account_id=$1 AND role='pdv' AND active=true LIMIT 1", [profile.account_id]),
-        ]);
-        firstManagerLogin = security.rows.length === 0 && pdv.rows.length === 0;
+        const security = await client.query<{ first_manager_login: boolean }>(
+          "SELECT public.mobflow_is_first_manager_login($1::uuid) AS first_manager_login",
+          [profile.account_id],
+        );
+        firstManagerLogin = security.rows[0]?.first_manager_login === true;
       }
       const account = await client.query<{ password: string | null }>(
-        `SELECT password FROM public."account"
-         WHERE "userId"=$1 AND "providerId"='credential' AND "accountId"=$1 LIMIT 1`,
+        "SELECT public.mobflow_get_login_credential($1::uuid) AS password",
         [profile.id],
       );
       if (!account.rows[0]?.password || !(await bcrypt.compare(password, account.rows[0].password))) {
