@@ -156,6 +156,26 @@ describe("applySyncEventsToState", () => {
     expect(twice.manualExpiries).toHaveLength(1);
   });
 
+  it("applies receiving decisions and stock deltas without requiring a snapshot", () => {
+    const current = emptyState();
+    current.receiving = [{ id: "receipt-1", number: "NF1", supplier: "Fornecedor", date: "2026-11-10", items: [{ productId: "product-1", name: "Produto teste", expected: 2, received: 3, unit: "un" }], status: "analisando" }];
+    const receiving = event({ sequence: "9", category: "receiving", entity_type: "receiving", entity_id: "receipt-1", delivery_mode: "manual", payload: { status: "aceito", decisionCompleted: true, lines: [{ productId: "product-1", received: 3, decision: "aceitar" }] } });
+    const stock = event({ sequence: "10", category: "stock", entity_type: "product", entity_id: "product-1", payload: { stockDelta: 3, source: "receiving" } });
+    const once = applySyncEventsToState(current, [receiving, stock]);
+    const twice = applySyncEventsToState(once, [receiving, stock]);
+    expect(twice.receiving[0]).toMatchObject({ status: "aceito", decisionCompleted: true, stockReleased: true });
+    expect(twice.products[0]?.stock).toBe(13);
+    expect(twice.stockMovements).toHaveLength(1);
+  });
+
+  it("applies supplier and safe company settings changes", () => {
+    const supplier = event({ sequence: "11", category: "master_data", entity_type: "supplier", entity_id: "fornecedor ltda", delivery_mode: "manual", payload: { operation: "upsert", name: "Fornecedor Ltda" } });
+    const settings = event({ sequence: "12", category: "settings", entity_type: "company_settings", entity_id: "company", delivery_mode: "manual", payload: { operation: "changed", values: { companyName: "Mercado Novo", companyCity: "Sorocaba" } } });
+    const result = applySyncEventsToState(emptyState(), [supplier, settings]);
+    expect(result.suppliers).toEqual([{ name: "Fornecedor Ltda" }]);
+    expect(result.settings).toMatchObject({ companyName: "Mercado Novo", companyCity: "Sorocaba" });
+  });
+
   it("rejects unsupported legacy catalog and cash-session event shapes", () => {
     const legacyProduct = event({
       sequence: "1", category: "catalog", entity_type: "product", entity_id: "product-1",

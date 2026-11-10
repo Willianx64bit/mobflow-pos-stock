@@ -82,6 +82,81 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       continue;
     }
 
+    if (event.category === "receiving" && event.entity_type === "receiving") {
+      const existing = next.receiving.find((item) => item.id === event.entity_id);
+      if (!existing) throw new UnsupportedSyncEventError(event);
+      const lines = Array.isArray(payload["lines"]) ? payload["lines"] as Array<Record<string, unknown>> : [];
+      const decisions: Record<string, "aceitar" | "devolver"> = {};
+      const received = new Map<string, number>();
+      for (const line of lines) {
+        if (typeof line.productId !== "string" || (line.decision !== "aceitar" && line.decision !== "devolver")) throw new UnsupportedSyncEventError(event);
+        decisions[line.productId] = line.decision;
+        const quantity = number(line.received);
+        if (quantity !== null) received.set(line.productId, quantity);
+      }
+      const updateLines = <T extends { productId: string; received?: number }>(items: T[]) => items.map((item) => ({
+        ...item, ...(received.has(item.productId) ? { received: received.get(item.productId) } : {}),
+      }));
+      next.receiving = next.receiving.map((item) => item.id === event.entity_id ? {
+        ...item, items: updateLines(item.items), extras: updateLines(item.extras ?? []),
+        status: payload["status"] === "aceito" ? "aceito" : item.status,
+        decisions: Object.keys(decisions).length ? decisions : item.decisions,
+        decisionCompleted: payload["decisionCompleted"] === true || item.decisionCompleted,
+        stockReleased: payload["status"] === "aceito" || item.stockReleased,
+      } : item);
+      continue;
+    }
+
+    if (event.category === "master_data" && event.entity_type === "supplier") {
+      const name = typeof payload["name"] === "string" ? payload["name"].trim() : "";
+      const key = event.entity_id.toLocaleLowerCase();
+      if (payload["operation"] === "delete") next.suppliers = next.suppliers.filter((item) => item.name.trim().toLocaleLowerCase() !== key);
+      else {
+        if (!name) throw new UnsupportedSyncEventError(event);
+        const existing = next.suppliers.find((item) => item.name.trim().toLocaleLowerCase() === key);
+        next.suppliers = existing ? next.suppliers.map((item) => item === existing ? { ...item, name } : item) : [{ name }, ...next.suppliers];
+      }
+      continue;
+    }
+
+    if (event.category === "settings" && event.entity_type === "company_settings") {
+      const values = record(payload["values"]);
+      const allowed = new Set(["companyName", "companyCnpj", "companyPhone", "companyStreet", "companyNumber", "companyCep", "companyComplement", "companyNeighborhood", "companyCity", "companyState"]);
+      if (!values || Object.keys(values).some((key) => !allowed.has(key))) throw new UnsupportedSyncEventError(event);
+      next.settings = { ...next.settings, ...values } as State["settings"];
+      continue;
+    }
+
+    if (event.category === "master_data" && event.entity_type === "business_contact") {
+      if (payload["operation"] === "delete") { next.contacts = next.contacts.filter((item) => item.id !== event.entity_id); continue; }
+      const metadata = record(payload["metadata"]);
+      const existing = next.contacts.find((item) => item.id === event.entity_id);
+      if (!metadata || !existing || (metadata["type"] !== "Fornecedor" && metadata["type"] !== "Cliente")) throw new UnsupportedSyncEventError(event);
+      next.contacts = next.contacts.map((item) => item.id === event.entity_id ? { ...item, type: metadata["type"] } : item);
+      continue;
+    }
+
+    if (event.category === "master_data" && event.entity_type === "cash_session") {
+      const metadata = record(payload["metadata"]), existing = next.cashSessions.find((item) => item.id === event.entity_id);
+      if (!metadata || !existing) throw new UnsupportedSyncEventError(event);
+      next.cashSessions = next.cashSessions.map((item) => item.id === event.entity_id ? {
+        ...item, ...(metadata["status"] === "open" || metadata["status"] === "closed" ? { status: metadata["status"] } : {}),
+        ...(typeof metadata["openedAt"] === "string" ? { openedAt: metadata["openedAt"] } : {}),
+        ...(typeof metadata["closedAt"] === "string" ? { closedAt: metadata["closedAt"] } : {}),
+      } : item);
+      continue;
+    }
+
+    if (event.category === "master_data" && event.entity_type === "cash_movement") {
+      const metadata = record(payload["metadata"]), existing = next.cashMovements.find((item) => item.id === event.entity_id);
+      if (!metadata || !existing) throw new UnsupportedSyncEventError(event);
+      const amount = number(metadata["amount"]);
+      next.cashMovements = next.cashMovements.map((item) => item.id === event.entity_id ? {
+        ...item, ...(amount !== null ? { amount } : {}), ...(typeof metadata["date"] === "string" ? { date: metadata["date"] } : {}),
+      } : item);
+      continue;
+    }
+
     if (event.category === "sales" && event.entity_type === "sale") {
       const rawSale = record(payload["sale"]);
       if (!rawSale || typeof rawSale["id"] !== "string" || !Array.isArray(rawSale["items"])) throw new UnsupportedSyncEventError(event);
@@ -131,23 +206,28 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "stock" && event.entity_type === "product") {
       const product = next.products.find((item) => item.id === event.entity_id);
-      const stockAfter = number(payload["stockAfter"] ?? payload["resultingStock"]);
-      if (!product || stockAfter === null) throw new UnsupportedSyncEventError(event);
-      next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, stock: stockAfter } : item);
+      if (!product) throw new UnsupportedSyncEventError(event);
+      const absoluteStock = number(payload["stockAfter"] ?? payload["resultingStock"]);
+      const deltaOnly = number(payload["delta"] ?? payload["stockDelta"]);
+      if (absoluteStock === null && deltaOnly === null) throw new UnsupportedSyncEventError(event);
+      const stockBefore = number(payload["stockBefore"]) ?? product.stock;
+      const stockAfter = absoluteStock ?? stockBefore + deltaOnly!;
+      const alreadyApplied = next.stockMovements.some((movement) => movement.id === event.event_id);
+      if (!alreadyApplied) next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, stock: stockAfter } : item);
       const operationId = typeof payload["operationId"] === "string" ? payload["operationId"] : undefined;
-      const quantity = number(payload["quantity"]);
-      const stockBefore = number(payload["stockBefore"]);
-      if (operationId && quantity !== null && stockBefore !== null) {
+      const quantity = number(payload["quantity"]) ?? (deltaOnly === null ? null : Math.abs(deltaOnly));
+      if (!alreadyApplied && quantity !== null) {
         const delta = number(payload["delta"] ?? payload["stockDelta"]) ?? stockAfter - stockBefore;
         const operationType = String(payload["operationType"] ?? payload["source"] ?? "");
         const movementType = operationType === "sale" || payload["source"] === "sale" ? "Venda"
           : operationType === "writeoff" ? "Baixa"
+          : payload["source"] === "receiving" || (deltaOnly !== null && deltaOnly > 0) ? "Entrada"
           : operationType === "entry" ? "Entrada"
           : /balanço/i.test(String(payload["reason"] ?? "")) ? "Balanço"
           : operationType === "adjustment" ? "Ajuste de estoque" : "Movimentação";
         const operator = typeof payload["operator"] === "string" ? { operator: payload["operator"] } : {};
         const movement: StockMovement = {
-          id: `${operationId}:${event.entity_id}`, operationId,
+          id: operationId ? `${operationId}:${event.entity_id}` : event.event_id, operationId: operationId ?? event.event_id,
           date: typeof payload["occurredAt"] === "string" ? payload["occurredAt"] : event.created_at,
           type: movementType, productId: event.entity_id,
           productCode: typeof payload["productCode"] === "string" ? payload["productCode"] : product.code,
@@ -156,7 +236,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
           quantity, totalValue: number(payload["totalValue"]) ?? 0,
           stockBefore, stockAfter, delta,
           ...operator,
-          details: typeof payload["reason"] === "string" ? payload["reason"] : `${movementType} ${operationId}`,
+          details: typeof payload["reason"] === "string" ? payload["reason"] : `${movementType} ${operationId ?? event.event_id}`,
         };
         next.stockMovements = upsert(next.stockMovements, movement);
       }

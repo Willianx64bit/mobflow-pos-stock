@@ -593,7 +593,7 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
                   `SELECT public.mobflow_append_sync_event(
                     $1::uuid, $2::uuid, 'settings', 'manual', 'company_settings', 'company', $3::jsonb
                   )`,
-                  [randomUUID(), randomUUID(), JSON.stringify({ operation: "changed", keys: changedSettingsKeys })],
+                  [randomUUID(), randomUUID(), JSON.stringify({ operation: "changed", keys: changedSettingsKeys, values: Object.fromEntries(changedSettingsKeys.map((key) => [key, nextSettings[key]])) })],
                 );
               }
 
