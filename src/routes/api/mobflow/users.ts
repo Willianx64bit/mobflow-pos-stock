@@ -93,6 +93,10 @@ async function handleUsers(request: Request) {
     client = await getNeonPool().connect();
     await client.query("BEGIN");
     transactionOpen = true;
+    await client.query("SET LOCAL ROLE mobflow_api");
+    await client.query("SELECT set_config('app.user_id', $1, true)", [identity.userId]);
+    await client.query("SELECT set_config('app.account_id', $1, true)", [identity.accountId]);
+    await client.query("SELECT set_config('app.role', $1, true)", [identity.role]);
 
     if (action === "create") {
       const username = String(body.username ?? "").trim().toUpperCase();
