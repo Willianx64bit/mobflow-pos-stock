@@ -82,7 +82,7 @@ async function getProducts(request:Request){
   const result=await c.query(
    "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
    "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
-   "WHERE p.tenant_id=$1 AND ($2::boolean IS NULL OR p.active=$2) "+
+   "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
    "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
    "AND ($4::text IS NULL OR (p.name,p.id)>(SELECT cp.name,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
    "GROUP BY p.tenant_id,p.id ORDER BY p.name,p.id LIMIT $5",
@@ -162,17 +162,19 @@ async function deleteProduct(request:Request){
   if(!locked.rows.length)fail("Produto não encontrado.",404,"product_not_found");
   const current=locked.rows[0],stock=Number(current.stock);
   if(!Number.isFinite(stock))fail("Não foi possível confirmar o estoque no Neon. Exclusão bloqueada.",409,"stock_unconfirmed");
+  if(!current.active)return Response.json({ok:true,deletedId:id,alreadyDeleted:true});
   if(stock>0)fail("Este produto não pode ser excluído porque ainda possui estoque acima de zero.",409,"product_has_stock");
   const deletedVersion=Number(current.version)+1;
   await appendCatalogEvent(c,i.accountId,i.userId,id,deletedVersion,{operation:"delete",productId:id,version:deletedVersion});
-  try{await c.query("DELETE FROM public.products WHERE tenant_id=$1 AND id=$2",[i.accountId,id]);}
-  catch(error){
-   const code=typeof error==="object"&&error&&"code" in error?String((error as any).code):"";
-   if(code==="23503")fail("Este produto possui registros históricos vinculados e não pode ser excluído sem preservar o histórico.",409,"product_has_history");
-   throw error;
-  }
+  // Archive instead of physically deleting: sales, stock movements and other
+  // historical rows keep their product references and snapshot data intact.
+  const archived=await c.query(
+   "UPDATE public.products SET active=false,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND active=true AND version=$3 RETURNING id",
+   [i.accountId,id,current.version]
+  );
+  if(!archived.rows.length)fail("O produto foi alterado em outro dispositivo. Atualize e tente novamente.",409,"version_conflict");
   await releaseTransaction(c,true);tx=null;
-  return Response.json({ok:true,deletedId:id,stockAtDeletion:stock});
+  return Response.json({ok:true,deletedId:id,stockAtDeletion:stock,archived:true});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 export const Route=createFileRoute("/api/mobflow/products")({server:{handlers:{
