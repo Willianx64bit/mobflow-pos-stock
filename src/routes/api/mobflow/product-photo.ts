@@ -28,10 +28,14 @@ async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db
   }
   const db=tx.client;
   const lockClause=requireManager?" FOR UPDATE":"";
-  const found=await db.query("SELECT id,photo_object_key,version FROM public.products WHERE tenant_id=$1 AND id=$2"+lockClause,[tenant,id]);
+  const found=await db.query("SELECT id,photo_object_key,version,active FROM public.products WHERE tenant_id=$1 AND id=$2"+lockClause,[tenant,id]);
   if(!found.rows.length){
    await releaseTransaction(tx.client,false);tx=null;
    return Response.json({ok:false,error:"Produto não encontrado no catálogo da empresa."},{status:404});
+  }
+  if(requireManager&&!found.rows[0].active){
+   await releaseTransaction(tx.client,false);tx=null;
+   return Response.json({ok:false,error:"Não é possível alterar a foto de um produto arquivado."},{status:409});
   }
   action=await fn({tenant,user,db,id});
   const response=action instanceof Response?action:action.response;
@@ -65,7 +69,7 @@ async function upload(request:Request){
 }
 async function read(request:Request){
  return withProduct(request,async({tenant,db,id})=>{
-  const row=(await db.query("SELECT photo_object_key FROM public.products WHERE tenant_id=$1 AND id=$2",[tenant,id])).rows[0];
+  const row=(await db.query("SELECT photo_object_key FROM public.products WHERE tenant_id=$1 AND id=$2 AND active=true",[tenant,id])).rows[0];
   const key=row?.photo_object_key as string|null;if(!key||!key.startsWith(`tenants/${tenant}/products/${id}/`))return new Response(null,{status:404});
   const object=await client().send(new GetObjectCommand({Bucket:bucket(),Key:key}));if(!object.Body)return new Response(null,{status:404});
   const bytes=await object.Body.transformToByteArray();
