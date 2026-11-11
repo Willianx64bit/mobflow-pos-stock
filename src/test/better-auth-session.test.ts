@@ -36,7 +36,7 @@ describe("MobFlow Better Auth cookie session bridge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client.query.mockReset().mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM public.profiles")) {
+      if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };\n      if (sql.includes("FROM public.profiles")) {
         return {
           rows: [{
             id: USER_ID,
