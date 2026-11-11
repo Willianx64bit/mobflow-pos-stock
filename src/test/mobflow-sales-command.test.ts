@@ -39,7 +39,7 @@ describe("Neon atomic sale command", () => {
     vi.clearAllMocks();
     process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
     client.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("to_regclass")) return { rows: [{ sales: "sales", items: "sale_items", payments: "sale_payments", stock: "stock_movements", events: "mobflow_sync_events", append_fn: "mobflow_append_sync_event" }] };
+      if (sql.includes("to_regclass")) return { rows: [{ sales: "sales", items: "sale_items", payments: "sale_payments", receivables: "receivable_payments", stock: "stock_movements", events: "mobflow_sync_events", append_fn: "mobflow_append_sync_event" }] };
       if (sql.includes("FROM public.sales WHERE")) return { rows: [] };
       if (sql.includes("FROM public.cash_sessions")) return { rows: [{ id: "cash-1", status: "open", operator_profile_id: USER, operator_snapshot: "Operador", opening_amount: "100" }] };
       if (sql.includes("FROM public.products")) return { rows: [{ id: "product-1", code: "SKU-1", name: "Arroz", unit: "un", price: "10.00", cost: "4.00", stock: "5.000", active: true }] };
@@ -102,11 +102,19 @@ describe("Neon atomic sale command", () => {
   });
 
 
-  it("blocks Fiado until customer and receivable commands are relational", async () => {
-    const response = await handleMobFlowSale(request({ ...payload(), paymentMethod: "fiado", receivedAmount: 0 }));
-    expect(response.status).toBe(409);
-    expect((await response.json()).code).toBe("fiado_command_not_ready");
-    expect(client.query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO public.sales"))).toBe(false);
+  it("records Fiado as an unpaid sale while still decrementing stock transactionally", async () => {
+    const response = await handleMobFlowSale(request({ ...payload(), paymentMethod: "fiado", receivedAmount: 0, customerName: "Cliente Teste" }));
+    const body = await response.json();
+    expect(response.status).toBe(201);
+    expect(body.sale).toMatchObject({ id: "sale-100", paymentMethod: "fiado", paymentStatus: "unpaid" });
+    const calls = client.query.mock.calls.map((call) => String(call[0]));
+    expect(calls.some((query) => query.includes("INSERT INTO public.sales"))).toBe(true);
+    expect(calls.some((query) => query.includes("INSERT INTO public.sale_items"))).toBe(true);
+    expect(calls.some((query) => query.includes("UPDATE public.products"))).toBe(true);
+    const eventCall = client.query.mock.calls.find((call) => String(call[0]).includes("'sales','automatic','sale'"));
+    expect(eventCall).toBeTruthy();
+    expect(String(eventCall?.[1]?.[3])).toContain('"payment":"Fiado"');
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
   it("rejects percentage discounts above 100 before any database write", async () => {
