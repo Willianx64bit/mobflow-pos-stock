@@ -13,11 +13,11 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
+      - name: Generate routes and validate production build
+        run: bun run build
       - name: TypeScript validation (blocking)
         run: bunx tsc --noEmit
       - name: Login, session and authorization tests
         run: bun run test -- src/test/better-auth-login.test.ts src/test/better-auth-session.test.ts src/test/mobflow-auth.test.ts
       - name: Full test suite
         run: bun run test
-      - name: Production build
-        run: bun run build
