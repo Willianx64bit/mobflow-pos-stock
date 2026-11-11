@@ -16,7 +16,7 @@ const fail=(message:string,status=400,code="invalid_product"):never=>{throw new 
 const field=(v:unknown,name:string,required=false,max=160):string|null=>{
   if(v===undefined||v===null){if(required)fail("Campo "+name+" obrigatório.");return null;}
   if(typeof v!=="string")fail("Campo "+name+" inválido.");
-  const s=v.trim(); if(required&&!s)fail("Campo "+name+" obrigatório.");
+  const s=(v as string).trim(); if(required&&!s)fail("Campo "+name+" obrigatório.");
   if(s.length>max)fail("Campo "+name+" excede o limite.");
   return s||null;
 };
@@ -35,7 +35,8 @@ const qty=(v:unknown,name:string,unit:"un"|"kg",fallback?:number):number=>{
 const barcodes=(v:unknown):string[]=>{
   if(v===undefined)return [];
   if(!Array.isArray(v)||v.length>30)fail("Lista de códigos inválida.");
-  const a=v.map(x=>{if(typeof x!=="string"||!x.trim()||x.trim().length>80)fail("Código de barras inválido.");return x.trim();});
+  const values = v as unknown[];
+  const a=values.map((x: unknown)=>{if(typeof x!=="string"||!x.trim()||x.trim().length>80)fail("Código de barras inválido.");return x.trim();});
   if(new Set(a).size!==a.length)fail("Há códigos repetidos no produto.");
   return a;
 };
@@ -53,7 +54,7 @@ async function ready(client:any,requireEvents=false){
 }
 function stableUuid(value:string){
  const b=createHash("sha256").update(value).digest().subarray(0,16);
- b[6]=(b[6]&15)|0x50;b[8]=(b[8]&0x3f)|0x80;
+ b[6]=((b[6] ?? 0)&15)|0x50;b[8]=((b[8] ?? 0)&0x3f)|0x80;
  const h=b.toString("hex");return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
 }
 async function appendCatalogEvent(client:any,tenant:string,actor:string,id:string,version:number,payload:unknown){
