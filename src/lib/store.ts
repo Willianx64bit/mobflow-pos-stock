@@ -188,6 +188,13 @@ function load() {
   try {
     const raw = localStorage.getItem(activeStateKey);
     if (raw) state = { ...state, ...JSON.parse(raw) };
+    // In Neon catalog mode, localStorage is only a cache for secondary/offline state.
+    // Never expose cached products before the authenticated tenant catalog has loaded:
+    // the legacy app_state snapshot can contain products no longer present in public.products.
+    if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") {
+      state.products = [];
+      state.cart = [];
+    }
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
     normalizeState();
   } catch {}
