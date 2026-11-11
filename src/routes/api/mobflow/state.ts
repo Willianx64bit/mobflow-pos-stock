@@ -118,7 +118,8 @@ SELECT
       'stockMovements', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', sm.id, 'operationId', sm.operation_id, 'date', sm.occurred_at,
-          'type', sm.operation_type, 'productId', COALESCE(sm.product_id, 'legacy-product:' || sm.id),
+          'type', CASE sm.operation_type WHEN 'writeoff' THEN 'Baixa' WHEN 'transfer' THEN 'Transferência' WHEN 'entry' THEN 'Entrada' WHEN 'adjustment' THEN CASE WHEN lower(COALESCE(sm.details,'')) LIKE '%balanço%' THEN 'Balanço' ELSE 'Ajuste de estoque' END ELSE sm.operation_type END,
+          'productId', COALESCE(sm.product_id, 'legacy-product:' || sm.id),
           'productCode', sm.product_code, 'productName', sm.product_name, 'unit', sm.unit,
           'quantity', sm.quantity, 'totalValue', sm.total_value,
           'stockBefore', sm.stock_before, 'stockAfter', sm.stock_after, 'delta', sm.delta,
@@ -126,6 +127,24 @@ SELECT
           'legacy', sm.source_kind <> 'live'
         ) ORDER BY sm.occurred_at DESC, sm.id)
         FROM public.stock_movements sm WHERE sm.tenant_id = scope.owner_id
+      ), '[]'::jsonb),
+      'stockAdjustments', COALESCE((
+        SELECT jsonb_agg(e.payload->'stockAdjustment' ORDER BY e.sequence DESC)
+        FROM public.mobflow_sync_events e
+        WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_operation'
+          AND e.payload->>'operationType'='adjustment' AND jsonb_typeof(e.payload->'stockAdjustment')='object'
+      ), '[]'::jsonb),
+      'stockWriteoffs', COALESCE((
+        SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
+        FROM public.mobflow_sync_events e
+        WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_writeoff'
+          AND e.payload->>'operation'='upsert' AND jsonb_typeof(e.payload->'stockOperation')='object'
+      ), '[]'::jsonb),
+      'stockTransfers', COALESCE((
+        SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
+        FROM public.mobflow_sync_events e
+        WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_transfer'
+          AND e.payload->>'operation'='upsert' AND jsonb_typeof(e.payload->'stockOperation')='object'
       ), '[]'::jsonb),
       'promotions', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
