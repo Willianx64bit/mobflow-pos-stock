@@ -148,8 +148,9 @@ async function handleUsers(request: Request) {
         "SELECT password_hash FROM public.manager_security_by_account WHERE account_id=$1 LIMIT 1",
         [identity.accountId],
       );
-      if (!security.rows[0]?.password_hash) deny("Não foi possível validar a senha da gerência.", 500);
-      if (sha256(managerPassword) !== security.rows[0].password_hash) deny("Senha da gerência incorreta.", 401);
+      const managerPasswordHash = security.rows[0]?.password_hash;
+      if (!managerPasswordHash) return deny("Não foi possível validar a senha da gerência.", 500);
+      if (sha256(managerPassword) !== managerPasswordHash) return deny("Senha da gerência incorreta.", 401);
 
       // Limpa primeiro os registros operacionais dependentes, sem tocar no perfil/auth da Gerência.
       await client.query("DELETE FROM public.receivable_payments WHERE tenant_id=$1", [identity.accountId]);
@@ -190,7 +191,8 @@ async function handleUsers(request: Request) {
       const state = verify.rows[0]?.state;
       const arraysEmpty = !!state && ["contacts","products","cart","sales","stockMovements","cashSessions","cashMovements","conferences","receiving","manualExpiries","stockAdjustments","stockWriteoffs","stockTransfers","promotions","suppliers"]
         .every((key) => Array.isArray(state[key]) && (state[key] as unknown[]).length === 0);
-      const settings = state?.settings && typeof state.settings === "object" ? state.settings as Record<string, unknown> : {};
+      const rawSettings = state?.["settings"];
+      const settings = rawSettings && typeof rawSettings === "object" ? rawSettings as Record<string, unknown> : {};
       const relational = await client.query<{ remaining: string }>(
         `SELECT
           (SELECT count(*) FROM public.receivable_payments WHERE tenant_id=$1) +
@@ -220,7 +222,9 @@ async function handleUsers(request: Request) {
         console.error("[MobFlow reset R2 cleanup]", cleanupError instanceof Error ? cleanupError.message : "unknown");
         return Response.json({ ok: false, deleted: ids.length, cloudCleared: false, error: "Os dados operacionais do Neon foram limpos, mas não foi possível confirmar a remoção de todas as fotos/logo no R2. Repita a operação para concluir a limpeza dos arquivos." }, { status: 503 });
       }
-      return Response.json({ ok: true, deleted: ids.length, cloudCleared: true, updatedAt: verify.rows[0].updated_at });
+      const updatedAt = verify.rows[0]?.updated_at;
+      if (!updatedAt) return deny("A limpeza foi concluída, mas não foi possível confirmar o registro atualizado.", 500);
+      return Response.json({ ok: true, deleted: ids.length, cloudCleared: true, updatedAt });
     }
 
     if (action === "delete_all_pdv") {
@@ -268,11 +272,11 @@ async function handleUsers(request: Request) {
       [userId, identity.accountId],
     );
     const target = targetResult.rows[0];
-    if (!target) deny("Usuário não encontrado.", 404);
+    if (!target) return deny("Usuário não encontrado.", 404);
 
     if (action === "update_permissions") {
       const permissions = Array.isArray(body["permissions"]) ? normalizePermissions(body["permissions"]) : null;
-      if (!permissions) deny("Informe as permissões de acesso do usuário.");
+      if (!permissions) return deny("Informe as permissões de acesso do usuário.");
       if (target.id === identity.userId &&
         Array.isArray(identity.permissions) &&
         identity.permissions.includes("Gerência") &&
