@@ -67,7 +67,7 @@ export function ProductForm({ product, onClose }: Props) {
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
         photoUrl=undefined;photoObjectKey=undefined;
       }
-      actions.saveProduct({id:neonCatalog?id:undefined,version:savedVersion,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey});onClose();
+      actions.saveProduct({id,version:savedVersion,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey});onClose();
     } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
   const choosePhoto=async(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;try{const compressed=await compressImageTo200KB(file);setPhotoFile(compressed);setF(v=>({...v,photo:URL.createObjectURL(compressed)}));}catch(error){alert(error instanceof Error?error.message:"Não foi possível compactar a foto.");}finally{e.target.value="";}};
