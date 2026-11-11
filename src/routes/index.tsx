@@ -160,13 +160,13 @@ function PDV() {
     const value = v.trim();
     // Aceita quantidade antes do código: 3* + bipe, ou 3*CODIGODEBARRAS.
     const multiplied = value.match(/^(\d+)\*(\d{6,})$/);
-    const barcode = multiplied ? multiplied[2] : value;
+    const barcode = multiplied?.[2] ?? value;
     if (!/^\d{6,}$/.test(barcode)) return;
     scanTimer.current = setTimeout(() => {
       const p = products.find((item) => productHasBarcode(item, barcode));
       if (!p) return;
       if (multiplied) {
-        const qty = Number(multiplied[1]);
+        const qty = Number(multiplied[1] ?? "");
         if (qty > 0 && Number.isSafeInteger(qty) && p.unit === "un" && pdvAuthorized) {
           actions.addToCart(p.id, qty);
           setFlash("+" + qty + " " + p.name);
@@ -281,13 +281,13 @@ function PDV() {
       }
       const value = q.trim();
       const multipliedScan = quick ? value.match(/^(\d+)\*(\d{6,})$/) : null;
-      const scanCode = multipliedScan ? multipliedScan[2] : value;
+      const scanCode = multipliedScan?.[2] ?? value;
       if (/^\d{6,}$/.test(scanCode) && products.some((p) => productHasBarcode(p, scanCode))) {
         e.preventDefault();
         if (quick) {
           if (multipliedScan) {
             const p = products.find((item) => productHasBarcode(item, scanCode));
-            const qty = Number(multipliedScan[1]);
+            const qty = Number(multipliedScan[1] ?? "");
             if (p && qty > 0 && Number.isSafeInteger(qty) && p.unit === "un") {
               actions.addToCart(p.id, qty);
               setFlash("+" + qty + " " + p.name);
