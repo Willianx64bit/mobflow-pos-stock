@@ -7,7 +7,7 @@ export function getNeonPool(): Pool {
     throw new Error("Neon database access is server-only.");
   }
 
-  const connectionString = process.env.NEON_DATABASE_URL;
+  const connectionString = process.env["NEON_DATABASE_URL"];
   if (!connectionString) {
     throw new Error("NEON_DATABASE_URL is not configured for this deployment.");
   }
@@ -43,7 +43,7 @@ export function getSignupPool(): Pool {
     throw new Error("Signup database access is server-only.");
   }
 
-  const connectionString = process.env.MOBFLOW_SIGNUP_DATABASE_URL?.trim();
+  const connectionString = process.env["MOBFLOW_SIGNUP_DATABASE_URL"]?.trim();
   if (!connectionString) {
     throw new Error("MOBFLOW_SIGNUP_DATABASE_URL is not configured for this deployment.");
   }
