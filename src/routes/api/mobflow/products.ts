@@ -36,7 +36,7 @@ const barcodes=(v:unknown):string[]=>{
   if(v===undefined)return [];
   if(!Array.isArray(v)||v.length>30)fail("Lista de códigos inválida.");
   const values = v as unknown[];
-  const a=values.map((x: unknown)=>{if(typeof x!=="string"||!x.trim()||x.trim().length>80)fail("Código de barras inválido.");return x.trim();});
+  const a=values.map((x: unknown)=>{if(typeof x!=="string")return fail("Código de barras inválido.");const value=x.trim();if(!value||value.length>80)return fail("Código de barras inválido.");return value;});
   if(new Set(a).size!==a.length)fail("Há códigos repetidos no produto.");
   return a;
 };
