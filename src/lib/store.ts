@@ -318,7 +318,12 @@ type MobFlowApiBody = {
   status?: string;
   remoteState?: unknown;
   remoteUpdatedAt?: string | null;
-  error?: string;\n  products?: unknown;\n  hasMore?: unknown;\n  nextCursor?: unknown;\n  session?: unknown;\n  data?: unknown;
+  error?: string;
+  products?: unknown;
+  hasMore?: unknown;
+  nextCursor?: unknown;
+  session?: unknown;
+  data?: unknown;
 };
 
 async function callMobFlowApi(path: string, init: RequestInit = {}) {
