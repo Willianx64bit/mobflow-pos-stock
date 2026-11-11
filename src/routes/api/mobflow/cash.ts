@@ -56,6 +56,7 @@ export async function handleMobFlowCash(request: Request) {
     if(action==="open") {
       const opening=Number(body.openingAmount);
       if(!Number.isFinite(opening)||opening<0) fail("Valor inicial inválido.");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[identity.accountId+":cash-open:"+identity.userId]);
       const prior=await client.query("SELECT id,status,operator_profile_id,opening_amount::text,opened_at FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[identity.accountId,sessionId]);
       if(prior.rows.length) {
         const p=prior.rows[0];
@@ -64,10 +65,14 @@ export async function handleMobFlowCash(request: Request) {
         await releaseTransaction(client,true); tx=null;
         return Response.json({ok:true,replayed:true,session:{id:p.id,status:p.status,openingAmount:Number(p.opening_amount),openedAt:p.opened_at}});
       }
-      const active=await client.query("SELECT id FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id=$2 AND status='open' FOR UPDATE",[identity.accountId,identity.userId]);
-      if(active.rows.length) fail("Você já possui um caixa aberto.",409,"cash_already_open");
+      const active=await client.query("SELECT id,status,opening_amount::text,opened_at,opening_note FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id=$2 AND status='open' ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[identity.accountId,identity.userId]);
+      if(active.rows.length) {
+        const current=active.rows[0];
+        await releaseTransaction(client,true); tx=null;
+        return Response.json({ok:true,replayed:true,alreadyOpen:true,session:{id:current.id,status:current.status,openingAmount:Number(current.opening_amount),openedAt:current.opened_at,note:current.opening_note??undefined,operatorUsername:identity.username}});
+      }
       await client.query("INSERT INTO public.cash_sessions(tenant_id,id,operator_profile_id,operator_snapshot,status,opening_amount,opened_at,opening_note) VALUES($1,$2,$3,$4,'open',$5,$6,$7)",[identity.accountId,sessionId,identity.userId,operatorName,cents(opening),now,str(body.note,500)||null]);
-      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','automatic','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-open:"+sessionId),sessionId,JSON.stringify({sessionId,status:"open",openingAmount:cents(opening),operator:operatorName,openedAt:now,note:str(body.note,500)||undefined})]);
+      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','automatic','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-open:"+sessionId),sessionId,JSON.stringify({sessionId,status:"open",openingAmount:cents(opening),operator:operatorName,operatorUsername:identity.username,openedAt:now,note:str(body.note,500)||undefined})]);
       await releaseTransaction(client,true); tx=null;
       return Response.json({ok:true,replayed:false,session:{id:sessionId,status:"open",openingAmount:cents(opening),openedAt:now}},{status:201});
     }
@@ -118,4 +123,19 @@ export async function handleMobFlowCash(request: Request) {
     return respondError(error);
   }
 }
-export const Route=createFileRoute("/api/mobflow/cash")({server:{handlers:{POST:({request})=>handleMobFlowCash(request)}}});
+export async function handleGetMobFlowCash(request: Request) {
+  if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth") return Response.json({ok:false,error:"Consulta Neon de caixa não habilitada neste ambiente.",code:"cash_provider_disabled"},{status:503});
+  let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>|null=null;
+  try {
+    tx=await beginAuthenticatedTransaction(request);
+    const {client,identity}=tx;
+    const result=await client.query("SELECT id,status,opening_amount::text,opened_at,opening_note FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id=$2 AND status='open' ORDER BY opened_at DESC LIMIT 1",[identity.accountId,identity.userId]);
+    await releaseTransaction(client,true); tx=null;
+    const row=result.rows[0];
+    return Response.json({ok:true,session:row?{id:row.id,status:row.status,openingAmount:Number(row.opening_amount),openedAt:row.opened_at,note:row.opening_note??undefined,operatorUsername:identity.username}:null});
+  } catch(error) {
+    if(tx) await releaseTransaction(tx.client,false).catch(()=>undefined);
+    return jsonError(error);
+  }
+}
+export const Route=createFileRoute("/api/mobflow/cash")({server:{handlers:{GET:({request})=>handleGetMobFlowCash(request),POST:({request})=>handleMobFlowCash(request)}}});
