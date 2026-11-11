@@ -514,6 +514,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     const remote = body.state as State;
     state = mergeConcurrentState(lastSyncedState, state, remote);
     state.products = await readPreviewNeonCatalog(state.products ?? remote.products ?? []);
+    state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
@@ -641,6 +642,9 @@ export async function hydrateStore() {
         state = { ...emptyState(), ...remote, contacts: mergedContacts };
         state.settings = { ...emptyState().settings, ...(remote.settings ?? {}) };
         state.products = await readPreviewNeonCatalog(state.products ?? []);
+        // The relational Neon catalog is authoritative. Drop cart references to products
+        // that no longer exist in this tenant instead of sending stale snapshot IDs at checkout.
+        state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
         lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
         lastSyncedState = cloneState(remote);
       } else {
