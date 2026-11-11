@@ -128,24 +128,24 @@ SELECT
         ) ORDER BY sm.occurred_at DESC, sm.id)
         FROM public.stock_movements sm WHERE sm.tenant_id = scope.owner_id
       ), '[]'::jsonb),
-      'stockAdjustments', COALESCE((
+      'stockAdjustments', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockAdjustments','[]'::jsonb))>0 THEN s.state->'stockAdjustments' ELSE COALESCE((
         SELECT jsonb_agg(e.payload->'stockAdjustment' ORDER BY e.sequence DESC)
         FROM public.mobflow_sync_events e
         WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_operation'
           AND e.payload->>'operationType'='adjustment' AND jsonb_typeof(e.payload->'stockAdjustment')='object'
-      ), '[]'::jsonb),
-      'stockWriteoffs', COALESCE((
+      ), '[]'::jsonb) END,
+      'stockWriteoffs', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockWriteoffs','[]'::jsonb))>0 THEN s.state->'stockWriteoffs' ELSE COALESCE((
         SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
         FROM public.mobflow_sync_events e
         WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_writeoff'
           AND e.payload->>'operation'='upsert' AND jsonb_typeof(e.payload->'stockOperation')='object'
-      ), '[]'::jsonb),
-      'stockTransfers', COALESCE((
+      ), '[]'::jsonb) END,
+      'stockTransfers', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockTransfers','[]'::jsonb))>0 THEN s.state->'stockTransfers' ELSE COALESCE((
         SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
         FROM public.mobflow_sync_events e
         WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_transfer'
           AND e.payload->>'operation'='upsert' AND jsonb_typeof(e.payload->'stockOperation')='object'
-      ), '[]'::jsonb),
+      ), '[]'::jsonb) END,
       'promotions', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', pr.id, 'productId', COALESCE(pr.product_id, ''),
