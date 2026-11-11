@@ -54,7 +54,8 @@ function MovimentacoesEstoque() {
   useEffect(() => {
     let stopped = false;
     let client: ReturnType<typeof createRealtimeClient> | null = null;
-    let subscription: ReturnType<ReturnType<typeof createRealtimeClient>["subscribe"]> | null = null;
+    let renewSubscription: ((next: SealedLiveQuery<LiveMovementRow>) => Promise<void>) | null = null;
+    let stopSubscription: (() => void) | null = null;
     let renewalTimer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchSealedQuery = async (): Promise<SealedLiveQuery<LiveMovementRow>> => {
@@ -73,14 +74,16 @@ function MovimentacoesEstoque() {
         const url = import.meta.env["VITE_NEON_REALTIME_URL"];
         if (!url) throw new Error("Neon Realtime não está configurado neste Preview.");
         client = createRealtimeClient({ url, logLevel: import.meta.env.DEV ? "warn" : "error" });
-        subscription = client.subscribe(sealed);
-        subscription.onChange((snapshot) => {
+        const activeSubscription = client.subscribe(sealed);
+        renewSubscription = (next) => activeSubscription.renew(next);
+        stopSubscription = () => activeSubscription.unsubscribe();
+        activeSubscription.onChange((snapshot) => {
           if (stopped || !snapshot.data) return;
           setLiveMovements(snapshot.data.map(mapLiveMovement).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
           setRealtimeStatus("live");
           setRealtimeError("");
         });
-        subscription.onStateChange((state) => {
+        activeSubscription.onStateChange((state) => {
           if (state.status === "error") {
             setRealtimeStatus("error");
             setRealtimeError(state.error.message);
@@ -90,11 +93,11 @@ function MovimentacoesEstoque() {
         });
 
         const renew = async () => {
-          if (stopped || !subscription) return;
+          if (stopped || !renewSubscription) return;
           try {
             const next = await fetchSealedQuery();
-            if (stopped || !subscription) return;
-            await subscription.renew(next);
+            if (stopped || !renewSubscription) return;
+            await renewSubscription(next);
             renewalTimer = setTimeout(() => { void renew(); }, Math.max(1000, next.expiresAt - Date.now() - 10_000));
           } catch (error) {
             if (!stopped) {
@@ -116,7 +119,7 @@ function MovimentacoesEstoque() {
     return () => {
       stopped = true;
       if (renewalTimer) clearTimeout(renewalTimer);
-      subscription?.unsubscribe();
+      stopSubscription?.();
       client?.close();
     };
   }, []);
