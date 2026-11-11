@@ -71,7 +71,7 @@ export function ProductForm({ product, onClose }: Props) {
       }
       if(neonCatalog){
         if(!serverProduct)throw new Error("O Neon não devolveu o produto confirmado. O formulário foi mantido aberto.");
-        actions.saveProduct({...serverProduct,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
+        actions.applyCatalogProduct({...product,...serverProduct,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})} as Product);
       } else {
         actions.saveProduct({id,...(savedVersion!==undefined?{version:savedVersion}:{}),name:f.name.trim(),barcodes:cleanBarcodes,...(f.ref.trim()?{ref:f.ref.trim()}:{}),code,category:f.category.trim()||"Geral",price:num(f.price),...(f.cost.trim()?{cost:num(f.cost)}:{}),stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
       }
