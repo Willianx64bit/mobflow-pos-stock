@@ -37,17 +37,22 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     const payload = event.payload ?? {};
 
     if (event.category === "catalog" && event.entity_type === "product") {
+      const existing = next.products.find((item) => item.id === event.entity_id);
       if (payload["operation"] === "delete") {
+        const deletedVersion = number(payload["version"]);
+        // An old delete event must not remove a product already updated at a newer version.
+        if (existing && deletedVersion !== null && existing.version !== undefined && existing.version > deletedVersion) continue;
         next.products = next.products.filter((item) => item.id !== event.entity_id);
         continue;
       }
       const raw = record(payload["product"]);
-      if (!raw || typeof raw["id"] !== "string" || typeof raw["code"] !== "string" || typeof raw["name"] !== "string") throw new UnsupportedSyncEventError(event);
+      if (!raw || typeof raw["id"] !== "string" || raw["id"] !== event.entity_id || typeof raw["code"] !== "string" || typeof raw["name"] !== "string") throw new UnsupportedSyncEventError(event);
       const unit = raw["unit"] === "kg" ? "kg" : raw["unit"] === "un" ? "un" : null;
       const price = number(raw["price"]), cost = number(raw["cost"]), minStock = number(raw["minStock"]);
       if (!unit || price === null || cost === null || minStock === null) throw new UnsupportedSyncEventError(event);
-      const existing = next.products.find((item) => item.id === event.entity_id);
       const productVersion = number(raw["version"]) ?? existing?.version;
+      // Replayed or delayed catalog upserts cannot overwrite an equal/newer version.
+      if (productVersion !== undefined && existing?.version !== undefined && productVersion <= existing.version) continue;
       next.products = upsert(next.products, {
         id: raw["id"], code: raw["code"], name: raw["name"],
         ref: typeof raw["reference"] === "string" ? raw["reference"] : typeof raw["ref"] === "string" ? raw["ref"] : undefined,
