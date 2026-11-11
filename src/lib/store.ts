@@ -662,7 +662,7 @@ export async function hydrateStore() {
             const retained = state.cashSessions.filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
             const canonical: CashSession[] = remote ? [{
               id: remote.id, status: "open", openingAmount: Number(remote.openingAmount), openedAt: remote.openedAt,
-              openedBy: existing?.openedBy ?? remote.operatorUsername, operatorUsername: remote.operatorUsername,
+              openedBy: remote.operatorUsername, operatorUsername: remote.operatorUsername,
               ...(remote.note ? { note: remote.note } : {}),
             }] : [];
             state = { ...state, cashSessions: [...canonical, ...retained] };
@@ -903,7 +903,7 @@ export const actions = {
   },
   closeCashSession(countedCash: number, note = "") {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
-    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
+    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && isCashSessionForOperator(item, operator));
     if (!session || !Number.isFinite(countedCash) || countedCash < 0) return false;
     const sessionSales = (state.sales ?? []).filter((sale) => sale.cashSessionId === session.id);
     const cashSales = sessionSales.filter((sale) => sale.payment === "Dinheiro" && sale.paid !== false).reduce((sum, sale) => sum + sale.total, 0);
