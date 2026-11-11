@@ -39,7 +39,7 @@ function CashPage() {
       return false;
     }
   };
-  const active = sessions.find((s) => s.status === "open" && s.openedBy === username);
+  const active = sessions.find((s) => s.status === "open" && (s.operatorUsername?.trim().toLocaleLowerCase() === username.trim().toLocaleLowerCase() || s.openedBy.trim().toLocaleLowerCase() === username.trim().toLocaleLowerCase()));
   const myClosed = sessions.filter((s) => s.status === "closed" && (s.openedBy === username || s.closedBy === username)).filter((s) => (s.closedAt || s.openedAt).slice(0, 7) === historyMonth).filter((s) => historyDifference === "todos" || (historyDifference === "negative" ? (s.difference ?? 0) < 0 : (s.difference ?? 0) > 0)).sort((a, b) => new Date(b.closedAt || b.openedAt).getTime() - new Date(a.closedAt || a.openedAt).getTime());
   const activeSales = useMemo(() => sales.filter((s) => s.cashSessionId === active?.id), [sales, active?.id]);
   const activeMovements = movements.filter((m) => m.sessionId === active?.id);
