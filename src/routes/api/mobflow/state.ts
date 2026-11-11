@@ -288,59 +288,9 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
               : { rows: [] as Array<{ updated_at: string }> };
 
             if (updated.rows[0] && previousState) {
-              const oldProducts = Array.isArray(previousState["products"])
-                ? previousState["products"] as Array<Record<string, unknown>>
-                : [];
-              const nextState = body.state as Record<string, unknown>;
-              const nextProducts = Array.isArray(nextState["products"])
-                ? nextState["products"] as Array<Record<string, unknown>>
-                : [];
-              const oldById = new Map(oldProducts.map((product) => [String(product["id"] ?? ""), product]));
-              const nextById = new Map(nextProducts.map((product) => [String(product["id"] ?? ""), product]));
-              const catalogFields = ["code", "barcodes", "ref", "name", "cost", "minStock", "category", "unit"] as const;
-              const catalogSnapshot = (product: Record<string, unknown>) =>
-                Object.fromEntries(catalogFields
-                  .filter((field) => product[field] !== undefined)
-                  .map((field) => [field, product[field]]));
-
-              // Catalog events deliberately exclude photos, stock and sale price:
-              // photos move to object storage later; stock/price have dedicated events.
-              for (const product of nextProducts) {
-                const id = String(product["id"] ?? "");
-                if (!id) continue;
-                const previous = oldById.get(id);
-                const currentCatalog = catalogSnapshot(product);
-                if (!previous) {
-                  await client.query(
-                    `SELECT public.mobflow_append_sync_event(
-                      $1::uuid, $2::uuid, 'catalog', 'manual', 'product', $3, $4::jsonb
-                    )`,
-                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "upsert", product: currentCatalog })],
-                  );
-                  continue;
-                }
-                const previousCatalog = catalogSnapshot(previous);
-                if (JSON.stringify(previousCatalog) !== JSON.stringify(currentCatalog)) {
-                  await client.query(
-                    `SELECT public.mobflow_append_sync_event(
-                      $1::uuid, $2::uuid, 'catalog', 'manual', 'product', $3, $4::jsonb
-                    )`,
-                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "upsert", product: currentCatalog })],
-                  );
-                }
-              }
-
-              for (const previous of oldProducts) {
-                const id = String(previous["id"] ?? "");
-                if (id && !nextById.has(id)) {
-                  await client.query(
-                    `SELECT public.mobflow_append_sync_event(
-                      $1::uuid, $2::uuid, 'catalog', 'manual', 'product', $3, $4::jsonb
-                    )`,
-                    [randomUUID(), randomUUID(), id, JSON.stringify({ operation: "delete" })],
-                  );
-                }
-              }
+              // Product catalog changes are written only through the transactional products API.
+              // A whole-state snapshot is incomplete by design and must never create catalog
+              // upsert/delete events: an omitted product is not a confirmed deletion.
 
               // Promotions are small, high-priority projections delivered in realtime. Keep the event projection
               // small and exclude unrelated state, customer data and payment settings.
