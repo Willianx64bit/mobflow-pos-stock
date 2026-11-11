@@ -616,23 +616,36 @@ export async function hydrateStore() {
         lastSyncedState = null;
       }
 
-      const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
-      state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+      // Publish the authoritative Neon snapshot before loading secondary private data.
+      // A contacts/settings failure must never hide persisted sales, cash sessions or stock.
       normalizeState();
-
       try {
         localStorage.setItem(OWNER_KEY, accountId);
         localStorage.setItem(activeStateKey, JSON.stringify(state));
       } catch {}
+      listeners.forEach((listener) => listener());
+
+      try {
+        const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
+        state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+        normalizeState();
+        try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+        listeners.forEach((listener) => listener());
+      } catch (error) {
+        // Private settings/contacts are secondary; core relational data is already loaded.
+        console.error("[MobFlow Hydration] Private company data could not be loaded:", error);
+      }
+
       cloudAccountId = accountId;
       cloudReady = true;
       startRealtime(accountId);
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
-      listeners.forEach((l) => l());
-    } catch {
-      // Mantém a cópia local disponível; a sincronização será retomada quando a sessão/API responder.
+    } catch (error) {
+      console.error("[MobFlow Hydration] Could not load the authoritative Neon state:", error);
       cloudReady = false;
+      // Notify the UI so it does not silently keep presenting an empty/stale view.
+      listeners.forEach((listener) => listener());
     }
   })().finally(() => { hydrating = null; });
   return hydrating;
