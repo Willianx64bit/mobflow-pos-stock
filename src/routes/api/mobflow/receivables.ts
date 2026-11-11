@@ -13,7 +13,7 @@ const text = (value: unknown, max = 160) => typeof value === "string" ? value.tr
 const money = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 function stableUuid(value: string) {
   const bytes = createHash("sha256").update(value).digest().subarray(0, 16);
-  bytes[6] = (bytes[6] & 15) | 0x50; bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  bytes[6] = ((bytes[6] ?? 0) & 15) | 0x50; bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   const hex = bytes.toString("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
@@ -31,8 +31,9 @@ export async function handleMobFlowReceivable(request: Request) {
   try {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     if (!body || typeof body !== "object") fail("Solicitação de recebimento inválida.");
-    const saleId = text(body["saleId"], 100), idempotencyKey = body["idempotencyKey"];
-    const amount = Number(body["amount"]), method = body["paymentMethod"] as PaymentMethod;
+    const input = body as Record<string, unknown>;
+    const saleId = text(input["saleId"], 100), idempotencyKey = input["idempotencyKey"];
+    const amount = Number(input["amount"]), method = input["paymentMethod"] as PaymentMethod;
     if (!saleId || !uuid(idempotencyKey)) fail("Identificadores do recebimento inválidos.");
     if (!Number.isFinite(amount) || amount <= 0 || !["cash", "pix", "card"].includes(String(method))) fail("Valor ou forma de pagamento inválidos.");
 
