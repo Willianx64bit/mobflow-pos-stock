@@ -27,8 +27,8 @@ const event = (input: Partial<SyncEvent> & Pick<SyncEvent, "sequence" | "categor
 
 class MemoryCursorOutbox extends SyncOutbox {
   cursor = "0";
-  async getCursor() { return this.cursor; }
-  async setCursor(_tenantId: string, value: string) {
+  override async getCursor() { return this.cursor; }
+  override async setCursor(_tenantId: string, value: string) {
     if (BigInt(value) > BigInt(this.cursor)) this.cursor = value;
   }
 }
