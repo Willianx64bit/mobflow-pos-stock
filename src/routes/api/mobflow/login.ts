@@ -61,7 +61,7 @@ export async function handleMobFlowLogin(request: Request) {
         [profile.account_id],
       );
       const company = result.rows[0];
-      if (!company) deny("Assinatura da empresa não encontrada. Entre em contato com o MobFlow.", 403);
+      if (!company) return deny("Assinatura da empresa não encontrada. Entre em contato com o MobFlow.", 403);
       const expired = Boolean(company.subscription_expires_at && new Date(company.subscription_expires_at).getTime() <= Date.now());
       if (expired && company.subscription_status === "active") {
         await client.query("SELECT public.mobflow_mark_subscription_past_due($1::uuid)", [profile.account_id]);
