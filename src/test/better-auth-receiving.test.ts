@@ -104,7 +104,7 @@ describe("Neon receiving stock release", () => {
 
 
   it("does not commit or append events when the existing product stock is invalid", async () => {
-    state.products[0].stock = "not-a-number" as unknown as number;
+    state.products[0]!.stock = "not-a-number" as unknown as number;
     const response = await handleMobFlowReceiving(request("finalize_decisions", {
       "product-a": "aceitar",
       "product-b": "devolver",
@@ -121,8 +121,8 @@ describe("Neon receiving stock release", () => {
   });
 
   it("accepts a completed decision and releases stock once", async () => {
-    state.receiving[0].decisionCompleted = true;
-    state.receiving[0].decisions = { "product-a": "aceitar", "product-b": "devolver" };
+    state.receiving[0]!.decisionCompleted = true;
+    state.receiving[0]!.decisions = { "product-a": "aceitar", "product-b": "devolver" };
     const response = await handleMobFlowReceiving(request("accept"));
     const body = await response.json();
     const updateCall = client.query.mock.calls.find((call) => String(call[0]).includes("UPDATE public.app_state"));
@@ -141,10 +141,10 @@ describe("Neon receiving stock release", () => {
   });
 
   it("does not append or apply stock events when the same receiving is accepted again", async () => {
-    state.receiving[0].decisionCompleted = true;
-    state.receiving[0].decisions = { "product-a": "aceitar", "product-b": "devolver" };
-    state.receiving[0].stockReleased = true;
-    state.products[0].stock = 13;
+    state.receiving[0]!.decisionCompleted = true;
+    state.receiving[0]!.decisions = { "product-a": "aceitar", "product-b": "devolver" };
+    state.receiving[0]!.stockReleased = true;
+    state.products[0]!.stock = 13;
 
     const response = await handleMobFlowReceiving(request("accept"));
 
