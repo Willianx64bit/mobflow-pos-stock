@@ -239,6 +239,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         const operationType = String(payload["operationType"] ?? payload["source"] ?? "");
         const movementType = operationType === "sale" || payload["source"] === "sale" ? "Venda"
           : operationType === "writeoff" ? "Baixa"
+          : operationType === "transfer" ? "Transferência"
           : payload["source"] === "receiving" || (deltaOnly !== null && deltaOnly > 0) ? "Entrada"
           : operationType === "entry" ? "Entrada"
           : /balanço/i.test(String(payload["reason"] ?? "")) ? "Balanço"
