@@ -14,7 +14,7 @@ function stableUuid(v:string){const b=createHash("sha256").update(v).digest().su
 function errorResponse(e:unknown){if(e instanceof StockError)return Response.json({ok:false,error:e.message,code:e.code},{status:e.status});if(e instanceof ApiAuthError)return jsonError(e);const code=typeof e==="object"&&e&&"code"in e?String((e as {code:unknown}).code):"";if(code==="23505")return Response.json({ok:false,error:"Esta movimentação já foi registrada.",code:"duplicate_operation"},{status:409});if(code==="23503"||code==="23514")return Response.json({ok:false,error:"A movimentação não atende às regras do estoque.",code:"stock_constraint"},{status:409});return jsonError(e);}
 async function schema(client:any){const r=await client.query("SELECT to_regclass('public.products')::text AS products,to_regclass('public.stock_movements')::text AS ledger,to_regclass('public.mobflow_sync_events')::text AS events,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS append_fn");if(Object.values(r.rows[0]??{}).some(v=>!v))fail("Estrutura relacional do estoque ainda não está pronta.",503,"stock_schema_not_ready");}
 export async function handleMobFlowStock(request:Request){
- if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth")return Response.json({ok:false,error:"Comandos Neon de estoque não habilitados neste ambiente.",code:"stock_provider_disabled"},{status:503});
+ if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"Comandos Neon de estoque não habilitados neste ambiente.",code:"stock_provider_disabled"},{status:503});
  let tx:Awaited<ReturnType<typeof beginAuthenticatedTransaction>>|null=null;
  try{
   const body=await request.json().catch(()=>null) as Input|null;if(!body||typeof body!=="object")fail("Solicitação inválida.");
@@ -34,7 +34,7 @@ export async function handleMobFlowStock(request:Request){
   await schema(client);
   const aggregated=new Map<string,{quantity:number;mode:"add"|"set"}>();
   for(const raw of body.items as Array<Record<string,unknown>>){
-   const productId=str(raw?.productId,100),quantity=Number(raw?.quantity),mode=raw?.mode==="set"?"set":"add";
+   const productId=str(raw?.["productId"],100),quantity=Number(raw?.["quantity"]),mode=raw?.["mode"]==="set"?"set":"add";
    if(!productId||!Number.isFinite(quantity)||quantity<0||Math.round(quantity*1000)!==quantity*1000||(quantity===0&&!(operationType==="adjustment"&&mode==="set")))fail("Produto ou quantidade inválida.");
    if(operationType!=="adjustment"&&mode!=="add")fail("Modo de quantidade inválido para esta operação.");
    const old=aggregated.get(productId);if(old&&old.mode!==mode)fail("Não misture modos de ajuste para o mesmo produto.");if(old&&mode==="set")fail("Informe cada produto uma única vez em ajuste por saldo final.");
