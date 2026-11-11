@@ -107,7 +107,7 @@ export async function handleMobFlowSale(request: Request) {
       quantities.set(productId, quantity3((quantities.get(productId) ?? 0) + quantity));
     }
     const ids = [...quantities.keys()].sort();
-    const productResult = await client.query("SELECT id,code,name,unit,price::text,cost::text,stock::text,active FROM public.products WHERE tenant_id=$1 AND id=ANY($2::text[]) ORDER BY id FOR UPDATE", [identity.accountId, ids]);
+    const productResult = await client.query("SELECT p.id,p.code,p.name,p.unit,COALESCE((SELECT pr.promo_price FROM public.promotions pr WHERE pr.tenant_id=p.tenant_id AND pr.product_id=p.id AND pr.starts_at<=now() AND pr.ends_at>=now() ORDER BY pr.starts_at DESC LIMIT 1),p.price)::text AS price,p.cost::text,p.stock::text,p.active FROM public.products p WHERE p.tenant_id=$1 AND p.id=ANY($2::text[]) ORDER BY p.id FOR UPDATE OF p", [identity.accountId, ids]);
     if (productResult.rows.length !== ids.length) fail("Um ou mais produtos não existem nesta empresa.", 404, "product_not_found");
     const products = new Map<string, any>(productResult.rows.map((p: any) => [p.id, p]));
     const lines = ids.map((id, index) => {
