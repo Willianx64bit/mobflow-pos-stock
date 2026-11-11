@@ -103,6 +103,7 @@ let syncWakeListenersInstalled = false;
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
 const syncOutbox = new SyncOutbox();
+let lastDomainCommandPromise: Promise<void> | null = null;
 // Keep the command cutover fail-closed until the Neon snapshot bootstrap has relational projections.
 const incrementalSyncEnabled = () =>
   import.meta.env["VITE_MOBFLOW_INCREMENTAL_SYNC"] === "true" &&
@@ -385,24 +386,36 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
   if (!tenantId) return false;
   try {
     const command = createSyncCommand({ tenantId, domain, payload });
-    // localStorage backup is synchronous, so closing the tab before IndexedDB commits
-    // cannot silently discard an operation created by the UI.
+    // Persist synchronously before exposing the optimistic UI state.
     const backup = readOutboxBackup().filter((item) => item.id !== command.id);
     if (!writeOutboxBackup([...backup, command])) return false;
-    void syncOutbox.enqueue(command).then(() => {
+    lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
       writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
-      if (cloudReady && typeof navigator !== "undefined" && navigator.onLine) {
-        void syncNow().catch((error) => console.warn("[MobFlow Sync] Incremental send deferred:", error));
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("Sem conexão. A operação ficou pendente e ainda não foi confirmada pelo servidor.");
       }
-    }).catch((error) => {
-      // Keep the synchronous backup. The next sync attempt restores it into IndexedDB.
-      console.warn("[MobFlow Sync] IndexedDB enqueue deferred; command retained in local backup.", error);
+      const result = await syncNow();
+      if (result.failed > 0 || result.pending > 0 || result.reconciliationRequired) {
+        throw new Error("O servidor ainda não confirmou a operação. Ela permanece na fila para nova tentativa.");
+      }
+    });
+    void lastDomainCommandPromise.catch((error) => {
+      console.warn("[MobFlow Sync] Server confirmation pending; command retained in outbox.", error);
     });
     return true;
   } catch (error) {
-    console.error("[MobFlow Sync] Could not create command; operation remains local and requires retry.", error);
+    console.error("[MobFlow Sync] Could not create command; operation was not sent.", error);
     return false;
   }
+}
+
+/** Waits for the most recently queued domain operation to be committed by Neon. */
+export async function confirmLastDomainCommand(): Promise<void> {
+  if (!incrementalSyncEnabled()) return;
+  const pending = lastDomainCommandPromise;
+  lastDomainCommandPromise = null;
+  if (!pending) throw new Error("A operação não entrou na fila de sincronização e não foi enviada ao servidor.");
+  await pending;
 }
 
 async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
