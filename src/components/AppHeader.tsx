@@ -69,7 +69,9 @@ export function AppHeader() {
     setSyncing(true);
     setSyncMessage("");
     try {
-      // Promoções usam o endpoint versionado do Neon; atualize o snapshot no mesmo comando manual.\n      await actions.loadPromotions();\n      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      // Promoções usam o endpoint versionado do Neon; atualize o snapshot no mesmo comando manual.
+      await actions.loadPromotions();
+      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
       const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
       setSyncMessage(pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
     } catch {
