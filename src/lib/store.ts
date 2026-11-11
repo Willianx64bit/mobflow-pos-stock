@@ -501,6 +501,18 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
   }
 }
 
+function reconnect() {
+  const accountId = cloudAccountId;
+  if (!accountId || realtimeReconnectTimer) return;
+  realtimeReconnectTimer = setTimeout(() => {
+    realtimeReconnectTimer = null;
+    if (cloudAccountId === accountId && !stopRealtimeSubscription) {
+      realtimeOwnerId = null;
+      startRealtime(accountId);
+    }
+  }, 3_000);
+}
+
 function startRealtime(accountId: string) {
   if (typeof window === "undefined") return;
   if (realtimeOwnerId !== accountId) {
