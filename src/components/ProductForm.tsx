@@ -45,7 +45,7 @@ export function ProductForm({ product, onClose }: Props) {
       let savedVersion=product?.version;
       const code=f.code.trim()||String(Date.now()).slice(-10);
       const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
-      const neonCatalog=import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER==="neon";
+      const neonCatalog=import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon";
       if(neonCatalog){
         if(!product?.id&&(stock??0)!==0)throw new Error("No catálogo Neon, cadastre primeiro com estoque zero. Depois registre o saldo pela operação de estoque, que mantém o histórico auditável.");
         if(product?.id&&!Number.isSafeInteger(product.version))throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
@@ -67,7 +67,7 @@ export function ProductForm({ product, onClose }: Props) {
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
         photoUrl=undefined;photoObjectKey=undefined;
       }
-      actions.saveProduct({id,version:savedVersion,name:f.name.trim(),barcodes:cleanBarcodes,ref:f.ref.trim()||undefined,code,category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:photoUrl,photoObjectKey});onClose();
+      actions.saveProduct({id,...(savedVersion!==undefined?{version:savedVersion}:{}),name:f.name.trim(),barcodes:cleanBarcodes,...(f.ref.trim()?{ref:f.ref.trim()}:{}),code,category:f.category.trim()||"Geral",price:num(f.price),...(f.cost.trim()?{cost:num(f.cost)}:{}),stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});onClose();
     } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
   const choosePhoto=async(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;try{const compressed=await compressImageTo200KB(file);setPhotoFile(compressed);setF(v=>({...v,photo:URL.createObjectURL(compressed)}));}catch(error){alert(error instanceof Error?error.message:"Não foi possível compactar a foto.");}finally{e.target.value="";}};
