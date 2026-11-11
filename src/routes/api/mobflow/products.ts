@@ -70,7 +70,7 @@ function errorResponse(e:unknown){
  return jsonError(e);
 }
 async function getProducts(request:Request){
- if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
+ if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  const u=new URL(request.url),raw=u.searchParams.get("limit")??"50";
  if(!/^\d+$/.test(raw)||Number(raw)<1)return Response.json({ok:false,error:"Limite inválido.",code:"invalid_product_query"},{status:400});
  const limit=Math.min(Number(raw),100),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active");
@@ -92,7 +92,7 @@ async function getProducts(request:Request){
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 async function writeProduct(request:Request,method:"POST"|"PATCH"){
- if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
+ if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  let tx:any=null;
  try{
   const body=await request.json().catch(()=>null);
