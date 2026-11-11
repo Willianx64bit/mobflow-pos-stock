@@ -43,6 +43,7 @@ export function ProductForm({ product, onClose }: Props) {
     try {
       const id=product?.id??(pendingProductId.current??(pendingProductId.current=crypto.randomUUID()));
       let savedVersion=product?.version;
+      let serverProduct: Product | null = null;
       const code=f.code.trim()||String(Date.now()).slice(-10);
       const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
       const neonCatalog=import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon";
@@ -53,6 +54,7 @@ export function ProductForm({ product, onClose }: Props) {
         const payload={id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,minStock:minStock??0,barcodes:cleanBarcodes};
         const response=await fetch("/api/mobflow/products",{method:product?.id?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product?.id?{...payload,expectedVersion:product.version}:{...payload,stock:0})});
         const saved=await response.json().catch(()=>null);if(!response.ok||!saved?.ok||!saved.product)throw new Error(saved?.error||"O Neon não confirmou o cadastro do produto.");
+        serverProduct=saved.product as Product;
         savedVersion=Number(saved.product.version);
       }
       let photoUrl=f.photo||undefined;
@@ -68,12 +70,8 @@ export function ProductForm({ product, onClose }: Props) {
         photoUrl=undefined;photoObjectKey=undefined;
       }
       if(neonCatalog){
-        const response=await fetch("/api/mobflow/products?limit=100");
-        const result=await response.json().catch(()=>null);
-        if(!response.ok||!result?.ok||!Array.isArray(result.products))throw new Error(result?.error||"Não foi possível confirmar a lista atualizada no Neon.");
-        const confirmed=result.products.find((item:Product)=>item.id===id) as Product|undefined;
-        if(!confirmed)throw new Error("O Neon confirmou a gravação, mas o produto não apareceu na consulta de confirmação. O formulário foi mantido aberto.");
-        actions.saveProduct({...confirmed,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
+        if(!serverProduct)throw new Error("O Neon não devolveu o produto confirmado. O formulário foi mantido aberto.");
+        actions.saveProduct({...serverProduct,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
       } else {
         actions.saveProduct({id,...(savedVersion!==undefined?{version:savedVersion}:{}),name:f.name.trim(),barcodes:cleanBarcodes,...(f.ref.trim()?{ref:f.ref.trim()}:{}),code,category:f.category.trim()||"Geral",price:num(f.price),...(f.cost.trim()?{cost:num(f.cost)}:{}),stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
       }
