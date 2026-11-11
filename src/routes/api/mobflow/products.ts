@@ -189,7 +189,7 @@ async function deleteProduct(request:Request){
    await storage.client.send(new DeleteObjectCommand({Bucket:storage.bucket,Key:photoKey}));
   }catch(e){
    console.error("[MobFlow product R2 cleanup pending]",e instanceof Error?e.message:"unknown");
-   return Response.json({ok:false,archived:true,deletedId:id,photoCleanup:"pending",error:"Produto arquivado, mas a foto ainda não teve sua remoção confirmada no R2. Tente novamente para concluir."},{status:202});
+   return Response.json({ok:false,archived:true,deletedId:id,photoCleanup:"pending",error:"Produto arquivado, mas a foto ainda não teve sua remoção confirmada no R2. Tente novamente para concluir."},{status:503});
   }
   // Clear the DB pointer and publish the delta only after R2 confirms deletion.
   tx=await beginAuthenticatedTransaction(request);
