@@ -19,7 +19,7 @@ const TENANT="9c47eaac-2abf-4cd6-b614-24e27077bdf6";
 const ready={rows:[{p:"products",b:"product_barcodes",e:"mobflow_sync_events",fn:"mobflow_append_sync_event"}]};
 const product={id:"p1",code:"001",name:"Arroz",reference:null,unit:"un",price:"10.00",cost:"7.00",stock:"5.000",min_stock:"1.000",category:"Mercearia",photo_object_key:null,active:true,version:"1",created_at:"2026-11-08T10:00:00Z",updated_at:"2026-11-08T10:00:00Z"};
 function req(method:string,body?:unknown,url="https://mobflow.test/api/mobflow/products"){
- return new Request(url,{method,headers:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
+ return new Request(url,{method,headers:{"content-type":"application/json"},...(body===undefined?{}:{body:JSON.stringify(body)})});
 }
 describe("Neon product catalog API",()=>{
  const provider=process.env["MOBFLOW_AUTH_PROVIDER"];
