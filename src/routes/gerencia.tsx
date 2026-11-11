@@ -149,7 +149,7 @@ function Gerencia() {
     }));
     const parseExpiry = (value: string) => {
       const parts = value.includes("-") ? value.split("-").map(Number) : value.split("/").map(Number);
-      const [year, month, day] = value.includes("-") ? parts : [parts[2], parts[1], parts[0]];
+      const [year = 0, month = 0, day = 0] = value.includes("-") ? parts : [parts[2], parts[1], parts[0]];
       return new Date(year, month - 1, day).getTime();
     };
     const today = new Date();
