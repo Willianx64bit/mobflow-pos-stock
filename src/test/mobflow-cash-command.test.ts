@@ -34,6 +34,20 @@ describe("Neon cash commands",()=>{
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("'cash','automatic','cash_session'"))).toBe(true);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
+ it("returns the existing open session instead of rejecting a second device open",async()=>{
+  client.query.mockImplementation(async(sql:string)=>{
+   if(sql.includes("to_regclass"))return{rows:[{sessions:"cash_sessions",movements:"cash_movements",sales:"sales",events:"mobflow_sync_events",append_fn:"fn"}]};
+   if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE"))return{rows:[]};
+   if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id"))return{rows:[{id:"existing-session",status:"open",opening_amount:"150.00",opened_at:"2026-11-11T02:11:50.058Z"}]};
+   return{rows:[]};
+  });
+  const res=await handleMobFlowCash(req({action:"open",sessionId:SESSION,idempotencyKey:KEY,openingAmount:150}));
+  const body=await res.json();
+  expect(res.status).toBe(200);
+  expect(body).toMatchObject({ok:true,replayed:true,alreadyOpen:true,session:{id:"existing-session",openingAmount:150}});
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.cash_sessions"))).toBe(false);
+  expect(releaseTransaction).toHaveBeenCalledWith(client,true);
+ });
  it("records an idempotent cash addition or withdrawal",async()=>{
   client.query.mockImplementation(async(sql:string)=>{
    if(sql.includes("to_regclass"))return{rows:[{sessions:"cash_sessions",movements:"cash_movements",sales:"sales",events:"mobflow_sync_events",append_fn:"fn"}]};
