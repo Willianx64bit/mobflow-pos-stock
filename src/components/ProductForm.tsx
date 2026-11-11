@@ -46,7 +46,7 @@ export function ProductForm({ product, onClose }: Props) {
       let serverProduct: Product | null = null;
       const code=f.code.trim()||String(Date.now()).slice(-10);
       const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
-      const neonCatalog=import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon";
+      const neonCatalog=import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon";if(!neonCatalog)throw new Error("O catálogo Neon não está habilitado neste Preview. O cadastro local foi bloqueado para evitar uma confirmação falsa.");
       if(neonCatalog){
         if(!product?.id&&(stock??0)!==0)throw new Error("No catálogo Neon, cadastre primeiro com estoque zero. Depois registre o saldo pela operação de estoque, que mantém o histórico auditável.");
         if(product?.id&&!Number.isSafeInteger(product.version))throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
