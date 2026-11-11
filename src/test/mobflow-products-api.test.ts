@@ -37,7 +37,7 @@ describe("Neon product catalog API",()=>{
   const response=await handlers.GET({request:req("GET")});
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",name:"Arroz",stock:5}]});
-  expect(client.query.mock.calls[1][1][0]).toBe(TENANT);
+  expect(client.query.mock.calls[1]?.[1]?.[0]).toBe(TENANT);
  });
  it("refuses catalog writes from users without Gerência",async()=>{
   beginAuthenticatedTransaction.mockResolvedValueOnce({client,identity:{userId:"u1",accountId:TENANT,role:"pdv",permissions:["PDV","Operações"]}});
