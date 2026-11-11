@@ -104,7 +104,7 @@ export async function handleMobFlowCash(request: Request) {
       return Response.json({ok:true,replayed:true,closing:{sessionId,status:"closed",countedAmount:Number(session.counted_amount),expectedAmount:Number(session.expected_amount),difference:Number(session.difference_amount),closedAt:session.closed_at}});
     }
     if(session.operator_profile_id!==identity.userId) fail("Somente o operador responsável pode fechar este caixa.",403,"cash_operator_mismatch");
-    const sales=await client.query("SELECT COALESCE(SUM(total),0)::text AS total FROM public.sales WHERE tenant_id=$1 AND cash_session_id=$2 AND status='completed' AND payment_status='paid' AND payment_method='cash'",[identity.accountId,sessionId]);
+    const sales=await client.query("SELECT COALESCE(SUM(sp.amount),0)::text AS total FROM public.sale_payments sp JOIN public.sales s ON s.tenant_id=sp.tenant_id AND s.id=sp.sale_id WHERE sp.tenant_id=$1 AND s.cash_session_id=$2 AND s.status='completed' AND sp.method='cash'",[identity.accountId,sessionId]);
     const movements=await client.query("SELECT COALESCE(SUM(amount) FILTER(WHERE movement_type='addition'),0)::text AS additions,COALESCE(SUM(amount) FILTER(WHERE movement_type='withdrawal'),0)::text AS withdrawals FROM public.cash_movements WHERE tenant_id=$1 AND cash_session_id=$2",[identity.accountId,sessionId]);
     const expected=cents(Number(session.opening_amount)+Number(sales.rows[0].total)+Number(movements.rows[0].additions)-Number(movements.rows[0].withdrawals));
     const difference=cents(counted-expected);
