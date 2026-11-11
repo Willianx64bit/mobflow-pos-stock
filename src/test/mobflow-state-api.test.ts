@@ -79,7 +79,7 @@ describe("MobFlow Neon state API", () => {
       expect.stringContaining("LEFT JOIN public.mobflow_sync_counters"),
       [ACCOUNT_ID, false],
     );
-    const bootstrapSql = String(client.query.mock.calls[0][0]);
+    const bootstrapSql = String(client.query.mock.calls[0]?.[0]);
     expect(bootstrapSql).toContain("AS relational_ready");
     expect(bootstrapSql).toContain("public.products");
     expect(bootstrapSql).toContain("public.sale_items");
