@@ -651,6 +651,18 @@ export async function syncNow(options: { retryFailed?: boolean } = {}) {
       tenantId,
       applyEvents: (events) => applyIncrementalEvents(events),
     });
+    // Reconcile this operator's open cash session against Neon, including devices
+    // that missed the original event notification.
+    const cashStatus = await callMobFlowApi("/api/mobflow/cash");
+    if (cashStatus.response.ok && cashStatus.body.ok === true) {
+      const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
+      const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+      if (username) {
+        const retained = (state.cashSessions ?? []).filter((item) => item.status !== "open" || item.openedBy !== username);
+        const canonical = remote ? [{ id:remote.id, status:"open" as const, openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
+        set({ cashSessions: [...canonical, ...retained] });
+      }
+    }
     return { ...result, failed: await syncOutbox.failedCount(tenantId) };
   } catch (error) {
     if (error instanceof UnsupportedSyncEventError) {
