@@ -80,7 +80,7 @@ function Promotions() {
     if (!startsAt || !endsAt || new Date(endsAt) <= new Date(startsAt)) { setError("A data e hora final devem ser posteriores ao início."); return; }
     setSaving(true);
     try {
-      const ok = await actions.savePromotion({ id: editingId, productId, promoPrice: price, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt) });
+      const ok = await actions.savePromotion({ ...(editingId ? { id: editingId } : {}), productId, promoPrice: price, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt) });
       if (!ok) { setError("Não foi possível salvar. Confira o produto, preço e período."); return; }
       setHistory(await actions.loadPromotions());
       setHistoryError("");
