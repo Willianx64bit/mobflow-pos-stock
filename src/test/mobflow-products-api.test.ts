@@ -22,15 +22,15 @@ function req(method:string,body?:unknown,url="https://mobflow.test/api/mobflow/p
  return new Request(url,{method,headers:{"content-type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});
 }
 describe("Neon product catalog API",()=>{
- const provider=process.env.MOBFLOW_AUTH_PROVIDER;
+ const provider=process.env["MOBFLOW_AUTH_PROVIDER"];
  beforeEach(()=>{
-  vi.clearAllMocks();process.env.MOBFLOW_AUTH_PROVIDER="better-auth";
+  vi.clearAllMocks();process.env["MOBFLOW_AUTH_PROVIDER"]="better-auth";
   beginAuthenticatedTransaction.mockResolvedValue({client,identity:{userId:TENANT,accountId:TENANT,role:"manager",permissions:["Gerência"]}});
   client.query.mockReset();
   client.query.mockResolvedValue(ready);
  });
  afterEach(()=>{
-  if(provider===undefined)delete process.env.MOBFLOW_AUTH_PROVIDER;else process.env.MOBFLOW_AUTH_PROVIDER=provider;
+  if(provider===undefined)delete process.env["MOBFLOW_AUTH_PROVIDER"];else process.env["MOBFLOW_AUTH_PROVIDER"]=provider;
  });
  it("lists products scoped to the authenticated tenant",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product]});
