@@ -52,7 +52,7 @@ function ValidadeProdutos() {
     : 0;
 
   const parseExpiry = (value: string) => {
-    const [day, month, year] = value.split("/").map(Number);
+    const [day = 0, month = 0, year = 0] = value.split("/").map(Number);
     return new Date(year, month - 1, day).getTime();
   };
 
