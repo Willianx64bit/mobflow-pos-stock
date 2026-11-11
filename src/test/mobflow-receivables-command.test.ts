@@ -21,10 +21,10 @@ const request = (input = body()) => new Request("https://mobflow.test/api/mobflo
 });
 
 describe("Neon Fiado receivable payments", () => {
-  const previousProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const previousProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("FROM public.receivable_payments WHERE tenant_id=$1 AND idempotency_key")) return { rows: [] };
       if (sql.includes("FROM public.sales WHERE tenant_id=$1 AND id=$2 FOR UPDATE")) return { rows: [{
@@ -45,8 +45,8 @@ describe("Neon Fiado receivable payments", () => {
     });
   });
   afterEach(() => {
-    if (previousProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = previousProvider;
+    if (previousProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = previousProvider;
   });
 
   it("records a partial payment, a cash ledger payment and an updated sale event atomically", async () => {
