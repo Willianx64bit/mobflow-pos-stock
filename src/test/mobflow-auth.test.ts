@@ -39,11 +39,11 @@ function profile(overrides: Record<string, unknown> = {}) {
 }
 
 describe("MobFlow Neon API authentication", () => {
-  const originalProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const originalProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
     getSession.mockImplementation(async ({ headers }: { headers: Headers }) =>
       headers.get("cookie") ? { user: { id: USER_ID } } : null,
     );
@@ -55,12 +55,12 @@ describe("MobFlow Neon API authentication", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    if (originalProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
+    if (originalProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = originalProvider;
   });
 
   it("fails closed when the Preview auth provider is not Better Auth", async () => {
-    delete process.env.MOBFLOW_AUTH_PROVIDER;
+    delete process.env["MOBFLOW_AUTH_PROVIDER"];
     await expect(beginAuthenticatedTransaction(request("valid-token"))).rejects.toMatchObject({ status: 503, code: "better_auth_required" });
     expect(getSession).not.toHaveBeenCalled();
     expect(connect).not.toHaveBeenCalled();
