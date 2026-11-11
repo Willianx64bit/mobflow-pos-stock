@@ -367,7 +367,7 @@ function Gerencia() {
       const { data, error: invokeError } = createResult;
       if (invokeError || !data?.ok) {
         let message = data?.error || "";
-        try { message = message || String((await (invokeError as { context?: Response })?.context?.json())?.error || ""); } catch {}
+        message = message || (invokeError ? "Não foi possível cadastrar o primeiro usuário." : "");
         setFirstUserError(message || "Não foi possível cadastrar o primeiro usuário. Tente novamente.");
         return;
       }
@@ -506,7 +506,7 @@ function Gerencia() {
                 navigate({ to: tab.to });
               }
             }} className="group flex min-h-36 flex-col items-center justify-center rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-border transition-all duration-200 ease-out hover:-translate-y-2 hover:shadow-lg hover:ring-primary/60 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:translate-y-0 sm:min-h-40">
-              <div className="relative mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">{tab.icon === "settings" ? <Settings className="h-7 w-7" /> : tab.icon === "stock" ? <Package className="h-7 w-7" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-7 w-7" /> : tab.icon === "receiving" ? <Truck className="h-7 w-7" /> : tab.icon === "promotions" ? <Percent className="h-7 w-7" /> : tab.icon === "balance" ? <Scale className="h-7 w-7" /> : tab.icon === "operations" ? <Workflow className="h-7 w-7" /> : null}</div><div className="relative text-base font-extrabold text-heading">{tab.label}{tab.icon === "receiving" && hasPendingReceivingAction && <span className="ml-2 inline-flex -translate-y-0.5 rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">PENDENTE</span>}</div>
+              <div className="relative mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">{tab.icon === "settings" ? <Settings className="h-7 w-7" /> : tab.icon === "stock" ? <Package className="h-7 w-7" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-7 w-7" /> : tab.icon === "receiving" ? <Truck className="h-7 w-7" /> : tab.icon === "promotions" ? <Percent className="h-7 w-7" /> : tab.icon === "operations" ? <Workflow className="h-7 w-7" /> : null}</div><div className="relative text-base font-extrabold text-heading">{tab.label}{tab.icon === "receiving" && hasPendingReceivingAction && <span className="ml-2 inline-flex -translate-y-0.5 rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">PENDENTE</span>}</div>
             </button>
           ))}
         </div>
