@@ -540,7 +540,7 @@ function reconnect() {
 }
 
 function startRealtime(accountId: string) {
-  if (!incrementalSyncEnabled() || typeof window === "undefined") return;
+  if (typeof window === "undefined") return;
   if (realtimeOwnerId !== accountId) {
     stopRealtimeSubscription?.();
     stopRealtimeSubscription = null;
@@ -574,7 +574,15 @@ function startRealtime(accountId: string) {
 
   // Realtime is only a wake-up signal; the client drains the durable outbox and pulls events by cursor.
   void subscribeToTenantEvents(
-    () => { void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error)); },
+    () => {
+      if (incrementalSyncEnabled()) {
+        void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error));
+      } else {
+        // Compatibility mode: only a new Neon event wakes this refresh.
+        // There is deliberately no three-second full-state polling loop.
+        void refreshFromCloud(accountId, true);
+      }
+    },
     (message) => {
       console.warn("[MobFlow Realtime] Subscription stopped:", message);
       stopRealtimeSubscription?.();
@@ -710,6 +718,7 @@ function scheduleStatePersist() {
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
           Object.assign(snapshot, retrySnapshot);
           lastSyncedState = cloneState(remote);
+          listeners.forEach((listener) => listener());
           continue;
         }
         throw new Error(String(result.body.error ?? "Não foi possível salvar o estado completo no Neon."));
