@@ -148,6 +148,33 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)})});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
+async function deleteProduct(request:Request){
+ if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
+ let tx:any=null;
+ try{
+  const body=await request.json().catch(()=>null);
+  if(!body||typeof body!=="object"||Array.isArray(body))fail("Corpo inválido.");
+  const id=field(body.id,"id",true,80)!;
+  tx=await beginAuthenticatedTransaction(request);const c=tx.client,i=tx.identity;
+  if(!canWrite(i))fail("Somente a Gerência pode excluir produtos.",403,"permission_denied");
+  await ready(c,true);
+  const locked=await c.query("SELECT "+columns+" FROM public.products WHERE tenant_id=$1 AND id=$2 FOR UPDATE",[i.accountId,id]);
+  if(!locked.rows.length)fail("Produto não encontrado.",404,"product_not_found");
+  const current=locked.rows[0],stock=Number(current.stock);
+  if(!Number.isFinite(stock))fail("Não foi possível confirmar o estoque no Neon. Exclusão bloqueada.",409,"stock_unconfirmed");
+  if(stock>0)fail("Este produto não pode ser excluído porque ainda possui estoque acima de zero.",409,"product_has_stock");
+  const deletedVersion=Number(current.version)+1;
+  await appendCatalogEvent(c,i.accountId,i.userId,id,deletedVersion,{operation:"delete",productId:id,version:deletedVersion});
+  try{await c.query("DELETE FROM public.products WHERE tenant_id=$1 AND id=$2",[i.accountId,id]);}
+  catch(error){
+   const code=typeof error==="object"&&error&&"code" in error?String((error as any).code):"";
+   if(code==="23503")fail("Este produto possui registros históricos vinculados e não pode ser excluído sem preservar o histórico.",409,"product_has_history");
+   throw error;
+  }
+  await releaseTransaction(c,true);tx=null;
+  return Response.json({ok:true,deletedId:id,stockAtDeletion:stock});
+ }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
+}
 export const Route=createFileRoute("/api/mobflow/products")({server:{handlers:{
- GET:({request})=>getProducts(request),POST:({request})=>writeProduct(request,"POST"),PATCH:({request})=>writeProduct(request,"PATCH")
+ GET:({request})=>getProducts(request),POST:({request})=>writeProduct(request,"POST"),PATCH:({request})=>writeProduct(request,"PATCH"),DELETE:({request})=>deleteProduct(request)
 }}});
