@@ -56,12 +56,16 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       }
       const raw = record(payload["product"]);
       if (!raw || typeof raw["id"] !== "string" || raw["id"] !== event.entity_id || typeof raw["code"] !== "string" || typeof raw["name"] !== "string") throw new UnsupportedSyncEventError(event);
+      const productVersion = number(raw["version"]) ?? existing?.version;
+      // Replayed or delayed catalog changes cannot overwrite an equal/newer version.
+      if (productVersion !== undefined && existing?.version !== undefined && productVersion <= existing.version) continue;
+      if (raw["active"] === false) {
+        next.products = next.products.filter((item) => item.id !== event.entity_id);
+        continue;
+      }
       const unit = raw["unit"] === "kg" ? "kg" : raw["unit"] === "un" ? "un" : null;
       const price = number(raw["price"]), cost = number(raw["cost"]), minStock = number(raw["minStock"]);
       if (!unit || price === null || cost === null || minStock === null) throw new UnsupportedSyncEventError(event);
-      const productVersion = number(raw["version"]) ?? existing?.version;
-      // Replayed or delayed catalog upserts cannot overwrite an equal/newer version.
-      if (productVersion !== undefined && existing?.version !== undefined && productVersion <= existing.version) continue;
       next.products = upsert(next.products, {
         id: raw["id"], code: raw["code"], name: raw["name"],
         ref: typeof raw["reference"] === "string" ? raw["reference"] : typeof raw["ref"] === "string" ? raw["ref"] : undefined,
