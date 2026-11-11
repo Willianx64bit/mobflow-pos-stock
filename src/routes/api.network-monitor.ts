@@ -4,7 +4,7 @@ export const Route = createFileRoute("/api/network-monitor")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (process.env.VERCEL_ENV !== "preview") {
+        if (process.env["VERCEL_ENV"] !== "preview") {
           return Response.json({ ok: false }, { status: 404 });
         }
         const origin = request.headers.get("origin");
@@ -21,13 +21,13 @@ export const Route = createFileRoute("/api/network-monitor")({
         const method = typeof event.method === "string" ? event.method.slice(0, 10) : "";
         const status = typeof event.status === "number" ? event.status : null;
         const duration = typeof event.duration_ms === "number" ? Math.max(0, Math.min(120000, Math.round(event.duration_ms))) : 0;
-        const kind = event.kind === "xhr" ? "xhr" : "fetch";
+        const kind = event["kind"] === "xhr" ? "xhr" : "fetch";
         if (!hostName || !path.startsWith("/") || !method) {
           return Response.json({ ok: false }, { status: 400 });
         }
         console.info("[MobFlow Network Monitor]", JSON.stringify({
           app: "pdv-preview", host: hostName, path, method, status,
-          duration_ms: duration, kind, failed: event.failed === true,
+          duration_ms: duration, kind, failed: event["failed"] === true,
         }));
         return Response.json({ ok: true }, { status: 202 });
       },
