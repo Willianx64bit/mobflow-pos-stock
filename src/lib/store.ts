@@ -1021,6 +1021,10 @@ export const actions = {
       await hydrateStore();
       return entry;
       } catch (error) {
+      // The server may commit and the response may be lost. Reload the relational
+      // snapshot before telling the operator to retry, otherwise stock could be deducted twice.
+      await hydrateStore().catch(() => undefined);
+      if ((state.stockTransfers ?? []).some((item) => item.id === entry.id)) return entry;
       console.error("[MobFlow Transfer]", error);
       return false;
     }
