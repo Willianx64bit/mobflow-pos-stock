@@ -61,6 +61,7 @@ export async function handleMobFlowReceivable(request: Request) {
     const total = money(Number(sale.total));
     const remaining = money(total - paidBefore);
     const received = money(amount);
+    if (received <= 0) fail("Informe um valor de recebimento válido.");
     if (remaining <= 0.005) fail("Esta venda Fiado já está quitada.", 409, "receivable_already_paid");
     if (received > remaining + 0.005) fail("O recebimento não pode ultrapassar o saldo restante.", 409, "receivable_exceeds_balance");
 
@@ -83,10 +84,8 @@ export async function handleMobFlowReceivable(request: Request) {
       [identity.accountId, saleId, isPaid ? "paid" : "partial", isPaid ? now : null, profit],
     );
 
-    const [itemsResult, paymentsResult] = await Promise.all([
-      client.query("SELECT product_id,product_name_snapshot,unit_price::text,unit_cost::text,quantity::text,unit FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY line_key", [identity.accountId, saleId]),
-      client.query("SELECT amount::text,occurred_at FROM public.receivable_payments WHERE tenant_id=$1 AND sale_id=$2 ORDER BY occurred_at,id", [identity.accountId, saleId]),
-    ]);
+    const itemsResult = await client.query("SELECT product_id,product_name_snapshot,unit_price::text,unit_cost::text,quantity::text,unit FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY line_key", [identity.accountId, saleId]);
+    const paymentsResult = await client.query("SELECT amount::text,occurred_at FROM public.receivable_payments WHERE tenant_id=$1 AND sale_id=$2 ORDER BY occurred_at,id", [identity.accountId, saleId]);
     const saleProjection = {
       id: saleId, date: sale.occurred_at, cashSessionId: sale.cash_session_id,
       items: itemsResult.rows.map((item: any) => ({ productId: item.product_id, name: item.product_name_snapshot, price: Number(item.unit_price), cost: Number(item.unit_cost), qty: Number(item.quantity), unit: item.unit })),
