@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -214,26 +214,28 @@ function PDV() {
     }
     setIsFinalizing(true);
     window.setTimeout(() => {
-      try { completeSale(); }
-      finally { setIsFinalizing(false); }
+      void completeSale().finally(() => setIsFinalizing(false));
     }, 2000);
   };
 
-  const completeSale = () => {
-    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
-    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
+  const completeSale = async () => {
+    try {
+      const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
+      if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return; }
+      await confirmLastDomainCommand();
+      setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+    } catch (error) {
+      await hydrateStore().catch(() => undefined);
+      setFlash(error instanceof Error ? error.message : "A venda não foi confirmada pelo servidor. Tente sincronizar novamente.");
+    }
   };
 
   const confirmPixPayment = () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
     window.setTimeout(() => {
-      try {
-        setPixPayload("");
-        completeSale();
-      } finally {
-        setIsConfirmingPix(false);
-      }
+      setPixPayload("");
+      void completeSale().finally(() => setIsConfirmingPix(false));
     }, 2000);
   };
 
