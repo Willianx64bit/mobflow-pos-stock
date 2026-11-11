@@ -100,6 +100,8 @@ let syncInFlight: Promise<{ sent: number; failed: number; pending: number; appli
 let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
+let realtimeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeCatchupTimer: ReturnType<typeof setInterval> | null = null;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
@@ -536,6 +538,7 @@ function startRealtime(accountId: string) {
       stopRealtimeSubscription?.();
       stopRealtimeSubscription = null;
       realtimeOwnerId = null;
+      reconnect();
     },
   ).then((stop) => {
     if (realtimeOwnerId !== accountId || cloudAccountId !== accountId) {
@@ -546,7 +549,8 @@ function startRealtime(accountId: string) {
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
     realtimeOwnerId = null;
-    console.warn("[MobFlow Realtime] Incremental pull will retry on the next wake-up.");
+    reconnect();
+    console.warn("[MobFlow Realtime] Reconnect scheduled; cursor catch-up remains active.");
   });
 }
 
