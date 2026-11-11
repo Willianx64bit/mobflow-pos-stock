@@ -60,6 +60,28 @@ describe("MobFlow incremental event projection", () => {
     expect(next.cashMovements[0]).toMatchObject({ id: "server-movement-id", amount: 20, reason: "Troco" });
   });
 
+  it("restores adjustment, writeoff and transfer history from Neon operation events", () => {
+    const adjustment = event({
+      category: "stock", entity_type: "stock_operation", entity_id: "adjustment-1",
+      payload: { operationId: "adjustment-1", operationType: "adjustment", stockAdjustment: { id: "adjustment-1", reason: "Balanço", items: [{ productId: "p1", quantity: 4 }] } },
+    });
+    const writeoff = event({
+      category: "stock", entity_type: "stock_writeoff", entity_id: "writeoff-1",
+      payload: { operation: "upsert", stockOperation: { id: "writeoff-1", reason: "Perda", items: [{ productId: "p1", quantity: 1 }] } },
+    });
+    const transfer = event({
+      category: "stock", entity_type: "stock_transfer", entity_id: "transfer-1",
+      payload: { operation: "upsert", stockOperation: { id: "transfer-1", destinationName: "Loja B", items: [{ productId: "p1", quantity: 2 }] } },
+    });
+    const next = applySyncEventsToState(state, [adjustment, writeoff, transfer]);
+    expect(next.stockAdjustments).toHaveLength(1);
+    expect(next.stockAdjustments[0]).toMatchObject({ id: "adjustment-1", reason: "Balanço" });
+    expect(next.stockWriteoffs).toHaveLength(1);
+    expect(next.stockWriteoffs[0]).toMatchObject({ id: "writeoff-1", reason: "Perda" });
+    expect(next.stockTransfers).toHaveLength(1);
+    expect(next.stockTransfers[0]).toMatchObject({ id: "transfer-1", destinationName: "Loja B" });
+  });
+
   it("applies promotion upserts and deletes idempotently", () => {
     const promotionEvent = event({
       category: "promotions", entity_type: "promotion", entity_id: "promo-1",
