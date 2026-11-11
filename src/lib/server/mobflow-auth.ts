@@ -132,8 +132,13 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
 
   try {
     const signingKey = candidates[0];
-    if (!signingKey) throw new Error("Missing signing key");
-    const publicKey = createPublicKey({ key: { ...signingKey } as JsonWebKey, format: "jwk" });
+    if (!signingKey || typeof signingKey.x !== "string" || !signingKey.x) {
+      throw new Error("Missing Ed25519 public key material");
+    }
+    const publicKey = createPublicKey({
+      key: signingKey as unknown as import("node:crypto").JsonWebKeyInput,
+      format: "jwk",
+    });
     const valid = verifySignature(
       null,
       Buffer.from(`${encodedHeader}.${encodedPayload}`),
