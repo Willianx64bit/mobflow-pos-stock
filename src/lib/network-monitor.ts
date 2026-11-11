@@ -64,10 +64,21 @@ if (typeof window !== "undefined") {
       };
 
       const originalOpen = XMLHttpRequest.prototype.open;
-      XMLHttpRequest.prototype.open = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest["open"]>) {
+      XMLHttpRequest.prototype.open = function(
+        this: XMLHttpRequest,
+        method: string,
+        url: string | URL,
+        async?: boolean,
+        username?: string | null,
+        password?: string | null,
+      ): void {
         const meta = this as XMLHttpRequest & { __mfnet?: { method: string; url: string } };
-        meta.__mfnet = { method: String(args[0] ?? "GET"), url: String(args[1] ?? "") };
-        return originalOpen.apply(this, args);
+        meta.__mfnet = { method: String(method || "GET"), url: String(url) };
+        if (async === undefined) {
+          originalOpen.call(this, method, url);
+        } else {
+          originalOpen.call(this, method, url, async, username, password);
+        }
       };
 
       const originalSend = XMLHttpRequest.prototype.send;
