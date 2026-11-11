@@ -63,11 +63,11 @@ export function ProductForm({ product, onClose }: Props) {
         const form=new FormData();form.append("file",photoFile);
         const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(id),{method:"POST",body:form});
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível enviar a foto.");
-        photoUrl=result.photoUrl;photoObjectKey=result.photoObjectKey;
+        photoUrl=result.photoUrl;photoObjectKey=result.photoObjectKey;if(neonCatalog&&serverProduct&&Number.isSafeInteger(Number(result.version))){savedVersion=Number(result.version);serverProduct={...serverProduct,version:savedVersion,photoObjectKey};}
       } else if(product?.id&&!f.photo&&product.photo){
         const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(product.id),{method:"DELETE"});
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
-        photoUrl=undefined;photoObjectKey=undefined;
+        photoUrl=undefined;photoObjectKey=undefined;if(neonCatalog&&serverProduct&&Number.isSafeInteger(Number(result.version))){savedVersion=Number(result.version);serverProduct={...serverProduct,version:savedVersion,photoObjectKey:undefined};}
       }
       if(neonCatalog){
         if(!serverProduct)throw new Error("O Neon não devolveu o produto confirmado. O formulário foi mantido aberto.");
