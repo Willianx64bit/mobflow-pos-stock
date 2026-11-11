@@ -35,7 +35,7 @@ export type StockAdjustment = { id: string; date: string; reason: string; operat
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
 export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any; accessKey?: string };
 export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string | undefined; destinationPhone?: string | undefined; destinationStreet?: string | undefined; destinationNumber?: string | undefined; destinationCep?: string | undefined; destinationNeighborhood?: string | undefined; destinationCity?: string | undefined; destinationState?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any; accessKey?: string };
-type CashSession = { id: string; openedAt: string; openedBy: string; openingAmount: number; status: "open" | "closed"; closedAt?: string | undefined; closedBy?: string | undefined; countedCash?: number | undefined; expectedCash?: number | undefined; difference?: number | undefined; note?: string | undefined };
+type CashSession = { id: string; openedAt: string; openedBy: string; operatorUsername?: string | undefined; openingAmount: number; status: "open" | "closed"; closedAt?: string | undefined; closedBy?: string | undefined; countedCash?: number | undefined; expectedCash?: number | undefined; difference?: number | undefined; note?: string | undefined };
 export type CashMovement = { id: string; sessionId: string; type: "sangria" | "reforco"; amount: number; reason: string; operator: string; date: string };
 export type Conference = {
   id: string;
@@ -114,6 +114,10 @@ const incrementalSyncEnabled = () =>
   import.meta.env["VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY"] === "true";
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
+const isCashSessionForOperator = (session: CashSession, username: string) => {
+  const expected = username.trim().toLocaleLowerCase();
+  return !!expected && (session.operatorUsername?.trim().toLocaleLowerCase() === expected || session.openedBy.trim().toLocaleLowerCase() === expected);
+};
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
@@ -645,6 +649,29 @@ export async function hydrateStore() {
         lastSyncedState = null;
       }
 
+      // Resolve the authenticated operator identity separately from the display name.
+      // The snapshot keeps the display label; operatorUsername is the stable login key
+      // used by cash actions on every device, including compatibility mode.
+      try {
+        const cashStatus = await callMobFlowApi("/api/mobflow/cash");
+        if (cashStatus.response.ok && cashStatus.body.ok === true) {
+          const remote = cashStatus.body.session as null | { id: string; status: "open"; openingAmount: number; openedAt: string; note?: string; operatorUsername: string };
+          const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+          if (username) {
+            const existing = remote ? state.cashSessions.find((item) => item.id === remote.id) : undefined;
+            const retained = state.cashSessions.filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
+            const canonical: CashSession[] = remote ? [{
+              id: remote.id, status: "open", openingAmount: Number(remote.openingAmount), openedAt: remote.openedAt,
+              openedBy: existing?.openedBy ?? remote.operatorUsername, operatorUsername: remote.operatorUsername,
+              ...(remote.note ? { note: remote.note } : {}),
+            }] : [];
+            state = { ...state, cashSessions: [...canonical, ...retained] };
+          }
+        }
+      } catch (error) {
+        console.warn("[MobFlow Cash] Could not reconcile the current operator session:", error);
+      }
+
       // Publish the authoritative Neon snapshot before loading secondary private data.
       // A contacts/settings failure must never hide persisted sales, cash sessions or stock.
       normalizeState();
@@ -803,8 +830,9 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
       const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
       if (username) {
-        const retained = (state.cashSessions ?? []).filter((item) => item.status !== "open" || item.openedBy !== username);
-        const canonical = remote ? [{ id:remote.id, status:"open" as const, openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
+        const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
+        const existing = remote ? state.cashSessions.find((item) => item.id === remote.id) : undefined;
+        const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:existing?.openedBy ?? remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
         set({ cashSessions: [...canonical, ...retained] }, { persist: false });
       }
     }
@@ -858,15 +886,15 @@ export const actions = {
   openCashSession(openingAmount: number, note = "") {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
     if (!operator || !Number.isFinite(openingAmount) || openingAmount < 0) return false;
-    if ((state.cashSessions ?? []).some((session) => session.status === "open" && session.openedBy === operator)) return false;
-    const session: CashSession = { id: crypto.randomUUID(), openedAt: new Date().toISOString(), openedBy: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
+    if ((state.cashSessions ?? []).some((session) => session.status === "open" && isCashSessionForOperator(session, operator))) return false;
+    const session: CashSession = { id: crypto.randomUUID(), openedAt: new Date().toISOString(), openedBy: operator, operatorUsername: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
     const queued = enqueueDomainCommand("cash", { action: "open", sessionId: session.id, openingAmount: session.openingAmount, note: session.note ?? "", idempotencyKey: crypto.randomUUID() });
     set({ cashSessions: [session, ...(state.cashSessions ?? [])] }, { persist: !queued });
     return session.id;
   },
   addCashMovement(type: "sangria" | "reforco", amount: number, reason: string) {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
-    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
+    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && isCashSessionForOperator(item, operator));
     if (!session || !Number.isFinite(amount) || amount <= 0 || !reason.trim()) return false;
     const movement: CashMovement = { id: crypto.randomUUID(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
     const queued = enqueueDomainCommand("cash", { action: "movement", sessionId: session.id, amount: movement.amount, movementType: type === "reforco" ? "addition" : "withdrawal", reason: movement.reason, idempotencyKey: movement.id });
@@ -926,7 +954,7 @@ export const actions = {
     if (!state.cart.length) return null;
     // Regra de segurança: nenhuma venda pode ser registrada sem caixa aberto para o operador atual.
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
-    const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && session.openedBy === operator);
+    const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && isCashSessionForOperator(session, operator));
     if (!operator || !activeCash) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
