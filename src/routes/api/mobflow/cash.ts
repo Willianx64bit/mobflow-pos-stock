@@ -53,7 +53,7 @@ export async function handleMobFlowCash(request: Request) {
     const {client,identity}=tx;
     if(!(identity.role==="manager"||(identity.role==="pdv"&&Array.isArray(identity.permissions)&&identity.permissions.includes("PDV")))) fail("Usuário sem permissão para operar o caixa.",403,"permission_denied");
     await assertSchema(client);
-    const operatorName=identity.displayName||identity.username;
+    const operatorName=identity.username;
     const now=new Date().toISOString();
 
     if(action==="open") {
@@ -66,7 +66,7 @@ export async function handleMobFlowCash(request: Request) {
         if(p.operator_profile_id!==identity.userId) fail("Identificador de caixa já utilizado.",409,"idempotency_conflict");
         if(p.status!=="open"||Number(p.opening_amount)!==cents(opening)) fail("Identificador de caixa reutilizado com dados diferentes.",409,"idempotency_conflict");
         await releaseTransaction(client,true); tx=null;
-        return Response.json({ok:true,replayed:true,session:{id:p.id,status:p.status,openingAmount:Number(p.opening_amount),openedAt:p.opened_at}});
+        return Response.json({ok:true,replayed:true,session:{id:p.id,status:p.status,openingAmount:Number(p.opening_amount),openedAt:p.opened_at,operatorUsername:identity.username,openedBy:identity.username}});
       }
       const active=await client.query("SELECT id,status,opening_amount::text,opened_at,opening_note FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id=$2 AND status='open' ORDER BY opened_at DESC LIMIT 1 FOR UPDATE",[identity.accountId,identity.userId]);
       if(active.rows.length) {
@@ -77,7 +77,7 @@ export async function handleMobFlowCash(request: Request) {
       await client.query("INSERT INTO public.cash_sessions(tenant_id,id,operator_profile_id,operator_snapshot,status,opening_amount,opened_at,opening_note) VALUES($1,$2,$3,$4,'open',$5,$6,$7)",[identity.accountId,sessionId,identity.userId,operatorName,cents(opening),now,str(body.note,500)||null]);
       await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'cash','automatic','cash_session',$3,$4::jsonb)",[randomUUID(),stableUuid(identity.accountId+":cash-open:"+sessionId),sessionId,JSON.stringify({sessionId,status:"open",openingAmount:cents(opening),operator:operatorName,operatorUsername:identity.username,openedAt:now,note:str(body.note,500)||undefined})]);
       await releaseTransaction(client,true); tx=null;
-      return Response.json({ok:true,replayed:false,session:{id:sessionId,status:"open",openingAmount:cents(opening),openedAt:now}},{status:201});
+      return Response.json({ok:true,replayed:false,session:{id:sessionId,status:"open",openingAmount:cents(opening),openedAt:now,operatorUsername:identity.username,openedBy:identity.username}},{status:201});
     }
 
     if(action==="movement") {
