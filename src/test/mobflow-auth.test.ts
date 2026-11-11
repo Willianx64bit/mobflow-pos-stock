@@ -125,7 +125,8 @@ describe("MobFlow Neon API authentication", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [profile()] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ subscription_status: "active", subscription_expires_at: null }] });
 
     const result = await beginAuthenticatedTransaction(request("valid-token"));
 
@@ -187,7 +188,8 @@ describe("MobFlow Neon API authentication", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [profile({ account_id: ACCOUNT_ID, role: "manager" })] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ subscription_status: "active", subscription_expires_at: null }] });
 
     const forgedRequest = new Request("https://mobflow.test/api/mobflow/session-context", {
       method: "POST",
