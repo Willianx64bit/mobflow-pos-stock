@@ -10,14 +10,14 @@ const uuid=(v:unknown):v is string=>typeof v==="string"&&/^[0-9a-f]{8}-[0-9a-f]{
 const str=(v:unknown,n=180)=>typeof v==="string"?v.trim().slice(0,n):"";
 const qty3=(v:number)=>Math.round((v+Number.EPSILON)*1000)/1000;
 const money=(v:number)=>Math.round((v+Number.EPSILON)*100)/100;
-function stableUuid(v:string){const b=createHash("sha256").update(v).digest().subarray(0,16);b[6]=(b[6]&15)|0x50;b[8]=(b[8]&0x3f)|0x80;const h=b.toString("hex");return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}
+function stableUuid(v:string){const b=createHash("sha256").update(v).digest().subarray(0,16);b[6]=((b[6]??0)&15)|0x50;b[8]=((b[8]??0)&0x3f)|0x80;const h=b.toString("hex");return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;}
 function errorResponse(e:unknown){if(e instanceof StockError)return Response.json({ok:false,error:e.message,code:e.code},{status:e.status});if(e instanceof ApiAuthError)return jsonError(e);const code=typeof e==="object"&&e&&"code"in e?String((e as {code:unknown}).code):"";if(code==="23505")return Response.json({ok:false,error:"Esta movimentação já foi registrada.",code:"duplicate_operation"},{status:409});if(code==="23503"||code==="23514")return Response.json({ok:false,error:"A movimentação não atende às regras do estoque.",code:"stock_constraint"},{status:409});return jsonError(e);}
 async function schema(client:any){const r=await client.query("SELECT to_regclass('public.products')::text AS products,to_regclass('public.stock_movements')::text AS ledger,to_regclass('public.mobflow_sync_events')::text AS events,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS append_fn");if(Object.values(r.rows[0]??{}).some(v=>!v))fail("Estrutura relacional do estoque ainda não está pronta.",503,"stock_schema_not_ready");}
 export async function handleMobFlowStock(request:Request){
  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"Comandos Neon de estoque não habilitados neste ambiente.",code:"stock_provider_disabled"},{status:503});
  let tx:Awaited<ReturnType<typeof beginAuthenticatedTransaction>>|null=null;
  try{
-  const body=await request.json().catch(()=>null) as Input|null;if(!body||typeof body!=="object")fail("Solicitação inválida.");
+  const body=await request.json().catch(()=>null) as Input|null;if (!body || typeof body !== "object") return Response.json({ ok: false, error: "Solicitação inválida.", code: "invalid_stock_operation" }, { status: 400 });
   const operationId=str(body.operationId,100),operationType=body.operationType as Operation,reason=str(body.reason,500);
   if(!operationId||!uuid(body.idempotencyKey)||!["adjustment","writeoff","entry","transfer"].includes(String(operationType))||!reason)fail("Identificação, tipo ou motivo inválido.");
   if(!Array.isArray(body.items)||body.items.length<1||body.items.length>300)fail("Itens inválidos.");
