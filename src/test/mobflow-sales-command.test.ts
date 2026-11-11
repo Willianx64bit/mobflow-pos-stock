@@ -28,7 +28,7 @@ const payload = () => ({
   discountAmount: 0,
   items: [{ productId: "product-1", quantity: 2 }],
 });
-function request(body = payload()) {
+function request(body: Record<string, unknown> = payload()) {
   return new Request("https://mobflow.test/api/mobflow/sales", {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
   });
