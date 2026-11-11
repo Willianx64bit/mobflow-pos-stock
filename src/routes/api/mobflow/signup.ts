@@ -62,9 +62,9 @@ function errorResponse(message: string, status = 400) {
 }
 
 async function submitPaymentProof(body: Record<string, unknown>) {
-  const requestToken = String(body.requestToken ?? "");
-  const mimeType = String(body.mimeType ?? "");
-  const base64 = String(body.fileBase64 ?? "");
+  const requestToken = String(body["requestToken"] ?? "");
+  const mimeType = String(body["mimeType"] ?? "");
+  const base64 = String(body["fileBase64"] ?? "");
   const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
   if (!/^[0-9a-f-]{36}$/i.test(requestToken)) return errorResponse("Solicitação inválida. Refaça o cadastro.");
   if (!allowedTypes.includes(mimeType)) return errorResponse("Envie uma imagem JPG, PNG, WEBP ou um PDF.");
@@ -126,10 +126,10 @@ async function submitPaymentProof(body: Record<string, unknown>) {
 }
 
 async function completeManagerSetup(body: Record<string, unknown>) {
-  const cnpj = cleanDigits(body.cnpj);
-  const setupToken = String(body.setupToken ?? "");
-  const username = normalizeUsername(body.username);
-  const password = String(body.password ?? "");
+  const cnpj = cleanDigits(body["cnpj"]);
+  const setupToken = String(body["setupToken"] ?? "");
+  const username = normalizeUsername(body["username"]);
+  const password = String(body["password"] ?? "");
   if (cnpj.length !== 14 || !/^[0-9a-f-]{36}$/i.test(setupToken)) return errorResponse("Dados de primeiro acesso inválidos.");
   if (!/^[A-Z0-9._-]{3,40}$/.test(username)) return errorResponse("O usuário deve ter de 3 a 40 caracteres: letras, números, ponto, hífen ou underline.");
   if (password.length < 8 || password.length > 128) return errorResponse("A senha precisa ter pelo menos 8 caracteres.");
@@ -192,12 +192,12 @@ async function completeManagerSetup(body: Record<string, unknown>) {
 }
 
 async function createCompany(body: Record<string, unknown>) {
-  const companyName = String(body.companyName ?? "").trim();
-  const username = normalizeUsername(body.username);
-  const password = String(body.password ?? "");
-  const cnpj = cleanDigits(body.cnpj);
-  const phone = cleanDigits(body.phone);
-  const email = String(body.email ?? "").trim().toLowerCase();
+  const companyName = String(body["companyName"] ?? "").trim();
+  const username = normalizeUsername(body["username"]);
+  const password = String(body["password"] ?? "");
+  const cnpj = cleanDigits(body["cnpj"]);
+  const phone = cleanDigits(body["phone"]);
+  const email = String(body["email"] ?? "").trim().toLowerCase();
 
   if (companyName.length < 2 || companyName.length > 120) return errorResponse("Informe o nome da empresa (2 a 120 caracteres).");
   if (cnpj.length !== 14) return errorResponse("Informe um CNPJ com 14 números.");
@@ -337,13 +337,13 @@ async function createCompany(body: Record<string, unknown>) {
 }
 
 async function handleSignup(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return errorResponse("Este fluxo ainda não está ativo neste ambiente.", 503);
   }
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return errorResponse("Solicitação inválida."); }
-  if (body.action === "submit_payment_proof") return submitPaymentProof(body);
-  if (body.action === "complete_manager_setup") return completeManagerSetup(body);
+  if (body["action"] === "submit_payment_proof") return submitPaymentProof(body);
+  if (body["action"] === "complete_manager_setup") return completeManagerSetup(body);
   return createCompany(body);
 }
 
