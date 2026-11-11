@@ -45,6 +45,21 @@ describe("MobFlow incremental event projection", () => {
     expect(next.cashMovements[0]).toMatchObject({ id: "movement-1", type: "reforco", amount: 20 });
   });
 
+  it("replaces an optimistic cash movement with the canonical server ID", () => {
+    const optimistic = {
+      id: "local-movement-id", sessionId: "cash-1", type: "reforco" as const,
+      amount: 20, reason: "Troco", operator: "Operador", date: "2026-11-08T10:04:59.000Z",
+    };
+    const current = { ...state, cashMovements: [optimistic] } as State;
+    const movement = event({
+      category: "cash", entity_type: "cash_movement", entity_id: "server-movement-id",
+      payload: { movement: { id: "server-movement-id", sessionId: "cash-1", type: "reforco", amount: 20, reason: "Troco", operator: "Operador", date: "2026-11-08T10:05:00.000Z" } },
+    });
+    const next = applySyncEventsToState(current, [movement]);
+    expect(next.cashMovements).toHaveLength(1);
+    expect(next.cashMovements[0]).toMatchObject({ id: "server-movement-id", amount: 20, reason: "Troco" });
+  });
+
   it("applies promotion upserts and deletes idempotently", () => {
     const promotionEvent = event({
       category: "promotions", entity_type: "promotion", entity_id: "promo-1",
