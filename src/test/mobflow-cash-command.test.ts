@@ -50,7 +50,7 @@ describe("Neon cash commands",()=>{
   client.query.mockImplementation(async(sql:string)=>{
    if(sql.includes("to_regclass"))return{rows:[{sessions:"cash_sessions",movements:"cash_movements",sales:"sales",events:"mobflow_sync_events",append_fn:"fn"}]};
    if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE"))return{rows:[{id:SESSION,status:"open",operator_profile_id:USER,opening_amount:"100"}]};
-   if(sql.includes("FROM public.sales"))return{rows:[{total:"50"}]};
+   if(sql.includes("FROM public.sale_payments"))return{rows:[{total:"50"}]};
    if(sql.includes("FROM public.cash_movements"))return{rows:[{additions:"10",withdrawals:"5"}]};
    if(sql.includes("UPDATE public.cash_sessions"))return{rowCount:1,rows:[]};
    return{rows:[]};
