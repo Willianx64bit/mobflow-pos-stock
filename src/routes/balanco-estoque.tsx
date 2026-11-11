@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
-import { productHasBarcode, actions, useStore, type Product } from "@/lib/store";
+import { productHasBarcode, actions, confirmLastDomainCommand, hydrateStore, useStore, type Product } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter, Loader2, History } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
@@ -115,9 +115,17 @@ function BalancoEstoque() {
     setError("");
     await new Promise((resolve) => window.setTimeout(resolve, 2000));
     const result = actions.applyStockAdjustmentBatch({ reason: reason.trim(), items: payload });
+    if (!result) { setSaving(false); setError("Não foi possível registrar o balanço. Confira os produtos e tente novamente."); return; }
+    try {
+      await confirmLastDomainCommand();
+    } catch (confirmationError) {
+      await hydrateStore().catch(() => undefined);
+      setSaving(false);
+      setError(confirmationError instanceof Error ? confirmationError.message : "O Neon não confirmou o ajuste de estoque.");
+      return;
+    }
     setSaving(false);
-    if (!result) { setError("Não foi possível registrar o balanço. Confira os produtos e tente novamente."); return; }
-    setMessage(`Balanço registrado com sucesso: ${drafts.length} produto(s) ajustado(s).`);
+    setMessage(`Ajuste de estoque confirmado pelo servidor: ${drafts.length} produto(s) ajustado(s).`);
     setDrafts([]);
     setReason("");
     setQuery("");
