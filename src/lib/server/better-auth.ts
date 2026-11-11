@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import { Pool } from "pg";
 
 let pool: Pool | null = null;
-let authInstance: ReturnType<typeof betterAuth> | null = null;
+let authInstance: ReturnType<typeof createAuthInstance> | null = null;
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -13,33 +13,10 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-/**
- * Self-managed Better Auth for the MobFlow migration.
- * This is separate from Neon Managed Auth's neon_auth schema.
- * Existing Supabase bcrypt hashes can be imported into Better Auth's
- * account.password column and verified by the custom bcrypt verifier.
- */
-export function getMobFlowBetterAuth() {
-  if (authInstance) return authInstance;
-
-  const databaseUrl = process.env.MOBFLOW_AUTH_DATABASE_URL?.trim() || requiredEnv("NEON_DATABASE_URL");
-  const secret = requiredEnv("BETTER_AUTH_SECRET");
-  const baseURL = requiredEnv("BETTER_AUTH_URL");
-  const trustedOrigins = (process.env.BETTER_AUTH_TRUSTED_ORIGINS || baseURL)
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  pool = new Pool({
-    connectionString: databaseUrl,
-    max: 5,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 10_000,
-  });
-
-  authInstance = betterAuth({
+function createAuthInstance(database: Pool) {
+  return betterAuth({
     appName: "MobFlow",
-    database: pool,
+    database,
     baseURL,
     secret,
     trustedOrigins,
@@ -61,7 +38,35 @@ export function getMobFlowBetterAuth() {
       },
     },
     plugins: [tanstackStartCookies()],
+  }));
+}
+
+/**
+ * Self-managed Better Auth for the MobFlow migration.
+ * This is separate from Neon Managed Auth's neon_auth schema.
+ * Existing Supabase bcrypt hashes can be imported into Better Auth's
+ * account.password column and verified by the custom bcrypt verifier.
+ */
+export function getMobFlowBetterAuth() {
+  if (authInstance) return authInstance;
+
+  const databaseUrl = process.env["MOBFLOW_AUTH_DATABASE_URL"]?.trim() || requiredEnv("NEON_DATABASE_URL");
+  const secret = requiredEnv("BETTER_AUTH_SECRET");
+  const baseURL = requiredEnv("BETTER_AUTH_URL");
+  const trustedOrigins = (process.env["BETTER_AUTH_TRUSTED_ORIGINS"] || baseURL)
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  pool = new Pool({
+    connectionString: databaseUrl,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
   });
+
+  authInstance = createAuthInstance(pool);
+;
 
   return authInstance;
 }
