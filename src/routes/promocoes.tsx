@@ -149,7 +149,7 @@ function Promotions() {
               <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-heading">{label} · Versão {event.payload?.version ?? "—"}</span><span className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString("pt-BR")}</span></div>
               <div className="mt-1 break-all text-xs text-muted-foreground">Evento: {event.event_id}</div><div className="break-all text-xs text-muted-foreground">Promoção: {event.entity_id} · Sequência: {event.sequence}</div>
             </div>; })}
-          </div>}
+          </div> : null}
         </section>
       </main>
     </div>
