@@ -24,18 +24,18 @@ type ReceivingNote = {
 };
 
 export async function handleMobFlowReceiving(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
   }
 
   let transaction: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
-    const action = String(body.action ?? "");
-    const receivingId = String(body.receivingId ?? "");
+    const action = String(body["action"] ?? "");
+    const receivingId = String(body["receivingId"] ?? "");
     if (action === "save_conference") {
-      const conference = body.conference as Record<string,unknown> | undefined;
-      if (!conference || typeof conference.id !== "string" || typeof conference.receivingId !== "string" || !conference.receivingId) {
+      const conference = body["conference"] as Record<string,unknown> | undefined;
+      if (!conference || typeof conference["id"] !== "string" || typeof conference["receivingId"] !== "string" || !conference["receivingId"]) {
         return Response.json({ok:false,error:"Conferência de recebimento inválida."},{status:400});
       }
       transaction = await beginAuthenticatedTransaction(request);
@@ -43,14 +43,14 @@ export async function handleMobFlowReceiving(request: Request) {
       const row = await client.query<{state:Record<string,unknown>}>("SELECT state FROM public.app_state WHERE owner_id=$1 FOR UPDATE",[transaction.identity.accountId]);
       const state = row.rows[0]?.state;
       if (!state || typeof state !== "object") { await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Dados da empresa não encontrados."},{status:404}); }
-      const receiving = Array.isArray(state.receiving) ? state.receiving as ReceivingNote[] : [];
-      if (!receiving.some((note)=>note.id===conference.receivingId)) { await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Recebimento relacionado não encontrado."},{status:404}); }
-      const conferences = Array.isArray(state.conferences) ? state.conferences as Array<Record<string,unknown>> : [];
-      const saved = conferences.some((item)=>item.id===conference.id)
-        ? conferences.map((item)=>item.id===conference.id?conference:item)
+      const receiving = Array.isArray(state["receiving"]) ? state["receiving"] as ReceivingNote[] : [];
+      if (!receiving.some((note)=>note.id===conference["receivingId"])) { await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Recebimento relacionado não encontrado."},{status:404}); }
+      const conferences = Array.isArray(state["conferences"]) ? state["conferences"] as Array<Record<string,unknown>> : [];
+      const saved = conferences.some((item)=>item["id"]===conference["id"])
+        ? conferences.map((item)=>item["id"]===conference["id"]?conference:item)
         : [conference,...conferences];
       await client.query("UPDATE public.app_state SET state=jsonb_set(state,'{conferences}',$2::jsonb,true),updated_at=now() WHERE owner_id=$1",[transaction.identity.accountId,JSON.stringify(saved)]);
-      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'conference','manual','conference',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving-conference:"+conference.id+":"+JSON.stringify(conference)),conference.id,JSON.stringify({operation:"upsert",conference})]);
+      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'conference','manual','conference',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving-conference:"+conference["id"]+":"+JSON.stringify(conference)),conference["id"],JSON.stringify({operation:"upsert",conference})]);
       await releaseTransaction(client,true);transaction=null;return Response.json({ok:true,data:true});
     }
     if (action === "save" || action === "delete") {
@@ -59,7 +59,7 @@ export async function handleMobFlowReceiving(request: Request) {
       const row = await client.query<{state:Record<string,unknown>}>("SELECT state FROM public.app_state WHERE owner_id=$1 FOR UPDATE",[transaction.identity.accountId]);
       const state = row.rows[0]?.state;
       if (!state || typeof state !== "object") { await releaseTransaction(client,false); transaction=null; return Response.json({ok:false,error:"Dados da empresa não encontrados."},{status:404}); }
-      const current = Array.isArray(state.receiving) ? state.receiving as ReceivingNote[] : [];
+      const current = Array.isArray(state["receiving"]) ? state["receiving"] as ReceivingNote[] : [];
       if (action === "delete") {
         if (!receivingId) { await releaseTransaction(client,false); transaction=null; return Response.json({ok:false,error:"Identificador inválido."},{status:400}); }
         const old = current.find((item)=>item.id===receivingId);
@@ -69,13 +69,13 @@ export async function handleMobFlowReceiving(request: Request) {
         await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'receiving','manual','receiving',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving:"+receivingId+":delete"),receivingId,JSON.stringify({operation:"delete",privateDetailsAvailable:true})]);
         await releaseTransaction(client,true);transaction=null;return Response.json({ok:true,data:true});
       }
-      const raw = body.note as ReceivingNote | undefined;
+      const raw = body["note"] as ReceivingNote | undefined;
       if (!raw || typeof raw!=="object" || Array.isArray(raw) || typeof raw.id!=="string" || !raw.id || !Array.isArray(raw.items) || !["pendente","analisando","conferido","divergente","aceito","rejeitado"].includes(String(raw.status))) {
         await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Dados do recebimento inválidos."},{status:400});
       }
       const old = current.find((item)=>item.id===raw.id);
       if (old?.stockReleased) { await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Um recebimento já liberado não pode ser alterado."},{status:409}); }
-      const productIds = new Set((Array.isArray(state.products)?state.products as Array<Record<string,unknown>>:[]).map((item)=>String(item.id??"")));
+      const productIds = new Set((Array.isArray(state["products"])?state["products"] as Array<Record<string,unknown>>:[]).map((item)=>String(item["id"]??"")));
       const lines = [...raw.items,...(Array.isArray((raw as any).extras)?(raw as any).extras:[])];
       if (!lines.length || lines.some((line:any)=>typeof line.productId!=="string"||!productIds.has(line.productId))) {
         await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Os produtos do recebimento não pertencem a esta empresa."},{status:400});
@@ -107,13 +107,13 @@ export async function handleMobFlowReceiving(request: Request) {
       return Response.json({ ok: true, data: false });
     }
 
-    const receiving = Array.isArray(state.receiving) ? state.receiving as ReceivingNote[] : [];
+    const receiving = Array.isArray(state["receiving"]) ? state["receiving"] as ReceivingNote[] : [];
     const index = receiving.findIndex((note) => note.id === receivingId);
     const note = index >= 0 ? receiving[index] : null;
     const lines = note ? [...(note.items ?? []), ...(note.extras ?? [])] : [];
     const decisions = action === "finalize_decisions"
-      ? (body.decisions && typeof body.decisions === "object" && !Array.isArray(body.decisions)
-        ? body.decisions as Record<string, string>
+      ? (body["decisions"] && typeof body["decisions"] === "object" && !Array.isArray(body["decisions"])
+        ? body["decisions"] as Record<string, string>
         : null)
       : (note?.decisions ?? null);
 
@@ -128,7 +128,7 @@ export async function handleMobFlowReceiving(request: Request) {
       return Response.json({ ok: true, data: false });
     }
 
-    const products = Array.isArray(state.products) ? state.products as Array<Record<string, unknown>> : [];
+    const products = Array.isArray(state["products"]) ? state["products"] as Array<Record<string, unknown>> : [];
     const additions = new Map<string, number>();
     for (const line of lines) {
       if (decisions[line.productId!] !== "aceitar") continue;
@@ -141,7 +141,7 @@ export async function handleMobFlowReceiving(request: Request) {
       additions.set(line.productId!, (additions.get(line.productId!) ?? 0) + quantity);
     }
 
-    const productIds = new Set(products.map((product) => String(product.id ?? "")));
+    const productIds = new Set(products.map((product) => String(product["id"] ?? "")));
     if ([...additions.keys()].some((id) => !productIds.has(id))) {
       await releaseTransaction(client, false);
       transaction = null;
@@ -149,12 +149,12 @@ export async function handleMobFlowReceiving(request: Request) {
     }
 
     const nextProducts = products.map((product) => {
-      const id = String(product.id ?? "");
+      const id = String(product["id"] ?? "");
       const amount = additions.get(id) ?? 0;
       if (!amount) return product;
-      const currentStock = product.stock === null || product.stock === undefined || product.stock === ""
+      const currentStock = product["stock"] === null || product["stock"] === undefined || product["stock"] === ""
         ? 0
-        : Number(product.stock);
+        : Number(product["stock"]);
       if (!Number.isFinite(currentStock) || currentStock < 0) {
         throw new Error("Estoque atual inválido para concluir o recebimento.");
       }
