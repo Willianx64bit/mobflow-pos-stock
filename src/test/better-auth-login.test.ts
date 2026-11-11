@@ -41,12 +41,12 @@ function request(password = "senha-correta", expectedRole = "manager") {
 }
 
 describe("MobFlow Better Auth login validation", () => {
-  const originalProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const originalProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
   let passwordHash: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
     passwordHash = await bcrypt.hash("senha-correta", 4);
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("mobflow_find_login_profile")) return { rows: [PROFILE] };
@@ -61,8 +61,8 @@ describe("MobFlow Better Auth login validation", () => {
   });
 
   afterEach(() => {
-    if (originalProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
+    if (originalProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = originalProvider;
   });
 
   it("validates a manager password, CNPJ and active subscription", async () => {
