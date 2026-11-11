@@ -34,10 +34,10 @@ function request(body = payload()) {
   });
 }
 describe("Neon atomic sale command", () => {
-  const previousProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const previousProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("to_regclass")) return { rows: [{ sales: "sales", items: "sale_items", payments: "sale_payments", receivables: "receivable_payments", stock: "stock_movements", events: "mobflow_sync_events", append_fn: "mobflow_append_sync_event" }] };
       if (sql.includes("FROM public.sales WHERE")) return { rows: [] };
@@ -51,8 +51,8 @@ describe("Neon atomic sale command", () => {
     });
   });
   afterEach(() => {
-    if (previousProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = previousProvider;
+    if (previousProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = previousProvider;
   });
 
   it("records sale, item, payment, stock and ledger in one committed transaction", async () => {
