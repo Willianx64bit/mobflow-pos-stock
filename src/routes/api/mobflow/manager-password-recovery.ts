@@ -7,13 +7,13 @@ const genericMessage = "Se os dados corresponderem à conta da Gerência, enviar
 const genericResponse = () => Response.json({ ok: true, message: genericMessage });
 
 async function requestRecovery(body: Record<string, unknown>) {
-  const email = String(body.email ?? "").trim().toLowerCase();
-  const cnpj = String(body.cnpj ?? "").replace(/\D/g, "");
+  const email = String(body["email"] ?? "").trim().toLowerCase();
+  const cnpj = String(body["cnpj"] ?? "").replace(/\D/g, "");
   if (!email || !email.includes("@") || cnpj.length !== 14) {
     return Response.json({ ok: false, error: "Informe um e-mail válido e o CNPJ completo da empresa." }, { status: 400 });
   }
 
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendApiKey = process.env["RESEND_API_KEY"];
   if (!resendApiKey) {
     return Response.json({ ok: false, error: "O envio de e-mail ainda não está configurado. Tente novamente mais tarde." }, { status: 503 });
   }
@@ -47,7 +47,7 @@ async function requestRecovery(body: Record<string, unknown>) {
       [accountId, tokenHash],
     );
 
-    const baseUrl = (process.env.MOBFLOW_APP_URL || "https://mobflow-pos-stock.vercel.app").replace(/\/+$/, "");
+    const baseUrl = (process.env["MOBFLOW_APP_URL"] || "https://mobflow-pos-stock.vercel.app").replace(/\/+$/, "");
     const resetUrl = baseUrl + "/recuperar-senha?token=" + encodeURIComponent(token);
     const html = `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#222">
 <h2>Recuperar senha da Gerência</h2>
@@ -100,8 +100,8 @@ async function requestRecovery(body: Record<string, unknown>) {
 }
 
 async function resetRecovery(body: Record<string, unknown>) {
-  const token = String(body.token ?? "").trim();
-  const password = String(body.password ?? "");
+  const token = String(body["token"] ?? "").trim();
+  const password = String(body["password"] ?? "");
   if (!token || token.length > 200) {
     return Response.json({ ok: false, error: "Link de recuperação inválido ou expirado." }, { status: 400 });
   }
@@ -157,14 +157,14 @@ async function resetRecovery(body: Record<string, unknown>) {
 }
 
 async function handleRecovery(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
   }
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch {
     return Response.json({ ok: false, error: "Solicitação inválida." }, { status: 400 });
   }
-  const action = String(body.action ?? "");
+  const action = String(body["action"] ?? "");
   if (action === "request") return requestRecovery(body);
   if (action === "reset") return resetRecovery(body);
   return Response.json({ ok: false, error: "Ação inválida." }, { status: 400 });
