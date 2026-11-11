@@ -133,7 +133,7 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
   try {
     const signingKey = candidates[0];
     if (!signingKey) throw new Error("Missing signing key");
-    const publicKey = createPublicKey({ key: signingKey, format: "jwk" });
+    const publicKey = createPublicKey({ key: { ...signingKey } as JsonWebKey, format: "jwk" });
     const valid = verifySignature(
       null,
       Buffer.from(`${encodedHeader}.${encodedPayload}`),
@@ -204,7 +204,7 @@ export async function beginAuthenticatedTransaction(request: Request): Promise<A
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL ROLE mobflow_api");
-        const profileId = await resolveAuthProfileId(client, authUserId);
+    const profileId = await resolveAuthProfileId(client, authUserId);
     await client.query("SELECT set_config('app.user_id', $1, true)", [profileId]);
 
     const profileResult = await client.query<{
