@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { PoolClient } from "@neondatabase/serverless";
 import bcrypt from "bcryptjs";
 import { createHash, randomUUID } from "node:crypto";
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
@@ -73,7 +74,7 @@ async function handleUsers(request: Request) {
   }
 
   let authTransaction: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
-  let client: Awaited<ReturnType<ReturnType<typeof getNeonPool>["connect"]>> | null = null;
+  let client: PoolClient | null = null;
   let transactionOpen = false;
 
   try {
@@ -319,7 +320,7 @@ async function handleUsers(request: Request) {
       return Response.json({ ok: true });
     }
 
-    deny("Ação inválida.", 400);
+    return deny("Ação inválida.", 400);
   } catch (error) {
     if (transactionOpen && client) await client.query("ROLLBACK").catch(() => undefined);
     if (authTransaction) await releaseTransaction(authTransaction.client, false).catch(() => undefined);
