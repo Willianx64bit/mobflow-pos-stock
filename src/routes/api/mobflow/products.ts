@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash, randomUUID } from "node:crypto";
+import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { beginAuthenticatedTransaction, jsonError, ApiAuthError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
@@ -148,6 +149,12 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)})});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
+function r2Client(){
+ const account=process.env["CLOUDFLARE_R2_ACCOUNT_ID"],access=process.env["CLOUDFLARE_R2_ACCESS_KEY_ID"],secret=process.env["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
+ const bucket=process.env["CLOUDFLARE_R2_BUCKET_NAME"];
+ if(!account||!access||!secret||!bucket)throw new Error("R2 não configurado.");
+ return {client:new S3Client({region:"auto",endpoint:`https://${account}.r2.cloudflarestorage.com`,credentials:{accessKeyId:access,secretAccessKey:secret}}),bucket};
+}
 async function deleteProduct(request:Request){
  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  let tx:any=null;
@@ -162,19 +169,38 @@ async function deleteProduct(request:Request){
   if(!locked.rows.length)fail("Produto não encontrado.",404,"product_not_found");
   const current=locked.rows[0],stock=Number(current.stock);
   if(!Number.isFinite(stock))fail("Não foi possível confirmar o estoque no Neon. Exclusão bloqueada.",409,"stock_unconfirmed");
-  if(!current.active){await releaseTransaction(c,true);tx=null;return Response.json({ok:true,deletedId:id,alreadyDeleted:true});}
-  if(stock>0)fail("Este produto não pode ser excluído porque ainda possui estoque acima de zero.",409,"product_has_stock");
-  const deletedVersion=Number(current.version)+1;
-  await appendCatalogEvent(c,i.accountId,i.userId,id,deletedVersion,{operation:"delete",productId:id,version:deletedVersion});
-  // Archive instead of physically deleting: sales, stock movements and other
-  // historical rows keep their product references and snapshot data intact.
-  const archived=await c.query(
-   "UPDATE public.products SET active=false,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND active=true AND version=$3 RETURNING id",
-   [i.accountId,id,current.version]
-  );
-  if(!archived.rows.length)fail("O produto foi alterado em outro dispositivo. Atualize e tente novamente.",409,"version_conflict");
+  if(current.active&&stock>0)fail("Este produto não pode ser excluído porque ainda possui estoque acima de zero.",409,"product_has_stock");
+  if(current.active){
+   const deletedVersion=Number(current.version)+1;
+   await appendCatalogEvent(c,i.accountId,i.userId,id,deletedVersion,{operation:"delete",productId:id,version:deletedVersion});
+   // Archive only; preserve all sales and stock-movement references/history.
+   const archived=await c.query("UPDATE public.products SET active=false,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND active=true AND version=$3 RETURNING id",[i.accountId,id,current.version]);
+   if(!archived.rows.length)fail("O produto foi alterado em outro dispositivo. Atualize e tente novamente.",409,"version_conflict");
+  }
+  const photoKey=current.photo_object_key as string|null;
   await releaseTransaction(c,true);tx=null;
-  return Response.json({ok:true,deletedId:id,stockAtDeletion:stock,archived:true});
+  if(!photoKey)return Response.json({ok:true,deletedId:id,stockAtDeletion:stock,archived:true,photoCleanup:"not_needed"});
+  // The archived row retaining photo_object_key is the durable cleanup-pending
+  // marker. A retry can safely repeat DeleteObject (R2 deletion is idempotent).
+  let storage:{client:S3Client;bucket:string};
+  try{
+   if(!photoKey.startsWith(`tenants/${i.accountId}/products/${id}/`))throw new Error("Chave de foto fora do escopo do produto.");
+   storage=r2Client();
+   await storage.client.send(new DeleteObjectCommand({Bucket:storage.bucket,Key:photoKey}));
+  }catch(e){
+   console.error("[MobFlow product R2 cleanup pending]",e instanceof Error?e.message:"unknown");
+   return Response.json({ok:false,archived:true,deletedId:id,photoCleanup:"pending",error:"Produto arquivado, mas a foto ainda não teve sua remoção confirmada no R2. Tente novamente para concluir."},{status:202});
+  }
+  // Clear the DB pointer and publish the delta only after R2 confirms deletion.
+  tx=await beginAuthenticatedTransaction(request);
+  const db=tx.client;
+  const cleared=await db.query("UPDATE public.products SET photo_object_key=NULL,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND active=false AND photo_object_key=$3 RETURNING version",[i.accountId,id,photoKey]);
+  if(cleared.rows.length){
+   const version=Number(cleared.rows[0].version);
+   await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_removed",productId:id,photoObjectKey:null,version})]);
+  }
+  await releaseTransaction(db,true);tx=null;
+  return Response.json({ok:true,deletedId:id,stockAtDeletion:stock,archived:true,photoCleanup:"confirmed"});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 export const Route=createFileRoute("/api/mobflow/products")({server:{handlers:{
