@@ -658,7 +658,6 @@ export async function hydrateStore() {
           const remote = cashStatus.body.session as null | { id: string; status: "open"; openingAmount: number; openedAt: string; note?: string; operatorUsername: string };
           const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
           if (username) {
-            const existing = remote ? state.cashSessions.find((item) => item.id === remote.id) : undefined;
             const retained = state.cashSessions.filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
             const canonical: CashSession[] = remote ? [{
               id: remote.id, status: "open", openingAmount: Number(remote.openingAmount), openedAt: remote.openedAt,
@@ -831,7 +830,6 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
       if (username) {
         const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
-        const existing = remote ? state.cashSessions.find((item) => item.id === remote.id) : undefined;
         const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
         set({ cashSessions: [...canonical, ...retained] }, { persist: false });
       }
