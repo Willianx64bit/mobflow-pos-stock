@@ -52,7 +52,7 @@ describe("MobFlow promotions Neon API", () => {
       .mockResolvedValueOnce({ rows: [promotion] })
       .mockResolvedValueOnce({ rows: [{ event_id: "event-1", sequence: "8", entity_id: "promo-1", payload: { operation: "update", version: 2 }, created_at: promotion.updated_at }] });
 
-    const response = await handlers["GET"]({ request: request("GET") });
+    const response = await handlers["GET"]!({ request: request("GET") });
     expect(response.status).toBe(200);
     await expect(json(response)).resolves.toMatchObject({
       ok: true,
@@ -71,7 +71,7 @@ describe("MobFlow promotions Neon API", () => {
       .mockResolvedValueOnce({ rows: [{ ...promotion, version: "1" }] })
       .mockResolvedValueOnce({ rows: [{ sequence: "9" }] });
 
-    const response = await handlers["POST"]({ request: request("POST", {
+    const response = await handlers["POST"]!({ request: request("POST", {
       id: "promo-1", productId: "product-1", promoPrice: 9.99,
       startsAt: promotion.starts_at, endsAt: promotion.ends_at,
     }) });
@@ -93,7 +93,7 @@ describe("MobFlow promotions Neon API", () => {
       .mockResolvedValueOnce({ rows: [{ ...promotion, version: "3" }] })
       .mockResolvedValueOnce({ rows: [{ sequence: "10" }] });
 
-    const response = await handlers["PATCH"]({ request: request("PATCH", {
+    const response = await handlers["PATCH"]!({ request: request("PATCH", {
       id: "promo-1", expectedVersion: 2, productId: "product-1", promoPrice: 8.99,
       startsAt: promotion.starts_at, endsAt: promotion.ends_at,
     }) });
@@ -114,7 +114,7 @@ describe("MobFlow promotions Neon API", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ sequence: "11" }] });
 
-    const response = await handlers["DELETE"]({ request: request("DELETE", { id: "promo-1", expectedVersion: 2 }) });
+    const response = await handlers["DELETE"]!({ request: request("DELETE", { id: "promo-1", expectedVersion: 2 }) });
     expect(response.status).toBe(200);
     await expect(json(response)).resolves.toMatchObject({
       ok: true, deleted: true, event: { sequence: "11", eventId: expect.any(String) },
@@ -128,7 +128,7 @@ describe("MobFlow promotions Neon API", () => {
     client.query
       .mockResolvedValueOnce(ready)
       .mockResolvedValueOnce({ rows: [promotion] });
-    const response = await handlers["PATCH"]({ request: request("PATCH", {
+    const response = await handlers["PATCH"]!({ request: request("PATCH", {
       id: "promo-1", expectedVersion: 1, productId: "product-1", promoPrice: 8.99,
       startsAt: promotion.starts_at, endsAt: promotion.ends_at,
     }) });
@@ -142,7 +142,7 @@ describe("MobFlow promotions Neon API", () => {
       client, identity: { userId: "user-a", accountId: tenant, role: "pdv", permissions: [] },
     });
     client.query.mockResolvedValueOnce(ready);
-    const response = await handlers["POST"]({ request: request("POST", {}) });
+    const response = await handlers["POST"]!({ request: request("POST", {}) });
     expect(response.status).toBe(403);
     expect(client.query).toHaveBeenCalledTimes(1);
     expect(releaseTransaction).toHaveBeenCalledWith(client, false);
