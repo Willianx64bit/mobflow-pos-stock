@@ -34,7 +34,7 @@ export type StockAdjustmentItem = { productId: string; code: string; ref?: strin
 export type StockAdjustment = { id: string; date: string; reason: string; operator?: string | undefined; items: StockAdjustmentItem[] };
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
 export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any };
-export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string | undefined; destinationPhone?: string | undefined; destinationStreet?: string | undefined; destinationNumber?: string | undefined; destinationCep?: string | undefined; destinationNeighborhood?: string | undefined; destinationCity?: string | undefined; destinationState?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
+export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string | undefined; destinationPhone?: string | undefined; destinationStreet?: string | undefined; destinationNumber?: string | undefined; destinationCep?: string | undefined; destinationNeighborhood?: string | undefined; destinationCity?: string | undefined; destinationState?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any; accessKey?: string };
 type CashSession = { id: string; openedAt: string; openedBy: string; openingAmount: number; status: "open" | "closed"; closedAt?: string | undefined; closedBy?: string | undefined; countedCash?: number | undefined; expectedCash?: number | undefined; difference?: number | undefined; note?: string | undefined };
 export type CashMovement = { id: string; sessionId: string; type: "sangria" | "reforco"; amount: number; reason: string; operator: string; date: string };
 export type Conference = {
@@ -1298,7 +1298,7 @@ export const actions = {
     if (!note || note.status !== "analisando" || note.stockReleased) return false;
     const keys = [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)];
     const decisions = note.decisions ?? {};
-    if (!keys.length || keys.some(key => !["aceitar", "devolver"].includes(decisions[key]))) return false;
+    if (!keys.length || keys.some(key => !["aceitar", "devolver"].includes(decisions[key] ?? ""))) return false;
 
     // Send the current decisions directly. The database validates them and
     // releases accepted quantities in one transaction, avoiding a race where
