@@ -12,13 +12,13 @@ const allowed = {
 } as const;
 
 function r2() {
-  const accountId=process.env.CLOUDFLARE_R2_ACCOUNT_ID;
-  const accessKeyId=process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-  const secretAccessKey=process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+  const accountId=process.env["CLOUDFLARE_R2_ACCOUNT_ID"];
+  const accessKeyId=process.env["CLOUDFLARE_R2_ACCESS_KEY_ID"];
+  const secretAccessKey=process.env["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
   if(!accountId||!accessKeyId||!secretAccessKey) throw new Error("R2 não configurado.");
   return new S3Client({region:"auto",endpoint:`https://${accountId}.r2.cloudflarestorage.com`,credentials:{accessKeyId,secretAccessKey}});
 }
-function bucket(){const value=process.env.CLOUDFLARE_R2_BUCKET_NAME;if(!value)throw new Error("Bucket R2 não configurado.");return value;}
+function bucket(){const value=process.env["CLOUDFLARE_R2_BUCKET_NAME"];if(!value)throw new Error("Bucket R2 não configurado.");return value;}
 function keyFor(tenant:string){return `tenants/${tenant}/company-logos/logo`;}
 function validKey(key:string,tenant:string){return key===`tenants/${tenant}/company-logos/logo`;}
 async function withIdentity(request:Request, action:(tenant:string)=>Promise<Response>, requireManager=true){
