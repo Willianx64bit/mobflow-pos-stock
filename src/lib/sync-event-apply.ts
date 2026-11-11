@@ -95,7 +95,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         const quantity = number(line["received"]);
         if (quantity !== null) received.set(line["productId"], quantity);
       }
-      const updateLines = <T extends { productId: string; received?: number }>(items: T[]): T[] => items.map((item) => {
+      const updateLines = <T extends { productId: string }>(items: T[]): T[] => items.map((item) => {
         const quantity = received.get(item.productId);
         return quantity === undefined ? item : { ...item, received: quantity } as T;
       });
