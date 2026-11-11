@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createRealtimeClient, type SealedLiveQuery } from "@neon/realtime/client";
 import { AppHeader } from "@/components/AppHeader";
 import { useStore, type StockMovement } from "@/lib/store";
 import { ArrowLeft, ChevronDown, Filter, History, TrendingDown, TrendingUp, X } from "lucide-react";
@@ -19,9 +20,108 @@ function localDateKey(value: string | Date) {
   return year + "-" + month + "-" + day;
 }
 
+type LiveMovementRow = {
+  id: string; operationId: string; date: Date | string; type: string; productId: string;
+  productCode: string | null; productName: string; unit: string; quantity: string | number;
+  totalValue: string | number; stockBefore: string | number; stockAfter: string | number;
+  delta: string | number; operator: string | null; details: string | null;
+};
+
+function mapLiveMovement(row: LiveMovementRow): StockMovement {
+  const labels: Record<string, string> = {
+    sale: "Venda", transfer: "Transferência", writeoff: "Baixa",
+    adjustment: "Ajuste de estoque", manual_adjustment: "Ajuste manual",
+    receiving: "Recebimento", receipt: "Recebimento", entry: "Entrada",
+  };
+  return {
+    id: row.id, operationId: row.operationId, date: new Date(row.date).toISOString(),
+    type: labels[row.type] ?? row.type, productId: row.productId,
+    productCode: row.productCode ?? undefined, productName: row.productName,
+    unit: row.unit === "kg" ? "kg" : "un", quantity: Number(row.quantity),
+    totalValue: Number(row.totalValue), stockBefore: Number(row.stockBefore),
+    stockAfter: Number(row.stockAfter), delta: Number(row.delta),
+    operator: row.operator ?? undefined, details: row.details ?? undefined,
+  };
+}
+
 function MovimentacoesEstoque() {
   const navigate = useNavigate();
-  const movements = useStore((s) => s.stockMovements ?? []);
+  const cachedMovements = useStore((s) => s.stockMovements ?? []);
+  const [liveMovements, setLiveMovements] = useState<StockMovement[] | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "error">("connecting");
+  const [realtimeError, setRealtimeError] = useState("");
+
+  useEffect(() => {
+    let stopped = false;
+    let client: ReturnType<typeof createRealtimeClient> | null = null;
+    let subscription: ReturnType<ReturnType<typeof createRealtimeClient>["subscribe"]> | null = null;
+    let renewalTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchSealedQuery = async (): Promise<SealedLiveQuery<LiveMovementRow>> => {
+      const response = await fetch("/api/mobflow/stock-movements/live-query", {
+        method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      if (!response.ok) throw new Error("Falha ao iniciar histórico em tempo real (HTTP " + response.status + ").");
+      return await response.json() as SealedLiveQuery<LiveMovementRow>;
+    };
+
+    const start = async () => {
+      try {
+        const sealed = await fetchSealedQuery();
+        if (stopped) return;
+        const url = import.meta.env["VITE_NEON_REALTIME_URL"];
+        if (!url) throw new Error("Neon Realtime não está configurado neste Preview.");
+        client = createRealtimeClient({ url, logLevel: import.meta.env.DEV ? "warn" : "error" });
+        subscription = client.subscribe(sealed);
+        subscription.onChange((snapshot) => {
+          if (stopped || !snapshot.data) return;
+          setLiveMovements(snapshot.data.map(mapLiveMovement).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+          setRealtimeStatus("live");
+          setRealtimeError("");
+        });
+        subscription.onStateChange((state) => {
+          if (state.status === "error") {
+            setRealtimeStatus("error");
+            setRealtimeError(state.error.message);
+          } else if (state.status === "live") {
+            setRealtimeStatus("live");
+          }
+        });
+
+        const renew = async () => {
+          if (stopped || !subscription) return;
+          try {
+            const next = await fetchSealedQuery();
+            if (stopped || !subscription) return;
+            await subscription.renew(next);
+            renewalTimer = setTimeout(() => { void renew(); }, Math.max(1000, next.expiresAt - Date.now() - 10_000));
+          } catch (error) {
+            if (!stopped) {
+              setRealtimeStatus("error");
+              setRealtimeError(error instanceof Error ? error.message : "Não foi possível renovar o histórico em tempo real.");
+            }
+          }
+        };
+        renewalTimer = setTimeout(() => { void renew(); }, Math.max(1000, sealed.expiresAt - Date.now() - 10_000));
+      } catch (error) {
+        if (!stopped) {
+          setRealtimeStatus("error");
+          setRealtimeError(error instanceof Error ? error.message : "Não foi possível conectar ao histórico em tempo real.");
+        }
+      }
+    };
+
+    void start();
+    return () => {
+      stopped = true;
+      if (renewalTimer) clearTimeout(renewalTimer);
+      subscription?.unsubscribe();
+      client?.close();
+    };
+  }, []);
+
+  const movements = liveMovements ?? cachedMovements;
   const [operation, setOperation] = useState("Todas");
   const [direction, setDirection] = useState("Todas");
   const [fromDate, setFromDate] = useState(() => localDateKey(new Date()));
@@ -91,10 +191,15 @@ function MovimentacoesEstoque() {
 
         <section className="rounded-2xl bg-white p-4 ring-1 ring-border md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-bold text-heading">Histórico</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-heading">Histórico</h2>
+              <span className={realtimeStatus === "live" ? "rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800" : realtimeStatus === "error" ? "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800" : "rounded-full bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground"}>
+                {realtimeStatus === "live" ? "Ao vivo" : realtimeStatus === "error" ? "Sem conexão ao vivo" : "Conectando…"}
+              </span>
+            </div>
             <span className="rounded-full bg-secondary px-3 py-1 text-sm md:text-base font-semibold text-muted-foreground">{filtered.length} registro(s) no período filtrado</span>
           </div>
-          {filtered.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center text-sm md:text-base text-muted-foreground">{movements.length === 0 ? "Ainda não há movimentações registradas para esta empresa." : "Nenhum registro corresponde aos filtros selecionados."}</div> : <div className="overflow-x-auto rounded-xl border">
+          {realtimeError && <p role="status" className="mb-3 text-sm text-amber-700">Atualização ao vivo indisponível: {realtimeError}. Exibindo os dados locais disponíveis.</p>}{filtered.length === 0 ? <div className="rounded-xl border border-dashed p-8 text-center text-sm md:text-base text-muted-foreground">{movements.length === 0 ? "Ainda não há movimentações registradas para esta empresa." : "Nenhum registro corresponde aos filtros selecionados."}</div> : <div className="overflow-x-auto rounded-xl border">
             <Table>
               <TableHeader><TableRow>
                 <TableHead className="whitespace-nowrap">Data e hora</TableHead><TableHead>Operação</TableHead><TableHead>Produto</TableHead><TableHead className="whitespace-nowrap text-right">Quantidade</TableHead><TableHead className="whitespace-nowrap text-right">Valor total</TableHead><TableHead className="whitespace-nowrap text-right">Estoque antes</TableHead><TableHead className="whitespace-nowrap text-right">Estoque depois</TableHead><TableHead className="whitespace-nowrap text-right">Variação</TableHead>
