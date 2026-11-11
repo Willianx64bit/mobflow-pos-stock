@@ -1,5 +1,5 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useStore, syncNow } from "@/lib/store";
+import { actions, useStore, syncNow } from "@/lib/store";
 import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -69,7 +69,7 @@ export function AppHeader() {
     setSyncing(true);
     setSyncMessage("");
     try {
-      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      // Promoções usam o endpoint versionado do Neon; atualize o snapshot no mesmo comando manual.\n      await actions.loadPromotions();\n      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
       const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
       setSyncMessage(pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
     } catch {
