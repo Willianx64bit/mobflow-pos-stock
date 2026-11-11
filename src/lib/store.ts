@@ -426,7 +426,7 @@ export async function confirmLastDomainCommand(): Promise<void> {
 }
 
 async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
-  if (import.meta.env.VITE_MOBFLOW_CATALOG_READ_PROVIDER !== "neon") return fallbackProducts;
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
   try {
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
