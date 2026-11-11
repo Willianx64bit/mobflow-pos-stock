@@ -22,7 +22,7 @@ const validUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-
 const str = (v: unknown, max = 160) => typeof v === "string" ? v.trim().slice(0,max) : "";
 const cents = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
 function stableUuid(value: string) {
-  const b=createHash("sha256").update(value).digest().subarray(0,16); b[6]=(b[6]&15)|0x50; b[8]=(b[8]&0x3f)|0x80;
+  const b=createHash("sha256").update(value).digest().subarray(0,16); b[6]=((b[6]??0)&15)|0x50; b[8]=((b[8]??0)&0x3f)|0x80;
   const h=b.toString("hex"); return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
 function respondError(error: unknown) {
