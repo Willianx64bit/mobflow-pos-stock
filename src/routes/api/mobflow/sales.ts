@@ -49,7 +49,7 @@ export async function handleMobFlowSale(request: Request) {
   let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
   try {
     const body = await request.json().catch(() => null) as SaleInput | null;
-    if (!body || typeof body !== "object") fail("Solicitação de venda inválida.");
+    if (!body || typeof body !== "object") return Response.json({ ok: false, error: "Solicitação de venda inválida.", code: "invalid_sale" }, { status: 400 });
     const saleId = text(body.saleId, 100), cashSessionId = text(body.cashSessionId, 100);
     if (!saleId || !cashSessionId || !uuid(body.idempotencyKey)) fail("Identificadores da venda inválidos.");
     const paymentMethod = body.paymentMethod;
