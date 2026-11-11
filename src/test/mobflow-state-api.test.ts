@@ -506,11 +506,11 @@ describe("MobFlow Neon state API", () => {
     const invalidState = await handlers.PUT({ request: put(JSON.stringify({ state: [] })) });
 
     expect(malformed.status).toBe(400);
-    expect((await json(malformed)).code).toBe("invalid_json");
+    expect((await json(malformed))["code"]).toBe("invalid_json");
     expect(nullBody.status).toBe(400);
-    expect((await json(nullBody)).code).toBe("invalid_body");
+    expect((await json(nullBody))["code"]).toBe("invalid_body");
     expect(invalidState.status).toBe(400);
-    expect((await json(invalidState)).code).toBe("invalid_state");
+    expect((await json(invalidState))["code"]).toBe("invalid_state");
     expect(beginAuthenticatedTransaction).not.toHaveBeenCalled();
   });
 
