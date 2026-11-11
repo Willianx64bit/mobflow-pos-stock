@@ -20,16 +20,16 @@ function request(token: string) {
 }
 
 describe("MobFlow legacy Neon Managed Auth bridge", () => {
-  const originalProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const originalProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.MOBFLOW_AUTH_PROVIDER = "neon";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "neon";
   });
 
   afterEach(() => {
-    if (originalProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
+    if (originalProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = originalProvider;
   });
 
   it("fails closed for the retired Neon Managed Auth provider before token verification or database access", async () => {
