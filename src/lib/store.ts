@@ -11,7 +11,7 @@ export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; companyLogoObjectKey?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
 export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
-export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
+export type ReceivingItem = { productId: string; name: string; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
 export type ReceivingExtra = { productId: string; name: string; received: number; expiry?: string; unit: "un" | "kg" };
@@ -31,11 +31,11 @@ export type ReceivingNote = {
   source?: "manual";
 };
 export type StockAdjustmentItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; mode: "somar" | "definir"; quantity: number; previousStock: number; newStock: number };
-export type StockAdjustment = { id: string; date: string; reason: string; operator?: string; items: StockAdjustmentItem[] };
+export type StockAdjustment = { id: string; date: string; reason: string; operator?: string | undefined; items: StockAdjustmentItem[] };
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
-export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
-export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
-type CashSession = { id: string; openedAt: string; openedBy: string; openingAmount: number; status: "open" | "closed"; closedAt?: string; closedBy?: string; countedCash?: number; expectedCash?: number; difference?: number; note?: string };
+export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any };
+export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string | undefined; destinationPhone?: string | undefined; destinationStreet?: string | undefined; destinationNumber?: string | undefined; destinationCep?: string | undefined; destinationNeighborhood?: string | undefined; destinationCity?: string | undefined; destinationState?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
+type CashSession = { id: string; openedAt: string; openedBy: string; openingAmount: number; status: "open" | "closed"; closedAt?: string | undefined; closedBy?: string | undefined; countedCash?: number | undefined; expectedCash?: number | undefined; difference?: number | undefined; note?: string | undefined };
 export type CashMovement = { id: string; sessionId: string; type: "sangria" | "reforco"; amount: number; reason: string; operator: string; date: string };
 export type Conference = {
   id: string;
@@ -52,7 +52,7 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string; details?: string; legacy?: boolean };
+export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string | undefined; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string | undefined; details?: string | undefined; legacy?: boolean };
 export type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
@@ -318,7 +318,7 @@ type MobFlowApiBody = {
   status?: string;
   remoteState?: unknown;
   remoteUpdatedAt?: string | null;
-  error?: string;
+  error?: string;\n  products?: unknown;\n  hasMore?: unknown;\n  nextCursor?: unknown;\n  session?: unknown;\n  data?: unknown;
 };
 
 async function callMobFlowApi(path: string, init: RequestInit = {}) {
