@@ -151,7 +151,12 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     if (localStockChanged && !remoteStockChanged) return lp;
     return rp;
   });
-  for (const lp of local.products) if (!remote.products.some((p) => p.id === lp.id)) products.push(lp);
+  // In Neon catalog mode, the relational tenant catalog is authoritative. Never resurrect
+  // cached products that are absent from the server response (including products deleted
+  // from this company or left in an old full-state snapshot).
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") {
+    for (const lp of local.products) if (!remote.products.some((p) => p.id === lp.id)) products.push(lp);
+  }
   return {
     ...remote,
     products,
@@ -465,7 +470,10 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Prod
       const query = new URLSearchParams({ limit: "100" });
       if (cursor) query.set("cursor", cursor);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
-      if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
+      if (!response.ok || !Array.isArray(body.products)) {
+        console.error("[MobFlow Catalog] Neon catalog request failed; refusing to show cached products from an unverified tenant catalog.");
+        return [];
+      }
       for (const raw of body.products as any[]) {
         const previous = existing.get(String(raw.id));
         products.push({ id: String(raw.id), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
@@ -476,11 +484,18 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Prod
           unit: raw.unit === "kg" ? "kg" : "un", photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
       }
       if (body.hasMore !== true) return products;
-      if (typeof body.nextCursor !== "string" || !body.nextCursor) return fallbackProducts;
+      if (typeof body.nextCursor !== "string" || !body.nextCursor) {
+        console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; refusing cached catalog fallback.");
+        return [];
+      }
       cursor = body.nextCursor;
     }
-    return fallbackProducts;
-  } catch { return fallbackProducts; }
+    console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; refusing cached catalog fallback.");
+    return [];
+  } catch (error) {
+    console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog:", error);
+    return [];
+  }
 }
 
 async function refreshFromCloud(accountId: string, forceLatest = false) {
