@@ -96,6 +96,7 @@ let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let stopRealtimeSubscription: (() => void) | null = null;
 let syncFallbackInFlight = false;
+let syncInFlight: Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; reconciliationRequired?: boolean }> | null = null;
 let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
@@ -632,7 +633,7 @@ export async function applyIncrementalEvents(events: import("@/lib/sync-outbox")
   listeners.forEach((listener) => listener());
 }
 
-export async function syncNow(options: { retryFailed?: boolean } = {}) {
+async function performSyncNow(options: { retryFailed?: boolean } = {}) {
   // O botão manual também pode ser acionado antes da hidratação inicial do app.
   // Revalida a sessão no servidor e carrega o tenant antes de acessar a fila.
   if (!cloudReady || !cloudAccountId) {
@@ -676,6 +677,21 @@ export async function syncNow(options: { retryFailed?: boolean } = {}) {
     }
     throw error;
   }
+}
+
+
+/**
+ * Coalesce Realtime, focus, online and command-triggered sync requests.
+ * Only one cursor read/apply cycle may run for this app instance at a time.
+ */
+export function syncNow(options: { retryFailed?: boolean } = {}) {
+  if (syncInFlight) return syncInFlight;
+  const running = performSyncNow(options);
+  const shared = running.finally(() => {
+    if (syncInFlight === shared) syncInFlight = null;
+  });
+  syncInFlight = shared;
+  return shared;
 }
 
 const serverState = state;
