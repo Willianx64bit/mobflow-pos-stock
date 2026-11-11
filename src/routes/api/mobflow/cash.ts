@@ -38,7 +38,7 @@ async function assertSchema(client: any) {
   if(Object.values(r.rows[0]??{}).some(v=>!v)) fail("A estrutura relacional do caixa ainda não está pronta.",503,"cash_schema_not_ready");
 }
 export async function handleMobFlowCash(request: Request) {
-  if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth") return Response.json({ok:false,error:"Comandos Neon de caixa não habilitados neste ambiente.",code:"cash_provider_disabled"},{status:503});
+  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth") return Response.json({ok:false,error:"Comandos Neon de caixa não habilitados neste ambiente.",code:"cash_provider_disabled"},{status:503});
   let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>|null=null;
   try {
     const body=await request.json().catch(()=>null) as CashInput|null;
@@ -124,7 +124,7 @@ export async function handleMobFlowCash(request: Request) {
   }
 }
 export async function handleGetMobFlowCash(request: Request) {
-  if(process.env.MOBFLOW_AUTH_PROVIDER!=="better-auth") return Response.json({ok:false,error:"Consulta Neon de caixa não habilitada neste ambiente.",code:"cash_provider_disabled"},{status:503});
+  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth") return Response.json({ok:false,error:"Consulta Neon de caixa não habilitada neste ambiente.",code:"cash_provider_disabled"},{status:503});
   let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>|null=null;
   try {
     tx=await beginAuthenticatedTransaction(request);
