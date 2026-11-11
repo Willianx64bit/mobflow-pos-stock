@@ -395,7 +395,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
         throw new Error("Sem conexão. A operação ficou pendente e ainda não foi confirmada pelo servidor.");
       }
       const result = await syncNow();
-      if (result.failed > 0 || result.pending > 0 || result.reconciliationRequired) {
+      if (result.failed > 0 || result.pending > 0) {
         throw new Error("O servidor ainda não confirmou a operação. Ela permanece na fila para nova tentativa.");
       }
     });
@@ -777,10 +777,10 @@ export const actions = {
       const stockAfter = Math.round((p.stock - c.qty) * 1000) / 1000;
       return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
     });
-    const queued = payment !== "Fiado" && enqueueDomainCommand("sales", {
+    const queued = enqueueDomainCommand("sales", {
       saleId: sale.id, cashSessionId: activeCash.id,
-      paymentMethod: payment === "Dinheiro" ? "cash" : payment === "Pix" ? "pix" : "card",
-      receivedAmount: payment === "Dinheiro" ? received ?? total : total,
+      paymentMethod: payment === "Dinheiro" ? "cash" : payment === "Pix" ? "pix" : payment === "Cartão" ? "card" : "fiado",
+      receivedAmount: payment === "Fiado" ? 0 : payment === "Dinheiro" ? received ?? total : total,
       discountAmount: discount, discountType: discountType === "%" ? "percentage" : "fixed",
       customerName: customer || undefined, customerDocument: cpf || undefined,
       items: state.cart.map((item) => ({ productId: item.productId, quantity: item.qty })),
@@ -788,20 +788,19 @@ export const actions = {
     set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
     return sale;
   },
-  addFiadoPayment(id: string, value: number) {
+  async addFiadoPayment(id: string, value: number, method: "cash" | "pix" | "card" = "cash") {
     const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
     if (!sale || sale.paid || !Number.isFinite(value) || value <= 0) return false;
-    const payments = sale.payments ?? (sale.paid ? [{ value: sale.total, date: sale.paidAt ?? sale.date }] : []);
-    const alreadyPaid = payments.reduce((sum, p) => sum + p.value, 0);
-    const remaining = Math.max(0, sale.total - alreadyPaid);
-    const amount = Math.min(remaining, Math.round(value * 100) / 100);
+    const amount = Math.min(Math.max(0, sale.total - (sale.payments ?? []).reduce((sum, p) => sum + p.value, 0)), Math.round(value * 100) / 100);
     if (amount <= 0) return false;
-    const nextPayments = [...payments, { value: amount, date: new Date().toISOString() }];
-    const paidTotal = nextPayments.reduce((sum, p) => sum + p.value, 0);
-    const isPaid = paidTotal >= sale.total - 0.005;
-    const costTotal = sale.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
-    const profit = isPaid ? sale.total - costTotal : 0;
-    set({ sales: state.sales.map((s) => s.id === id ? { ...s, payments: nextPayments, paid: isPaid, paidAt: isPaid ? new Date().toISOString() : undefined, profit } : s) });
+    const result = await callMobFlowApi("/api/mobflow/receivables", {
+      method: "POST",
+      body: JSON.stringify({ saleId: id, amount, paymentMethod: method, idempotencyKey: crypto.randomUUID() }),
+    });
+    if (!result.response.ok || result.body.ok !== true) {
+      throw new Error(String(result.body.error ?? "O recebimento não foi confirmado pelo Neon."));
+    }
+    await hydrateStore();
     return true;
   },
   hideFiadoCustomer(customer: string) {
