@@ -6,14 +6,14 @@ import {handleMobFlowStock} from "@/routes/api/mobflow/stock";
 const USER="6c47eaac-2abf-4cd6-b614-24e27077bdf6",ACCOUNT="9c47eaac-2abf-4cd6-b614-24e27077bdf6",KEY="7c47eaac-2abf-4cd6-b614-24e27077bdf6";
 const req=(body:Record<string,unknown>)=>new Request("https://mobflow.test/api/mobflow/stock",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
 describe("Neon stock commands",()=>{
- const old=process.env.MOBFLOW_AUTH_PROVIDER;
- beforeEach(()=>{vi.clearAllMocks();process.env.MOBFLOW_AUTH_PROVIDER="better-auth";client.query.mockImplementation(async(sql:string)=>{
+ const old=process.env["MOBFLOW_AUTH_PROVIDER"];
+ beforeEach(()=>{vi.clearAllMocks();process.env["MOBFLOW_AUTH_PROVIDER"]="better-auth";client.query.mockImplementation(async(sql:string)=>{
   if(sql.includes("to_regclass"))return{rows:[{products:"products",ledger:"stock_movements",events:"mobflow_sync_events",append_fn:"fn"}]};
   if(sql.includes("FROM public.stock_movements WHERE tenant_id=$1 AND operation_id"))return{rows:[]};
   if(sql.includes("FROM public.products"))return{rows:[{id:"p1",code:"SKU",name:"Produto",unit:"un",cost:"4",price:"10",stock:"10",active:true}]};
   if(sql.includes("UPDATE public.products"))return{rowCount:1,rows:[]};if(sql.includes("stockTransfers"))return{rowCount:1,rows:[]};return{rows:[]};
  });beginAuthenticatedTransaction.mockResolvedValue({client,identity:{userId:USER,accountId:ACCOUNT,role:"manager",username:"gerente",displayName:"Gerente",permissions:[]}});});
- afterEach(()=>{if(old===undefined)delete process.env.MOBFLOW_AUTH_PROVIDER;else process.env.MOBFLOW_AUTH_PROVIDER=old;});
+ afterEach(()=>{if(old===undefined)delete process.env["MOBFLOW_AUTH_PROVIDER"];else process.env["MOBFLOW_AUTH_PROVIDER"]=old;});
  it("applies an entry with stock and ledger in one commit",async()=>{
   const res=await handleMobFlowStock(req({operationId:"op-entry",idempotencyKey:KEY,operationType:"entry",reason:"Compra",items:[{productId:"p1",quantity:5}]}));
   const body=await res.json();expect(res.status).toBe(201);expect(body.operation.items[0]).toMatchObject({stockBefore:10,stockAfter:15,delta:5});
