@@ -41,12 +41,12 @@ function request(action: string, decisions?: Record<string, string>) {
 }
 
 describe("Neon receiving stock release", () => {
-  const originalProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const originalProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
   let state: ReturnType<typeof baseState>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
     state = baseState();
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("SELECT state FROM public.app_state")) return { rows: [{ state }] };
@@ -60,8 +60,8 @@ describe("Neon receiving stock release", () => {
   });
 
   afterEach(() => {
-    if (originalProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
+    if (originalProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = originalProvider;
   });
 
   it("finalizes decisions and releases accepted stock atomically", async () => {
