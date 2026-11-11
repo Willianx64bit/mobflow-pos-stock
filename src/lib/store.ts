@@ -4,7 +4,8 @@ import { SyncOutbox, createSyncCommand, runIncrementalSync } from "@/lib/sync-ou
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
 export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
-export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
+export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string; version?: number; updatedAt?: string; eventId?: string };
+export type PromotionEvent = { event_id: string; sequence: string; entity_id: string; payload: { operation?: "create" | "update" | "delete"; promotionId?: string; version?: number; promotion?: Record<string, unknown> }; created_at: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; companyLogoObjectKey?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
@@ -866,14 +867,31 @@ export const actions = {
     await savePrivateRecord("settings", undefined, settings as unknown as Record<string, unknown>);
     set({ settings });
   },
-  savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
+  async loadPromotions() {
+    const result = await callMobFlowApi("/api/mobflow/promotions");
+    if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao carregar promoções do Neon."));
+    set({ promotions: Array.isArray(result.body.promotions) ? result.body.promotions as Promotion[] : [] });
+    return Array.isArray(result.body.events) ? result.body.events as PromotionEvent[] : [];
+  },
+  async savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
     const product = state.products.find((p) => p.id === promotion.productId);
     if (!product || !Number.isFinite(promotion.promoPrice) || promotion.promoPrice < 0 || !promotion.startsAt || !promotion.endsAt || new Date(promotion.endsAt) <= new Date(promotion.startsAt)) return false;
-    const item: Promotion = { ...promotion, id: promotion.id ?? uid(), productName: product.name, originalPrice: product.price };
-    set({ promotions: promotion.id ? state.promotions.map((p) => p.id === promotion.id ? item : p) : [item, ...state.promotions] });
+    const existing = promotion.id ? state.promotions.find((p) => p.id === promotion.id) : undefined;
+    const method = promotion.id ? "PATCH" : "POST";
+    const payload = { id: promotion.id, productId: promotion.productId, promoPrice: promotion.promoPrice, startsAt: promotion.startsAt, endsAt: promotion.endsAt, ...(existing ? { expectedVersion: existing.version ?? 1 } : {}) };
+    const result = await callMobFlowApi("/api/mobflow/promotions", { method, body: JSON.stringify(payload) });
+    if (!result.response.ok || result.body.ok !== true || !result.body.promotion) throw new Error(String(result.body.error ?? "Falha ao salvar promoção no Neon."));
+    const item = result.body.promotion as Promotion;
+    set({ promotions: item.id === existing?.id ? state.promotions.map((p) => p.id === item.id ? item : p) : [item, ...state.promotions] });
     return true;
   },
-  deletePromotion(id: string) { set({ promotions: state.promotions.filter((p) => p.id !== id) }); },
+  async deletePromotion(id: string) {
+    const existing = state.promotions.find((p) => p.id === id);
+    if (!existing) throw new Error("Promoção não encontrada na lista atual.");
+    const result = await callMobFlowApi("/api/mobflow/promotions", { method: "DELETE", body: JSON.stringify({ id, expectedVersion: existing.version ?? 1 }) });
+    if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir promoção no Neon."));
+    set({ promotions: state.promotions.filter((p) => p.id !== id) });
+  },
   async resetAppData() {
     // Descarta também comandos offline antigos para que vendas/movimentos não reapareçam após a limpeza.
     if (cloudAccountId) {
