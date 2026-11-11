@@ -179,8 +179,13 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       if (payload["status"] === "open") {
         const openingAmount = number(payload["openingAmount"]);
         if (openingAmount === null || typeof payload["openedAt"] !== "string") throw new UnsupportedSyncEventError(event);
-        const openedBy = typeof payload["operator"] === "string" ? payload["operator"] : existing?.openedBy ?? "";
+        const openedBy = typeof payload["operatorUsername"] === "string"
+          ? payload["operatorUsername"]
+          : typeof payload["operator"] === "string" ? payload["operator"] : existing?.openedBy ?? "";
         const note = typeof payload["note"] === "string" ? { note: payload["note"] } : {};
+        next.cashSessions = next.cashSessions.filter((item) =>
+          item.status !== "open" || item.openedBy !== openedBy || item.id === sessionId
+        );
         next.cashSessions = upsert(next.cashSessions, {
           id: sessionId, openedAt: payload["openedAt"], openedBy, openingAmount,
           status: "open", ...note,
