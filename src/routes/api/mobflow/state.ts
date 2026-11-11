@@ -39,7 +39,7 @@ export const Route = createFileRoute("/api/mobflow/state")({
             `WITH scope AS (SELECT $1::uuid AS owner_id),
 readiness AS (
   SELECT ($2::boolean AND (
-    EXISTS (SELECT 1 FROM public.products p WHERE p.tenant_id = scope.owner_id)
+    EXISTS (SELECT 1 FROM public.products p WHERE p.tenant_id = scope.owner_id AND p.active = true)
     OR EXISTS (SELECT 1 FROM public.sales x WHERE x.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.cash_sessions x WHERE x.tenant_id = scope.owner_id)
     OR EXISTS (SELECT 1 FROM public.stock_movements x WHERE x.tenant_id = scope.owner_id)
