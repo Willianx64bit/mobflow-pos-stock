@@ -31,12 +31,13 @@ function request() {
 }
 
 describe("MobFlow Better Auth cookie session bridge", () => {
-  const originalProvider = process.env.MOBFLOW_AUTH_PROVIDER;
+  const originalProvider = process.env["MOBFLOW_AUTH_PROVIDER"];
 
   beforeEach(() => {
     vi.clearAllMocks();
     client.query.mockReset().mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };\n      if (sql.includes("FROM public.profiles")) {
+      if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };
+      if (sql.includes("FROM public.profiles")) {
         return {
           rows: [{
             id: USER_ID,
@@ -54,12 +55,12 @@ describe("MobFlow Better Auth cookie session bridge", () => {
     client.release.mockReset();
     connect.mockReset().mockResolvedValue(client);
     getSession.mockReset();
-    process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
+    process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
   });
 
   afterEach(() => {
-    if (originalProvider === undefined) delete process.env.MOBFLOW_AUTH_PROVIDER;
-    else process.env.MOBFLOW_AUTH_PROVIDER = originalProvider;
+    if (originalProvider === undefined) delete process.env["MOBFLOW_AUTH_PROVIDER"];
+    else process.env["MOBFLOW_AUTH_PROVIDER"] = originalProvider;
   });
 
   it("authenticates from the Better Auth cookie and derives identity from the Neon profile", async () => {
