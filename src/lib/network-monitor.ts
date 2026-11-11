@@ -74,11 +74,7 @@ if (typeof window !== "undefined") {
       ): void {
         const meta = this as XMLHttpRequest & { __mfnet?: { method: string; url: string } };
         meta.__mfnet = { method: String(method || "GET"), url: String(url) };
-        if (async === undefined) {
-          originalOpen.call(this, method, url);
-        } else {
-          originalOpen.call(this, method, url, async, username, password);
-        }
+        originalOpen.call(this, method, url, async ?? true, username ?? null, password ?? null);
       };
 
       const originalSend = XMLHttpRequest.prototype.send;
