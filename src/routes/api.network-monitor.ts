@@ -16,11 +16,11 @@ export const Route = createFileRoute("/api/network-monitor")({
         try { event = await request.json() as Record<string, unknown>; } catch {
           return Response.json({ ok: false }, { status: 400 });
         }
-        const hostName = typeof event.host === "string" ? event.host.slice(0, 180) : "";
-        const path = typeof event.path === "string" ? event.path.slice(0, 180) : "";
-        const method = typeof event.method === "string" ? event.method.slice(0, 10) : "";
-        const status = typeof event.status === "number" ? event.status : null;
-        const duration = typeof event.duration_ms === "number" ? Math.max(0, Math.min(120000, Math.round(event.duration_ms))) : 0;
+        const hostName = typeof event["host"] === "string" ? event["host"].slice(0, 180) : "";
+        const path = typeof event["path"] === "string" ? event["path"].slice(0, 180) : "";
+        const method = typeof event["method"] === "string" ? event["method"].slice(0, 10) : "";
+        const status = typeof event["status"] === "number" ? event["status"] : null;
+        const duration = typeof event["duration_ms"] === "number" ? Math.max(0, Math.min(120000, Math.round(event["duration_ms"]))) : 0;
         const kind = event["kind"] === "xhr" ? "xhr" : "fetch";
         if (!hostName || !path.startsWith("/") || !method) {
           return Response.json({ ok: false }, { status: 400 });
