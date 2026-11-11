@@ -34,6 +34,7 @@ function Promotions() {
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<PromotionEvent[]>([]);
   const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -44,7 +45,7 @@ function Promotions() {
   }, []);
   useEffect(() => {
     let active = true;
-    void actions.loadPromotions().then((events) => { if (active) setHistory(events); }).catch((e) => { if (active) setHistoryError(e instanceof Error ? e.message : "Não foi possível carregar o histórico."); });
+    void actions.loadPromotions().then((events) => { if (active) { setHistory(events); setHistoryError(""); } }).catch((e) => { if (active) setHistoryError(e instanceof Error ? e.message : "Não foi possível carregar o histórico."); }).finally(() => { if (active) setHistoryLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -82,6 +83,7 @@ function Promotions() {
       const ok = await actions.savePromotion({ id: editingId, productId, promoPrice: price, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt) });
       if (!ok) { setError("Não foi possível salvar. Confira o produto, preço e período."); return; }
       setHistory(await actions.loadPromotions());
+      setHistoryError("");
       setEditingId(undefined); setProductId(""); setSearch(""); setPromoPrice(""); setStartsAt(""); setEndsAt(""); setError(""); setFormOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ocorreu um erro ao salvar a promoção. Tente novamente.");
@@ -135,13 +137,14 @@ function Promotions() {
           <h2 className="font-bold text-heading">Promoções cadastradas</h2>
           {promotions.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhuma promoção cadastrada.</p> : <div className="mt-3 divide-y divide-border">{[...promotions].sort((a,b) => new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime()).map((promo) => {
             const product = products.find((p) => p.id === promo.productId);
-            return <div key={promo.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="font-semibold text-heading">{promo.productName}</div><div className="text-sm text-muted-foreground">Atual: R$ {brl(product?.price ?? promo.originalPrice)} · Promoção: R$ {brl(promo.promoPrice)}</div><div className="text-xs text-muted-foreground">{new Date(promo.startsAt).toLocaleString("pt-BR")} até {new Date(promo.endsAt).toLocaleString("pt-BR")}</div><div className="mt-1 text-xs font-semibold">{status(promo)}</div></div><button onClick={() => edit(promo)} className="rounded-lg border border-border px-3 py-2 text-sm">Editar</button><button onClick={() => { if (window.confirm("Excluir esta promoção?")) void actions.deletePromotion(promo.id).then(() => actions.loadPromotions()).then(setHistory).catch((e) => setHistoryError(e instanceof Error ? e.message : "Falha ao excluir promoção.")); }} className="rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive">Excluir</button></div>;
+            return <div key={promo.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="font-semibold text-heading">{promo.productName}</div><div className="text-sm text-muted-foreground">Atual: R$ {brl(product?.price ?? promo.originalPrice)} · Promoção: R$ {brl(promo.promoPrice)}</div><div className="text-xs text-muted-foreground">{new Date(promo.startsAt).toLocaleString("pt-BR")} até {new Date(promo.endsAt).toLocaleString("pt-BR")}</div><div className="mt-1 text-xs font-semibold">{status(promo)}</div></div><button onClick={() => edit(promo)} className="rounded-lg border border-border px-3 py-2 text-sm">Editar</button><button onClick={() => { if (window.confirm("Excluir esta promoção?")) void actions.deletePromotion(promo.id).then(() => actions.loadPromotions()).then((events) => { setHistory(events); setHistoryError(""); }).catch((e) => setHistoryError(e instanceof Error ? e.message : "Falha ao excluir promoção.")); }} className="rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive">Excluir</button></div>;
           })}</div>}
         </section>}
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
           <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-bold text-heading">Histórico de eventos</h2><span className="text-xs text-muted-foreground">Últimos 100 registros</span></div>
+          {historyLoading && <p className="mt-3 text-sm text-muted-foreground">Carregando histórico...</p>}
           {historyError && <p className="mt-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{historyError}</p>}
-          {!historyError && history.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum evento de promoção registrado ainda.</p> : <div className="mt-3 divide-y divide-border">
+          {!historyLoading && !historyError && history.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum evento de promoção registrado ainda.</p> : !historyLoading && !historyError ? <div className="mt-3 divide-y divide-border">
             {history.map((event) => { const operation=event.payload?.operation; const label=operation==="create"?"Criação":operation==="update"?"Edição":operation==="delete"?"Exclusão":"Evento"; return <div key={event.event_id} className="py-3">
               <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-heading">{label} · Versão {event.payload?.version ?? "—"}</span><span className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString("pt-BR")}</span></div>
               <div className="mt-1 break-all text-xs text-muted-foreground">Evento: {event.event_id}</div><div className="break-all text-xs text-muted-foreground">Promoção: {event.entity_id} · Sequência: {event.sequence}</div>
