@@ -167,14 +167,14 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event"),
     );
     expect(eventCalls).toHaveLength(2);
-    expect(eventCalls[0][0]).toContain("'stock', 'automatic'");
-    expect(eventCalls[0][1][2]).toBe("p1");
-    expect(JSON.parse(eventCalls[0][1][3] as string)).toMatchObject({
+    expect(eventCalls[0]![0]).toContain("'stock', 'automatic'");
+    expect(eventCalls[0]![1][2]).toBe("p1");
+    expect(JSON.parse(eventCalls[0]![1][3] as string)).toMatchObject({
       stockDelta: -2, resultingStock: 8, source: "state_update",
     });
-    expect(eventCalls[1][0]).toContain("'price', 'manual'");
-    expect(eventCalls[1][1][2]).toBe("p1");
-    expect(JSON.parse(eventCalls[1][1][3] as string)).toMatchObject({
+    expect(eventCalls[1]![0]).toContain("'price', 'manual'");
+    expect(eventCalls[1]![1][2]).toBe("p1");
+    expect(JSON.parse(eventCalls[1]![1][3] as string)).toMatchObject({
       price: 6, previousPrice: 5, source: "state_update",
     });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
@@ -201,14 +201,14 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event"),
     );
     expect(events).toHaveLength(2);
-    expect(events[0][0]).toContain("'catalog', 'manual'");
-    expect(events[0][1][2]).toBe("new");
-    expect(JSON.parse(events[0][1][3] as string)).toMatchObject({
+    expect(events[0]![0]).toContain("'catalog', 'manual'");
+    expect(events[0]![1][2]).toBe("new");
+    expect(JSON.parse(events[0]![1][3] as string)).toMatchObject({
       operation: "upsert", product: { code: "002", name: "Novo" },
     });
-    expect(JSON.parse(events[0][1][3] as string)).not.toHaveProperty("product.photo");
-    expect(events[1][1][2]).toBe("old");
-    expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
+    expect(JSON.parse(events[0]![1][3] as string)).not.toHaveProperty("product.photo");
+    expect(events[1]![1][2]).toBe("old");
+    expect(JSON.parse(events[1]![1][3] as string)).toEqual({ operation: "delete" });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
@@ -229,9 +229,9 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event"),
     );
     expect(events).toHaveLength(1);
-    expect(events[0][0]).toContain("'catalog', 'manual'");
-    expect(events[0][1][2]).toBe("p1");
-    expect(JSON.parse(events[0][1][3] as string)).toMatchObject({
+    expect(events[0]![0]).toContain("'catalog', 'manual'");
+    expect(events[0]![1][2]).toBe("p1");
+    expect(JSON.parse(events[0]![1][3] as string)).toMatchObject({
       operation: "upsert",
       product: { name: "Produto atualizado", category: "Limpeza" },
     });
@@ -260,17 +260,17 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event"),
     );
     expect(events).toHaveLength(2);
-    expect(events[0][0]).toContain("'promotions', 'automatic'");
-    expect(events[0][1][2]).toBe("promo-new");
-    const upsertPayload = JSON.parse(events[0][1][3] as string);
+    expect(events[0]![0]).toContain("'promotions', 'automatic'");
+    expect(events[0]![1][2]).toBe("promo-new");
+    const upsertPayload = JSON.parse(events[0]![1][3] as string);
     expect(upsertPayload).toMatchObject({
       operation: "upsert",
       promotion: { id: "promo-new", productId: "p2", promoPrice: 10 },
     });
     expect(JSON.stringify(upsertPayload)).not.toContain("must-not-be-in-event");
-    expect(events[1][0]).toContain("'promotions', 'automatic'");
-    expect(events[1][1][2]).toBe("promo-old");
-    expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
+    expect(events[1]![0]).toContain("'promotions', 'automatic'");
+    expect(events[1]![1][2]).toBe("promo-old");
+    expect(JSON.parse(events[1]![1][3] as string)).toEqual({ operation: "delete" });
   });
 
   it("emits manual conference upsert and delete events without unrelated state", async () => {
@@ -296,16 +296,16 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event"),
     );
     expect(events).toHaveLength(2);
-    expect(events[0][0]).toContain("'conference', 'manual'");
-    expect(events[0][1][2]).toBe("conf-new");
-    const payload = JSON.parse(events[0][1][3] as string);
+    expect(events[0]![0]).toContain("'conference', 'manual'");
+    expect(events[0]![1][2]).toBe("conf-new");
+    const payload = JSON.parse(events[0]![1][3] as string);
     expect(payload).toMatchObject({
       operation: "upsert",
       conference: { id: "conf-new", status: "finalizada", counts: { p2: 5 } },
     });
     expect(JSON.stringify(payload)).not.toContain("must-not-be-in-event");
-    expect(events[1][1][2]).toBe("conf-old");
-    expect(JSON.parse(events[1][1][3] as string)).toEqual({ operation: "delete" });
+    expect(events[1]![1][2]).toBe("conf-old");
+    expect(JSON.parse(events[1]![1][3] as string)).toEqual({ operation: "delete" });
   });
 
   it("emits redacted contact, cash, supplier and settings metadata events", async () => {
@@ -377,15 +377,15 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event") && String(call[0]).includes("'master_data', 'manual'"),
     );
     expect(events).toHaveLength(3);
-    expect(events[0][1][2]).toBe("exp-old");
-    expect(JSON.parse(events[0][1][3] as string)).toMatchObject({
+    expect(events[0]![1][2]).toBe("exp-old");
+    expect(JSON.parse(events[0]![1][3] as string)).toMatchObject({
       operation: "upsert",
       manualExpiry: { id: "exp-old", quantity: 3, expiry: "2026-12-01" },
     });
-    expect(JSON.stringify(JSON.parse(events[0][1][3] as string))).not.toContain("must-not-sync");
-    expect(events[1][1][2]).toBe("exp-new");
-    expect(JSON.parse(events[2][1][3] as string)).toEqual({ operation: "delete" });
-    expect(events[2][1][2]).toBe("exp-removed");
+    expect(JSON.stringify(JSON.parse(events[0]![1][3] as string))).not.toContain("must-not-sync");
+    expect(events[1]![1][2]).toBe("exp-new");
+    expect(JSON.parse(events[2]![1][3] as string)).toEqual({ operation: "delete" });
+    expect(events[2]![1][2]).toBe("exp-removed");
   });
 
   it("emits manual stock adjustment, writeoff and transfer events with limited payloads", async () => {
@@ -419,18 +419,18 @@ describe("MobFlow Neon state API", () => {
       String(call[0]).includes("mobflow_append_sync_event") && String(call[0]).includes("'stock', 'manual'"),
     );
     expect(events).toHaveLength(4);
-    expect(events[0][0]).toContain("'stock', 'manual', $3, $4, $5::jsonb");
-    expect(events[0][1][3]).toBe("adj-new");
-    expect(JSON.parse(events[0][1][4] as string)).toMatchObject({
+    expect(events[0]![0]).toContain("'stock', 'manual', $3, $4, $5::jsonb");
+    expect(events[0]![1][3]).toBe("adj-new");
+    expect(JSON.parse(events[0]![1][4] as string)).toMatchObject({
       operation: "upsert",
       stockOperation: { id: "adj-new", items: [{ productId: "p1", newStock: 5 }] },
     });
-    const transferPayload = JSON.parse(events[3][1][4] as string);
+    const transferPayload = JSON.parse(events[3]![1][4] as string);
     expect(transferPayload.stockOperation.destinationName).toBe("Filial Centro");
     expect(JSON.stringify(transferPayload)).not.toContain("123456789");
     expect(JSON.stringify(transferPayload)).not.toContain("11999999999");
     expect(JSON.stringify(transferPayload)).not.toContain("unitCost");
-    expect(JSON.parse(events[1][1][4] as string)).toEqual({ operation: "delete" });
+    expect(JSON.parse(events[1]![1][4] as string)).toEqual({ operation: "delete" });
   });
 
   it("does not create stock or price events for unchanged or missing numeric values", async () => {
