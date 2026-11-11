@@ -144,7 +144,7 @@ describe("MobFlow Neon state API", () => {
   });
 
 
-  it("appends automatic stock and price events only for valid changed numeric values", async () => {
+  it("does not synthesize product stock or price events from whole-state snapshots", async () => {
     const previousState = { products: [
       { id: "p1", stock: 10, price: 5 },
       { id: "p2", stock: null, price: null },
@@ -166,21 +166,12 @@ describe("MobFlow Neon state API", () => {
     const eventCalls = client.query.mock.calls.filter((call) =>
       String(call[0]).includes("mobflow_append_sync_event"),
     );
-    expect(eventCalls).toHaveLength(2);
-    expect(eventCalls[0]![0]).toContain("'stock', 'automatic'");
-    expect(eventCalls[0]![1][2]).toBe("p1");
-    expect(JSON.parse(eventCalls[0]![1][3] as string)).toMatchObject({
-      stockDelta: -2, resultingStock: 8, source: "state_update",
-    });
-    expect(eventCalls[1]![0]).toContain("'price', 'manual'");
-    expect(eventCalls[1]![1][2]).toBe("p1");
-    expect(JSON.parse(eventCalls[1]![1][3] as string)).toMatchObject({
-      price: 6, previousPrice: 5, source: "state_update",
-    });
+    expect(eventCalls).toHaveLength(0);
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
-  it("emits manual catalog upsert and delete events without photo data", async () => {
+  it("does not infer catalog upserts or deletions from incomplete whole-state snapshots", async () => {
     const previousState = { products: [
       { id: "old", code: "001", name: "Antigo", photo: "data:image/png;base64,secret" },
     ] };
@@ -200,19 +191,11 @@ describe("MobFlow Neon state API", () => {
     const events = client.query.mock.calls.filter((call) =>
       String(call[0]).includes("mobflow_append_sync_event"),
     );
-    expect(events).toHaveLength(2);
-    expect(events[0]![0]).toContain("'catalog', 'manual'");
-    expect(events[0]![1][2]).toBe("new");
-    expect(JSON.parse(events[0]![1][3] as string)).toMatchObject({
-      operation: "upsert", product: { code: "002", name: "Novo" },
-    });
-    expect(JSON.parse(events[0]![1][3] as string)).not.toHaveProperty("product.photo");
-    expect(events[1]![1][2]).toBe("old");
-    expect(JSON.parse(events[1]![1][3] as string)).toEqual({ operation: "delete" });
+    expect(events).toHaveLength(0);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
-  it("emits a manual catalog upsert when catalog metadata changes", async () => {
+  it("does not infer catalog metadata upserts from whole-state snapshots", async () => {
     const previousState = { products: [{ id: "p1", code: "001", name: "Produto", category: "Mercearia" }] };
     const nextState = { products: [{ id: "p1", code: "001", name: "Produto atualizado", category: "Limpeza" }] };
     client.query
@@ -228,13 +211,7 @@ describe("MobFlow Neon state API", () => {
     const events = client.query.mock.calls.filter((call) =>
       String(call[0]).includes("mobflow_append_sync_event"),
     );
-    expect(events).toHaveLength(1);
-    expect(events[0]![0]).toContain("'catalog', 'manual'");
-    expect(events[0]![1][2]).toBe("p1");
-    expect(JSON.parse(events[0]![1][3] as string)).toMatchObject({
-      operation: "upsert",
-      product: { name: "Produto atualizado", category: "Limpeza" },
-    });
+    expect(events).toHaveLength(0);
   });
 
   it("emits realtime promotion upsert and delete events with a limited projection", async () => {
