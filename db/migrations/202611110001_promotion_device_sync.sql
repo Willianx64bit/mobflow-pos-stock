@@ -17,6 +17,11 @@ CREATE INDEX IF NOT EXISTS promotion_sync_devices_tenant_updated_idx
 ALTER TABLE public.promotion_sync_devices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.promotion_sync_devices FORCE ROW LEVEL SECURITY;
 
+-- Keep this migration safely re-runnable if the policy was created manually
+-- during preview validation or by a previous partial application.
+DROP POLICY IF EXISTS promotion_sync_devices_tenant_access
+  ON public.promotion_sync_devices;
+
 CREATE POLICY promotion_sync_devices_tenant_access
   ON public.promotion_sync_devices
   FOR ALL TO mobflow_api
