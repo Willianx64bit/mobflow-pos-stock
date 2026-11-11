@@ -19,7 +19,7 @@ describe("Neon cash commands",()=>{
    if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE")) return {rows:[]};
    if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND operator_profile_id")) return {rows:[]};
    if(sql.includes("FROM public.cash_movements WHERE")) return {rows:[]};
-   if(sql.includes("FROM public.sales")) return {rows:[{total:"50.00"}]};
+   if(sql.includes("FROM public.sale_payments")) return {rows:[{total:"50.00"}]};
    if(sql.includes("FROM public.cash_movements WHERE tenant_id=$1 AND cash_session_id")) return {rows:[{additions:"10",withdrawals:"5"}]};
    if(sql.includes("UPDATE public.cash_sessions")) return {rowCount:1,rows:[]};
    return {rows:[]};
