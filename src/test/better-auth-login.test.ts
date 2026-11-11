@@ -49,11 +49,11 @@ describe("MobFlow Better Auth login validation", () => {
     process.env.MOBFLOW_AUTH_PROVIDER = "better-auth";
     passwordHash = await bcrypt.hash("senha-correta", 4);
     client.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM public.profiles") && sql.includes("WHERE username")) return { rows: [PROFILE] };
+      if (sql.includes("mobflow_find_login_profile")) return { rows: [PROFILE] };
       if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };
-      if (sql.includes("FROM public.manager_security_by_account")) return { rows: [{ account_id: ACCOUNT_ID }] };
+      if (sql.includes("mobflow_is_first_manager_login")) return { rows: [{ first_manager_login: false }] };
       if (sql.includes("FROM public.profiles") && sql.includes("role='pdv'")) return { rows: [] };
-      if (sql.includes('FROM public."account"')) return { rows: [{ password: passwordHash }] };
+      if (sql.includes("mobflow_get_login_credential")) return { rows: [{ password: passwordHash }] };
       return { rows: [] };
     });
     client.release.mockReset();
@@ -90,7 +90,7 @@ describe("MobFlow Better Auth login validation", () => {
 
   it("blocks access when the company subscription is inactive", async () => {
     client.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM public.profiles") && sql.includes("WHERE username")) return { rows: [PROFILE] };
+      if (sql.includes("mobflow_find_login_profile")) return { rows: [PROFILE] };
       if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "suspended", subscription_expires_at: null }] };
       return { rows: [] };
     });
@@ -102,7 +102,7 @@ describe("MobFlow Better Auth login validation", () => {
 
   it("creates the first manager only when the username and CNPJ are allowlisted", async () => {
     client.query.mockImplementation(async (sql: string) => {
-      if (sql.includes("FROM public.profiles") && sql.includes("WHERE username")) return { rows: [] };
+      if (sql.includes("mobflow_find_login_profile")) return { rows: [] };
       if (sql.includes("FROM public.account_allowlist")) return { rows: [{ "?column?": 1 }] };
       if (sql.includes("FROM public.profiles") && sql.includes("WHERE cnpj")) return { rows: [] };
       return { rows: [] };
