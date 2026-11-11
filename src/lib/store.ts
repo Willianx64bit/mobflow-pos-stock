@@ -1106,6 +1106,12 @@ export const actions = {
       settings: { companyName: "" },
     });
   },
+  applyCatalogProduct(product: Product) {
+    const existing = state.products.some((item) => item.id === product.id);
+    set({ products: existing
+      ? state.products.map((item) => item.id === product.id ? { ...item, ...product } : item)
+      : [product, ...state.products] });
+  },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
       const old = state.products.find((x) => x.id === p.id);
