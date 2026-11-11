@@ -220,6 +220,10 @@ function PDV() {
 
   const completeSale = async () => {
     try {
+      if (payment === "Fiado") {
+        setFlash("Venda Fiado ainda não está habilitada no Neon neste Preview. Use Dinheiro, Pix ou Cartão para este teste.");
+        return;
+      }
       const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
       if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return; }
       await confirmLastDomainCommand();
