@@ -35,14 +35,17 @@ function respondError(error: unknown) {
 }
 async function assertSchema(client: any) {
   const r=await client.query("SELECT to_regclass('public.cash_sessions')::text AS sessions,to_regclass('public.cash_movements')::text AS movements,to_regclass('public.sales')::text AS sales,to_regclass('public.mobflow_sync_events')::text AS events,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS append_fn");
-  if(Object.values(r.rows[0]??{}).some(v=>!v)) fail("A estrutura relacional do caixa ainda não está pronta.",503,"cash_schema_not_ready");
+  const schemaRow = r.rows[0];
+  if (!schemaRow || Object.values(schemaRow).some((v) => !v)) fail("A estrutura relacional do caixa ainda não está pronta.",503,"cash_schema_not_ready");
 }
 export async function handleMobFlowCash(request: Request) {
   if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth") return Response.json({ok:false,error:"Comandos Neon de caixa não habilitados neste ambiente.",code:"cash_provider_disabled"},{status:503});
   let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>|null=null;
   try {
     const body=await request.json().catch(()=>null) as CashInput|null;
-    if(!body||typeof body!=="object") fail("Solicitação de caixa inválida.");
+    if (!body || typeof body !== "object") {
+      return Response.json({ ok: false, error: "Solicitação de caixa inválida.", code: "invalid_cash_operation" }, { status: 400 });
+    }
     const action=str(body.action,20);
     const sessionId=str(body.sessionId,100);
     if(!["open","movement","close"].includes(action)||!sessionId||!validUuid(body.idempotencyKey)) fail("Identificadores ou ação do caixa inválidos.");
