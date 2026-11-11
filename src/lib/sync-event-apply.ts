@@ -38,6 +38,15 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "catalog" && event.entity_type === "product") {
       const existing = next.products.find((item) => item.id === event.entity_id);
+      if (payload["operation"] === "photo_updated" || payload["operation"] === "photo_removed") {
+        const photoVersion = number(payload["version"]);
+        if (photoVersion === null) throw new UnsupportedSyncEventError(event);
+        if (!existing || (existing.version !== undefined && photoVersion <= existing.version)) continue;
+        next.products = next.products.map((item) => item.id === event.entity_id
+          ? { ...item, photoObjectKey: typeof payload["photoObjectKey"] === "string" ? payload["photoObjectKey"] : undefined, version: photoVersion }
+          : item);
+        continue;
+      }
       if (payload["operation"] === "delete") {
         const deletedVersion = number(payload["version"]);
         // An old delete event must not remove a product already updated at a newer version.
