@@ -67,7 +67,17 @@ export function ProductForm({ product, onClose }: Props) {
         const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
         photoUrl=undefined;photoObjectKey=undefined;
       }
-      actions.saveProduct({id,...(savedVersion!==undefined?{version:savedVersion}:{}),name:f.name.trim(),barcodes:cleanBarcodes,...(f.ref.trim()?{ref:f.ref.trim()}:{}),code,category:f.category.trim()||"Geral",price:num(f.price),...(f.cost.trim()?{cost:num(f.cost)}:{}),stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});onClose();
+      if(neonCatalog){
+        const response=await fetch("/api/mobflow/products?limit=100");
+        const result=await response.json().catch(()=>null);
+        if(!response.ok||!result?.ok||!Array.isArray(result.products))throw new Error(result?.error||"Não foi possível confirmar a lista atualizada no Neon.");
+        const confirmed=result.products.find((item:Product)=>item.id===id) as Product|undefined;
+        if(!confirmed)throw new Error("O Neon confirmou a gravação, mas o produto não apareceu na consulta de confirmação. O formulário foi mantido aberto.");
+        actions.saveProduct({...confirmed,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
+      } else {
+        actions.saveProduct({id,...(savedVersion!==undefined?{version:savedVersion}:{}),name:f.name.trim(),barcodes:cleanBarcodes,...(f.ref.trim()?{ref:f.ref.trim()}:{}),code,category:f.category.trim()||"Geral",price:num(f.price),...(f.cost.trim()?{cost:num(f.cost)}:{}),stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
+      }
+      onClose();
     } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
   const choosePhoto=async(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;try{const compressed=await compressImageTo200KB(file);setPhotoFile(compressed);setF(v=>({...v,photo:URL.createObjectURL(compressed)}));}catch(error){alert(error instanceof Error?error.message:"Não foi possível compactar a foto.");}finally{e.target.value="";}};
@@ -83,6 +93,6 @@ export function ProductForm({ product, onClose }: Props) {
     <div className="grid grid-cols-2 gap-3">{input("price",f.unit==="kg"?"Preço por kg R$":"Preço R$",{mono:true,mode:"decimal"})}{input("cost",f.unit==="kg"?"Custo por kg R$":"Custo R$ (opcional)",{mono:true,mode:"decimal"})}</div>
     <div className="grid grid-cols-2 gap-3">{input("stock",f.unit==="kg"?"Estoque (kg ou g)":"Estoque",{mono:true,mode:"decimal"})}{input("minStock",f.unit==="kg"?"Mínimo (kg ou g)":"Mínimo",{mono:true,mode:"decimal"})}</div>
     {f.unit==="kg"&&<p className="font-mono text-[10px] text-primary">Produto por peso: 2 = 2 kg, 500g = 0,5 kg. O preço é por kg.</p>}
-    <div className="flex gap-2 pt-1">{product&&<button type="button" onClick={()=>{if(confirm("Excluir este produto?")){actions.deleteProduct(product.id);onClose();}}} className="rounded-xl px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/40 hover:bg-destructive/10">Excluir</button>}<button type="submit" className="flex-1 rounded-xl bg-primary text-primary-foreground font-bold py-3 hover:bg-primary/85">{photoBusy?"Enviando foto...":"Salvar"} <kbd className="font-mono text-[11px] opacity-70">↵</kbd></button></div>
+    <div className="flex gap-2 pt-1">{product&&<button type="button" disabled={photoBusy} onClick={async()=>{if(!confirm("Excluir este produto? O estoque precisa estar em zero ou negativo."))return;setPhotoBusy(true);try{if(import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon"){const response=await fetch("/api/mobflow/products",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:product.id})});const result=await response.json().catch(()=>null);if(!response.ok||result?.ok!==true)throw new Error(result?.error||"O Neon não confirmou a exclusão.");}actions.deleteProduct(product.id);onClose();}catch(error){alert(error instanceof Error?error.message:"Falha ao excluir produto.");}finally{setPhotoBusy(false);}}} className="rounded-xl px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/40 hover:bg-destructive/10 disabled:opacity-50">Excluir</button>}<button type="submit" className="flex-1 rounded-xl bg-primary text-primary-foreground font-bold py-3 hover:bg-primary/85">{photoBusy?"Enviando foto...":"Salvar"} <kbd className="font-mono text-[11px] opacity-70">↵</kbd></button></div>
   </form></div>;
 }
