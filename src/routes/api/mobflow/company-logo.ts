@@ -57,7 +57,8 @@ async function read(request:Request){
   const result=await r2().send(new GetObjectCommand({Bucket:bucket(),Key:key}));
   if(!result.Body)return new Response(null,{status:404});
   const bytes=await result.Body.transformToByteArray();
-  return new Response(bytes,{headers:{"Content-Type":result.ContentType??"application/octet-stream","Content-Length":String(bytes.byteLength),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+  const body=new ArrayBuffer(bytes.byteLength);new Uint8Array(body).set(bytes);
+  return new Response(body,{headers:{"Content-Type":result.ContentType??"application/octet-stream","Content-Length":String(bytes.byteLength),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
  },false);
 }
 async function remove(request:Request){
