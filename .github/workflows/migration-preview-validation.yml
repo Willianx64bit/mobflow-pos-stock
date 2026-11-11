@@ -13,8 +13,8 @@ jobs:
         with:
           bun-version: latest
       - run: bun install
-      - name: Catalog, sales, cash, stock, outbox and incremental event tests
-        run: bun run test -- src/test/mobflow-products-api.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-sync-events-api.test.ts src/test/sync-outbox.test.ts src/test/sync-event-apply.test.ts src/test/mobflow-state-api.test.ts
+      - name: Catalog, sales, Fiado receivables, cash, stock, outbox and incremental event tests
+        run: bun run test -- src/test/mobflow-products-api.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-receivables-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-sync-events-api.test.ts src/test/sync-outbox.test.ts src/test/sync-event-apply.test.ts src/test/mobflow-state-api.test.ts
       - name: Production build
         run: bun run build
       - name: TypeScript validation (non-blocking migration debt)
