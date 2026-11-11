@@ -77,9 +77,11 @@ async function remove(request:Request){
  return withProduct(request,async({tenant,db,id})=>{
   const row=(await db.query("SELECT photo_object_key FROM public.products WHERE tenant_id=$1 AND id=$2",[tenant,id])).rows[0];
   const old=row?.photo_object_key as string|null;if(!old)return Response.json({ok:true,removed:false});
-  await db.query("UPDATE public.products SET photo_object_key=NULL,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2",[tenant,id]);
-  await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_removed",productId:id,photoObjectKey:null})]);
-  return {response:Response.json({ok:true,removed:true}),afterCommit:async()=>{if(old.startsWith(`tenants/${tenant}/products/${id}/`))await client().send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
+  const updated=await db.query("UPDATE public.products SET photo_object_key=NULL,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING version",[tenant,id]);
+  if(!updated.rows.length)throw new Error("Produto não encontrado.");
+  const version=Number(updated.rows[0].version);
+  await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_removed",productId:id,photoObjectKey:null,version})]);
+  return {response:Response.json({ok:true,removed:true,version}),afterCommit:async()=>{if(old.startsWith(`tenants/${tenant}/products/${id}/`))await client().send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
  });
 }
 export const Route=createFileRoute("/api/mobflow/product-photo")({server:{handlers:{
