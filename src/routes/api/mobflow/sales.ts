@@ -45,7 +45,7 @@ async function ready(client: any) {
   if (Object.values(r.rows[0] ?? {}).some((v) => !v)) fail("A estrutura relacional de vendas ainda não está pronta.", 503, "sales_schema_not_ready");
 }
 export async function handleMobFlowSale(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") return Response.json({ ok: false, error: "Vendas Neon ainda não estão habilitadas neste ambiente.", code: "sales_provider_disabled" }, { status: 503 });
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") return Response.json({ ok: false, error: "Vendas Neon ainda não estão habilitadas neste ambiente.", code: "sales_provider_disabled" }, { status: 503 });
   let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
   try {
     const body = await request.json().catch(() => null) as SaleInput | null;
@@ -73,7 +73,7 @@ export async function handleMobFlowSale(request: Request) {
       const items = await client.query("SELECT product_id,quantity::text FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY product_id", [identity.accountId, saleId]);
       const requested = new Map<string, number>();
       for (const raw of body.items as Array<Record<string, unknown>>) {
-        const productId = text(raw?.productId, 100), quantity = Number(raw?.quantity);
+        const productId = text(raw?.["productId"], 100), quantity = Number(raw?.["quantity"]);
         if (!productId || !Number.isFinite(quantity) || quantity <= 0) fail("Itens inválidos na repetição da venda.");
         requested.set(productId, quantity3((requested.get(productId) ?? 0) + quantity));
       }
@@ -101,7 +101,7 @@ export async function handleMobFlowSale(request: Request) {
     const quantities = new Map<string, number>();
     for (let index = 0; index < body.items.length; index++) {
       const item = body.items[index] as Record<string, unknown>;
-      const productId = text(item?.productId, 100), quantity = Number(item?.quantity);
+      const productId = text(item?.["productId"], 100), quantity = Number(item?.["quantity"]);
       if (!productId || !Number.isFinite(quantity) || quantity <= 0 || Math.round(quantity * 1000) !== quantity * 1000) fail("Produto ou quantidade inválida.");
       quantities.set(productId, quantity3((quantities.get(productId) ?? 0) + quantity));
     }
