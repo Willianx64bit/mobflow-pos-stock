@@ -393,7 +393,29 @@ async function restoreOutboxBackup(tenantId: string) {
 }
 
 function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
-  if (!incrementalSyncEnabled() || typeof window === "undefined") return false;
+  if (typeof window === "undefined") return false;
+  // Until incremental events are approved, critical operations go straight to
+  // their transactional Neon endpoints. They are never treated as completed
+  // merely because they were placed in the local outbox.
+  if (!incrementalSyncEnabled()) {
+    const idempotencyKey = typeof payload["idempotencyKey"] === "string"
+      ? String(payload["idempotencyKey"])
+      : crypto.randomUUID();
+    const body = { ...payload, idempotencyKey };
+    const endpoint = domain === "cash" ? "/api/mobflow/cash" : domain === "sales" ? "/api/mobflow/sales" : null;
+    if (!endpoint) return false;
+    lastDomainCommandPromise = (async () => {
+      const result = await callMobFlowApi(endpoint, { method: "POST", body: JSON.stringify(body) });
+      if (!result.response.ok || result.body.ok !== true) {
+        throw new Error(String(result.body.error ?? "O Neon não confirmou a operação."));
+      }
+      // The relational transaction is the source of truth. Refresh the
+      // snapshot after commit so the UI uses the server-generated values.
+      await hydrateStore().catch(() => undefined);
+    })();
+    void lastDomainCommandPromise.catch((error) => console.warn("[MobFlow Neon] Operation was not confirmed:", error));
+    return true;
+  }
   const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
   if (!tenantId) return false;
   try {
@@ -423,7 +445,6 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
 
 /** Waits for the most recently queued domain operation to be committed by Neon. */
 export async function confirmLastDomainCommand(): Promise<void> {
-  if (!incrementalSyncEnabled()) return;
   const pending = lastDomainCommandPromise;
   lastDomainCommandPromise = null;
   if (!pending) throw new Error("A operação não entrou na fila de sincronização e não foi enviada ao servidor.");
@@ -651,11 +672,71 @@ export async function hydrateStore() {
   return hydrating;
 }
 
+function scheduleStatePersist() {
+  if (!cloudReady || !cloudAccountId || typeof window === "undefined") return;
+  persistRequested = true;
+  if (persistWorker) return;
+  const worker = (async () => {
+    while (persistRequested) {
+      persistRequested = false;
+      const accountId = cloudAccountId;
+      if (!accountId || !cloudReady) break;
+      // Private contacts/settings have their own authenticated endpoint.
+      // Keep only the public company caption in the shared snapshot.
+      const snapshot = cloneState(state);
+      snapshot.contacts = [];
+      snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
+      let attempts = 0;
+      let saved = false;
+      while (!saved && attempts < 4) {
+        attempts += 1;
+        const result = await callMobFlowApi("/api/mobflow/state", {
+          method: "PUT",
+          body: JSON.stringify({ state: snapshot, expectedUpdatedAt: lastCloudUpdatedAt }),
+        });
+        if (result.response.ok && result.body.ok === true && typeof result.body.updatedAt === "string") {
+          lastCloudUpdatedAt = result.body.updatedAt;
+          lastSyncedState = cloneState(snapshot);
+          saved = true;
+          continue;
+        }
+        if (result.response.status === 409 && result.body.status === "conflict" &&
+            result.body.remoteState && typeof result.body.remoteState === "object") {
+          const remote = result.body.remoteState as State;
+          lastCloudUpdatedAt = typeof result.body.remoteUpdatedAt === "string" ? result.body.remoteUpdatedAt : null;
+          state = mergeConcurrentState(lastSyncedState, state, remote);
+          const retrySnapshot = cloneState(state);
+          retrySnapshot.contacts = [];
+          retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
+          Object.assign(snapshot, retrySnapshot);
+          lastSyncedState = cloneState(remote);
+          continue;
+        }
+        throw new Error(String(result.body.error ?? "Não foi possível salvar o estado completo no Neon."));
+      }
+      if (!saved) throw new Error("O estado mudou em outro dispositivo várias vezes. A gravação foi interrompida para evitar sobrescrita.");
+      try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+      if (refreshAfterPersist) {
+        refreshAfterPersist = false;
+        void refreshFromCloud(accountId, true);
+      }
+    }
+  })();
+  persistWorker = worker;
+  persistQueue = worker;
+  void worker.catch((error) => {
+    console.error("[MobFlow State] Persistência no Neon não concluída:", error);
+  }).finally(() => {
+    if (persistWorker === worker) persistWorker = null;
+    if (persistRequested) scheduleStatePersist();
+  });
+}
+
 function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
   try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
-  // Mutations are persisted locally. Cloud changes are delivered only through domain commands and incremental events.
   listeners.forEach((l) => l());
+  if (options.persist !== false) scheduleStatePersist();
 }
 
 export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
@@ -715,7 +796,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       if (username) {
         const retained = (state.cashSessions ?? []).filter((item) => item.status !== "open" || item.openedBy !== username);
         const canonical = remote ? [{ id:remote.id, status:"open" as const, openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
-        set({ cashSessions: [...canonical, ...retained] });
+        set({ cashSessions: [...canonical, ...retained] }, { persist: false });
       }
     }
     return { ...result, failed: await syncOutbox.failedCount(tenantId) };
@@ -769,8 +850,8 @@ export const actions = {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
     if (!operator || !Number.isFinite(openingAmount) || openingAmount < 0) return false;
     if ((state.cashSessions ?? []).some((session) => session.status === "open" && session.openedBy === operator)) return false;
-    const session: CashSession = { id: uid(), openedAt: new Date().toISOString(), openedBy: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
-    const queued = enqueueDomainCommand("cash", { action: "open", sessionId: session.id, openingAmount: session.openingAmount, note: session.note ?? "" });
+    const session: CashSession = { id: crypto.randomUUID(), openedAt: new Date().toISOString(), openedBy: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
+    const queued = enqueueDomainCommand("cash", { action: "open", sessionId: session.id, openingAmount: session.openingAmount, note: session.note ?? "", idempotencyKey: crypto.randomUUID() });
     set({ cashSessions: [session, ...(state.cashSessions ?? [])] }, { persist: !queued });
     return session.id;
   },
@@ -778,8 +859,8 @@ export const actions = {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
     const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
     if (!session || !Number.isFinite(amount) || amount <= 0 || !reason.trim()) return false;
-    const movement: CashMovement = { id: uid(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
-    const queued = enqueueDomainCommand("cash", { action: "movement", sessionId: session.id, amount: movement.amount, movementType: type === "reforco" ? "addition" : "withdrawal", reason: movement.reason });
+    const movement: CashMovement = { id: crypto.randomUUID(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
+    const queued = enqueueDomainCommand("cash", { action: "movement", sessionId: session.id, amount: movement.amount, movementType: type === "reforco" ? "addition" : "withdrawal", reason: movement.reason, idempotencyKey: movement.id });
     set({ cashMovements: [movement, ...(state.cashMovements ?? [])] }, { persist: !queued });
     return movement.id;
   },
@@ -794,7 +875,7 @@ export const actions = {
     const additions = movements.filter((item) => item.type === "reforco").reduce((sum, item) => sum + item.amount, 0);
     const expectedCash = Math.round((session.openingAmount + cashSales - withdrawals + additions) * 100) / 100;
     const counted = Math.round(countedCash * 100) / 100;
-    const queued = enqueueDomainCommand("cash", { action: "close", sessionId: session.id, countedAmount: counted, note: note.trim() });
+    const queued = enqueueDomainCommand("cash", { action: "close", sessionId: session.id, countedAmount: counted, note: note.trim(), idempotencyKey: crypto.randomUUID() });
     set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) }, { persist: !queued });
     return { expectedCash, countedCash: counted, difference: Math.round((counted - expectedCash) * 100) / 100 };
   },
@@ -848,7 +929,7 @@ export const actions = {
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = payment === "Fiado" ? 0 : total - costTotal;
     const seller = operator;
-    const sale: Sale = { id: uid(), date: new Date().toISOString(), cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
+    const sale: Sale = { id: crypto.randomUUID(), date: new Date().toISOString() , cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.round((p.stock - c.qty) * 1000) / 1000 } : p;
@@ -860,7 +941,7 @@ export const actions = {
       return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
     });
     const queued = enqueueDomainCommand("sales", {
-      saleId: sale.id, cashSessionId: activeCash.id,
+      saleId: sale.id, idempotencyKey: crypto.randomUUID(), cashSessionId: activeCash.id,
       paymentMethod: payment === "Dinheiro" ? "cash" : payment === "Pix" ? "pix" : payment === "Cartão" ? "card" : "fiado",
       receivedAmount: payment === "Fiado" ? 0 : payment === "Dinheiro" ? received ?? total : total,
       discountAmount: discount, discountType: discountType === "%" ? "percentage" : "fixed",
