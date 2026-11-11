@@ -69,7 +69,8 @@ async function read(request:Request){
   const key=row?.photo_object_key as string|null;if(!key||!key.startsWith(`tenants/${tenant}/products/${id}/`))return new Response(null,{status:404});
   const object=await client().send(new GetObjectCommand({Bucket:bucket(),Key:key}));if(!object.Body)return new Response(null,{status:404});
   const bytes=await object.Body.transformToByteArray();
-  return new Response(bytes,{headers:{"Content-Type":object.ContentType??"application/octet-stream","Content-Length":String(bytes.byteLength),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'; sandbox"}});
+  const body=new ArrayBuffer(bytes.byteLength);new Uint8Array(body).set(bytes);
+  return new Response(body,{headers:{"Content-Type":object.ContentType??"application/octet-stream","Content-Length":String(bytes.byteLength),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Content-Security-Policy":"default-src 'none'; sandbox"}});
  },false);
 }
 async function remove(request:Request){
