@@ -41,7 +41,7 @@ function errorResponse(error: unknown) {
   return jsonError(error);
 }
 async function ready(client: any) {
-  const r = await client.query("SELECT to_regclass('public.sales')::text AS sales,to_regclass('public.sale_items')::text AS items,to_regclass('public.sale_payments')::text AS payments,to_regclass('public.stock_movements')::text AS stock,to_regclass('public.mobflow_sync_events')::text AS events,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS append_fn");
+  const r = await client.query("SELECT to_regclass('public.sales')::text AS sales,to_regclass('public.sale_items')::text AS items,to_regclass('public.sale_payments')::text AS payments,to_regclass('public.receivable_payments')::text AS receivables,to_regclass('public.stock_movements')::text AS stock,to_regclass('public.mobflow_sync_events')::text AS events,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS append_fn");
   if (Object.values(r.rows[0] ?? {}).some((v) => !v)) fail("A estrutura relacional de vendas ainda não está pronta.", 503, "sales_schema_not_ready");
 }
 export async function handleMobFlowSale(request: Request) {
@@ -59,7 +59,6 @@ export async function handleMobFlowSale(request: Request) {
     if (!Number.isFinite(discountAmountInput) || discountAmountInput < 0 || !["fixed", "percentage", undefined].includes(body.discountType as any) || (body.discountType === "percentage" && discountAmountInput > 100)) fail("Desconto inválido.");
     const customerName = text(body.customerName, 160) || null;
     const customerDocument = text(body.customerDocument, 32) || null;
-    if (paymentMethod === "fiado") fail("Venda Fiado depende do cadastro relacional do cliente e do comando de recebimento. Este fluxo ainda não está habilitado no Neon.", 409, "fiado_command_not_ready");
 
     tx = await beginAuthenticatedTransaction(request);
     const { client, identity } = tx;
@@ -159,7 +158,7 @@ export async function handleMobFlowSale(request: Request) {
       identity.accountId, paymentId, saleId, paymentMethod, paid ? total : 0, paid ? received : 0, change, now.toISOString(), stableUuid(identity.accountId + ":sale:" + saleId + ":payment"),
     ]);
     await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'sales','automatic','sale',$3,$4::jsonb)", [
-      randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":event"), saleId, JSON.stringify({ sale: { id: saleId, date: now.toISOString(), cashSessionId, seller: identity.displayName || identity.username, total, subtotal, discount, discountType: body.discountType === "percentage" ? "%" : "R$", profit: paid ? money(total - costTotal) : 0, payment: paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : "Cartão", received, customer: customerName ?? undefined, paid, paidAt: paid ? now.toISOString() : undefined, items: lines.map((l) => ({ productId: l.product.id, name: text(l.product.name, 160), price: l.price, cost: l.cost, qty: l.quantity, unit: l.unit })) }, saleId, cashSessionId, total, paymentMethod, paymentStatus: paid ? "paid" : "unpaid" }),
+      randomUUID(), stableUuid(identity.accountId + ":sale:" + saleId + ":event"), saleId, JSON.stringify({ sale: { id: saleId, date: now.toISOString(), cashSessionId, seller: identity.displayName || identity.username, total, subtotal, discount, discountType: body.discountType === "percentage" ? "%" : "R$", profit: paid ? money(total - costTotal) : 0, payment: paymentMethod === "cash" ? "Dinheiro" : paymentMethod === "pix" ? "Pix" : paymentMethod === "card" ? "Cartão" : "Fiado", received, customer: customerName ?? undefined, paid, paidAt: paid ? now.toISOString() : undefined, items: lines.map((l) => ({ productId: l.product.id, name: text(l.product.name, 160), price: l.price, cost: l.cost, qty: l.quantity, unit: l.unit })) }, saleId, cashSessionId, total, paymentMethod, paymentStatus: paid ? "paid" : "unpaid" }),
     ]);
     await releaseTransaction(client, true); tx = null;
     return Response.json({ ok: true, replayed: false, sale: { id: saleId, total, subtotal, discount, paymentMethod, paymentStatus: paid ? "paid" : "unpaid", change, items: lines.map((l) => ({ productId: l.product.id, code: l.product.code, name: l.product.name, quantity: l.quantity, unitPrice: l.price, total: l.lineTotal })) } }, { status: 201 });
