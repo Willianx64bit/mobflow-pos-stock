@@ -793,15 +793,26 @@ export const actions = {
     if (!sale || sale.paid || !Number.isFinite(value) || value <= 0) return false;
     const amount = Math.min(Math.max(0, sale.total - (sale.payments ?? []).reduce((sum, p) => sum + p.value, 0)), Math.round(value * 100) / 100);
     if (amount <= 0) return false;
-    const result = await callMobFlowApi("/api/mobflow/receivables", {
-      method: "POST",
-      body: JSON.stringify({ saleId: id, amount, paymentMethod: method, idempotencyKey: crypto.randomUUID() }),
-    });
-    if (!result.response.ok || result.body.ok !== true) {
-      throw new Error(String(result.body.error ?? "O recebimento não foi confirmado pelo Neon."));
+    const paidBefore = (sale.payments ?? []).reduce((sum, payment) => sum + payment.value, 0);
+    const idempotencyKey = crypto.randomUUID();
+    try {
+      const result = await callMobFlowApi("/api/mobflow/receivables", {
+        method: "POST",
+        body: JSON.stringify({ saleId: id, amount, paymentMethod: method, idempotencyKey }),
+      });
+      if (!result.response.ok || result.body.ok !== true) {
+        throw new Error(String(result.body.error ?? "O recebimento não foi confirmado pelo Neon."));
+      }
+      await hydrateStore();
+      return true;
+    } catch (error) {
+      // If the connection drops after Neon commits, reconcile before allowing a retry.
+      await hydrateStore().catch(() => undefined);
+      const refreshed = state.sales.find((item) => item.id === id && item.payment === "Fiado");
+      const paidAfter = (refreshed?.payments ?? []).reduce((sum, payment) => sum + payment.value, 0);
+      if (paidAfter >= paidBefore + amount - 0.005) return true;
+      throw error;
     }
-    await hydrateStore();
-    return true;
   },
   hideFiadoCustomer(customer: string) {
     const normalized = customer.trim().toLocaleLowerCase();
@@ -811,10 +822,10 @@ export const actions = {
     set({ sales: state.sales.map((s) => matching.some((item) => item.id === s.id) ? { ...s, hiddenFromFiado: true } : s) });
     return true;
   },
-  markFiadoPaid(id: string) {
+  async markFiadoPaid(id: string) {
     const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
     if (!sale || sale.paid) return;
-    actions.addFiadoPayment(id, sale.total);
+    await actions.addFiadoPayment(id, sale.total);
   },
   async updateSettings(settings: AppSettings) {
     await savePrivateRecord("settings", undefined, settings as unknown as Record<string, unknown>);
