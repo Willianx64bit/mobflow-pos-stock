@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { PoolClient } from "@neondatabase/serverless";
 import { createHash } from "node:crypto";
 import { beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction, getNeonPool } from "@/lib/server/neon";
@@ -11,7 +12,7 @@ async function handleReauth(request: Request) {
   }
 
   let authTransaction: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
-  let client: Awaited<ReturnType<ReturnType<typeof getNeonPool>["connect"]>> | null = null;
+  let client: PoolClient | null = null;
   try {
     authTransaction = await beginAuthenticatedTransaction(request);
     const identity = authTransaction.identity;
