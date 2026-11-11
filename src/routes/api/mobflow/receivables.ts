@@ -26,13 +26,13 @@ function respondError(error: unknown) {
   return jsonError(error);
 }
 export async function handleMobFlowReceivable(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") return Response.json({ ok: false, error: "Recebimentos Fiado Neon não habilitados neste ambiente.", code: "receivables_provider_disabled" }, { status: 503 });
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") return Response.json({ ok: false, error: "Recebimentos Fiado Neon não habilitados neste ambiente.", code: "receivables_provider_disabled" }, { status: 503 });
   let tx: Awaited<ReturnType<typeof beginAuthenticatedTransaction>> | null = null;
   try {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     if (!body || typeof body !== "object") fail("Solicitação de recebimento inválida.");
-    const saleId = text(body.saleId, 100), idempotencyKey = body.idempotencyKey;
-    const amount = Number(body.amount), method = body.paymentMethod as PaymentMethod;
+    const saleId = text(body["saleId"], 100), idempotencyKey = body["idempotencyKey"];
+    const amount = Number(body["amount"]), method = body["paymentMethod"] as PaymentMethod;
     if (!saleId || !uuid(idempotencyKey)) fail("Identificadores do recebimento inválidos.");
     if (!Number.isFinite(amount) || amount <= 0 || !["cash", "pix", "card"].includes(String(method))) fail("Valor ou forma de pagamento inválidos.");
 
