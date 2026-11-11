@@ -205,11 +205,20 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       if (!rawMovement || typeof rawMovement["id"] !== "string" || typeof rawMovement["sessionId"] !== "string") throw new UnsupportedSyncEventError(event);
       const amount = number(rawMovement["amount"]);
       if (amount === null || (rawMovement["type"] !== "sangria" && rawMovement["type"] !== "reforco")) throw new UnsupportedSyncEventError(event);
-      next.cashMovements = upsert(next.cashMovements, {
-        id: rawMovement["id"], sessionId: rawMovement["sessionId"], type: rawMovement["type"],
+      const movement = {
+        id: rawMovement["id"], sessionId: rawMovement["sessionId"], type: rawMovement["type"] as "sangria" | "reforco",
         amount, reason: String(rawMovement["reason"] ?? ""), operator: String(rawMovement["operator"] ?? ""),
         date: typeof rawMovement["date"] === "string" ? rawMovement["date"] : event.created_at,
-      });
+      };
+      // Replace the optimistic local movement (which has a client ID) with the
+      // server's canonical idempotency ID instead of showing the same movement twice.
+      const optimistic = next.cashMovements.find((item) =>
+        item.id !== movement.id && item.sessionId === movement.sessionId &&
+        item.type === movement.type && item.amount === movement.amount &&
+        item.reason === movement.reason && item.operator === movement.operator
+      );
+      if (optimistic) next.cashMovements = next.cashMovements.filter((item) => item.id !== optimistic.id);
+      next.cashMovements = upsert(next.cashMovements, movement);
       continue;
     }
 
