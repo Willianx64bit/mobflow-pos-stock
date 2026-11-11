@@ -60,7 +60,7 @@ async function upload(request:Request){
    if(!updated.rows.length)throw new Error("Produto não encontrado.");
    await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_updated",productId:id,photoObjectKey:key,version:Number(updated.rows[0].version)})]);
   }catch(e){await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key})).catch(()=>{});throw e;}
-  return {response:Response.json({ok:true,photoObjectKey:key,photoUrl:`/api/mobflow/product-photo?productId=${encodeURIComponent(id)}`}),onRollback:async()=>{await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));},afterCommit:async()=>{if(old&&old!==key&&old.startsWith(`tenants/${tenant}/products/${id}/`))await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
+  return {response:Response.json({ok:true,photoObjectKey:key,version:Number(updated.rows[0].version),photoUrl:`/api/mobflow/product-photo?productId=${encodeURIComponent(id)}`}),onRollback:async()=>{await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));},afterCommit:async()=>{if(old&&old!==key&&old.startsWith(`tenants/${tenant}/products/${id}/`))await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
  });
 }
 async function read(request:Request){
