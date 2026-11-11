@@ -42,7 +42,7 @@ async function handle(request: Request, method: "GET" | "PATCH" | "DELETE") {
    await releaseTransaction(client,true);tx=null;return Response.json({ok:true});
   }
   const body=object(await request.json().catch(()=>null));
-  const value=object(body?["value"]);
+  const value=object(body?.["value"]);
   if(!value){await releaseTransaction(client,false);tx=null;return Response.json({ok:false,error:"Dados inválidos."},{status:400});}
   if(kind==="contact"){
    const contactId=text(body?.id??value.id,100);
