@@ -11,11 +11,11 @@ const formats={
  "image/webp":{ext:"webp",valid:(b:Uint8Array)=>b.length>=12&&String.fromCharCode(...b.slice(0,4))==="RIFF"&&String.fromCharCode(...b.slice(8,12))==="WEBP"},
 } as const;
 function client(){
- const account=process.env.CLOUDFLARE_R2_ACCOUNT_ID,access=process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,secret=process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+ const account=process.env["CLOUDFLARE_R2_ACCOUNT_ID"],access=process.env["CLOUDFLARE_R2_ACCESS_KEY_ID"],secret=process.env["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
  if(!account||!access||!secret)throw new Error("R2 não configurado.");
  return new S3Client({region:"auto",endpoint:`https://${account}.r2.cloudflarestorage.com`,credentials:{accessKeyId:access,secretAccessKey:secret}});
 }
-function bucket(){const b=process.env.CLOUDFLARE_R2_BUCKET_NAME;if(!b)throw new Error("Bucket R2 não configurado.");return b;}
+function bucket(){const b=process.env["CLOUDFLARE_R2_BUCKET_NAME"];if(!b)throw new Error("Bucket R2 não configurado.");return b;}
 function productIdFrom(request:Request){const id=new URL(request.url).searchParams.get("productId")??"";if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))throw new Error("Identificador do produto inválido.");return id;}
 type ProductActionResult={response:Response;afterCommit?:()=>Promise<void>;onRollback?:()=>Promise<void>};
 async function withProduct(request:Request,fn:(ctx:{tenant:string;user:string;db:any;id:string})=>Promise<ProductActionResult|Response>,requireManager=true){
