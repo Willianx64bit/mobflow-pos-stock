@@ -103,8 +103,8 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         ...item, items: updateLines(item.items), extras: updateLines(item.extras ?? []),
         status: payload["status"] === "aceito" ? "aceito" : item.status,
         ...(Object.keys(decisions).length ? { decisions } : item.decisions ? { decisions: item.decisions } : {}),
-        decisionCompleted: payload["decisionCompleted"] === true || item.decisionCompleted,
-        stockReleased: payload["status"] === "aceito" || item.stockReleased,
+        decisionCompleted: payload["decisionCompleted"] === true || item.decisionCompleted === true,
+        stockReleased: payload["status"] === "aceito" || item.stockReleased === true,
       } : item);
       continue;
     }
