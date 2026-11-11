@@ -310,6 +310,9 @@ type MobFlowApiBody = {
   syncCursor?: string;
   privateContactIds?: string[];
   record?: unknown;
+  promotions?: unknown;
+  events?: unknown;
+  promotion?: unknown;
   ids?: unknown[];
   status?: string;
   remoteState?: unknown;
