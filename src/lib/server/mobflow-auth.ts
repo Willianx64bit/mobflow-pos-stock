@@ -136,7 +136,7 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
       throw new Error("Missing Ed25519 public key material");
     }
     const publicKey = createPublicKey({
-      key: signingKey as unknown as import("node:crypto").JsonWebKeyInput,
+      key: signingKey as unknown as import("node:crypto").JsonWebKeyInput["key"],
       format: "jwk",
     });
     const valid = verifySignature(
