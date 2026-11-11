@@ -11,9 +11,9 @@ const KEY="7c47eaac-2abf-4cd6-b614-24e27077bdf6";
 const SESSION="cash-session-1";
 const req=(body:Record<string,unknown>)=>new Request("https://mobflow.test/api/mobflow/cash",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
 describe("Neon cash commands",()=>{
- const old=process.env.MOBFLOW_AUTH_PROVIDER;
+ const old=process.env["MOBFLOW_AUTH_PROVIDER"];
  beforeEach(()=>{
-  vi.clearAllMocks(); process.env.MOBFLOW_AUTH_PROVIDER="better-auth";
+  vi.clearAllMocks(); process.env["MOBFLOW_AUTH_PROVIDER"]="better-auth";
   client.query.mockImplementation(async(sql:string)=>{
    if(sql.includes("to_regclass")) return {rows:[{sessions:"cash_sessions",movements:"cash_movements",sales:"sales",events:"mobflow_sync_events",append_fn:"mobflow_append_sync_event"}]};
    if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE")) return {rows:[]};
@@ -26,7 +26,7 @@ describe("Neon cash commands",()=>{
   });
   beginAuthenticatedTransaction.mockResolvedValue({client,identity:{userId:USER,accountId:ACCOUNT,role:"pdv",username:"op",displayName:"Operador",permissions:["PDV"]}});
  });
- afterEach(()=>{if(old===undefined)delete process.env.MOBFLOW_AUTH_PROVIDER;else process.env.MOBFLOW_AUTH_PROVIDER=old;});
+ afterEach(()=>{if(old===undefined)delete process.env["MOBFLOW_AUTH_PROVIDER"];else process.env["MOBFLOW_AUTH_PROVIDER"]=old;});
  it("opens a cash session in one transaction",async()=>{
   const res=await handleMobFlowCash(req({action:"open",sessionId:SESSION,idempotencyKey:KEY,openingAmount:100}));
   expect(res.status).toBe(201);
