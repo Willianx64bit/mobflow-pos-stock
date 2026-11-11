@@ -73,7 +73,7 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
           const hasMore = eventsResult.rows.length > limit;
           const page = eventsResult.rows.slice(0, limit);
           // Keep one ordered tenant cursor across automatic and manual events; never skip sequences.
-          const nextCursor = hasMore ? page[page.length - 1].sequence : highWaterMark;
+          const nextCursor = hasMore ? (page[page.length - 1]?.sequence ?? highWaterMark) : highWaterMark;
 
           await releaseTransaction(client, true);
           transaction = null;
