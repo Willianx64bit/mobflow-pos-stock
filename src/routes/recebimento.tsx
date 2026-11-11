@@ -129,7 +129,11 @@ function Recebimento() {
     if (!file) return;
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error("A planilha não contém uma aba para importar.");
+      const firstSheet = workbook.Sheets[firstSheetName];
+      if (!firstSheet) throw new Error("Não foi possível ler a primeira aba da planilha.");
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
       const imported: { productId: string; quantity: string }[] = [];
       const missing: string[] = [];
       for (const row of rows) {
