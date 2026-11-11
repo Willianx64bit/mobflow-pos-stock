@@ -21,14 +21,14 @@ const deny = (message: string, status = 400): never => { throw new UsersError(me
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
 function getR2() {
-  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID;
-  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+  const accountId = process.env["CLOUDFLARE_R2_ACCOUNT_ID"];
+  const accessKeyId = process.env["CLOUDFLARE_R2_ACCESS_KEY_ID"];
+  const secretAccessKey = process.env["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
   if (!accountId || !accessKeyId || !secretAccessKey) throw new Error("R2 não configurado para limpar os arquivos da empresa.");
   return new S3Client({ region: "auto", endpoint: `https://${accountId}.r2.cloudflarestorage.com`, credentials: { accessKeyId, secretAccessKey } });
 }
 function getR2Bucket() {
-  const value = process.env.CLOUDFLARE_R2_BUCKET_NAME;
+  const value = process.env["CLOUDFLARE_R2_BUCKET_NAME"];
   if (!value) throw new Error("Bucket R2 não configurado.");
   return value;
 }
@@ -68,7 +68,7 @@ function normalizePermissions(value: unknown) {
 }
 
 async function handleUsers(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
   }
 
@@ -88,7 +88,7 @@ async function handleUsers(request: Request) {
 
     let body: Record<string, unknown>;
     try { body = await request.json(); } catch { body = {}; }
-    const action = String(body.action ?? "list");
+    const action = String(body["action"] ?? "list");
 
     client = await getNeonPool().connect();
     await client.query("BEGIN");
@@ -99,10 +99,10 @@ async function handleUsers(request: Request) {
     await client.query("SELECT set_config('app.role', $1, true)", [identity.role]);
 
     if (action === "create") {
-      const username = String(body.username ?? "").trim().toUpperCase();
-      const displayName = String(body.displayName ?? "").trim() || username;
-      const permissions = normalizePermissions(body.permissions);
-      const password = String(body.password ?? "");
+      const username = String(body["username"] ?? "").trim().toUpperCase();
+      const displayName = String(body["displayName"] ?? "").trim() || username;
+      const permissions = normalizePermissions(body["permissions"]);
+      const password = String(body["password"] ?? "");
 
       if (!/^[A-Z0-9._-]{3,40}$/.test(username)) deny("Usuário inválido. Use letras, números, ponto, hífen ou underline.");
       if (password.length < 6) deny("A senha precisa ter pelo menos 6 caracteres.");
@@ -139,7 +139,7 @@ async function handleUsers(request: Request) {
     if (!managerCnpj) deny("Não foi possível validar a empresa desta conta.", 403);
 
     if (action === "reset_application") {
-      const managerPassword = String(body.managerPassword ?? "");
+      const managerPassword = String(body["managerPassword"] ?? "");
       if (!managerPassword) deny("Informe a senha da gerência.");
       if (identity.role !== "manager") deny("Somente o login principal da Gerência pode zerar a aplicação.", 403);
 
@@ -207,7 +207,7 @@ async function handleUsers(request: Request) {
           (SELECT count(*) FROM public.mobflow_legacy_backfill_runs WHERE tenant_id=$1) AS remaining`,
         [identity.accountId],
       );
-      if (!arraysEmpty || Number(relational.rows[0]?.remaining ?? 0) !== 0 || settings.pixKey || settings.companyLogo || settings.companyLogoObjectKey) {
+      if (!arraysEmpty || Number(relational.rows[0]?.remaining ?? 0) !== 0 || settings["pixKey"] || settings["companyLogo"] || settings["companyLogoObjectKey"]) {
         deny("A limpeza foi solicitada, mas a verificação final no Neon não confirmou todos os dados vazios.", 500);
       }
 
@@ -260,7 +260,7 @@ async function handleUsers(request: Request) {
       });
     }
 
-    const userId = String(body.userId ?? "");
+    const userId = String(body["userId"] ?? "");
     if (!userId) deny("Usuário não informado.");
     const targetResult = await client.query<{ id: string; username: string; cnpj: string }>(
       "SELECT id::text,username,cnpj FROM public.profiles WHERE id=$1 AND account_id=$2 AND role='pdv' LIMIT 1",
@@ -270,7 +270,7 @@ async function handleUsers(request: Request) {
     if (!target) deny("Usuário não encontrado.", 404);
 
     if (action === "update_permissions") {
-      const permissions = Array.isArray(body.permissions) ? normalizePermissions(body.permissions) : null;
+      const permissions = Array.isArray(body["permissions"]) ? normalizePermissions(body["permissions"]) : null;
       if (!permissions) deny("Informe as permissões de acesso do usuário.");
       if (target.id === identity.userId &&
         Array.isArray(identity.permissions) &&
@@ -285,14 +285,14 @@ async function handleUsers(request: Request) {
     }
 
     if (action === "toggle") {
-      await client.query("UPDATE public.profiles SET active=$2 WHERE id=$1", [userId, Boolean(body.active)]);
+      await client.query("UPDATE public.profiles SET active=$2 WHERE id=$1", [userId, Boolean(body["active"])]);
       await client.query("COMMIT");
       transactionOpen = false;
       return Response.json({ ok: true });
     }
 
     if (action === "reset_password") {
-      const password = String(body.password ?? "");
+      const password = String(body["password"] ?? "");
       if (password.length < 6) deny("A senha precisa ter pelo menos 6 caracteres.");
       const hash = await bcrypt.hash(password, 12);
       const update = await client.query(
