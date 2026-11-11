@@ -274,6 +274,7 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
               [accountId, expected],
             );
             const previousState = previousResult.rows[0]?.state ?? null;
+            const nextState = body.state as Record<string, unknown>;
 
             const updated = previousState
               ? await client.query<{ updated_at: string }>(
@@ -578,43 +579,9 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
                 );
               }
 
-              for (const product of nextProducts) {
-                const id = String(product["id"] ?? "");
-                const previous = oldById.get(id);
-                if (!id || !previous) continue;
-
-                const oldStock = finiteStateNumber(previous["stock"]);
-                const nextStock = finiteStateNumber(product["stock"]);
-                if (oldStock !== null && nextStock !== null && oldStock !== nextStock) {
-                  await client.query(
-                    `SELECT public.mobflow_append_sync_event(
-                      $1::uuid, $2::uuid, 'stock', 'automatic', 'product', $3, $4::jsonb
-                    )`,
-                    [
-                      randomUUID(),
-                      randomUUID(),
-                      id,
-                      JSON.stringify({ stockDelta: nextStock - oldStock, resultingStock: nextStock, source: "state_update" }),
-                    ],
-                  );
-                }
-
-                const oldPrice = finiteStateNumber(previous["price"]);
-                const nextPrice = finiteStateNumber(product["price"]);
-                if (oldPrice !== null && nextPrice !== null && oldPrice !== nextPrice) {
-                  await client.query(
-                    `SELECT public.mobflow_append_sync_event(
-                      $1::uuid, $2::uuid, 'price', 'manual', 'product', $3, $4::jsonb
-                    )`,
-                    [
-                      randomUUID(),
-                      randomUUID(),
-                      id,
-                      JSON.stringify({ price: nextPrice, previousPrice: oldPrice, source: "state_update" }),
-                    ],
-                  );
-                }
-              }
+              // Product catalog, stock and price events are emitted by their
+              // dedicated transactional APIs. Whole-state snapshots must not
+              // synthesize product events from incomplete device state.
 
               await releaseTransaction(client, true);
               transaction = null;
