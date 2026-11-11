@@ -70,9 +70,10 @@ export function AppHeader() {
     setSyncMessage("");
     try {
       const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
-      setSyncMessage(result.failed > 0 ? `${result.failed} operação(ões) com erro` : result.pending > 0 ? `${result.pending} operação(ões) aguardando envio` : result.reconciliationRequired ? "Há eventos pendentes de reconciliação. Tente novamente." : "Sincronização incremental concluída");
-    } catch (error) {
-      setSyncMessage(error instanceof Error ? error.message : "Falha ao sincronizar");
+      const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
+      setSyncMessage(pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
+    } catch {
+      setSyncMessage("Sincronização não concluída");
     } finally {
       setSyncing(false);
     }

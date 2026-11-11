@@ -519,7 +519,7 @@ function reconnect() {
 }
 
 function startRealtime(accountId: string) {
-  if (typeof window === "undefined") return;
+  if (!incrementalSyncEnabled() || typeof window === "undefined") return;
   if (realtimeOwnerId !== accountId) {
     stopRealtimeSubscription?.();
     stopRealtimeSubscription = null;
@@ -659,6 +659,22 @@ export async function applyIncrementalEvents(events: import("@/lib/sync-outbox")
 }
 
 async function performSyncNow(options: { retryFailed?: boolean } = {}) {
+  // Keep both the manual button and automatic wake-ups inert until the Preview flag is approved.
+  if (!incrementalSyncEnabled()) {
+    let tenantId = cloudAccountId;
+    if (!tenantId && typeof window !== "undefined") {
+      try { tenantId = localStorage.getItem(OWNER_KEY); } catch {}
+    }
+    if (!tenantId) return { sent: 0, failed: 0, pending: 0, applied: 0, cursor: "0", hasMore: false };
+    await restoreOutboxBackup(tenantId);
+    const [failed, pending, cursor] = await Promise.all([
+      syncOutbox.failedCount(tenantId),
+      syncOutbox.pendingCount(tenantId),
+      syncOutbox.getCursor(tenantId),
+    ]);
+    return { sent: 0, failed, pending, applied: 0, cursor, hasMore: false };
+  }
+
   // O botão manual também pode ser acionado antes da hidratação inicial do app.
   // Revalida a sessão no servidor e carrega o tenant antes de acessar a fila.
   if (!cloudReady || !cloudAccountId) {

@@ -82,20 +82,32 @@ describe("MobFlow incremental event projection", () => {
     expect(next.stockTransfers[0]).toMatchObject({ id: "transfer-1", destinationName: "Loja B" });
   });
 
-  it("applies promotion upserts and deletes idempotently", () => {
+  it("applies promotion upserts, preserves versions and deletes idempotently", () => {
     const promotionEvent = event({
       category: "promotions", entity_type: "promotion", entity_id: "promo-1",
-      payload: { operation: "upsert", promotion: { id: "promo-1", productId: "p1", productName: "Arroz", originalPrice: 10, promoPrice: 8, startsAt: "2026-11-08", endsAt: "2026-11-10" } },
+      payload: { operation: "upsert", version: 2, promotion: { id: "promo-1", productId: "p1", productName: "Arroz", originalPrice: 10, promoPrice: 8, startsAt: "2026-11-08", endsAt: "2026-11-10", version: 2 } },
     });
     const once = applySyncEventsToState(state, [promotionEvent]);
     const twice = applySyncEventsToState(once, [promotionEvent]);
     expect(twice.promotions).toHaveLength(1);
-    expect(twice.promotions[0]).toMatchObject({ id: "promo-1", promoPrice: 8 });
+    expect(twice.promotions[0]).toMatchObject({ id: "promo-1", promoPrice: 8, version: 2 });
     const deleted = applySyncEventsToState(twice, [event({
       category: "promotions", entity_type: "promotion", entity_id: "promo-1",
       payload: { operation: "delete" },
     })]);
     expect(deleted.promotions).toHaveLength(0);
+  });
+
+  it("does not roll back a promotion when an older version event is replayed", () => {
+    const current = applySyncEventsToState(state, [event({
+      sequence: "12", category: "promotions", entity_type: "promotion", entity_id: "promo-1",
+      payload: { operation: "update", version: 3, promotion: { id: "promo-1", productId: "p1", productName: "Arroz", originalPrice: 10, promoPrice: 7, startsAt: "2026-11-08", endsAt: "2026-11-10", version: 3 } },
+    })]);
+    const stale = applySyncEventsToState(current, [event({
+      sequence: "11", category: "promotions", entity_type: "promotion", entity_id: "promo-1",
+      payload: { operation: "update", version: 2, promotion: { id: "promo-1", productId: "p1", productName: "Arroz", originalPrice: 10, promoPrice: 8, startsAt: "2026-11-08", endsAt: "2026-11-10", version: 2 } },
+    })]);
+    expect(stale.promotions[0]).toMatchObject({ id: "promo-1", promoPrice: 7, version: 3 });
   });
 
   it("does not silently advance over event categories without an application contract", () => {

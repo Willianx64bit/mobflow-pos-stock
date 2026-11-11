@@ -288,10 +288,16 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         continue;
       }
       const rawPromotion = record(payload["promotion"]);
-      if (!rawPromotion || typeof rawPromotion["id"] !== "string") throw new UnsupportedSyncEventError(event);
+      if (!rawPromotion || typeof rawPromotion["id"] !== "string" || rawPromotion["id"] !== event.entity_id) {
+        throw new UnsupportedSyncEventError(event);
+      }
       const originalPrice = number(rawPromotion["originalPrice"]);
       const promoPrice = number(rawPromotion["promoPrice"]);
       if (originalPrice === null || promoPrice === null) throw new UnsupportedSyncEventError(event);
+      const existing = next.promotions.find((item) => item.id === event.entity_id);
+      const version = number(rawPromotion["version"]) ?? number(payload["version"]);
+      // An older replay must never roll back a promotion already applied at a newer version.
+      if (version !== null && existing?.version !== undefined && version < existing.version) continue;
       next.promotions = upsert(next.promotions, {
         id: rawPromotion["id"],
         productId: String(rawPromotion["productId"] ?? ""),
@@ -300,6 +306,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         promoPrice,
         startsAt: typeof rawPromotion["startsAt"] === "string" ? rawPromotion["startsAt"] : "",
         endsAt: typeof rawPromotion["endsAt"] === "string" ? rawPromotion["endsAt"] : "",
+        ...(version !== null ? { version } : existing?.version !== undefined ? { version: existing.version } : {}),
       });
       continue;
     }
