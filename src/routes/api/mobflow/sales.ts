@@ -28,7 +28,7 @@ const money = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100;
 const quantity3 = (v: number) => Math.round((v + Number.EPSILON) * 1000) / 1000;
 function stableUuid(value: string) {
   const b = createHash("sha256").update(value).digest().subarray(0, 16);
-  b[6] = (b[6] & 15) | 0x50; b[8] = (b[8] & 0x3f) | 0x80;
+  b[6] = ((b[6] ?? 0) & 15) | 0x50; b[8] = ((b[8] ?? 0) & 0x3f) | 0x80;
   const h = b.toString("hex");
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
@@ -55,6 +55,7 @@ export async function handleMobFlowSale(request: Request) {
     const paymentMethod = body.paymentMethod;
     if (!["cash", "pix", "card", "fiado"].includes(String(paymentMethod))) fail("Forma de pagamento inválida.");
     if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 200) fail("Itens da venda inválidos.");
+    const saleItems = body.items as unknown[];
     const discountAmountInput = body.discountAmount === undefined ? 0 : Number(body.discountAmount);
     if (!Number.isFinite(discountAmountInput) || discountAmountInput < 0 || !["fixed", "percentage", undefined].includes(body.discountType as any) || (body.discountType === "percentage" && discountAmountInput > 100)) fail("Desconto inválido.");
     const customerName = text(body.customerName, 160) || null;
@@ -99,8 +100,8 @@ export async function handleMobFlowSale(request: Request) {
     if (!session || session.status !== "open" || session.operator_profile_id !== identity.userId) fail("Abra um caixa próprio antes de registrar a venda.", 409, "cash_session_not_open");
 
     const quantities = new Map<string, number>();
-    for (let index = 0; index < body.items.length; index++) {
-      const item = body.items[index] as Record<string, unknown>;
+    for (let index = 0; index < saleItems.length; index++) {
+      const item = saleItems[index] as Record<string, unknown>;
       const productId = text(item?.["productId"], 100), quantity = Number(item?.["quantity"]);
       if (!productId || !Number.isFinite(quantity) || quantity <= 0 || Math.round(quantity * 1000) !== quantity * 1000) fail("Produto ou quantidade inválida.");
       quantities.set(productId, quantity3((quantities.get(productId) ?? 0) + quantity));
