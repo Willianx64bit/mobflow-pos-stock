@@ -100,6 +100,7 @@ SELECT
       'cashSessions', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', cs.id, 'openedAt', cs.opened_at, 'openedBy', cs.operator_snapshot,
+          'operatorUsername', (SELECT p.username FROM public.profiles p WHERE p.id = cs.operator_profile_id),
           'openingAmount', cs.opening_amount, 'status', cs.status,
           'closedAt', cs.closed_at, 'closedBy', cs.closed_by_snapshot,
           'countedCash', cs.counted_amount, 'expectedCash', cs.expected_amount,
