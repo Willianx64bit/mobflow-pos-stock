@@ -63,9 +63,13 @@ async function upload(request:Request){
   try{
    updated=await db.query("UPDATE public.products SET photo_object_key=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING version",[tenant,id,key]);
    if(!updated.rows.length)throw new Error("Produto não encontrado.");
-   await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_updated",productId:id,photoObjectKey:key,version:Number(updated.rows[0].version)})]);
+   const version=Number(updated.rows[0]?.version);
+   if(!Number.isFinite(version))throw new Error("Não foi possível confirmar a versão da foto.");
+   await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_updated",productId:id,photoObjectKey:key,version})]);
   }catch(e){await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key})).catch(()=>{});throw e;}
-  return {response:Response.json({ok:true,photoObjectKey:key,version:Number(updated.rows[0].version),photoUrl:`/api/mobflow/product-photo?productId=${encodeURIComponent(id)}`}),onRollback:async()=>{await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));},afterCommit:async()=>{if(old&&old!==key&&old.startsWith(`tenants/${tenant}/products/${id}/`))await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
+  const version=Number(updated.rows[0]?.version);
+  if(!Number.isFinite(version))throw new Error("Não foi possível confirmar a versão da foto.");
+  return {response:Response.json({ok:true,photoObjectKey:key,version,photoUrl:`/api/mobflow/product-photo?productId=${encodeURIComponent(id)}`}),onRollback:async()=>{await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key}));},afterCommit:async()=>{if(old&&old!==key&&old.startsWith(`tenants/${tenant}/products/${id}/`))await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:old}));}};
  });
 }
 async function read(request:Request){
