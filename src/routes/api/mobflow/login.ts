@@ -23,7 +23,7 @@ export async function handleMobFlowLogin(request: Request) {
   const username = String(input["username"] ?? "").trim().toUpperCase();
   const password = String(input["password"] ?? "");
   const cnpj = String(input["cnpj"] ?? "").replace(/\D/g, "");
-  const expectedRole = input.expectedRole === "pdv" || (!input.expectedRole && !cnpj) ? "pdv" : "manager";
+  const expectedRole = input["expectedRole"] === "pdv" || (!input["expectedRole"] && !cnpj) ? "pdv" : "manager";
   if (!username || password.length < 6) {
     return Response.json({ ok: false, error: "Usuário ou senha inválido." }, { status: 400 });
   }
