@@ -13,16 +13,16 @@ const deny = (message: string, status = 401): never => { throw new LoginError(me
 const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
 
 export async function handleMobFlowLogin(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
   }
   let input: Record<string, unknown>;
   try { input = await request.json(); } catch {
     return Response.json({ ok: false, error: "Dados de acesso inválidos." }, { status: 400 });
   }
-  const username = String(input.username ?? "").trim().toUpperCase();
-  const password = String(input.password ?? "");
-  const cnpj = String(input.cnpj ?? "").replace(/\D/g, "");
+  const username = String(input["username"] ?? "").trim().toUpperCase();
+  const password = String(input["password"] ?? "");
+  const cnpj = String(input["cnpj"] ?? "").replace(/\D/g, "");
   const expectedRole = input.expectedRole === "pdv" || (!input.expectedRole && !cnpj) ? "pdv" : "manager";
   if (!username || password.length < 6) {
     return Response.json({ ok: false, error: "Usuário ou senha inválido." }, { status: 400 });
