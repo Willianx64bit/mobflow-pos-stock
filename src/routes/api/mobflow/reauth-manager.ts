@@ -6,7 +6,7 @@ import { releaseTransaction, getNeonPool } from "@/lib/server/neon";
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 
 async function handleReauth(request: Request) {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
   }
 
@@ -26,8 +26,8 @@ async function handleReauth(request: Request) {
 
     let body: Record<string, unknown>;
     try { body = await request.json(); } catch { body = {}; }
-    const action = String(body.action ?? "verify");
-    const password = String(body.password ?? "");
+    const action = String(body["action"] ?? "verify");
+    const password = String(body["password"] ?? "");
 
     client = await getNeonPool().connect();
     const result = await client.query<{ password_hash: string | null }>(
