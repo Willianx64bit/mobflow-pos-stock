@@ -593,12 +593,12 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
               for (const key of nextSupplierKeys) {
                 const previous = oldSuppliers.find((item) => supplierKey(item) === key);
                 const current = nextSuppliers.find((item) => supplierKey(item) === key);
-                if (!previous || JSON.stringify({ name: previous["name"] }) !== JSON.stringify({ name: current?["name"] })) {
+                if (!previous || JSON.stringify({ name: previous["name"] }) !== JSON.stringify({ name: current?.["name"] })) {
                   await client.query(
                     `SELECT public.mobflow_append_sync_event(
                       $1::uuid, $2::uuid, 'master_data', 'manual', 'supplier', $3, $4::jsonb
                     )`,
-                    [randomUUID(), randomUUID(), key.slice(0, 160), JSON.stringify({ operation: "upsert", name: current?["name"] })],
+                    [randomUUID(), randomUUID(), key.slice(0, 160), JSON.stringify({ operation: "upsert", name: current?.["name"] })],
                   );
                 }
               }
