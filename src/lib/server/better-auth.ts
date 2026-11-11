@@ -13,7 +13,7 @@ function requiredEnv(name: string): string {
   return value;
 }
 
-function createAuthInstance(database: Pool) {
+function createAuthInstance(database: Pool, baseURL: string, secret: string, trustedOrigins: string[]) {
   return betterAuth({
     appName: "MobFlow",
     database,
@@ -38,7 +38,7 @@ function createAuthInstance(database: Pool) {
       },
     },
     plugins: [tanstackStartCookies()],
-  }));
+  });
 }
 
 /**
@@ -65,8 +65,7 @@ export function getMobFlowBetterAuth() {
     connectionTimeoutMillis: 10_000,
   });
 
-  authInstance = createAuthInstance(pool);
-;
+  authInstance = createAuthInstance(pool, baseURL, secret, trustedOrigins);
 
   return authInstance;
 }
