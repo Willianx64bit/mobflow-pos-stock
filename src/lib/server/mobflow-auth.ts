@@ -45,7 +45,7 @@ async function getNeonJwks(): Promise<NeonJwk[]> {
   const now = Date.now();
   if (cachedJwks && cachedJwks.expiresAt > now) return cachedJwks.keys;
 
-  const jwksUrl = process.env.NEON_AUTH_JWKS_URL;
+  const jwksUrl = process.env["NEON_AUTH_JWKS_URL"];
   if (!jwksUrl) {
     throw new ApiAuthError("A autenticação Neon ainda não foi configurada neste ambiente.", 503, "auth_not_configured");
   }
@@ -74,7 +74,7 @@ async function getNeonJwks(): Promise<NeonJwk[]> {
 }
 
 async function verifyNeonAccessToken(token: string): Promise<string> {
-  const baseUrl = process.env.NEON_AUTH_BASE_URL;
+  const baseUrl = process.env["NEON_AUTH_BASE_URL"];
   if (!baseUrl) {
     throw new ApiAuthError("A URL da autenticação Neon não foi configurada neste ambiente.", 503, "auth_not_configured");
   }
@@ -87,7 +87,8 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
   }
 
   const parts = token.split(".");
-  if (parts.length !== 3) {
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  if (parts.length !== 3 || !encodedHeader || !encodedPayload || !encodedSignature) {
     throw new ApiAuthError("Sessão inválida ou expirada. Entre novamente.", 401, "invalid_token");
   }
 
@@ -95,9 +96,9 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
   let payload: NeonJwtPayload;
   let signature: Buffer;
   try {
-    header = decodeJwtPart(parts[0]);
-    payload = decodeJwtPart(parts[1]);
-    signature = Buffer.from(parts[2], "base64url");
+    header = decodeJwtPart(encodedHeader);
+    payload = decodeJwtPart(encodedPayload);
+    signature = Buffer.from(encodedSignature, "base64url");
   } catch {
     throw new ApiAuthError("Sessão inválida ou expirada. Entre novamente.", 401, "invalid_token");
   }
@@ -130,10 +131,12 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
   }
 
   try {
-    const publicKey = createPublicKey({ key: candidates[0], format: "jwk" });
+    const signingKey = candidates[0];
+    if (!signingKey) throw new Error("Missing signing key");
+    const publicKey = createPublicKey({ key: signingKey, format: "jwk" });
     const valid = verifySignature(
       null,
-      Buffer.from(`${parts[0]}.${parts[1]}`),
+      Buffer.from(`${encodedHeader}.${encodedPayload}`),
       publicKey,
       signature,
     );
@@ -148,7 +151,7 @@ async function verifyNeonAccessToken(token: string): Promise<string> {
 }
 
 async function resolveAuthProfileId(client: PoolClient, authUserId: string): Promise<string> {
-  if (process.env.MOBFLOW_AUTH_PROVIDER === NEON_AUTH_PROVIDER) {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] === NEON_AUTH_PROVIDER) {
     const result = await client.query<{ profile_id: string }>(
       `SELECT profile_id
        FROM public.auth_identity_links
@@ -174,7 +177,7 @@ async function resolveAuthProfileId(client: PoolClient, authUserId: string): Pro
 }
 
 export async function beginAuthenticatedTransaction(request: Request): Promise<AuthenticatedTransaction> {
-  if (process.env.MOBFLOW_AUTH_PROVIDER !== "better-auth") {
+  if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     throw new ApiAuthError(
       "Este Preview exige Better Auth com Neon; autenticação alternativa está desativada.",
       503,
