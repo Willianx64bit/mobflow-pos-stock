@@ -59,8 +59,9 @@ async function upload(request:Request){
   const key=`tenants/${tenant}/products/${id}/${randomUUID()}.${rule.ext}`;
   const s3=client();const old=(await db.query("SELECT photo_object_key FROM public.products WHERE tenant_id=$1 AND id=$2",[tenant,id])).rows[0]?.photo_object_key as string|null;
   await s3.send(new PutObjectCommand({Bucket:bucket(),Key:key,Body:bytes,ContentType:file.type,ContentLength:bytes.length,CacheControl:"private, no-store",Metadata:{"mobflow-tenant":tenant,"mobflow-product":id,"mobflow-purpose":"product-photo"}}));
+  let updated: { rows: Array<{ version: number | string }> };
   try{
-   const updated=await db.query("UPDATE public.products SET photo_object_key=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING version",[tenant,id,key]);
+   updated=await db.query("UPDATE public.products SET photo_object_key=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 RETURNING version",[tenant,id,key]);
    if(!updated.rows.length)throw new Error("Produto não encontrado.");
    await db.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({operation:"photo_updated",productId:id,photoObjectKey:key,version:Number(updated.rows[0].version)})]);
   }catch(e){await s3.send(new DeleteObjectCommand({Bucket:bucket(),Key:key})).catch(()=>{});throw e;}
