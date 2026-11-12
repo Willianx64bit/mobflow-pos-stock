@@ -113,7 +113,7 @@ try {
   page.once("dialog", dialog => dialog.accept());
   await deleteForm.getByRole("button", { name: "Excluir", exact: true }).click();
   await page.getByText(testName, { exact: true }).waitFor({ state: "hidden", timeout: 30000 });
-  const deletedProduct = await page.evaluate(async (id) => { const response = await fetch("/api/mobflow/products", { credentials: "same-origin" }); const body = await response.json(); return (body.products || []).some((item) => item.id === id); }, createdProductId);
+  const deletedProduct = await page.evaluate(async ({ id, query }) => { const response = await fetch("/api/mobflow/products?limit=100&q=" + encodeURIComponent(query), { credentials: "same-origin" }); const body = await response.json(); if (!response.ok || body.ok !== true) throw new Error("Falha ao consultar o catálogo após exclusão (HTTP " + response.status + ")."); return (body.products || []).some((item) => item.id === id); }, { id: createdProductId, query: testName });
   if (deletedProduct) throw new Error("O produto continuou ativo no catálogo após a exclusão.");
   productDeleted = true;
 
