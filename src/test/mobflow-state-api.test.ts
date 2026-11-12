@@ -350,7 +350,9 @@ describe("MobFlow Neon state API", () => {
     const calls = client.query.mock.calls.filter((call) =>
       String(call[0]).includes("mobflow_append_sync_event"),
     );
-    expect(calls.length).toBeGreaterThanOrEqual(5);
+    // Only the public company caption is part of a whole-state snapshot.
+    // Private identity fields are saved separately and must not be re-emitted here.
+    expect(calls.length).toBe(4);
     const serialized = calls.map((call) => String(call[1]?.[call[1].length - 1] ?? "")).join("|");
     expect(serialized).toContain("contact-1");
     expect(serialized).toContain("cash-1");
