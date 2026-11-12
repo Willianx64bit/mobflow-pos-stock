@@ -120,7 +120,7 @@ SELECT
       'stockMovements', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', sm.id, 'operationId', sm.operation_id, 'date', sm.occurred_at,
-          'type', CASE sm.operation_type WHEN 'writeoff' THEN 'Baixa' WHEN 'transfer' THEN 'Transferência' WHEN 'entry' THEN 'Entrada' WHEN 'adjustment' THEN CASE WHEN lower(COALESCE(sm.details,'')) LIKE '%balanço%' THEN 'Balanço' ELSE 'Ajuste de estoque' END ELSE sm.operation_type END,
+          'type', CASE sm.operation_type WHEN 'writeoff' THEN 'Baixa' WHEN 'transfer' THEN 'Transferência' WHEN 'entry' THEN 'Entrada' WHEN 'adjustment' THEN 'Balanço' ELSE sm.operation_type END,
           'productId', COALESCE(sm.product_id, 'legacy-product:' || sm.id),
           'productCode', sm.product_code, 'productName', sm.product_name, 'unit', sm.unit,
           'quantity', sm.quantity, 'totalValue', sm.total_value,
@@ -130,12 +130,27 @@ SELECT
         ) ORDER BY sm.occurred_at DESC, sm.id)
         FROM public.stock_movements sm WHERE sm.tenant_id = scope.owner_id
       ), '[]'::jsonb),
-      'stockAdjustments', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockAdjustments','[]'::jsonb))>0 THEN s.state->'stockAdjustments' ELSE COALESCE((
-        SELECT jsonb_agg(e.payload->'stockAdjustment' ORDER BY e.sequence DESC)
-        FROM public.mobflow_sync_events e
-        WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_operation'
-          AND e.payload->>'operationType'='adjustment' AND jsonb_typeof(e.payload->'stockAdjustment')='object'
-      ), '[]'::jsonb) END,
+      'stockAdjustments', COALESCE((
+        SELECT jsonb_agg(d.entry ORDER BY d.entry->>'date' DESC)
+        FROM (
+          SELECT DISTINCT ON (source.entry->>'id') source.entry
+          FROM (
+            SELECT snapshot.entry, 0 AS priority
+            FROM jsonb_array_elements(
+              CASE WHEN jsonb_typeof(COALESCE(s.state->'stockAdjustments','[]'::jsonb))='array'
+                THEN COALESCE(s.state->'stockAdjustments','[]'::jsonb) ELSE '[]'::jsonb END
+            ) AS snapshot(entry)
+            UNION ALL
+            SELECT e.payload->'stockAdjustment' AS entry, 1 AS priority
+            FROM public.mobflow_sync_events e
+            WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_operation'
+              AND e.payload->>'operationType'='adjustment'
+              AND jsonb_typeof(e.payload->'stockAdjustment')='object'
+          ) source
+          WHERE jsonb_typeof(source.entry)='object' AND COALESCE(source.entry->>'id','')<>''
+          ORDER BY source.entry->>'id', source.priority DESC
+        ) d
+      ), '[]'::jsonb),
       'stockWriteoffs', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockWriteoffs','[]'::jsonb))>0 THEN s.state->'stockWriteoffs' ELSE COALESCE((
         SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
         FROM public.mobflow_sync_events e
