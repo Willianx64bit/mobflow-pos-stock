@@ -12,6 +12,12 @@ on:
       - "scripts/**"
       - ".github/workflows/mobflow-preview-check.yml"
   workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "URL exata do Preview READY a validar (opcional)"
+        required: false
+        type: string
+  deployment_status:
 
 permissions:
   contents: read
@@ -22,6 +28,7 @@ concurrency:
 
 jobs:
   build-and-unit:
+    if: github.event_name != 'deployment_status'
     name: TypeScript, unit tests and build
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -43,7 +50,7 @@ jobs:
 
   authenticated-preview-smoke:
     name: Authenticated Preview login smoke test
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'migration/neon-preparation')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -60,7 +67,7 @@ jobs:
           /tmp/mobflow-playwright/node_modules/.bin/playwright install --with-deps chromium
       - name: Login to the migration Preview
         env:
-          MOBFLOW_PREVIEW_URL: https://mobflow-pos-stock-git-migration-neon-preparation-willianx64bit.vercel.app
+          MOBFLOW_PREVIEW_URL: ${{ inputs.preview_url || github.event.deployment_status.environment_url || github.event.deployment_status.target_url || 'https://mobflow-pos-stock-git-migration-neon-preparation-willianx64bit.vercel.app' }}
           MOBFLOW_TEST_USERNAME: ${{ secrets.MOBFLOW_TEST_USERNAME }}
           MOBFLOW_TEST_PASSWORD: ${{ secrets.MOBFLOW_TEST_PASSWORD }}
           MOBFLOW_TEST_CNPJ: ${{ secrets.MOBFLOW_TEST_CNPJ }}
@@ -76,6 +83,7 @@ jobs:
 
   preview-browser-smoke:
     name: Real browser smoke test on PDV Preview
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'migration/neon-preparation')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
