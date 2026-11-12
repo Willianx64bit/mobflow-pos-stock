@@ -129,7 +129,7 @@ async function handleUsers(request: Request) {
 
       await client.query("COMMIT");
       transactionOpen = false;
-      return Response.json({ ok: true });
+      return Response.json({ ok: true, userId: id, username });
     }
 
     const managerResult = await client.query<{ cnpj: string }>(
