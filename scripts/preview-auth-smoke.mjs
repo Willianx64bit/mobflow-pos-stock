@@ -72,6 +72,55 @@ try {
     throw new Error("A sessão de Gerência não corresponde ao usuário de teste.");
   }
 
+  // User-directory regression: create a disposable PDV login, verify that
+  // the Gerência list endpoint returns it, then delete only the ID created here.
+  const userDirectoryEvidence = await page.evaluate(async () => {
+    const request = async (body) => {
+      const response = await fetch("/api/mobflow/users", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json().catch(() => ({}));
+      return { ok: response.ok && data?.ok !== false, status: response.status, data };
+    };
+    const username = "QA" + Date.now().toString().slice(-10);
+    let createdUserId = "";
+    try {
+      const created = await request({
+        action: "create",
+        username,
+        displayName: "QA Diretório MobFlow",
+        password: "QaPreview-" + Date.now().toString().slice(-6),
+        permissions: ["PDV", "Operações"],
+      });
+      if (!created.ok || created.data?.ok !== true) {
+        throw new Error("Não foi possível criar usuário temporário para validar a lista (HTTP " + created.status + "): " + String(created.data?.error || ""));
+      }
+      const listed = await request({ action: "list" });
+      if (!listed.ok || !Array.isArray(listed.data?.users)) {
+        throw new Error("A API não retornou a lista de usuários (HTTP " + listed.status + "): " + String(listed.data?.error || ""));
+      }
+      const match = listed.data.users.find((user) => user.username === username);
+      if (!match?.id) {
+        throw new Error("O usuário criado foi confirmado, mas não apareceu na listagem da Gerência.");
+      }
+      createdUserId = String(match.id);
+      return { createConfirmed: true, listConfirmed: true, userVisible: true, cleanupRequired: true };
+    } finally {
+      if (createdUserId) {
+        const removed = await request({ action: "delete", userId: createdUserId });
+        if (!removed.ok || removed.data?.ok !== true) {
+          throw new Error("O usuário temporário " + username + " foi listado, mas a limpeza não foi confirmada.");
+        }
+      }
+    }
+  });
+  if (!userDirectoryEvidence.createConfirmed || !userDirectoryEvidence.listConfirmed || !userDirectoryEvidence.userVisible) {
+    throw new Error("A validação do diretório de usuários não foi concluída.");
+  }
+
   // A tela Estoque exige o desbloqueio local da Gerência, além da sessão autenticada.
   await page.evaluate(() => sessionStorage.setItem("mobflow-management", "1"));
   const initialHydration = waitForCoreHydration();
@@ -224,7 +273,7 @@ try {
   const reportPath = path.join(outDir, "auth-crud-report.json");
   if (!fs.existsSync(reportPath)) {
     fs.writeFileSync(reportPath, JSON.stringify({ url: page.url(), authenticated: page.url().includes(baseURL), crud: { create: productCreated, edit: Boolean(editedProductEvidence), delete: productDeleted },
-    cartSyncEvidence: typeof cartSyncEvidence === "undefined" ? null : cartSyncEvidence, editedProductEvidence, statePutRequests, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
+    cartSyncEvidence: typeof cartSyncEvidence === "undefined" ? null : cartSyncEvidence, editedProductEvidence, userDirectoryEvidence: typeof userDirectoryEvidence === "undefined" ? null : userDirectoryEvidence, statePutRequests, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
     await page.screenshot({ path: path.join(outDir, "pdv-stock-crud-preview.png"), fullPage: true }).catch(() => undefined);
   }
   // Limpeza de segurança: se a edição/exclusão falhar, remove apenas o ID
