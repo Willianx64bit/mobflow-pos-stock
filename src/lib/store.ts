@@ -1187,7 +1187,7 @@ export const actions = {
       const changed = items.find((item) => item.productId === product.id);
       return changed ? { ...product, stock: changed.newStock } : product;
     });
-    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: /balanço/i.test(reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
+    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: "Balanço", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
     const queued = enqueueDomainCommand("stock", {
       operationId: id, operationType: "adjustment", reason,
       items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
