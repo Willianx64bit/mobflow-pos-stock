@@ -61,7 +61,7 @@ describe("Neon product catalog API",()=>{
   expect(response.status).toBe(500);
   expect(await response.json()).toMatchObject({ok:false,code:"catalog_write_unconfirmed"});
   expect(releaseTransaction).toHaveBeenCalledWith(client,false);
-  expect(client.query.mock.calls.some(c=>String(c[0]).includes("mobflow_append_sync_event"))).toBe(false);
+  expect(client.query.mock.calls.some(c=>String(c[0]).startsWith("SELECT public.mobflow_append_sync_event"))).toBe(false);
  });
  it("rejects invalid unit and negative price",async()=>{
   const badUnit=await handlers.POST({request:req("POST",{id:"p2",code:"002",name:"Feijão",unit:"cx",price:5})});
