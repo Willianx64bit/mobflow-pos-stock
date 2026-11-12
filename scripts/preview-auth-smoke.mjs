@@ -156,6 +156,7 @@ try {
     throw new Error("O carrinho ou o catálogo perdeu o produto após recarregar (carrinho=" + cartAfterReload + ", produtoVisível=" + productAfterReload + ").");
   }
   const syncResponseStart = apiResponses.length;
+  const statePutsBeforeManualSync = statePutRequests.length;
   await page.getByRole("button", { name: "Sincronizar dados" }).evaluate(button => button.click());
   await page.getByRole("status").waitFor({ state: "visible", timeout: 30000 });
   await page.waitForFunction(() => {
@@ -165,13 +166,20 @@ try {
   }, { timeout: 30000 });
   const syncStatus = await page.locator('[role="status"]').innerText().catch(() => "");
   const syncApiResponses = apiResponses.slice(syncResponseStart);
-  const cartSyncEvidence = { cartBeforeReload, productStillVisibleAfterTap, statePutsAfterTap, cartAfterReload, productAfterReload, syncStatus, syncApiResponses };
+  const statePutsDuringManualSync = statePutRequests.length - statePutsBeforeManualSync;
+  const cartAfterManualSync = await page.locator("aside").getByText(testName, { exact: true }).count();
+  const productAfterManualSync = await page.getByRole("button").filter({ hasText: testName }).count();
+  const cartSyncEvidence = { cartBeforeReload, productStillVisibleAfterTap, statePutsAfterTap, cartAfterReload, productAfterReload, statePutsDuringManualSync, cartAfterManualSync, productAfterManualSync, syncStatus, syncApiResponses };
   if (/Sincronização não concluída/i.test(syncStatus)) {
     throw new Error("O botão de sincronização informou falha: " + syncStatus);
   }
   const failedSyncApi = syncApiResponses.find((item) => item.status >= 400);
   if (failedSyncApi) throw new Error("A sincronização retornou HTTP " + failedSyncApi.status + " em " + failedSyncApi.path + ": " + failedSyncApi.message);
   if (cartAfterReload < cartBeforeReload) throw new Error("O carrinho perdeu o produto após atualizar a página (antes=" + cartBeforeReload + ", depois=" + cartAfterReload + ").");
+  if (statePutsDuringManualSync !== 0) throw new Error("O botão de sincronização disparou " + statePutsDuringManualSync + " PUT(s) do estado completo; a atualização manual não pode regravar o snapshot da empresa.");
+  if (cartAfterManualSync < cartBeforeReload || productAfterManualSync === 0) {
+    throw new Error("O botão de sincronização limpou o carrinho ou o catálogo (carrinho=" + cartAfterManualSync + ", produtoVisível=" + productAfterManualSync + ").");
+  }
   const finalHydration = waitForCoreHydration();
   await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
   await finalHydration;
