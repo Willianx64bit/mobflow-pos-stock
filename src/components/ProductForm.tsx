@@ -53,9 +53,10 @@ export function ProductForm({ product, onClose }: Props) {
         if(product?.id&&(stock??0)!==product.stock)throw new Error("A alteração de estoque deve ser feita pela tela de movimentação de estoque, para manter o histórico auditável.");
         const payload={id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,minStock:minStock??0,barcodes:cleanBarcodes};
         const response=await fetch("/api/mobflow/products",{method:product?.id?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product?.id?{...payload,expectedVersion:product.version}:{...payload,stock:0})});
-        const saved=await response.json().catch(()=>null);if(!response.ok||!saved?.ok||!saved.product)throw new Error(saved?.error||"O Neon não confirmou o cadastro do produto.");
+        const saved=await response.json().catch(()=>null);if(!response.ok||saved?.ok!==true||!saved?.product||typeof saved.product.id!=="string"||saved.product.id!==id)throw new Error(saved?.error||"O Neon não confirmou um ID válido para este produto. O formulário foi mantido aberto.");
+        const confirmedVersion=Number(saved.product.version);if(!Number.isSafeInteger(confirmedVersion)||confirmedVersion<1)throw new Error("O Neon não confirmou a versão do produto. Atualize e tente novamente.");
         serverProduct=saved.product as Product;
-        savedVersion=Number(saved.product.version);
+        savedVersion=confirmedVersion;
       }
       let photoUrl=f.photo||undefined;
       let photoObjectKey=product?.photoObjectKey;
