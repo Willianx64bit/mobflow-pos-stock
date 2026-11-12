@@ -314,12 +314,11 @@ async function handleUsers(request: Request) {
     }
 
     if (action === "delete") {
-      await client.query(
-        "UPDATE public.account_allowlist SET active=false WHERE username=$1 AND cnpj=$2",
-        [target.username, managerCnpj],
+      const removed = await client.query<{ deleted: boolean }>(
+        "SELECT public.mobflow_delete_pdv_user($1::uuid, $2::uuid, $3::uuid) AS deleted",
+        [identity.userId, identity.accountId, userId],
       );
-      await client.query("DELETE FROM public.profiles WHERE id=$1", [userId]);
-      await client.query('DELETE FROM public."user" WHERE id=$1', [userId]);
+      if (!removed.rows[0]?.deleted) deny("Não foi possível confirmar a exclusão do usuário.", 404);
       await client.query("COMMIT");
       transactionOpen = false;
       return Response.json({ ok: true });
