@@ -140,9 +140,9 @@ try {
   if (failedSyncApi) throw new Error("A sincronização retornou HTTP " + failedSyncApi.status + " em " + failedSyncApi.path + ": " + failedSyncApi.message);
   if (cartAfterReload < cartBeforeReload) throw new Error("O carrinho perdeu o produto após atualizar a página (antes=" + cartBeforeReload + ", depois=" + cartAfterReload + ").");
   await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.getByRole("button", { name: /\\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
+  await page.getByRole("button", { name: /\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
 
-  // Exclusão lógica do produto recém-criado, sempre com estoque 5.
+  // Exclusão lógica do produto descartável recém-criado, com estoque zero.
   await page.getByRole("button", { name: "Editar " + testName }).click();
   const deleteForm = page.locator("form").last();
   page.once("dialog", dialog => dialog.accept());
