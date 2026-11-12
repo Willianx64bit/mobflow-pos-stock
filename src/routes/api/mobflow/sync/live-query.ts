@@ -3,7 +3,7 @@ import { createRealtime, rawSql } from "@neon/realtime/server";
 import { beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
-type LatestTenantEvent = { event_id: string };
+type LatestTenantEvent = { last_sequence: string };
 
 let realtimeServer: ReturnType<typeof createRealtime> | null = null;
 
@@ -35,11 +35,9 @@ export const Route = createFileRoute("/api/mobflow/sync/live-query")({
           transaction = null;
 
           const query = rawSql<LatestTenantEvent>(
-            `SELECT event_id
-             FROM public.mobflow_sync_events
-             WHERE tenant_id = $1
-             ORDER BY sequence DESC
-             LIMIT 1`,
+            `SELECT last_sequence::text AS last_sequence
+             FROM public.mobflow_sync_counters
+             WHERE tenant_id = $1`,
             [accountId],
           );
           const sealedQuery = await getRealtimeServer().seal({ query });
