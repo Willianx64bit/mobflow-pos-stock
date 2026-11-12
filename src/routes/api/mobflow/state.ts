@@ -81,6 +81,7 @@ SELECT
           'payment', CASE sale.payment_method WHEN 'cash' THEN 'Dinheiro' WHEN 'pix' THEN 'Pix' WHEN 'card' THEN 'Cartão' ELSE 'Fiado' END,
           'received', payment.received_amount, 'customer', sale.customer_name_snapshot,
           'cpf', sale.customer_document_snapshot, 'seller', sale.seller_snapshot,
+          'sellerUsername', (SELECT profile.username FROM public.profiles profile WHERE profile.id = sale.seller_profile_id),
           'paid', sale.payment_status = 'paid', 'paidAt', sale.paid_at,
           'hiddenFromFiado', sale.hidden_from_fiado,
           'payments', COALESCE((
