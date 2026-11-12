@@ -34,6 +34,16 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
           const rawCursor = url.searchParams.get("cursor") ?? "0";
           const cursorIsValid = /^\d+$/.test(rawCursor) && BigInt(rawCursor) <= MAX_CURSOR;
           const requestedLimit = parseNonNegativeInteger(url.searchParams.get("limit"), DEFAULT_LIMIT);
+          const rawCategories = url.searchParams.get("categories");
+          const allowedCategories = new Set(["receiving", "conference"]);
+          let categories: string[] | null = null;
+          if (rawCategories !== null) {
+            const requestedCategories = rawCategories.split(",").filter(Boolean);
+            if (!requestedCategories.length || requestedCategories.some((category) => !allowedCategories.has(category))) {
+              return Response.json({ ok: false, error: "Categorias de sincronização inválidas.", code: "invalid_sync_categories" }, { status: 400 });
+            }
+            categories = [...new Set(requestedCategories)];
+          }
 
           if (!cursorIsValid || requestedLimit === null || requestedLimit < 1) {
             return Response.json(
@@ -65,15 +75,16 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
              WHERE tenant_id = $1
                AND sequence > $2::bigint
                AND sequence <= $3::bigint
+               AND ($4::text[] IS NULL OR category = ANY($4::text[]))
              ORDER BY sequence ASC
-             LIMIT $4`,
-            [identity.accountId, rawCursor, highWaterMark, limit + 1],
+             LIMIT $5`,
+            [identity.accountId, rawCursor, highWaterMark, categories, limit + 1],
           );
 
           const hasMore = eventsResult.rows.length > limit;
           const page = eventsResult.rows.slice(0, limit);
-          // Keep one ordered tenant cursor across automatic and manual events; never skip sequences.
-          const nextCursor = hasMore ? (page[page.length - 1]?.sequence ?? highWaterMark) : highWaterMark;
+          // A filtered consumer has its own cursor; unrelated categories are not consumed by global sync.
+          const nextCursor = hasMore ? (page[page.length - 1]?.sequence ?? rawCursor) : highWaterMark;
 
           await releaseTransaction(client, true);
           transaction = null;
