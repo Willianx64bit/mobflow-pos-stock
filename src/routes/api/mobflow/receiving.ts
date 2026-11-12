@@ -50,7 +50,7 @@ export async function handleMobFlowReceiving(request: Request) {
         ? conferences.map((item)=>item["id"]===conference["id"]?conference:item)
         : [conference,...conferences];
       await client.query("UPDATE public.app_state SET state=jsonb_set(state,'{conferences}',$2::jsonb,true),updated_at=now() WHERE owner_id=$1",[transaction.identity.accountId,JSON.stringify(saved)]);
-      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'conference','manual','conference',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving-conference:"+conference["id"]+":"+JSON.stringify(conference)),conference["id"],JSON.stringify({operation:"upsert",conference})]);
+      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'conference','automatic','conference',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving-conference:"+conference["id"]+":"+JSON.stringify(conference)),conference["id"],JSON.stringify({operation:"upsert",conference})]);
       await releaseTransaction(client,true);transaction=null;return Response.json({ok:true,data:true});
     }
     if (action === "save" || action === "delete") {
@@ -66,7 +66,7 @@ export async function handleMobFlowReceiving(request: Request) {
         if (!old || old.stockReleased) { await releaseTransaction(client,false); transaction=null; return Response.json({ok:false,error:"Recebimento não encontrado ou já liberado."},{status:409}); }
         const next = {...state,receiving:current.filter((item)=>item.id!==receivingId)};
         await client.query("UPDATE public.app_state SET state=$2::jsonb,updated_at=now() WHERE owner_id=$1",[transaction.identity.accountId,JSON.stringify(next)]);
-        await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'receiving','manual','receiving',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving:"+receivingId+":delete"),receivingId,JSON.stringify({operation:"delete",privateDetailsAvailable:true})]);
+        await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'receiving','automatic','receiving',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving:"+receivingId+":delete"),receivingId,JSON.stringify({operation:"delete",privateDetailsAvailable:true})]);
         await releaseTransaction(client,true);transaction=null;return Response.json({ok:true,data:true});
       }
       const raw = body["note"] as ReceivingNote | undefined;
@@ -87,7 +87,7 @@ export async function handleMobFlowReceiving(request: Request) {
       const eventPayload=JSON.stringify({operation:"upsert",receiving:projection,privateDetailsAvailable:true});
       if(new TextEncoder().encode(eventPayload).byteLength>15000){await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Recebimento excede o limite de sincronização."},{status:413});}
       await client.query("UPDATE public.app_state SET state=$2::jsonb,updated_at=now() WHERE owner_id=$1",[transaction.identity.accountId,JSON.stringify(nextState)]);
-      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'receiving','manual','receiving',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving:"+raw.id+":"+JSON.stringify(projection)),raw.id,eventPayload]);
+      await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'receiving','automatic','receiving',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving:"+raw.id+":"+JSON.stringify(projection)),raw.id,eventPayload]);
       await releaseTransaction(client,true);transaction=null;return Response.json({ok:true,data:true});
     }
     if (!receivingId || !["accept", "finalize_decisions"].includes(action)) {
@@ -199,7 +199,7 @@ export async function handleMobFlowReceiving(request: Request) {
     }
     await client.query(
       `SELECT public.mobflow_append_sync_event(
-        $1::uuid, $2::uuid, 'receiving', 'manual', 'receiving', $3, $4::jsonb
+        $1::uuid, $2::uuid, 'receiving', 'automatic', 'receiving', $3, $4::jsonb
       )`,
       [
         randomUUID(),
