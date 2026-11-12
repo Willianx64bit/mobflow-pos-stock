@@ -193,7 +193,8 @@ function load() {
     // the legacy app_state snapshot can contain products no longer present in public.products.
     if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") {
       state.products = [];
-      state.cart = [];
+      // Keep the tenant-scoped cart cache until the authoritative Neon catalog
+      // is loaded; hydrateStore will remove only items whose product IDs no longer exist.
     }
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
     normalizeState();
@@ -645,6 +646,7 @@ export async function hydrateStore() {
       state = emptyState();
       load();
       const localContacts = [...(state.contacts ?? [])];
+      const localCart = [...(state.cart ?? [])];
       const sameOwner = true;
 
       const stateResult = await callMobFlowApi("/api/mobflow/state");
@@ -663,9 +665,9 @@ export async function hydrateStore() {
         state = { ...emptyState(), ...remote, contacts: mergedContacts };
         state.settings = { ...emptyState().settings, ...(remote.settings ?? {}) };
         state.products = await readPreviewNeonCatalog(state.products ?? []);
-        // The relational Neon catalog is authoritative. Drop cart references to products
-        // that no longer exist in this tenant instead of sending stale snapshot IDs at checkout.
-        state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
+        // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
+        // refreshes, but keep only products confirmed by the authoritative tenant catalog.
+        state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
         lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
         lastSyncedState = cloneState(remote);
       } else {
