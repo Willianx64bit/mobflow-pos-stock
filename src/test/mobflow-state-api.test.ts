@@ -121,6 +121,43 @@ describe("MobFlow Neon state API", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
+  it("preserves private company identity and contacts when saving an incomplete state snapshot", async () => {
+    const previousState = {
+      products: [],
+      contacts: [{ id: "contact-1", type: "Fornecedor", name: "Fornecedor salvo" }],
+      settings: {
+        companyName: "Mercado Original",
+        companyPhone: "11999990000",
+        companyStreet: "Rua das Flores",
+        companyNumber: "123",
+        companyLogoObjectKey: "companies/logo.webp",
+        pixKey: "chave-pix-privada",
+      },
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [{ state: previousState }] })
+      .mockResolvedValueOnce({ rows: [{ updated_at: VERSION_2 }] })
+      .mockResolvedValue({ rows: [] });
+
+    const response = await handlers.PUT({
+      request: put(JSON.stringify({
+        state: { products: [{ id: "p1" }], contacts: [], settings: { companyName: "Mercado Atualizado" } },
+        expectedUpdatedAt: VERSION_1,
+      })),
+    });
+
+    expect(response.status).toBe(200);
+    const updateCall = client.query.mock.calls.find((call) => String(call[0]).includes("UPDATE public.app_state"));
+    expect(updateCall).toBeDefined();
+    const persisted = JSON.parse(updateCall![1][0] as string);
+    expect(persisted.contacts).toEqual(previousState.contacts);
+    expect(persisted.settings).toEqual({
+      ...previousState.settings,
+      companyName: "Mercado Atualizado",
+    });
+    expect(persisted.products).toEqual([{ id: "p1" }]);
+  });
+
   it("preserves PostgreSQL microsecond precision in the returned version", async () => {
     const preciseVersion = "2026-11-06T22:00:00.000001Z";
     client.query
