@@ -156,7 +156,7 @@ try {
     throw new Error("O carrinho ou o catálogo perdeu o produto após recarregar (carrinho=" + cartAfterReload + ", produtoVisível=" + productAfterReload + ").");
   }
   const syncResponseStart = apiResponses.length;
-  await page.getByRole("button", { name: "Sincronizar dados" }).click();
+  await page.getByRole("button", { name: "Sincronizar dados" }).evaluate(button => button.click());
   await page.getByRole("status").waitFor({ state: "visible", timeout: 30000 });
   await page.waitForFunction(() => {
     const button = document.querySelector('button[aria-label="Sincronizar dados"]');
