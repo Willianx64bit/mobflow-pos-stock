@@ -522,8 +522,8 @@ async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
       for (const raw of body.products as Array<Record<string, unknown>>) {
-        const id = typeof raw.id === "string" ? raw.id : "";
-        const price = Number(raw.price), stock = Number(raw.stock);
+        const id = typeof raw["id"] === "string" ? raw["id"] : "";
+        const price = Number(raw["price"]), stock = Number(raw["stock"]);
         if (id && Number.isFinite(price) && Number.isFinite(stock)) balances.set(id, { price, stock });
       }
       if (body.hasMore !== true) {
