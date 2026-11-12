@@ -34,9 +34,13 @@ export const Route = createFileRoute("/api/mobflow/sync/live-query")({
           await releaseTransaction(transaction.client, true);
           transaction = null;
 
+          // Neon Realtime currently rejects RLS-protected tables. This tiny signal
+          // table has no RLS and contains no event payloads; tenant isolation comes
+          // from this backend-issued sealed query and the authenticated accountId.
+          // The browser never supplies the tenant identifier or receives DB credentials.
           const query = rawSql<LatestTenantEvent>(
             `SELECT last_sequence::text AS last_sequence
-             FROM public.mobflow_sync_counters
+             FROM public.mobflow_realtime_signals
              WHERE tenant_id = $1`,
             [accountId],
           );
