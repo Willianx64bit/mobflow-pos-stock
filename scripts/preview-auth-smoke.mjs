@@ -18,6 +18,7 @@ const page = await context.newPage();
 const consoleErrors = [];
 const pageErrors = [];
 const apiResponses = [];
+const statePutRequests = [];
 const testName = "QA MOBFLOW CRUD " + new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
 const testCode = String(Date.now()).slice(-10);
 let productCreated = false;
@@ -30,6 +31,11 @@ page.on("console", message => {
   if (message.type() === "error") consoleErrors.push(message.text().slice(0, 500));
 });
 page.on("pageerror", error => pageErrors.push((error.stack || error.message).slice(0, 1000)));
+page.on("request", request => {
+  if (new URL(request.url()).pathname === "/api/mobflow/state" && request.method() === "PUT") {
+    statePutRequests.push({ method: request.method(), at: new Date().toISOString() });
+  }
+});
 page.on("response", async response => {
   if (!response.url().includes("/api/mobflow/")) return;
   let message = "";
@@ -125,9 +131,21 @@ try {
   await page.getByRole("button", { name: "Sincronizar dados" }).waitFor({ state: "visible", timeout: 30000 });
   const productCard = page.getByRole("button").filter({ hasText: testName }).first();
   await productCard.waitFor({ state: "visible", timeout: 30000 });
+  const statePutsBeforeTap = statePutRequests.length;
   await productCard.click();
   await page.locator("aside").getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 15000 });
+  // Reproduce the reported failure window: a delayed full-state write or
+  // Realtime refresh used to clear the product and its cart line after the tap.
+  await page.waitForTimeout(5000);
   const cartBeforeReload = await page.locator("aside").getByText(testName, { exact: true }).count();
+  const productStillVisibleAfterTap = await page.getByRole("button").filter({ hasText: testName }).count() > 0;
+  const statePutsAfterTap = statePutRequests.length - statePutsBeforeTap;
+  if (cartBeforeReload !== 1 || !productStillVisibleAfterTap) {
+    throw new Error("O produto ou a linha do carrinho desapareceu após o toque (carrinho=" + cartBeforeReload + ", produtoVisível=" + productStillVisibleAfterTap + ").");
+  }
+  if (statePutsAfterTap !== 0) {
+    throw new Error("Um toque no produto disparou " + statePutsAfterTap + " gravação(ões) PUT do estado completo no Neon; o carrinho deve permanecer local.");
+  }
   const refreshHydration = waitForCoreHydration();
   await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
   await refreshHydration;
@@ -143,7 +161,7 @@ try {
   }, { timeout: 30000 });
   const syncStatus = await page.locator('[role="status"]').innerText().catch(() => "");
   const syncApiResponses = apiResponses.slice(syncResponseStart);
-  const cartSyncEvidence = { cartBeforeReload, cartAfterReload, syncStatus, syncApiResponses };
+  const cartSyncEvidence = { cartBeforeReload, productStillVisibleAfterTap, statePutsAfterTap, cartAfterReload, syncStatus, syncApiResponses };
   if (/Sincronização não concluída/i.test(syncStatus)) {
     throw new Error("O botão de sincronização informou falha: " + syncStatus);
   }
@@ -172,6 +190,7 @@ try {
     usernameMatched: true,
     crud: { create: productCreated, edit: true, delete: productDeleted, testProductName: testName, stockAtDelete: 0 },
     cartSyncEvidence,
+    statePutRequests,
     apiResponses,
     consoleErrors,
     pageErrors
@@ -193,7 +212,7 @@ try {
   const reportPath = path.join(outDir, "auth-crud-report.json");
   if (!fs.existsSync(reportPath)) {
     fs.writeFileSync(reportPath, JSON.stringify({ url: page.url(), authenticated: page.url().includes(baseURL), crud: { create: productCreated, edit: Boolean(editedProductEvidence), delete: productDeleted },
-    cartSyncEvidence: typeof cartSyncEvidence === "undefined" ? null : cartSyncEvidence, editedProductEvidence, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
+    cartSyncEvidence: typeof cartSyncEvidence === "undefined" ? null : cartSyncEvidence, editedProductEvidence, statePutRequests, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
     await page.screenshot({ path: path.join(outDir, "pdv-stock-crud-preview.png"), fullPage: true }).catch(() => undefined);
   }
   // Limpeza de segurança: se a edição/exclusão falhar, remove apenas o ID
