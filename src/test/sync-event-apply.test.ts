@@ -35,6 +35,15 @@ describe("MobFlow incremental event projection", () => {
     expect(twice.sales[0]).toMatchObject({ id: "sale-1", total: 20 });
   });
 
+  it("keeps price changes realtime without applying manual catalog metadata", () => {
+    const priceEvent = event({
+      delivery_mode: "automatic", category: "price", entity_type: "product", entity_id: "p1",
+      payload: { price: 12 },
+    });
+    const next = applySyncEventsToState(state, [priceEvent]);
+    expect(next.products[0]).toMatchObject({ id: "p1", name: "Arroz", price: 12, stock: 10 });
+  });
+
   it("sets the resulting stock balance and inserts a stable ledger movement", () => {
     const stockEvent = event({
       category: "stock", entity_type: "product", entity_id: "p1",
