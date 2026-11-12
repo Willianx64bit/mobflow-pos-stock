@@ -26,6 +26,37 @@ describe("MobFlow incremental event projection", () => {
     expect(next.products[0]?.id).toBe("p1");
   });
 
+  it("receives a newly saved note from an automatic realtime event", () => {
+    const receivingEvent = event({
+      delivery_mode: "automatic",
+      category: "receiving",
+      entity_type: "receiving",
+      entity_id: "note-1",
+      payload: {
+        operation: "upsert",
+        privateDetailsAvailable: true,
+        receiving: {
+          id: "note-1",
+          number: "NF-100",
+          supplier: "Fornecedor",
+          status: "pendente",
+          items: [{ productId: "p1", name: "Arroz", expected: 5 }],
+          extras: [],
+          stockReleased: false,
+        },
+      },
+    });
+    const once = applySyncEventsToState(state, [receivingEvent]);
+    const twice = applySyncEventsToState(once, [receivingEvent]);
+    expect(twice.receiving).toHaveLength(1);
+    expect(twice.receiving[0]).toMatchObject({
+      id: "note-1",
+      number: "NF-100",
+      status: "pendente",
+      items: [{ productId: "p1", expected: 5 }],
+    });
+  });
+
   it("applies sale snapshots idempotently by sale ID", () => {
     const sale = { id: "sale-1", date: "2026-11-08T12:00:00.000Z", cashSessionId: "cash-1", items: [{ productId: "p1", name: "Arroz", price: 10, qty: 2 }], total: 20, payment: "Dinheiro" };
     const saleEvent = event({ category: "sales", entity_type: "sale", entity_id: "sale-1", payload: { sale } });
