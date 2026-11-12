@@ -85,6 +85,20 @@ try {
       const data = await response.json().catch(() => ({}));
       return { ok: response.ok && data?.ok !== false, status: response.status, data };
     };
+    // Remove the one orphaned disposable account left by the earlier
+    // regression attempt, which ran before the scoped delete helper existed.
+    const existingUsers = await request({ action: "list" });
+    if (!existingUsers.ok || !Array.isArray(existingUsers.data?.users)) {
+      throw new Error("Não foi possível verificar a lista antes da limpeza de QA.");
+    }
+    const staleQaUser = existingUsers.data.users.find((user) => user.username === "QA4491196117");
+    if (staleQaUser?.id) {
+      const staleRemoved = await request({ action: "delete", userId: String(staleQaUser.id) });
+      if (!staleRemoved.ok || staleRemoved.data?.ok !== true) {
+        throw new Error("Não foi possível limpar o usuário descartável da execução anterior: " + JSON.stringify({ status: staleRemoved.status, error: staleRemoved.data?.error }));
+      }
+    }
+
     const username = "QA" + Date.now().toString().slice(-10);
     let createdUserId = "";
     try {
@@ -113,7 +127,7 @@ try {
       if (createdUserId) {
         const removed = await request({ action: "delete", userId: createdUserId });
         if (!removed.ok || removed.data?.ok !== true) {
-          throw new Error("O usuário temporário " + username + " foi listado, mas a limpeza não foi confirmada.");
+          throw new Error("O usuário temporário " + username + " foi listado, mas a limpeza não foi confirmada (HTTP " + removed.status + "): " + String(removed.data?.error || JSON.stringify(removed.data)));
         }
       }
     }
