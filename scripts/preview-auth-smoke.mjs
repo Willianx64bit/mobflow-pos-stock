@@ -23,6 +23,8 @@ const testCode = String(Date.now()).slice(-10);
 let productCreated = false;
 let productDeleted = false;
 let createdProductId = "";
+let failureMessage = "";
+let editedProductEvidence = null;
 
 page.on("console", message => {
   if (message.type() === "error") consoleErrors.push(message.text().slice(0, 500));
@@ -73,17 +75,37 @@ try {
   await form.locator("label").filter({ hasText: /^Custo R\$/ }).locator("input").fill("5,00");
   await form.locator("label").filter({ hasText: /^Estoque$/ }).locator("input").fill("0");
   await form.locator("label").filter({ hasText: /^Mínimo$/ }).locator("input").fill("0");
+  const createResponsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mobflow/products" && response.request().method() === "POST", { timeout: 30000 });
   await form.getByRole("button", { name: /^Salvar/ }).click();
+  const createResponse = await createResponsePromise;
+  const createBody = await createResponse.json().catch(() => null);
+  if (!createResponse.ok() || createBody?.ok !== true || !createBody?.product?.id) throw new Error("O cadastro não foi confirmado pela API Neon (HTTP " + createResponse.status() + ").");
+  createdProductId = String(createBody.product.id);
+  productCreated = true;
   await page.getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
 
   // Edição via botão da própria linha da tabela.
   await page.getByRole("button", { name: "Editar " + testName }).click();
   const editForm = page.locator("form").last();
   await editForm.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("13,45");
+  const patchResponsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mobflow/products" && response.request().method() === "PATCH", { timeout: 30000 });
   await editForm.getByRole("button", { name: /^Salvar/ }).click();
+  const patchResponse = await patchResponsePromise;
+  const patchBody = await patchResponse.json().catch(() => null);
+  if (!patchResponse.ok() || patchBody?.ok !== true || Number(patchBody?.product?.price) !== 13.45) {
+    throw new Error("A API não confirmou a edição do preço (HTTP " + patchResponse.status() + "): " + String(patchBody?.error || "resposta inválida"));
+  }
   await page.getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
-  const editedProduct = await page.evaluate(async (id) => { const response = await fetch("/api/mobflow/products", { credentials: "same-origin" }); const body = await response.json(); return (body.products || []).find((item) => item.id === id) || null; }, createdProductId);
-  if (!editedProduct || Number(editedProduct.price) !== 13.45) throw new Error("A edição não foi confirmada pelo catálogo Neon.");
+  const editedProduct = await page.evaluate(async ({ id, query }) => {
+    const response = await fetch("/api/mobflow/products?limit=100&q=" + encodeURIComponent(query), { credentials: "same-origin" });
+    const body = await response.json();
+    const product = (body.products || []).find((item) => item.id === id) || null;
+    return { status: response.status, ok: response.ok && body.ok === true, error: body.error || null, product: product ? { id: product.id, price: Number(product.price), version: Number(product.version) } : null };
+  }, { id: createdProductId, query: testName });
+  editedProductEvidence = editedProduct;
+  if (!editedProduct.ok || !editedProduct.product || editedProduct.product.price !== 13.45) {
+    throw new Error("A edição foi aceita pela tela, mas não foi confirmada na consulta Neon: " + JSON.stringify(editedProduct));
+  }
 
   // Exclusão lógica do produto recém-criado, sempre com estoque zero.
   await page.getByRole("button", { name: "Editar " + testName }).click();
@@ -115,7 +137,15 @@ try {
   if (snapshotConflict) throw new Error("Uma operação do catálogo ainda disparou conflito de snapshot app_state (HTTP 409).");
   const realtimeRejected = consoleErrors.find(x => x.includes("upstream_rejected"));
   if (realtimeRejected) throw new Error("Neon Realtime rejeitou a live query: " + realtimeRejected.slice(0, 300));
+} catch (error) {
+  failureMessage = error instanceof Error ? error.message : String(error);
+  throw error;
 } finally {
+  const reportPath = path.join(outDir, "auth-crud-report.json");
+  if (!fs.existsSync(reportPath)) {
+    fs.writeFileSync(reportPath, JSON.stringify({ url: page.url(), authenticated: page.url().includes(baseURL), crud: { create: productCreated, edit: Boolean(editedProductEvidence), delete: productDeleted }, editedProductEvidence, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
+    await page.screenshot({ path: path.join(outDir, "pdv-stock-crud-preview.png"), fullPage: true }).catch(() => undefined);
+  }
   // Limpeza de segurança: se a edição/exclusão falhar, remove apenas o ID
   // retornado pelo POST desta execução; nunca procura nem altera produtos existentes.
   if (productCreated && !productDeleted && createdProductId) {
