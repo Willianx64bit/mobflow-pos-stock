@@ -45,7 +45,9 @@ describe("Neon product catalog API",()=>{
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",price:12.5,stock:8}]});
   expect(client.query.mock.calls[1]?.[0]).toContain("SELECT p.id,p.price::text,p.stock::text");
-  expect(client.query.mock.calls[1]?.[0]).not.toContain("p.name");
+  expect(client.query.mock.calls[1]?.[0]).not.toContain("p.cost");
+  expect(client.query.mock.calls[1]?.[0]).not.toContain("photo_object_key");
+  expect(client.query.mock.calls[1]?.[0]).not.toContain("LEFT JOIN public.product_barcodes");
  });
  it("refuses catalog writes from users without Gerência",async()=>{
   beginAuthenticatedTransaction.mockResolvedValueOnce({client,identity:{userId:"u1",accountId:TENANT,role:"pdv",permissions:["PDV","Operações"]}});
