@@ -511,6 +511,38 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
   }
 }
 
+async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
+  try {
+    const balances = new Map<string, { price: number; stock: number }>();
+    let cursor: string | null = null;
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ projection: "live", limit: "100" });
+      if (cursor) query.set("cursor", cursor);
+      const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
+      if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
+      for (const raw of body.products as Array<Record<string, unknown>>) {
+        const id = typeof raw.id === "string" ? raw.id : "";
+        const price = Number(raw.price), stock = Number(raw.stock);
+        if (id && Number.isFinite(price) && Number.isFinite(stock)) balances.set(id, { price, stock });
+      }
+      if (body.hasMore !== true) {
+        // Never add/remove or replace product metadata from an automatic wake-up.
+        return fallbackProducts.map((product) => {
+          const live = balances.get(product.id);
+          return live ? { ...product, price: live.price, stock: live.stock } : product;
+        });
+      }
+      if (typeof body.nextCursor !== "string" || !body.nextCursor) return fallbackProducts;
+      cursor = body.nextCursor;
+    }
+    return fallbackProducts;
+  } catch (error) {
+    console.warn("[MobFlow Realtime] Could not refresh compact product balances:", error);
+    return fallbackProducts;
+  }
+}
+
 async function refreshFromCloud(accountId: string, forceLatest = false) {
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
     refreshAfterPersist = true;
@@ -546,7 +578,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     const verifiedCatalog = state.products ?? [];
     const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
-    state.products = await readPreviewNeonCatalog(catalogFallback, "realtime");
+    state.products = await readRealtimeProductBalances(catalogFallback);
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
