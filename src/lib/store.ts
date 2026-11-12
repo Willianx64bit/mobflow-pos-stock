@@ -478,8 +478,10 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Prod
       if (cursor) query.set("cursor", cursor);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) {
-        console.error("[MobFlow Catalog] Neon catalog request failed; refusing to show cached products from an unverified tenant catalog.");
-        return [];
+        // A transient API/network failure is not an authoritative empty catalog.
+        // Keep the last tenant-scoped catalog already verified in this session.
+        console.error("[MobFlow Catalog] Neon catalog request failed; keeping the last verified tenant catalog.");
+        return fallbackProducts;
       }
       for (const raw of body.products as any[]) {
         const previous = existing.get(String(raw.id));
@@ -492,16 +494,16 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Prod
       }
       if (body.hasMore !== true) return products;
       if (typeof body.nextCursor !== "string" || !body.nextCursor) {
-        console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; refusing cached catalog fallback.");
-        return [];
+        console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
+        return fallbackProducts;
       }
       cursor = body.nextCursor;
     }
-    console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; refusing cached catalog fallback.");
-    return [];
+    console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
+    return fallbackProducts;
   } catch (error) {
-    console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog:", error);
-    return [];
+    console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog; keeping the last verified tenant catalog:", error);
+    return fallbackProducts;
   }
 }
 
