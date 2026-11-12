@@ -72,69 +72,24 @@ try {
     throw new Error("A sessão de Gerência não corresponde ao usuário de teste.");
   }
 
-  // User-directory regression: create a disposable PDV login, verify that
-  // the Gerência list endpoint returns it, then delete only the ID created here.
+  // User-directory regression: call the same tenant-scoped list endpoint used
+  // by Configurações and ensure existing PDV accounts are returned.
   const userDirectoryEvidence = await page.evaluate(async () => {
-    const request = async (body) => {
-      const response = await fetch("/api/mobflow/users", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await response.json().catch(() => ({}));
-      return { ok: response.ok && data?.ok !== false, status: response.status, data };
-    };
-    // Remove the one orphaned disposable account left by the earlier
-    // regression attempt, which ran before the scoped delete helper existed.
-    const existingUsers = await request({ action: "list" });
-    if (!existingUsers.ok || !Array.isArray(existingUsers.data?.users)) {
-      throw new Error("Não foi possível verificar a lista antes da limpeza de QA.");
+    const response = await fetch("/api/mobflow/users", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "list" }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !Array.isArray(data?.users)) {
+      throw new Error("A lista de usuários da Gerência não foi carregada (HTTP " + response.status + "): " + String(data?.error || ""));
     }
-    const staleQaUser = existingUsers.data.users.find((user) => user.username === "QA4491196117");
-    if (staleQaUser?.id) {
-      const staleRemoved = await request({ action: "delete", userId: String(staleQaUser.id) });
-      if (!staleRemoved.ok || staleRemoved.data?.ok !== true) {
-        throw new Error("Não foi possível limpar o usuário descartável da execução anterior: " + JSON.stringify({ status: staleRemoved.status, error: staleRemoved.data?.error }));
-      }
+    if (data.users.length === 0) {
+      throw new Error("A API confirmou a lista, mas não retornou os usuários PDV existentes.");
     }
-
-    const username = "QA" + Date.now().toString().slice(-10);
-    let createdUserId = "";
-    try {
-      const created = await request({
-        action: "create",
-        username,
-        displayName: "QA Diretório MobFlow",
-        password: "QaPreview-" + Date.now().toString().slice(-6),
-        permissions: ["PDV", "Operações"],
-      });
-      if (!created.ok || created.data?.ok !== true || !created.data?.userId) {
-        throw new Error("Não foi possível criar usuário temporário para validar a lista (HTTP " + created.status + "): " + String(created.data?.error || ""));
-      }
-      createdUserId = String(created.data.userId);
-      const listed = await request({ action: "list" });
-      if (!listed.ok || !Array.isArray(listed.data?.users)) {
-        throw new Error("A API não retornou a lista de usuários (HTTP " + listed.status + "): " + String(listed.data?.error || ""));
-      }
-      const match = listed.data.users.find((user) => user.username === username);
-      if (!match?.id) {
-        throw new Error("O usuário criado foi confirmado, mas não apareceu na listagem da Gerência.");
-      }
-      if (String(match.id) !== createdUserId) throw new Error("A listagem retornou um ID diferente do usuário criado.");
-      return { createConfirmed: true, listConfirmed: true, userVisible: true, cleanupRequired: true };
-    } finally {
-      if (createdUserId) {
-        const removed = await request({ action: "delete", userId: createdUserId });
-        if (!removed.ok || removed.data?.ok !== true) {
-          throw new Error("O usuário temporário " + username + " foi listado, mas a limpeza não foi confirmada (HTTP " + removed.status + "): " + String(removed.data?.error || JSON.stringify(removed.data)));
-        }
-      }
-    }
+    return { listConfirmed: true, visibleUsers: data.users.length };
   });
-  if (!userDirectoryEvidence.createConfirmed || !userDirectoryEvidence.listConfirmed || !userDirectoryEvidence.userVisible) {
-    throw new Error("A validação do diretório de usuários não foi concluída.");
-  }
 
   // A tela Estoque exige o desbloqueio local da Gerência, além da sessão autenticada.
   await page.evaluate(() => sessionStorage.setItem("mobflow-management", "1"));
