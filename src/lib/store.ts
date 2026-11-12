@@ -610,19 +610,29 @@ function reconnect() {
 }
 
 let receivingConferencePull: Promise<unknown> | null = null;
+let receivingConferencePullPending = false;
 
 function pullReceivingConferenceEvents(accountId: string) {
   if (typeof window === "undefined" || !cloudReady || cloudAccountId !== accountId) return Promise.resolve();
-  if (receivingConferencePull) return receivingConferencePull;
-  const pull = pullSyncEvents(
-    syncOutbox,
-    accountId,
-    applyIncrementalEvents,
-    fetch,
-    10,
-    "receiving-conference",
-    ["receiving", "conference"],
-  ).catch((error) => {
+  if (receivingConferencePull) {
+    // If another signal arrives during a pull, run one more pass after the current high-water mark.
+    receivingConferencePullPending = true;
+    return receivingConferencePull;
+  }
+  const pull = (async () => {
+    do {
+      receivingConferencePullPending = false;
+      await pullSyncEvents(
+        syncOutbox,
+        accountId,
+        applyIncrementalEvents,
+        fetch,
+        10,
+        "receiving-conference",
+        ["receiving", "conference"],
+      );
+    } while (receivingConferencePullPending && cloudReady && cloudAccountId === accountId);
+  })().catch((error) => {
     console.warn("[MobFlow Receiving/Conference] Realtime pull deferred:", error);
     throw error;
   }).finally(() => {
