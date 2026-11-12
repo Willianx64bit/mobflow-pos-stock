@@ -34,7 +34,7 @@ page.on("response", async response => {
   try {
     const body = await response.json();
     message = String(body?.error || body?.message || (body?.ok ? "ok" : "")).slice(0, 300);
-    if (new URL(response.url()).pathname === "/api/mobflow/products" && response.status() === 201) createdProductId = String(body?.product?.id || "");
+    if (new URL(response.url()).pathname === "/api/mobflow/products" && response.status() === 201) { createdProductId = String(body?.product?.id || ""); productCreated = Boolean(createdProductId); }
   } catch {}
   apiResponses.push({ path: new URL(response.url()).pathname, status: response.status(), message });
 });
@@ -67,7 +67,7 @@ try {
   await page.getByRole("button", { name: /\+ Produto/ }).click();
   const form = page.locator("form").last();
   await form.locator("label").filter({ hasText: /^Nome$/ }).locator("input").fill(testName);
-  await form.locator("label").filter({ hasText: "Código de barras" }).locator("input").first().fill(testCode);
+  await form.locator('input[inputmode="numeric"]').first().fill(testCode);
   await form.locator("label").filter({ hasText: "Categoria" }).locator("input").fill("QA MobFlow");
   await form.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("12,34");
   await form.locator("label").filter({ hasText: /^Custo R\$/ }).locator("input").fill("5,00");
@@ -75,7 +75,6 @@ try {
   await form.locator("label").filter({ hasText: /^Mínimo$/ }).locator("input").fill("0");
   await form.getByRole("button", { name: /^Salvar/ }).click();
   await page.getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
-  productCreated = true;
 
   // Edição via botão da própria linha da tabela.
   await page.getByRole("button", { name: "Editar " + testName }).click();
@@ -83,7 +82,8 @@ try {
   await editForm.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("13,45");
   await editForm.getByRole("button", { name: /^Salvar/ }).click();
   await page.getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
-  await page.waitForTimeout(500);
+  const editedProduct = await page.evaluate(async (id) => { const response = await fetch("/api/mobflow/products", { credentials: "same-origin" }); const body = await response.json(); return (body.products || []).find((item) => item.id === id) || null; }, createdProductId);
+  if (!editedProduct || Number(editedProduct.price) !== 13.45) throw new Error("A edição não foi confirmada pelo catálogo Neon.");
 
   // Exclusão lógica do produto recém-criado, sempre com estoque zero.
   await page.getByRole("button", { name: "Editar " + testName }).click();
@@ -91,6 +91,8 @@ try {
   page.once("dialog", dialog => dialog.accept());
   await deleteForm.getByRole("button", { name: "Excluir", exact: true }).click();
   await page.getByText(testName, { exact: true }).waitFor({ state: "hidden", timeout: 30000 });
+  const deletedProduct = await page.evaluate(async (id) => { const response = await fetch("/api/mobflow/products", { credentials: "same-origin" }); const body = await response.json(); return (body.products || []).some((item) => item.id === id); }, createdProductId);
+  if (deletedProduct) throw new Error("O produto continuou ativo no catálogo após a exclusão.");
   productDeleted = true;
 
   const result = {
