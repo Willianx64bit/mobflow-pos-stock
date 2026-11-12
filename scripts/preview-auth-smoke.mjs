@@ -95,9 +95,10 @@ try {
         password: "QaPreview-" + Date.now().toString().slice(-6),
         permissions: ["PDV", "Operações"],
       });
-      if (!created.ok || created.data?.ok !== true) {
+      if (!created.ok || created.data?.ok !== true || !created.data?.userId) {
         throw new Error("Não foi possível criar usuário temporário para validar a lista (HTTP " + created.status + "): " + String(created.data?.error || ""));
       }
+      createdUserId = String(created.data.userId);
       const listed = await request({ action: "list" });
       if (!listed.ok || !Array.isArray(listed.data?.users)) {
         throw new Error("A API não retornou a lista de usuários (HTTP " + listed.status + "): " + String(listed.data?.error || ""));
@@ -106,7 +107,7 @@ try {
       if (!match?.id) {
         throw new Error("O usuário criado foi confirmado, mas não apareceu na listagem da Gerência.");
       }
-      createdUserId = String(match.id);
+      if (String(match.id) !== createdUserId) throw new Error("A listagem retornou um ID diferente do usuário criado.");
       return { createConfirmed: true, listConfirmed: true, userVisible: true, cleanupRequired: true };
     } finally {
       if (createdUserId) {
