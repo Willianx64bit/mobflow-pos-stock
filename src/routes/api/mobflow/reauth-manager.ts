@@ -38,7 +38,7 @@ async function handleReauth(request: Request) {
     const stored = result.rows[0]?.password_hash ?? undefined;
 
     if (action === "status") {
-      return Response.json({ configured: Boolean(stored), role: identity.role });
+      return Response.json({ configured: Boolean(stored), role: identity.role, canManage });
     }
 
     if (action === "set_password") {
