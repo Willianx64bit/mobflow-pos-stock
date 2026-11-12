@@ -1104,8 +1104,11 @@ export const actions = {
     await actions.addFiadoPayment(id, sale.total);
   },
   async updateSettings(settings: AppSettings) {
-    await savePrivateRecord("settings", undefined, settings as unknown as Record<string, unknown>);
-    set({ settings });
+    // Company settings are stored through the private-data endpoint. Do not enqueue
+    // a whole-state PUT here: that snapshot intentionally contains only companyName
+    // and would otherwise overwrite the private settings we just saved.
+    const saved = await savePrivateRecord("settings", undefined, settings as unknown as Record<string, unknown>);
+    set({ settings: { ...settings, ...(saved && typeof saved === "object" ? saved as AppSettings : {}) } }, { persist: false });
   },
   async loadPromotions() {
     const result = await callMobFlowApi("/api/mobflow/promotions");
