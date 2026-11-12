@@ -536,8 +536,13 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && (forceLatest ? remoteTime < currentTime : remoteTime <= currentTime)) return;
 
     const remote = body.state as State;
+    // Keep the catalog that was actually visible before merging the shared app_state.
+    // In Neon catalog mode that snapshot may intentionally contain products: [],
+    // so taking the fallback after merge would discard the last verified catalog.
+    const verifiedCatalog = state.products ?? [];
+    const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
-    state.products = await readPreviewNeonCatalog(state.products ?? remote.products ?? []);
+    state.products = await readPreviewNeonCatalog(catalogFallback);
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
