@@ -111,6 +111,10 @@ try {
   if (pageErrors.length) throw new Error("Foram registrados erros JavaScript durante o teste.");
   const failedApi = apiResponses.find(x => x.path === "/api/mobflow/products" && x.status >= 400);
   if (failedApi) throw new Error("A API de produtos retornou HTTP " + failedApi.status + ": " + failedApi.message);
+  const snapshotConflict = apiResponses.find(x => x.path === "/api/mobflow/state" && x.status === 409);
+  if (snapshotConflict) throw new Error("Uma operação do catálogo ainda disparou conflito de snapshot app_state (HTTP 409).");
+  const realtimeRejected = consoleErrors.find(x => x.includes("upstream_rejected"));
+  if (realtimeRejected) throw new Error("Neon Realtime rejeitou a live query: " + realtimeRejected.slice(0, 300));
 } finally {
   // Limpeza de segurança: se a edição/exclusão falhar, remove apenas o ID
   // retornado pelo POST desta execução; nunca procura nem altera produtos existentes.
