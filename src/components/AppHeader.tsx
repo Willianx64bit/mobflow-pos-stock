@@ -69,7 +69,8 @@ export function AppHeader() {
     setSyncing(true);
     setSyncMessage("");
     try {
-      // Promoções usam o endpoint versionado do Neon; atualize o snapshot no mesmo comando manual.
+      // Product catalog and promotions are intentionally fetched only by this manual action.
+      await actions.refreshCatalog();
       await actions.loadPromotions();
       const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
       const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
