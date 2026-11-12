@@ -188,14 +188,9 @@ function load() {
   try {
     const raw = localStorage.getItem(activeStateKey);
     if (raw) state = { ...state, ...JSON.parse(raw) };
-    // In Neon catalog mode, localStorage is only a cache for secondary/offline state.
-    // Never expose cached products before the authenticated tenant catalog has loaded:
-    // the legacy app_state snapshot can contain products no longer present in public.products.
-    if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") {
-      state.products = [];
-      // The cart is a tenant-scoped local draft: keep it through refreshes and
-      // validate each product ID only after the authoritative Neon catalog is loaded.
-    }
+    // The cache key is tenant-scoped (mobflow:v1:<accountId>), and the
+    // authenticated account is resolved before this cache is loaded. Keep the
+    // last verified catalog visible while Neon is being reached or offline.
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
     normalizeState();
   } catch {}
@@ -653,6 +648,7 @@ export async function hydrateStore() {
       state = emptyState();
       load();
       const localContacts = [...(state.contacts ?? [])];
+      const localProducts = [...(state.products ?? [])];
       const localCart = [...(state.cart ?? [])];
       const sameOwner = true;
 
@@ -671,7 +667,10 @@ export async function hydrateStore() {
           : remoteContacts;
         state = { ...emptyState(), ...remote, contacts: mergedContacts };
         state.settings = { ...emptyState().settings, ...(remote.settings ?? {}) };
-        state.products = await readPreviewNeonCatalog(state.products ?? []);
+        // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
+        // unreachable. A successful Neon response still replaces it with the
+        // authoritative active catalog.
+        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []));
         // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
         // refreshes, but keep only products confirmed by the authoritative tenant catalog.
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
