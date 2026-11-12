@@ -16,6 +16,16 @@ const event = (input: Partial<SyncEvent> & Pick<SyncEvent, "category" | "entity_
 });
 
 describe("MobFlow incremental event projection", () => {
+  it("does not apply manual product catalog changes during an automatic event pull", () => {
+    const catalogEvent = event({
+      category: "catalog", entity_type: "product", entity_id: "p2",
+      payload: { operation: "upsert", product: { id: "p2", code: "SKU-2", name: "Feijão", unit: "un", price: 8, cost: 5, minStock: 2, version: 1 } },
+    });
+    const next = applySyncEventsToState(state, [catalogEvent]);
+    expect(next.products).toHaveLength(1);
+    expect(next.products[0]?.id).toBe("p1");
+  });
+
   it("applies sale snapshots idempotently by sale ID", () => {
     const sale = { id: "sale-1", date: "2026-11-08T12:00:00.000Z", cashSessionId: "cash-1", items: [{ productId: "p1", name: "Arroz", price: 10, qty: 2 }], total: 20, payment: "Dinheiro" };
     const saleEvent = event({ category: "sales", entity_type: "sale", entity_id: "sale-1", payload: { sale } });
