@@ -418,8 +418,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
       ? String(payload["idempotencyKey"])
       : crypto.randomUUID();
     const body = { ...payload, idempotencyKey };
-    const endpoint = domain === "cash" ? "/api/mobflow/cash" : domain === "sales" ? "/api/mobflow/sales" : null;
-    if (!endpoint) return false;
+    const endpoint = domain === "cash" ? "/api/mobflow/cash" : domain === "sales" ? "/api/mobflow/sales" : "/api/mobflow/stock";
     lastDomainCommandPromise = (async () => {
       const result = await callMobFlowApi(endpoint, { method: "POST", body: JSON.stringify(body) });
       if (!result.response.ok || result.body.ok !== true) {
