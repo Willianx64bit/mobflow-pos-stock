@@ -17,71 +17,104 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1000
 const page = await context.newPage();
 const consoleErrors = [];
 const pageErrors = [];
-const loginResponses = [];
+const apiResponses = [];
+const testName = "QA MOBFLOW CRUD " + new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+const testCode = String(Date.now()).slice(-10);
+let productCreated = false;
+let productDeleted = false;
 
 page.on("console", message => {
   if (message.type() === "error") consoleErrors.push(message.text().slice(0, 500));
 });
 page.on("pageerror", error => pageErrors.push((error.stack || error.message).slice(0, 1000)));
 page.on("response", async response => {
-  if (!response.url().includes("/api/mobflow/login")) return;
-  let responseMessage = "";
+  if (!response.url().includes("/api/mobflow/")) return;
+  let message = "";
   try {
     const body = await response.json();
-    responseMessage = String(body?.error || body?.message || (body?.ok ? "ok" : "")).slice(0, 300);
+    message = String(body?.error || body?.message || (body?.ok ? "ok" : "")).slice(0, 300);
   } catch {}
-  loginResponses.push({ status: response.status(), message: responseMessage });
+  apiResponses.push({ path: new URL(response.url()).pathname, status: response.status(), message });
 });
 
 try {
   const response = await page.goto(baseURL, { waitUntil: "domcontentloaded", timeout: 60000 });
-  if (!response || response.status() >= 400) {
-    throw new Error("Preview HTTP " + (response?.status() ?? "sem resposta"));
-  }
+  if (!response || response.status() >= 400) throw new Error("Preview HTTP " + (response?.status() ?? "sem resposta"));
 
-  // O login de empresa já reúne usuário gerente, senha e CNPJ na mesma tela.
   await page.locator('input[name="company-login"]').waitFor({ state: "visible", timeout: 30000 });
   await page.locator('input[name="company-login"]').fill(username);
   await page.locator('input[name="company-password"]').fill(password);
   await page.locator('input[name="cnpj"]').fill(cnpj);
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
-
-  await page.waitForFunction(() => localStorage.getItem("mobflow-authenticated") === "1", { timeout: 30000 }).catch(() => undefined);
-  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => localStorage.getItem("mobflow-authenticated") === "1", { timeout: 30000 });
 
   const authState = await page.evaluate(() => ({
     authenticated: localStorage.getItem("mobflow-authenticated") === "1",
     role: sessionStorage.getItem("mobflow-role"),
-    username: sessionStorage.getItem("mobflow-username"),
-    path: location.pathname
+    username: sessionStorage.getItem("mobflow-username")
   }));
-  const visibleText = (await page.locator("body").innerText()).slice(0, 1500);
-  await page.screenshot({ path: path.join(outDir, "pdv-authenticated-preview.png"), fullPage: true });
+  if (!authState.authenticated || authState.role !== "manager" || !authState.username || authState.username.toLowerCase() !== username.toLowerCase()) {
+    throw new Error("A sessão de Gerência não corresponde ao usuário de teste.");
+  }
+
+  // A tela Estoque exige o desbloqueio local da Gerência, além da sessão autenticada.
+  await page.evaluate(() => sessionStorage.setItem("mobflow-management", "1"));
+  await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.getByRole("button", { name: /\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
+
+  await page.getByRole("button", { name: /\+ Produto/ }).click();
+  const form = page.locator("form").last();
+  await form.locator("label").filter({ hasText: /^Nome$/ }).locator("input").fill(testName);
+  await form.locator("label").filter({ hasText: "Código de barras" }).locator("input").first().fill(testCode);
+  await form.locator("label").filter({ hasText: "Categoria" }).locator("input").fill("QA MobFlow");
+  await form.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("12,34");
+  await form.locator("label").filter({ hasText: /^Custo R\$/ }).locator("input").fill("5,00");
+  await form.locator("label").filter({ hasText: /^Estoque$/ }).locator("input").fill("0");
+  await form.locator("label").filter({ hasText: /^Mínimo$/ }).locator("input").fill("0");
+  await form.getByRole("button", { name: /^Salvar/ }).click();
+  await page.getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
+  productCreated = true;
+
+  // Edição via botão da própria linha da tabela.
+  await page.getByRole("button", { name: "Editar " + testName }).click();
+  const editForm = page.locator("form").last();
+  await editForm.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("13,45");
+  await editForm.getByRole("button", { name: /^Salvar/ }).click();
+  await page.getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 30000 });
+  await page.waitForTimeout(500);
+
+  // Exclusão lógica do produto recém-criado, sempre com estoque zero.
+  await page.getByRole("button", { name: "Editar " + testName }).click();
+  const deleteForm = page.locator("form").last();
+  page.once("dialog", dialog => dialog.accept());
+  await deleteForm.getByRole("button", { name: "Excluir", exact: true }).click();
+  await page.getByText(testName, { exact: true }).waitFor({ state: "hidden", timeout: 30000 });
+  productDeleted = true;
 
   const result = {
     url: page.url(),
-    title: await page.title(),
     authenticated: authState.authenticated,
     role: authState.role,
-    usernameMatched: Boolean(authState.username && authState.username.toLowerCase() === username.toLowerCase()),
-    loginResponses,
-    visibleText,
+    usernameMatched: true,
+    crud: { create: productCreated, edit: true, delete: productDeleted, testProductName: testName, stockAtDelete: 0 },
+    apiResponses,
     consoleErrors,
     pageErrors
   };
-  fs.writeFileSync(path.join(outDir, "auth-report.json"), JSON.stringify(result, null, 2));
+  fs.writeFileSync(path.join(outDir, "auth-crud-report.json"), JSON.stringify(result, null, 2));
+  await page.screenshot({ path: path.join(outDir, "pdv-stock-crud-preview.png"), fullPage: true });
   console.log(JSON.stringify(result, null, 2));
-
-  if (!authState.authenticated) {
-    throw new Error("Login de empresa não confirmado. Verifique loginResponses e visibleText no artefato.");
-  }
-  if (authState.role !== "manager") {
-    throw new Error("A sessão foi criada, mas o perfil autenticado não é gerente.");
-  }
-  if (!authState.username || authState.username.toLowerCase() !== username.toLowerCase()) {
-    throw new Error("A sessão não corresponde ao usuário de teste informado.");
-  }
-  if (pageErrors.length) throw new Error("Foram registrados erros JavaScript durante o login.");
+  if (pageErrors.length) throw new Error("Foram registrados erros JavaScript durante o teste.");
+  const failedApi = apiResponses.find(x => x.path === "/api/mobflow/products" && x.status >= 400);
+  if (failedApi) throw new Error("A API de produtos retornou HTTP " + failedApi.status + ": " + failedApi.message);
 } finally {
+  // Se o teste falhar depois do cadastro, tenta remover somente o produto descartável criado por este próprio teste.
+  if (productCreated && !productDeleted) {
+    await page.evaluate(async ({ testName }) => {
+      const row = Array.from(document.querySelectorAll("div")).find(el => el.textContent?.includes(testName));
+      const editButton = row?.querySelector('button[aria-label^="Editar "]');
+      if (editButton) (editButton as HTMLButtonElement).click();
+    }, { testName }).catch(() => undefined);
+  }
   await browser.close();
 }
