@@ -3,23 +3,7 @@ import { createRealtime, rawSql } from "@neon/realtime/server";
 import { beginAuthenticatedTransaction, jsonError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
 
-export type LiveStockMovement = {
-  id: string;
-  operationId: string;
-  date: Date;
-  type: string;
-  productId: string;
-  productCode: string | null;
-  productName: string;
-  unit: string;
-  quantity: string;
-  totalValue: string;
-  stockBefore: string;
-  stockAfter: string;
-  delta: string;
-  operator: string | null;
-  details: string | null;
-};
+type LatestTenantSignal = { last_sequence: string };
 
 let realtimeServer: ReturnType<typeof createRealtime> | null = null;
 
@@ -30,7 +14,7 @@ function getRealtimeServer() {
     throw new Error("Neon Realtime is not configured for this Preview.");
   }
 
-  const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, ""));
+  const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\\/+/, ""));
   if (!databaseName) throw new Error("Could not resolve the Neon database name.");
 
   if (!realtimeServer) realtimeServer = createRealtime({ secret, db: databaseName });
@@ -48,25 +32,13 @@ export const Route = createFileRoute("/api/mobflow/stock-movements/live-query")(
           await releaseTransaction(transaction.client, true);
           transaction = null;
 
-          const query = rawSql<LiveStockMovement>(
-            `SELECT
-              id,
-              operation_id AS "operationId",
-              occurred_at AS date,
-              operation_type AS type,
-              product_id AS "productId",
-              product_code AS "productCode",
-              product_name AS "productName",
-              unit,
-              quantity,
-              total_value AS "totalValue",
-              stock_before AS "stockBefore",
-              stock_after AS "stockAfter",
-              delta,
-              operator_snapshot AS operator,
-              details
-            FROM public.stock_movements
-            WHERE tenant_id = $1::uuid`,
+          // Neon Realtime rejects RLS-protected tables. Subscribe only to the
+          // minimal tenant signal, then fetch the protected ledger through our
+          // authenticated API whenever its sequence changes.
+          const query = rawSql<LatestTenantSignal>(
+            `SELECT last_sequence::text AS last_sequence
+             FROM public.mobflow_realtime_signals
+             WHERE tenant_id = $1::uuid`,
             [accountId],
           );
           const sealedQuery = await getRealtimeServer().seal({ query });
