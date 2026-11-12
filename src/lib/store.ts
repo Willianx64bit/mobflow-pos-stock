@@ -1192,7 +1192,11 @@ export const actions = {
       operationId: id, operationType: "adjustment", reason,
       items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
     });
-    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    if (!queued || incrementalSyncEnabled()) {
+      set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    }
+    // With incremental sync disabled, enqueueDomainCommand commits through Neon and
+    // hydrateStore refreshes the authoritative state before confirmLastDomainCommand resolves.
     return id;
   },
   applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
@@ -1228,7 +1232,11 @@ export const actions = {
       operationId: entry.id, operationType: "writeoff", reason, costMode: input.costMode, donationDestination: entry.donationDestination,
       number: entry.number, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
     });
-    set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    if (!queued || incrementalSyncEnabled()) {
+      set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    }
+    // With incremental sync disabled, wait for the transactional Neon response and
+    // the subsequent hydration before exposing the new stock balance locally.
     return entry;
   },
   async applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
