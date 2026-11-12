@@ -151,7 +151,7 @@ function Configuracoes() {
     let active = true;
     const loadCompanyCnpj = async () => {
       try {
-        if (active) setCompanyCnpj(String(localStorage.getItem("mobflow-company-cnpj") ?? settings.companyCnpj ?? ""));
+        if (active) setCompanyCnpj(String(settings.companyCnpj ?? "").trim() || String(localStorage.getItem("mobflow-company-cnpj") ?? "").trim());
       } catch {
         // Evita deixar o campo preso em "Carregando" se a consulta falhar.
         if (active) setCompanyCnpj(String(settings.companyCnpj ?? ""));
