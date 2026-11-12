@@ -9,7 +9,7 @@ export const Route = createFileRoute("/baixa-produtos")({ head: () => ({ meta: [
 function BaixaProdutos() {
  const navigate=useNavigate(), products=useStore(s=>s.products), history=useStore(s=>s.stockWriteoffs??[]), otherHistory=useStore(s=>s.stockTransfers??[]), settings=useStore(s=>s.settings), companyName=useStore(s=>s.settings?.companyName??"");
  const [companyCnpj,setCompanyCnpj]=useState(String((settings as any)?.companyCnpj??"").trim());
- useEffect(()=>{ setCompanyCnpj(String((settings as any)?.companyCnpj??"").trim()); },[settings]);
+ useEffect(()=>{ let active=true; try { const saved=String((settings as any)?.companyCnpj??"").trim(); const legacy=String(localStorage.getItem("mobflow-company-cnpj")??"").trim(); if(active)setCompanyCnpj(saved||legacy); } catch { if(active)setCompanyCnpj(String((settings as any)?.companyCnpj??"").trim()); } return ()=>{active=false}; },[settings]);
  const contacts=useStore(s=>s.contacts??[]);
  const [contactSearch,setContactSearch]=useState(""), [showContactSuggestions,setShowContactSuggestions]=useState(false);
  const contactQuery=contactSearch.trim();
@@ -87,7 +87,7 @@ function BaixaProdutos() {
   <div className="border-b-2 border-black p-3">
    <div className="mb-2 rounded border border-black px-3 py-2 text-center">
     <div className="text-base font-extrabold">{completedNote.companyName||companyName||"EMPRESA"}</div>
-    <div className="mt-1 text-sm md:text-base font-semibold">Telefone: {completedNote.companyPhone||settings?.companyPhone||"—"} <span className="mx-2">|</span> CNPJ: {completedNote.issuerCnpj||companyCnpj||"Não cadastrado"}</div>
+    <div className="mt-1 text-sm md:text-base font-semibold">Telefone: {completedNote.companyPhone||settings?.companyPhone||"—"} <span className="mx-2">|</span> CNPJ: {String(completedNote.issuerCnpj??"").trim()||companyCnpj||String(settings?.companyCnpj??"").trim()||"Não cadastrado"}</div>
    </div>
    <div className="text-center text-2xl font-extrabold tracking-wide">DANFE</div>
    <div className="mt-2 text-center text-xl font-extrabold">NF: {String(completedNote.number).startsWith("NF:")?String(completedNote.number).slice(3):completedNote.number}</div>
@@ -106,7 +106,7 @@ function BaixaProdutos() {
    <div className="mb-1 text-[9px] uppercase">Identificação do emitente</div>
    <div className="grid grid-cols-2 gap-0 sm:grid-cols-4">
     <div className="col-span-2 border border-black p-1 sm:col-span-2"><div className="text-[9px] uppercase">Nome da empresa</div><div className="text-xs md:text-sm font-bold">{completedNote.companyName||""}</div></div>
-    <div className="border border-black p-1"><div className="text-[9px] uppercase">CNPJ</div><div className="text-xs md:text-sm">{completedNote.issuerCnpj||""}</div></div>
+    <div className="border border-black p-1"><div className="text-[9px] uppercase">CNPJ</div><div className="text-xs md:text-sm">{String(completedNote.issuerCnpj??"").trim()||companyCnpj||String(settings?.companyCnpj??"").trim()||"Não cadastrado"}</div></div>
     <div className="border border-black p-1"><div className="text-[9px] uppercase">Telefone</div><div className="text-xs md:text-sm">{completedNote.companyPhone||""}</div></div>
     <div className="col-span-2 border border-black p-1 sm:col-span-2"><div className="text-[9px] uppercase">Rua</div><div className="text-xs md:text-sm">{completedNote.companyStreet||""}</div></div>
     <div className="border border-black p-1"><div className="text-[9px] uppercase">Número</div><div className="text-xs md:text-sm">{completedNote.companyNumber||""}</div></div>
