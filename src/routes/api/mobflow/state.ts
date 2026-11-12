@@ -290,7 +290,26 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
               [accountId, expected],
             );
             const previousState = previousResult.rows[0]?.state ?? null;
-            const nextState = body.state as Record<string, unknown>;
+            const incomingState = body.state as Record<string, unknown>;
+            const previousSettings = previousState?.["settings"] && typeof previousState["settings"] === "object" && !Array.isArray(previousState["settings"])
+              ? previousState["settings"] as Record<string, unknown>
+              : null;
+            const incomingSettings = incomingState["settings"] && typeof incomingState["settings"] === "object" && !Array.isArray(incomingState["settings"])
+              ? incomingState["settings"] as Record<string, unknown>
+              : {};
+            // Contacts and company identity are written through private-data endpoints.
+            // Whole-state snapshots intentionally omit them; preserve the database copy
+            // instead of replacing it with [] / { companyName } during unrelated saves.
+            const nextState: Record<string, unknown> = {
+              ...incomingState,
+              ...(Array.isArray(previousState?.["contacts"]) ? { contacts: previousState["contacts"] } : {}),
+              ...(previousSettings ? {
+                settings: {
+                  ...previousSettings,
+                  ...(typeof incomingSettings["companyName"] === "string" ? { companyName: incomingSettings["companyName"] } : {}),
+                },
+              } : {}),
+            };
 
             const updated = previousState
               ? await client.query<{ updated_at: string }>(
@@ -300,7 +319,7 @@ LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
                    WHERE owner_id = $2
                      AND updated_at = $3::timestamptz
                    RETURNING to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at`,
-                  [serializedState, accountId, expected],
+                  [JSON.stringify(nextState), accountId, expected],
                 )
               : { rows: [] as Array<{ updated_at: string }> };
 
