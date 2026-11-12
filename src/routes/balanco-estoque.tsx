@@ -107,7 +107,7 @@ function BalancoEstoque() {
       if (!draft.quantity.trim()) { setError("Informe a quantidade ou o novo saldo de todos os produtos."); return; }
       const value = Number(draft.quantity.trim().replace(",", "."));
       const product = products.find((p) => p.id === draft.productId);
-      if (!product || !Number.isFinite(value) || value < 0) { setError("Confira as quantidades informadas."); return; }
+      if (!product || !Number.isFinite(value) || value < 0 || (value === 0 && draft.mode === "somar")) { setError(draft.mode === "somar" && value === 0 ? "Para somar ao estoque, informe uma quantidade maior que zero." : "Confira as quantidades informadas."); return; }
       if (product.unit !== "kg" && !Number.isInteger(value)) { setError(`A quantidade de "${product.name}" precisa ser um número inteiro.`); return; }
       payload.push({ productId: draft.productId, mode: draft.mode, quantity: value });
     }
