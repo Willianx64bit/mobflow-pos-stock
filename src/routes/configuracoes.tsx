@@ -130,7 +130,7 @@ function Configuracoes() {
         }
 
         // Somente a conta principal da empresa pode ver e gerenciar usuários do PDV.
-        if (status.role === "manager") {
+        if (status.canManage === true) {
           setUsersLoading(true);
           setUserError("");
           const { data, error: usersError } = await callUsers({ body: { action: "list" } });
