@@ -248,12 +248,13 @@ async function handleUsers(request: Request) {
     }
 
     if (action === "list") {
+      // Use a narrowly scoped SECURITY DEFINER reader: the first Gerência user
+      // may have role=pdv plus the Gerência permission, while the table's
+      // ordinary RLS policy intentionally exposes only the current PDV profile.
       const result = await client.query(
         `SELECT id::text,username,display_name,role,active,created_at,permissions
-         FROM public.profiles
-         WHERE account_id=$1 AND role='pdv'
-         ORDER BY created_at DESC`,
-        [identity.accountId],
+         FROM public.mobflow_list_pdv_users($1::uuid, $2::uuid)`,
+        [identity.userId, identity.accountId],
       );
       await client.query("COMMIT");
       transactionOpen = false;
