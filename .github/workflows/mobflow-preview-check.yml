@@ -42,8 +42,8 @@ jobs:
         run: npm test
 
   authenticated-preview-smoke:
-    name: Authenticated Preview smoke test (manual only)
-    if: github.event_name == 'workflow_dispatch'
+    name: Authenticated Preview login smoke test
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
