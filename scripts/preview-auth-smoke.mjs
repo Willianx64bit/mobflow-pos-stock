@@ -13,7 +13,7 @@ if (!baseURL || !username || !password || cnpj.length !== 14) {
 const outDir = path.resolve("artifacts");
 fs.mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
 const page = await context.newPage();
 const consoleErrors = [];
 const pageErrors = [];
@@ -151,6 +151,10 @@ try {
   await refreshHydration;
   await page.getByRole("button", { name: "Sincronizar dados" }).waitFor({ state: "visible", timeout: 30000 });
   const cartAfterReload = await page.locator("aside").getByText(testName, { exact: true }).count();
+  const productAfterReload = await page.getByRole("button").filter({ hasText: testName }).count();
+  if (cartAfterReload < cartBeforeReload || productAfterReload === 0) {
+    throw new Error("O carrinho ou o catálogo perdeu o produto após recarregar (carrinho=" + cartAfterReload + ", produtoVisível=" + productAfterReload + ").");
+  }
   const syncResponseStart = apiResponses.length;
   await page.getByRole("button", { name: "Sincronizar dados" }).click();
   await page.getByRole("status").waitFor({ state: "visible", timeout: 30000 });
@@ -161,7 +165,7 @@ try {
   }, { timeout: 30000 });
   const syncStatus = await page.locator('[role="status"]').innerText().catch(() => "");
   const syncApiResponses = apiResponses.slice(syncResponseStart);
-  const cartSyncEvidence = { cartBeforeReload, productStillVisibleAfterTap, statePutsAfterTap, cartAfterReload, syncStatus, syncApiResponses };
+  const cartSyncEvidence = { cartBeforeReload, productStillVisibleAfterTap, statePutsAfterTap, cartAfterReload, productAfterReload, syncStatus, syncApiResponses };
   if (/Sincronização não concluída/i.test(syncStatus)) {
     throw new Error("O botão de sincronização informou falha: " + syncStatus);
   }
