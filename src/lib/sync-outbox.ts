@@ -210,24 +210,27 @@ export class SyncOutbox {
     for (const command of records) {
       if (command.tenantId === tenantId) commandsStore.delete(command.id);
     }
-    transaction.objectStore(META).delete(`cursor:${tenantId}`);
+    const metaStore = transaction.objectStore(META);
+    metaStore.delete(`cursor:${tenantId}`);
+    metaStore.delete(`cursor:${tenantId}:receiving-conference`);
     await transactionDone(transaction);
   }
 
-  async getCursor(tenantId: string): Promise<string> {
+  async getCursor(tenantId: string, scope: "global" | "receiving-conference" = "global"): Promise<string> {
     const db = await this.db();
     const transaction = db.transaction(META, "readonly");
-    const record = await requestValue(transaction.objectStore(META).get(`cursor:${tenantId}`)) as MetaRecord | undefined;
+    const key = scope === "global" ? `cursor:${tenantId}` : `cursor:${tenantId}:${scope}`;
+    const record = await requestValue(transaction.objectStore(META).get(key)) as MetaRecord | undefined;
     await transactionDone(transaction);
     return record?.value ?? "0";
   }
 
-  async setCursor(tenantId: string, cursor: string): Promise<void> {
-    if (!/^\d+$/.test(cursor)) throw new Error("Cursor incremental inválido.");
+  async setCursor(tenantId: string, cursor: string, scope: "global" | "receiving-conference" = "global"): Promise<void> {
+    if (!/^\\d+$/.test(cursor)) throw new Error("Cursor incremental inválido.");
     const db = await this.db();
     const transaction = db.transaction(META, "readwrite");
     const store = transaction.objectStore(META);
-    const key = `cursor:${tenantId}`;
+    const key = scope === "global" ? `cursor:${tenantId}` : `cursor:${tenantId}:${scope}`;
     const current = await requestValue(store.get(key)) as MetaRecord | undefined;
     if (BigInt(cursor) > BigInt(current?.value ?? "0")) store.put({ key, value: cursor } satisfies MetaRecord);
     await transactionDone(transaction);
@@ -286,11 +289,14 @@ export async function pullSyncEvents(
   applyEvents: (events: SyncEvent[]) => Promise<void> | void,
   transport: SyncTransport = fetch,
   maxPages = 10,
+  scope: "global" | "receiving-conference" = "global",
+  categories?: readonly string[],
 ): Promise<{ applied: number; cursor: string; hasMore: boolean }> {
-  let cursor = await outbox.getCursor(tenantId);
+  let cursor = await outbox.getCursor(tenantId, scope);
   let applied = 0, hasMore = false;
   for (let pageNumber = 0; pageNumber < Math.max(1, maxPages); pageNumber++) {
-    const response = await transport(`/api/mobflow/sync/events?cursor=${encodeURIComponent(cursor)}&limit=100`, {
+    const categoryQuery = categories?.length ? `&categories=${encodeURIComponent(categories.join(","))}` : "";
+    const response = await transport(`/api/mobflow/sync/events?cursor=${encodeURIComponent(cursor)}&limit=100${categoryQuery}`, {
       method: "GET", credentials: "same-origin",
     });
     if (!response.ok) throw new Error(`Falha ao receber alterações do Neon (HTTP ${response.status}).`);
@@ -301,6 +307,7 @@ export async function pullSyncEvents(
     if (BigInt(body.nextCursor) < BigInt(cursor)) throw new Error("O cursor recebido regrediu.");
     let previousSequence = BigInt(cursor);
     for (const event of body.events) {
+      if (categories?.length && !categories.includes(event.category)) throw new Error("A API retornou categoria fora do escopo deste cursor.");
       if (!/^\d+$/.test(event.sequence) || BigInt(event.sequence) <= previousSequence) {
         throw new Error("A página de eventos contém sequência inválida ou fora de ordem.");
       }
@@ -320,7 +327,7 @@ export async function pullSyncEvents(
     // A completed page may advance beyond its last automatic event because manual
     // sequences are intentionally omitted from the realtime feed and handled by manual snapshot sync.
     if (BigInt(body.nextCursor) > BigInt(cursor)) {
-      await outbox.setCursor(tenantId, body.nextCursor);
+      await outbox.setCursor(tenantId, body.nextCursor, scope);
       cursor = body.nextCursor;
     }
     if (!hasMore || body.events.length === 0) break;
