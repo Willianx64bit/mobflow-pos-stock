@@ -153,6 +153,8 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   }
   const b=await c.query("SELECT barcode FROM public.product_barcodes WHERE tenant_id=$1 AND product_id=$2 ORDER BY is_primary DESC,created_at",[i.accountId,id]);
   await appendCatalogEvent(c,i.accountId,i.userId,id,Number(upd.rows[0].version),{operation:"upsert",product:{id,code:values[0],name:values[1],reference:values[2],unit:values[4],price:values[5],cost:values[6],minStock:values[7],category:values[3],active:values[8],version:Number(upd.rows[0].version),barcodes:b.rows.map((x:any)=>x.barcode)}});
+  // Product metadata stays manual, but an existing product price is a compact automatic event.
+  if(Number(old.price)!==values[5]) await c.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'price','automatic','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({price:values[5]})]);
   await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)})});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
