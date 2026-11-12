@@ -268,6 +268,17 @@ async function handleUsers(request: Request) {
 
     const userId = String(body["userId"] ?? "");
     if (!userId) deny("Usuário não informado.");
+    if (action === "delete") {
+      const removed = await client.query<{ deleted: boolean }>(
+        "SELECT public.mobflow_delete_pdv_user($1::uuid, $2::uuid, $3::uuid) AS deleted",
+        [identity.userId, identity.accountId, userId],
+      );
+      if (!removed.rows[0]?.deleted) deny("Não foi possível confirmar a exclusão do usuário.", 404);
+      await client.query("COMMIT");
+      transactionOpen = false;
+      return Response.json({ ok: true });
+    }
+
     const targetResult = await client.query<{ id: string; username: string; cnpj: string }>(
       "SELECT id::text,username,cnpj FROM public.profiles WHERE id=$1 AND account_id=$2 AND role='pdv' LIMIT 1",
       [userId, identity.accountId],
@@ -308,17 +319,6 @@ async function handleUsers(request: Request) {
       );
       if (!update.rowCount) deny("Não foi possível localizar a credencial deste usuário.", 404);
       await client.query('DELETE FROM public."session" WHERE "userId"=$1', [userId]);
-      await client.query("COMMIT");
-      transactionOpen = false;
-      return Response.json({ ok: true });
-    }
-
-    if (action === "delete") {
-      const removed = await client.query<{ deleted: boolean }>(
-        "SELECT public.mobflow_delete_pdv_user($1::uuid, $2::uuid, $3::uuid) AS deleted",
-        [identity.userId, identity.accountId, userId],
-      );
-      if (!removed.rows[0]?.deleted) deny("Não foi possível confirmar a exclusão do usuário.", 404);
       await client.query("COMMIT");
       transactionOpen = false;
       return Response.json({ ok: true });
