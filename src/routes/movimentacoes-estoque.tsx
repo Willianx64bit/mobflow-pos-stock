@@ -54,50 +54,78 @@ function MovimentacoesEstoque() {
   useEffect(() => {
     let stopped = false;
     let client: ReturnType<typeof createRealtimeClient> | null = null;
-    let renewSubscription: ((next: SealedLiveQuery<LiveMovementRow>) => Promise<void>) | null = null;
-    let stopSubscription: (() => void) | null = null;
     let renewalTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSequence: string | null | undefined;
 
-    const fetchSealedQuery = async (): Promise<SealedLiveQuery<LiveMovementRow>> => {
+    const refreshMovements = async () => {
+      const response = await fetch("/api/mobflow/stock-movements/list", {
+        method: "GET", credentials: "same-origin", cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Falha ao consultar o histórico de estoque (HTTP " + response.status + ").");
+      const body = await response.json() as { ok?: boolean; movements?: LiveMovementRow[]; error?: string };
+      if (!body.ok || !Array.isArray(body.movements)) {
+        throw new Error(body.error || "A API não retornou o histórico de estoque.");
+      }
+      if (!stopped) {
+        setLiveMovements(body.movements.map(mapLiveMovement));
+        setRealtimeError("");
+      }
+    };
+
+    const fetchSealedQuery = async (): Promise<SealedLiveQuery<{ last_sequence: string }>> => {
       const response = await fetch("/api/mobflow/stock-movements/live-query", {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" }, body: "{}",
       });
       if (!response.ok) throw new Error("Falha ao iniciar histórico em tempo real (HTTP " + response.status + ").");
-      return await response.json() as SealedLiveQuery<LiveMovementRow>;
+      return await response.json() as SealedLiveQuery<{ last_sequence: string }>;
     };
 
     const start = async () => {
       try {
-        const sealed = await fetchSealedQuery();
+        // Load the durable ledger through the authenticated API. Never query the
+        // RLS-protected stock_movements table directly through Neon Realtime.
+        await refreshMovements();
         if (stopped) return;
+
         const url = import.meta.env["VITE_NEON_REALTIME_URL"];
         if (!url) throw new Error("Neon Realtime não está configurado neste Preview.");
+        const sealed = await fetchSealedQuery();
+        if (stopped) return;
         client = createRealtimeClient({ url, logLevel: import.meta.env.DEV ? "warn" : "error" });
-        const activeSubscription = client.subscribe(sealed);
-        renewSubscription = (next) => activeSubscription.renew(next);
-        stopSubscription = () => activeSubscription.unsubscribe();
-        activeSubscription.onChange((snapshot) => {
-          if (stopped || !snapshot.data) return;
-          setLiveMovements(snapshot.data.map(mapLiveMovement).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-          setRealtimeStatus("live");
-          setRealtimeError("");
+        const subscription = client.subscribe(sealed);
+        subscription.onChange((snapshot) => {
+          const nextSequence = snapshot.data?.[0]?.last_sequence ?? null;
+          if (lastSequence === undefined) {
+            lastSequence = nextSequence;
+            return;
+          }
+          if (nextSequence && nextSequence !== lastSequence) {
+            lastSequence = nextSequence;
+            void refreshMovements().catch((error) => {
+              if (!stopped) {
+                setRealtimeStatus("error");
+                setRealtimeError(error instanceof Error ? error.message : "Não foi possível atualizar o histórico.");
+              }
+            });
+          }
         });
-        activeSubscription.onStateChange((state) => {
+        subscription.onStateChange((state) => {
           if (state.status === "error") {
             setRealtimeStatus("error");
             setRealtimeError(state.error.message);
           } else if (state.status === "live") {
             setRealtimeStatus("live");
+            setRealtimeError("");
           }
         });
 
         const renew = async () => {
-          if (stopped || !renewSubscription) return;
+          if (stopped) return;
           try {
             const next = await fetchSealedQuery();
-            if (stopped || !renewSubscription) return;
-            await renewSubscription(next);
+            if (stopped) return;
+            await subscription.renew(next);
             renewalTimer = setTimeout(() => { void renew(); }, Math.max(1000, next.expiresAt - Date.now() - 10_000));
           } catch (error) {
             if (!stopped) {
@@ -110,7 +138,7 @@ function MovimentacoesEstoque() {
       } catch (error) {
         if (!stopped) {
           setRealtimeStatus("error");
-          setRealtimeError(error instanceof Error ? error.message : "Não foi possível conectar ao histórico em tempo real.");
+          setRealtimeError(error instanceof Error ? error.message : "Não foi possível carregar o histórico de estoque.");
         }
       }
     };
@@ -119,7 +147,6 @@ function MovimentacoesEstoque() {
     return () => {
       stopped = true;
       if (renewalTimer) clearTimeout(renewalTimer);
-      stopSubscription?.();
       client?.close();
     };
   }, []);
