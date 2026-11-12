@@ -39,6 +39,14 @@ describe("Neon product catalog API",()=>{
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",name:"Arroz",stock:5}]});
   expect(client.query.mock.calls[1]?.[1]?.[0]).toBe(TENANT);
  });
+ it("returns only compact price and stock fields for realtime refreshes",async()=>{
+  client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{id:"p1",price:"12.50",stock:"8.000"}]});
+  const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?projection=live&limit=100")});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",price:12.5,stock:8}]});
+  expect(client.query.mock.calls[1]?.[0]).toContain("SELECT p.id,p.price::text,p.stock::text");
+  expect(client.query.mock.calls[1]?.[0]).not.toContain("p.name");
+ });
  it("refuses catalog writes from users without Gerência",async()=>{
   beginAuthenticatedTransaction.mockResolvedValueOnce({client,identity:{userId:"u1",accountId:TENANT,role:"pdv",permissions:["PDV","Operações"]}});
   const response=await handlers.POST({request:req("POST",{id:"p1",code:"001",name:"Arroz",unit:"un",price:10})});
