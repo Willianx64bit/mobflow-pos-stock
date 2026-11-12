@@ -73,7 +73,7 @@ try {
   await form.locator("label").filter({ hasText: "Categoria" }).locator("input").fill("QA MobFlow");
   await form.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("12,34");
   await form.locator("label").filter({ hasText: /^Custo R\$/ }).locator("input").fill("5,00");
-  await form.locator("label").filter({ hasText: /^Estoque$/ }).locator("input").fill("0");
+  await form.locator("label").filter({ hasText: /^Estoque$/ }).locator("input").fill("5");
   await form.locator("label").filter({ hasText: /^Mínimo$/ }).locator("input").fill("0");
   const createResponsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mobflow/products" && response.request().method() === "POST", { timeout: 30000 });
   await form.getByRole("button", { name: /^Salvar/ }).click();
@@ -107,7 +107,39 @@ try {
     throw new Error("A edição foi aceita pela tela, mas não foi confirmada na consulta Neon: " + JSON.stringify(editedProduct));
   }
 
-  // Exclusão lógica do produto recém-criado, sempre com estoque zero.
+  // Cart, refresh and manual sync regression: do not finalize a sale or alter stock.
+  await page.evaluate(() => {
+    sessionStorage.setItem("mobflow-pdv-authorized", "1");
+    sessionStorage.setItem("mobflow-permissions", JSON.stringify(["PDV", "Gerência"]));
+  });
+  await page.goto(new URL("/", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.getByRole("button", { name: "Sincronizar dados" }).waitFor({ state: "visible", timeout: 30000 });
+  const productCard = page.getByRole("button").filter({ hasText: testName }).first();
+  await productCard.waitFor({ state: "visible", timeout: 30000 });
+  await productCard.click();
+  await page.locator("aside").getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 15000 });
+  const cartBeforeReload = await page.locator("aside").getByText(testName, { exact: true }).count();
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.getByRole("button", { name: "Sincronizar dados" }).waitFor({ state: "visible", timeout: 30000 });
+  const cartAfterReload = await page.locator("aside").getByText(testName, { exact: true }).count();
+  const syncResponseStart = apiResponses.length;
+  await page.getByRole("button", { name: "Sincronizar dados" }).click();
+  await page.getByRole("status").waitFor({ state: "visible", timeout: 30000 });
+  await page.waitForFunction(() => {
+    const button = document.querySelector('button[aria-label="Sincronizar dados"]');
+    return button && !button.hasAttribute("disabled") &&
+      document.querySelector('[role="status"]')?.textContent?.trim() !== "Sincronizando dados...";
+  }, { timeout: 30000 });
+  const syncStatus = await page.locator('[role="status"]').innerText().catch(() => "");
+  const syncApiResponses = apiResponses.slice(syncResponseStart);
+  const cartSyncEvidence = { cartBeforeReload, cartAfterReload, syncStatus, syncApiResponses };
+  if (/Sincronização não concluída/i.test(syncStatus)) {
+    throw new Error("O botão de sincronização informou falha: " + syncStatus);
+  }
+  await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+  await page.getByRole("button", { name: /\\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
+
+  // Exclusão lógica do produto recém-criado, sempre com estoque 5.
   await page.getByRole("button", { name: "Editar " + testName }).click();
   const deleteForm = page.locator("form").last();
   page.once("dialog", dialog => dialog.accept());
@@ -122,7 +154,8 @@ try {
     authenticated: authState.authenticated,
     role: authState.role,
     usernameMatched: true,
-    crud: { create: productCreated, edit: true, delete: productDeleted, testProductName: testName, stockAtDelete: 0 },
+    crud: { create: productCreated, edit: true, delete: productDeleted, testProductName: testName, stockAtDelete: 5 },
+    cartSyncEvidence,
     apiResponses,
     consoleErrors,
     pageErrors
@@ -143,7 +176,8 @@ try {
 } finally {
   const reportPath = path.join(outDir, "auth-crud-report.json");
   if (!fs.existsSync(reportPath)) {
-    fs.writeFileSync(reportPath, JSON.stringify({ url: page.url(), authenticated: page.url().includes(baseURL), crud: { create: productCreated, edit: Boolean(editedProductEvidence), delete: productDeleted }, editedProductEvidence, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
+    fs.writeFileSync(reportPath, JSON.stringify({ url: page.url(), authenticated: page.url().includes(baseURL), crud: { create: productCreated, edit: Boolean(editedProductEvidence), delete: productDeleted },
+    cartSyncEvidence: typeof cartSyncEvidence === "undefined" ? null : cartSyncEvidence, editedProductEvidence, apiResponses, consoleErrors, pageErrors, failure: failureMessage }, null, 2));
     await page.screenshot({ path: path.join(outDir, "pdv-stock-crud-preview.png"), fullPage: true }).catch(() => undefined);
   }
   // Limpeza de segurança: se a edição/exclusão falhar, remove apenas o ID
