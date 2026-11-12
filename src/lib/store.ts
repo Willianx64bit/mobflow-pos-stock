@@ -462,7 +462,7 @@ export async function confirmLastDomainCommand(): Promise<void> {
   await pending;
 }
 
-async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Product[]> {
+async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full"): Promise<Product[]> {
   if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
   try {
     const products: Product[] = [];
@@ -487,7 +487,16 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[]): Promise<Prod
           minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
           unit: raw.unit === "kg" ? "kg" : "un", photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
       }
-      if (body.hasMore !== true) return products;
+      if (body.hasMore !== true) {
+        if (mode === "full") return products;
+        // Realtime may refresh only high-priority fields. Catalog identity and
+        // metadata remain frozen until the user runs the manual synchronization.
+        const latestById = new Map(products.map((product) => [product.id, product]));
+        return fallbackProducts.map((current) => {
+          const latest = latestById.get(current.id);
+          return latest ? { ...current, stock: latest.stock, price: latest.price } : current;
+        });
+      }
       if (typeof body.nextCursor !== "string" || !body.nextCursor) {
         console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
         return fallbackProducts;
@@ -537,7 +546,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     const verifiedCatalog = state.products ?? [];
     const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
-    state.products = await readPreviewNeonCatalog(catalogFallback);
+    state.products = await readPreviewNeonCatalog(catalogFallback, "realtime");
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
@@ -1120,6 +1129,11 @@ export const actions = {
       suppliers: [],
       settings: { companyName: "" },
     });
+  },
+  async refreshCatalog() {
+    const products = await readPreviewNeonCatalog(state.products ?? [], "full");
+    set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
+    return products.length;
   },
   applyCatalogProduct(product: Product) {
     const existing = state.products.some((item) => item.id === product.id);
