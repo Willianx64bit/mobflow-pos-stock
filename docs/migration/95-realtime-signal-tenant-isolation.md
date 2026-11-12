@@ -46,6 +46,15 @@ Two distinct tenant contexts were exercised as `mobflow_api` inside savepoints:
 
 `src/test/mobflow-realtime-live-query.test.ts` verifies that the backend seals the minimal signal query with the authenticated tenant parameter for two different tenant identities, and does not include the event table in the Realtime query.
 
-## Not yet claimed
+## Preview runtime validation
 
-The database schema and transactional signal path are validated. Full browser WebSocket delivery and a two-company authenticated end-to-end Realtime test still need to pass in the Preview deployment before this is considered complete. Production, the Admin repository, and ColetaFlow were not changed.
+- GitHub Actions run `43198676190` passed TypeScript, unit tests, build, authenticated login smoke, and real-browser smoke on the stable Preview alias.
+- Authenticated evidence reported login successful, manager role, product create/edit/delete successful, cart retained after reload, and `/api/mobflow/sync/live-query` returned HTTP 200.
+- Neon Realtime logs at `2026-11-12T10:15:59Z` recorded `authorization_checked: ok` and `neon_realtime_session_opened`; no `neon_realtime_query_rejected` events were recorded in the post-deploy 30-minute window.
+- The two-tenant database savepoint test and route unit test prove the two tenant contexts receive different bound tenant parameters and cannot read each other's RLS-protected counter/event rows. A simultaneous two-browser WebSocket test using two independent company logins remains outstanding.
+
+## Deployment routing warning
+
+Vercel reports that the domain `mobflow-pdv-gestao.vercel.app` is assigned to Git branch `migration/neon-preparation`; the current Preview deployment is receiving that alias. This is a pre-existing project-domain mapping, not a change made by this migration task. No alias or domain assignment was changed here. Confirm the intended mapping before treating the official PDV domain as production-isolated from this migration branch.
+
+Production database/data, the Admin repository, and ColetaFlow were not modified.
