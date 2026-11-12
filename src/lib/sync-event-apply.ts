@@ -106,6 +106,23 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "receiving" && event.entity_type === "receiving") {
       const existing = next.receiving.find((item) => item.id === event.entity_id);
+      if (payload["operation"] === "delete") {
+        next.receiving = next.receiving.filter((item) => item.id !== event.entity_id);
+        continue;
+      }
+      const rawReceiving = record(payload["receiving"]);
+      if (rawReceiving) {
+        if (typeof rawReceiving["id"] !== "string" || rawReceiving["id"] !== event.entity_id ||
+          !Array.isArray(rawReceiving["items"]) ||
+          !["pendente", "analisando", "conferido", "divergente", "aceito", "rejeitado"].includes(String(rawReceiving["status"]))) {
+          throw new UnsupportedSyncEventError(event);
+        }
+        // Receiving upserts carry one note, never the whole tenant snapshot.
+        // Merge partial updates into an existing note and allow a new note to be inserted.
+        const incoming = rawReceiving as unknown as State["receiving"][number];
+        next.receiving = upsert(next.receiving, incoming);
+        continue;
+      }
       if (!existing) throw new UnsupportedSyncEventError(event);
       const lines = Array.isArray(payload["lines"]) ? payload["lines"] as Array<Record<string, unknown>> : [];
       const decisions: Record<string, "aceitar" | "devolver"> = {};
