@@ -63,6 +63,7 @@ jobs:
           MOBFLOW_PREVIEW_URL: https://mobflow-pos-stock-git-migration-neon-preparation-willianx64bit.vercel.app
           MOBFLOW_TEST_USERNAME: ${{ secrets.MOBFLOW_TEST_USERNAME }}
           MOBFLOW_TEST_PASSWORD: ${{ secrets.MOBFLOW_TEST_PASSWORD }}
+          MOBFLOW_TEST_CNPJ: ${{ secrets.MOBFLOW_TEST_CNPJ }}
         run: node scripts/preview-auth-smoke.mjs
       - name: Upload authenticated browser evidence
         if: always()
