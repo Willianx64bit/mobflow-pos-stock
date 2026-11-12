@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
-import { SyncOutbox, createSyncCommand, runIncrementalSync } from "@/lib/sync-outbox";
+import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
 export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
@@ -609,6 +609,29 @@ function reconnect() {
   }, 3_000);
 }
 
+let receivingConferencePull: Promise<unknown> | null = null;
+
+function pullReceivingConferenceEvents(accountId: string) {
+  if (typeof window === "undefined" || !cloudReady || cloudAccountId !== accountId) return Promise.resolve();
+  if (receivingConferencePull) return receivingConferencePull;
+  const pull = pullSyncEvents(
+    syncOutbox,
+    accountId,
+    applyIncrementalEvents,
+    fetch,
+    10,
+    "receiving-conference",
+    ["receiving", "conference"],
+  ).catch((error) => {
+    console.warn("[MobFlow Receiving/Conference] Realtime pull deferred:", error);
+    throw error;
+  }).finally(() => {
+    if (receivingConferencePull === pull) receivingConferencePull = null;
+  });
+  receivingConferencePull = pull;
+  return pull;
+}
+
 function startRealtime(accountId: string) {
   if (typeof window === "undefined") return;
   if (realtimeOwnerId !== accountId) {
@@ -622,7 +645,8 @@ function startRealtime(accountId: string) {
   if (!syncWakeListenersInstalled) {
     const refreshWhenVisible = () => {
       if (document.visibilityState !== "visible" || !cloudAccountId) return;
-      void syncNow().catch(() => undefined);
+      if (incrementalSyncEnabled()) void syncNow().catch(() => undefined);
+      else void pullReceivingConferenceEvents(cloudAccountId).catch(() => undefined);
       if (!stopRealtimeSubscription) {
         realtimeOwnerId = null;
         startRealtime(cloudAccountId);
@@ -630,7 +654,8 @@ function startRealtime(accountId: string) {
     };
     const refreshWhenOnline = () => {
       if (!cloudAccountId) return;
-      void syncNow().catch(() => undefined);
+      if (incrementalSyncEnabled()) void syncNow().catch(() => undefined);
+      else void pullReceivingConferenceEvents(cloudAccountId).catch(() => undefined);
       if (!stopRealtimeSubscription) {
         realtimeOwnerId = null;
         startRealtime(cloudAccountId);
@@ -648,9 +673,8 @@ function startRealtime(accountId: string) {
       if (incrementalSyncEnabled()) {
         void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error));
       } else {
-        // Compatibility mode: only a new Neon event wakes this refresh.
-        // There is deliberately no three-second full-state polling loop.
-        void refreshFromCloud(accountId, true);
+        // Receiving and Conference have their own cursor and never trigger a full tenant snapshot.
+        void pullReceivingConferenceEvents(accountId).catch(() => undefined);
       }
     },
     (message) => {
@@ -699,7 +723,13 @@ export async function hydrateStore() {
       }
 
       const remoteState = stateResult.body.state;
-      if (typeof stateResult.body.syncCursor === "string") await syncOutbox.setCursor(accountId, stateResult.body.syncCursor);
+      if (typeof stateResult.body.syncCursor === "string") {
+        await syncOutbox.setCursor(accountId, stateResult.body.syncCursor);
+        const receivingCursor = await syncOutbox.getCursor(accountId, "receiving-conference");
+        if (receivingCursor === "0") {
+          await syncOutbox.setCursor(accountId, stateResult.body.syncCursor, "receiving-conference");
+        }
+      }
       if (remoteState && typeof remoteState === "object") {
         const remote = remoteState as State;
         const remoteContacts = Array.isArray(remote.contacts) ? remote.contacts : [];
@@ -768,6 +798,8 @@ export async function hydrateStore() {
       cloudAccountId = accountId;
       cloudReady = true;
       startRealtime(accountId);
+      // Catch up only the two enabled modules in compatibility mode; no global incremental cutover.
+      if (!incrementalSyncEnabled()) void pullReceivingConferenceEvents(accountId).catch(() => undefined);
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
     } catch (error) {
