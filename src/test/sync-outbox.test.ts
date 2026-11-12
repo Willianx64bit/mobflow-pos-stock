@@ -117,6 +117,43 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(result).toMatchObject({ sent: 0, failed: 1, pending: 1 });
   });
 
+  it("uses an independent receiving/conference cursor and requests only those categories", async () => {
+    const receivingEvent: SyncEvent = {
+      event_id: "receiving-event", sequence: "12", category: "receiving", delivery_mode: "automatic",
+      entity_type: "receiving", entity_id: "note-1", payload: { operation: "upsert" }, created_at: "2026-11-12T12:00:00.000Z",
+    };
+    const outbox = outboxMock({ getCursor: vi.fn().mockResolvedValue("10") });
+    const transport = vi.fn().mockResolvedValue(response({
+      ok: true, events: [receivingEvent], nextCursor: "20", highWaterMark: "20", hasMore: false,
+    }));
+    const apply = vi.fn().mockResolvedValue(undefined);
+    const result = await pullSyncEvents(outbox, TENANT, apply, transport, 10, "receiving-conference", ["receiving", "conference"]);
+    expect(transport).toHaveBeenCalledWith(
+      "/api/mobflow/sync/events?cursor=10&limit=100&categories=receiving%2Cconference",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(outbox.getCursor).toHaveBeenCalledWith(TENANT, "receiving-conference");
+    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "20", "receiving-conference");
+    expect(apply).toHaveBeenCalledWith([receivingEvent]);
+    expect(result.cursor).toBe("20");
+  });
+
+  it("rejects any event outside the receiving/conference cursor scope", async () => {
+    const stockEvent: SyncEvent = {
+      event_id: "stock-event", sequence: "12", category: "stock", delivery_mode: "automatic",
+      entity_type: "product", entity_id: "product-1", payload: { stockDelta: 1 }, created_at: "2026-11-12T12:00:00.000Z",
+    };
+    const outbox = outboxMock({ getCursor: vi.fn().mockResolvedValue("10") });
+    const transport = vi.fn().mockResolvedValue(response({
+      ok: true, events: [stockEvent], nextCursor: "20", highWaterMark: "20", hasMore: false,
+    }));
+    const apply = vi.fn();
+    await expect(pullSyncEvents(outbox, TENANT, apply, transport, 10, "receiving-conference", ["receiving", "conference"]))
+      .rejects.toThrow("categoria fora do escopo");
+    expect(apply).not.toHaveBeenCalled();
+    expect(outbox.setCursor).not.toHaveBeenCalled();
+  });
+
   it("applies automatic events and advances over skipped manual sequences", async () => {
     const event: SyncEvent = {
       event_id: "event-1", sequence: "4", category: "stock", delivery_mode: "automatic",
