@@ -86,7 +86,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         continue;
       }
       const raw = record(payload["conference"]);
-      if (!raw || typeof raw["id"] !== "string" || typeof raw["name"] !== "string" || !record(raw["counts"])) throw new UnsupportedSyncEventError(event);
+      if (!raw || typeof raw["id"] !== "string" || raw["id"] !== event.entity_id || typeof raw["name"] !== "string" || !record(raw["counts"])) throw new UnsupportedSyncEventError(event);
       next.conferences = upsert(next.conferences, raw as unknown as State["conferences"][number]);
       continue;
     }
