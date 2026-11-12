@@ -52,6 +52,10 @@ describe("Neon product catalog API",()=>{
   expect(await response.json()).toMatchObject({ok:true,product:{id:"p1",name:"Arroz"}});
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.products"))).toBe(true);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.product_barcodes"))).toBe(true);
+  const registration=client.query.mock.calls.find(c=>String(c[0]).includes("INSERT INTO public.stock_movements"));
+  expect(registration).toBeDefined();
+  expect(registration?.[1]).toContain("Produto cadastrado");
+  expect(String(registration?.[0])).toContain("'registration'");
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("mobflow_append_sync_event"))).toBe(true);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
