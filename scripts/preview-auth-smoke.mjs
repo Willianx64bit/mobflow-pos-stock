@@ -73,7 +73,7 @@ try {
   await form.locator("label").filter({ hasText: "Categoria" }).locator("input").fill("QA MobFlow");
   await form.locator("label").filter({ hasText: /^Preço R\$/ }).locator("input").fill("12,34");
   await form.locator("label").filter({ hasText: /^Custo R\$/ }).locator("input").fill("5,00");
-  await form.locator("label").filter({ hasText: /^Estoque$/ }).locator("input").fill("5");
+  await form.locator("label").filter({ hasText: /^Estoque$/ }).locator("input").fill("0");
   await form.locator("label").filter({ hasText: /^Mínimo$/ }).locator("input").fill("0");
   const createResponsePromise = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mobflow/products" && response.request().method() === "POST", { timeout: 30000 });
   await form.getByRole("button", { name: /^Salvar/ }).click();
@@ -136,6 +136,9 @@ try {
   if (/Sincronização não concluída/i.test(syncStatus)) {
     throw new Error("O botão de sincronização informou falha: " + syncStatus);
   }
+  const failedSyncApi = syncApiResponses.find((item) => item.status >= 400);
+  if (failedSyncApi) throw new Error("A sincronização retornou HTTP " + failedSyncApi.status + " em " + failedSyncApi.path + ": " + failedSyncApi.message);
+  if (cartAfterReload < cartBeforeReload) throw new Error("O carrinho perdeu o produto após atualizar a página (antes=" + cartBeforeReload + ", depois=" + cartAfterReload + ").");
   await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.getByRole("button", { name: /\\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
 
