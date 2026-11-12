@@ -40,7 +40,8 @@ function HistoricoVendas() {
     const login = username.trim().toLocaleLowerCase("pt-BR");
     const sellerLogin = (sale.sellerUsername || "").trim().toLocaleLowerCase("pt-BR");
     // The display label (seller) can differ from the login; use the stable profile username.
-    return !!login && sellerLogin === login;
+    const sellerLabel = (sale.seller || "").trim().toLocaleLowerCase("pt-BR");
+    return !!login && (sellerLogin ? sellerLogin === login : sellerLabel === login);
   }), [sales, username]);
   const filteredSales = useMemo(() => ownSales.filter((sale) => {
     const date = new Date(sale.date);
