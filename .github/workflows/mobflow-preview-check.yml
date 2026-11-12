@@ -34,12 +34,12 @@ jobs:
         run: |
           npm cache clean --force
           npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Generate routes and build application
+        run: npm run build
       - name: Run TypeScript check
         run: npx tsc --noEmit
       - name: Run unit tests
         run: npm test
-      - name: Build
-        run: npm run build
 
   authenticated-preview-smoke:
     name: Authenticated Preview smoke test (manual only)
