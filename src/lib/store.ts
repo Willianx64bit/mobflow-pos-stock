@@ -193,8 +193,8 @@ function load() {
     // the legacy app_state snapshot can contain products no longer present in public.products.
     if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") {
       state.products = [];
-      // Keep the tenant-scoped cart cache until the authoritative Neon catalog
-      // is loaded; hydrateStore will remove only items whose product IDs no longer exist.
+      // The cart is a tenant-scoped local draft: keep it through refreshes and
+      // validate each product ID only after the authoritative Neon catalog is loaded.
     }
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
     normalizeState();
