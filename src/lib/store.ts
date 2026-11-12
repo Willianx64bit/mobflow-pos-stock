@@ -1108,9 +1108,11 @@ export const actions = {
   },
   applyCatalogProduct(product: Product) {
     const existing = state.products.some((item) => item.id === product.id);
+    // The relational catalog API already committed this product and its sync event.
+    // Do not race that transaction with a stale whole-app-state PUT.
     set({ products: existing
       ? state.products.map((item) => item.id === product.id ? { ...item, ...product } : item)
-      : [product, ...state.products] });
+      : [product, ...state.products] }, { persist: false });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
@@ -1282,7 +1284,15 @@ export const actions = {
     set({ stockWriteoffs: (state.stockWriteoffs ?? []).map((item) => item.id === id ? { ...item, document } : item) });
     return true;
   },
-  deleteProduct(id: string) { set({ products: state.products.filter((x) => x.id !== id), cart: state.cart.filter((c) => c.productId !== id) }); },
+  deleteProduct(id: string) {
+    const neonCatalog = import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon";
+    // In Neon mode the archive/delete event was already committed by DELETE /products.
+    // Avoid a second, stale app_state write that can produce a harmless CAS 409.
+    set(
+      { products: state.products.filter((x) => x.id !== id), cart: state.cart.filter((c) => c.productId !== id) },
+      { persist: !neonCatalog },
+    );
+  },
   newConference(name: string): string {
     const c: Conference = { id: uid(), name: name || `Conferência ${new Date().toLocaleDateString("pt-BR")}`, date: new Date().toISOString(), status: "aberta", counts: {}, unknown: [] };
     set({ conferences: [c, ...(state.conferences ?? [])] });
