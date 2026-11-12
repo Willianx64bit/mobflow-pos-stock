@@ -133,7 +133,7 @@ SELECT
       'stockAdjustments', COALESCE((
         SELECT jsonb_agg(d.entry ORDER BY d.entry->>'date' DESC)
         FROM (
-          SELECT DISTINCT ON (source.entry->>'id') source.entry
+          SELECT DISTINCT ON (COALESCE(NULLIF(source.entry->>'id',''),md5(source.entry::text))) source.entry
           FROM (
             SELECT snapshot.entry, 0 AS priority
             FROM jsonb_array_elements(
@@ -147,8 +147,8 @@ SELECT
               AND e.payload->>'operationType'='adjustment'
               AND jsonb_typeof(e.payload->'stockAdjustment')='object'
           ) source
-          WHERE jsonb_typeof(source.entry)='object' AND COALESCE(source.entry->>'id','')<>''
-          ORDER BY source.entry->>'id', source.priority DESC
+          WHERE jsonb_typeof(source.entry)='object'
+          ORDER BY COALESCE(NULLIF(source.entry->>'id',''),md5(source.entry::text)), source.priority DESC
         ) d
       ), '[]'::jsonb),
       'stockWriteoffs', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockWriteoffs','[]'::jsonb))>0 THEN s.state->'stockWriteoffs' ELSE COALESCE((
