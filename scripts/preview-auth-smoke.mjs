@@ -22,6 +22,7 @@ const testName = "QA MOBFLOW CRUD " + new Date().toISOString().replace(/[^0-9]/g
 const testCode = String(Date.now()).slice(-10);
 let productCreated = false;
 let productDeleted = false;
+let createdProductId = "";
 
 page.on("console", message => {
   if (message.type() === "error") consoleErrors.push(message.text().slice(0, 500));
@@ -33,6 +34,7 @@ page.on("response", async response => {
   try {
     const body = await response.json();
     message = String(body?.error || body?.message || (body?.ok ? "ok" : "")).slice(0, 300);
+    if (new URL(response.url()).pathname === "/api/mobflow/products" && response.status() === 201) createdProductId = String(body?.product?.id || "");
   } catch {}
   apiResponses.push({ path: new URL(response.url()).pathname, status: response.status(), message });
 });
@@ -108,13 +110,17 @@ try {
   const failedApi = apiResponses.find(x => x.path === "/api/mobflow/products" && x.status >= 400);
   if (failedApi) throw new Error("A API de produtos retornou HTTP " + failedApi.status + ": " + failedApi.message);
 } finally {
-  // Se o teste falhar depois do cadastro, tenta remover somente o produto descartável criado por este próprio teste.
-  if (productCreated && !productDeleted) {
-    await page.evaluate(async ({ testName }) => {
-      const row = Array.from(document.querySelectorAll("div")).find(el => el.textContent?.includes(testName));
-      const editButton = row?.querySelector('button[aria-label^="Editar "]');
-      if (editButton) (editButton as HTMLButtonElement).click();
-    }, { testName }).catch(() => undefined);
+  // Limpeza de segurança: se a edição/exclusão falhar, remove apenas o ID
+  // retornado pelo POST desta execução; nunca procura nem altera produtos existentes.
+  if (productCreated && !productDeleted && createdProductId) {
+    await page.evaluate(async (id) => {
+      await fetch("/api/mobflow/products", {
+        method: "DELETE",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id })
+      });
+    }, createdProductId).catch(() => undefined);
   }
   await browser.close();
 }
