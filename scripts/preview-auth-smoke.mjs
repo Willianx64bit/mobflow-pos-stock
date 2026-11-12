@@ -41,6 +41,11 @@ page.on("response", async response => {
   apiResponses.push({ path: new URL(response.url()).pathname, status: response.status(), message });
 });
 
+const waitForCoreHydration = () => Promise.all([
+  page.waitForResponse(response => new URL(response.url()).pathname === "/api/mobflow/state" && response.ok(), { timeout: 30000 }),
+  page.waitForResponse(response => new URL(response.url()).pathname === "/api/mobflow/private-data" && response.ok(), { timeout: 30000 })
+]);
+
 try {
   const response = await page.goto(baseURL, { waitUntil: "domcontentloaded", timeout: 60000 });
   if (!response || response.status() >= 400) throw new Error("Preview HTTP " + (response?.status() ?? "sem resposta"));
@@ -63,7 +68,9 @@ try {
 
   // A tela Estoque exige o desbloqueio local da Gerência, além da sessão autenticada.
   await page.evaluate(() => sessionStorage.setItem("mobflow-management", "1"));
+  const initialHydration = waitForCoreHydration();
   await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+  await initialHydration;
   await page.getByRole("button", { name: /\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
 
   await page.getByRole("button", { name: /\+ Produto/ }).click();
@@ -112,14 +119,18 @@ try {
     sessionStorage.setItem("mobflow-pdv-authorized", "1");
     sessionStorage.setItem("mobflow-permissions", JSON.stringify(["PDV", "Gerência"]));
   });
+  const pdvHydration = waitForCoreHydration();
   await page.goto(new URL("/", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+  await pdvHydration;
   await page.getByRole("button", { name: "Sincronizar dados" }).waitFor({ state: "visible", timeout: 30000 });
   const productCard = page.getByRole("button").filter({ hasText: testName }).first();
   await productCard.waitFor({ state: "visible", timeout: 30000 });
   await productCard.click();
   await page.locator("aside").getByText(testName, { exact: true }).waitFor({ state: "visible", timeout: 15000 });
   const cartBeforeReload = await page.locator("aside").getByText(testName, { exact: true }).count();
+  const refreshHydration = waitForCoreHydration();
   await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
+  await refreshHydration;
   await page.getByRole("button", { name: "Sincronizar dados" }).waitFor({ state: "visible", timeout: 30000 });
   const cartAfterReload = await page.locator("aside").getByText(testName, { exact: true }).count();
   const syncResponseStart = apiResponses.length;
@@ -139,7 +150,9 @@ try {
   const failedSyncApi = syncApiResponses.find((item) => item.status >= 400);
   if (failedSyncApi) throw new Error("A sincronização retornou HTTP " + failedSyncApi.status + " em " + failedSyncApi.path + ": " + failedSyncApi.message);
   if (cartAfterReload < cartBeforeReload) throw new Error("O carrinho perdeu o produto após atualizar a página (antes=" + cartBeforeReload + ", depois=" + cartAfterReload + ").");
+  const finalHydration = waitForCoreHydration();
   await page.goto(new URL("/estoque", baseURL).toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
+  await finalHydration;
   await page.getByRole("button", { name: /\+ Produto/ }).waitFor({ state: "visible", timeout: 30000 });
 
   // Exclusão lógica do produto descartável recém-criado, com estoque zero.
@@ -157,7 +170,7 @@ try {
     authenticated: authState.authenticated,
     role: authState.role,
     usernameMatched: true,
-    crud: { create: productCreated, edit: true, delete: productDeleted, testProductName: testName, stockAtDelete: 5 },
+    crud: { create: productCreated, edit: true, delete: productDeleted, testProductName: testName, stockAtDelete: 0 },
     cartSyncEvidence,
     apiResponses,
     consoleErrors,
