@@ -119,6 +119,11 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
    const insertedProduct=inserted.rows?.[0];
    if(!insertedProduct||insertedProduct.id!==id)fail("O banco não confirmou o ID do produto. Nenhuma confirmação foi enviada ao PDV.",500,"catalog_write_unconfirmed");
    for(let n=0;n<codes.length;n++)await c.query("INSERT INTO public.product_barcodes(tenant_id,id,product_id,barcode,is_primary) VALUES($1,$2,$3,$4,$5)",[i.accountId,id+":barcode:"+n,id,codes[n],n===0]);
+   // A product registration is a visible audit event even when its initial stock and monetary values are zero.
+   const registrationOperationId="product-registration:"+id;
+   await c.query("INSERT INTO public.stock_movements(tenant_id,id,operation_id,operation_type,line_key,product_id,product_code,product_name,unit,quantity,total_value,stock_before,stock_after,delta,operator_profile_id,operator_snapshot,details,occurred_at,idempotency_key) VALUES($1,$2,$3,'registration','1',$4,$5,$6,$7,0,0,0,0,0,$8,$9,'Produto cadastrado',now(),$10)",[
+    i.accountId,registrationOperationId+":"+id,registrationOperationId,id,code,name,unit,i.userId,i.displayName||i.username,stableUuid(i.accountId+":product-registration:"+id)
+   ]);
    await appendCatalogEvent(c,i.accountId,i.userId,id,1,{operation:"upsert",product:{id,code,name,reference:ref,unit,price,cost,minStock:min,category,active:true,version:1,barcodes:codes}});
    await releaseTransaction(c,true);tx=null;
    return Response.json({ok:true,product:mapProduct({...insertedProduct,barcodes:codes}),replayed:false},{status:201});
