@@ -967,7 +967,11 @@ export const actions = {
     const cart = nextQty === 0
       ? state.cart.filter((c) => c.productId !== productId)
       : cur ? state.cart.map((c) => (c.productId === productId ? { ...c, qty: nextQty } : c)) : [...state.cart, { productId, qty: nextQty }];
-    set({ cart });
+    // Cart contents are a device-local draft. Persist synchronously to the
+    // tenant-scoped localStorage cache, but never PUT the full company snapshot
+    // to Neon for an individual product tap. That snapshot can race catalog
+    // refreshes and replace the visible catalog/cart with an older projection.
+    set({ cart }, { persist: false });
   },
   setCartQty(productId: string, qty: number) {
     const p = state.products.find((x) => x.id === productId);
@@ -977,10 +981,10 @@ export const actions = {
     const cart = nextQty <= 0
       ? state.cart.filter((c) => c.productId !== productId)
       : state.cart.map((c) => c.productId === productId ? { ...c, qty: nextQty } : c);
-    set({ cart });
+    set({ cart }, { persist: false });
   },
-  removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }); },
-  clearCart() { set({ cart: [] }); },
+  removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }, { persist: false }); },
+  clearCart() { set({ cart: [] }, { persist: false }); },
   checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Sale | null {
     if (!state.cart.length) return null;
     // Regra de segurança: nenhuma venda pode ser registrada sem caixa aberto para o operador atual.
