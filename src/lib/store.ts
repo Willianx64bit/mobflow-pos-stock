@@ -1069,7 +1069,11 @@ export const actions = {
   async loadPromotions() {
     const result = await callMobFlowApi("/api/mobflow/promotions");
     if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao carregar promoções do Neon."));
-    set({ promotions: Array.isArray(result.body.promotions) ? result.body.promotions as Promotion[] : [] });
+    // A manual refresh of the promotions projection must not enqueue a full
+    // app_state snapshot PUT. The relational catalog is authoritative and the
+    // snapshot intentionally omits products; persisting it here can wake a
+    // reconciliation cycle with an incomplete catalog snapshot.
+    set({ promotions: Array.isArray(result.body.promotions) ? result.body.promotions as Promotion[] : [] }, { persist: false });
     return Array.isArray(result.body.events) ? result.body.events as PromotionEvent[] : [];
   },
   async savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
