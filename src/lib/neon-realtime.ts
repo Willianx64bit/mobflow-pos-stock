@@ -1,6 +1,6 @@
 import { createRealtimeClient, type SealedLiveQuery } from "@neon/realtime/client";
 
-type LatestTenantEvent = { event_id: string };
+type LatestTenantEvent = { last_sequence: string };
 const RENEW_EARLY_MS = 10_000;
 const RETRY_MS = 1_000;
 
@@ -38,7 +38,7 @@ export async function subscribeToTenantEvents(
   const sealedQuery = await fetchSealedQuery();
   const client = getRealtimeClient();
   const subscription = client.subscribe(sealedQuery);
-  let lastEventId: string | null | undefined;
+  let lastSequence: string | null | undefined;
   let stopped = false;
   let currentExpiry = sealedQuery.expiresAt;
   let renewalTimer: ReturnType<typeof setTimeout> | null = null;
@@ -75,13 +75,13 @@ export async function subscribeToTenantEvents(
   };
 
   const removeChangeListener = subscription.onChange((snapshot) => {
-    const nextEventId = snapshot.data?.[0]?.event_id ?? null;
-    if (lastEventId === undefined) {
-      lastEventId = nextEventId;
+    const nextSequence = snapshot.data?.[0]?.last_sequence ?? null;
+    if (lastSequence === undefined) {
+      lastSequence = nextSequence;
       return;
     }
-    if (nextEventId && nextEventId !== lastEventId) {
-      lastEventId = nextEventId;
+    if (nextSequence && nextSequence !== lastSequence) {
+      lastSequence = nextSequence;
       onEvent();
     }
   });
