@@ -29,7 +29,7 @@ type LiveMovementRow = {
 
 function mapLiveMovement(row: LiveMovementRow): StockMovement {
   const labels: Record<string, string> = {
-    sale: "Venda", transfer: "Transferência", writeoff: "Baixa",
+    registration: "Cadastro", sale: "Venda", transfer: "Transferência", writeoff: "Baixa",
     adjustment: "Balanço", manual_adjustment: "Ajuste manual",
     receiving: "Recebimento", receipt: "Recebimento", entry: "Entrada",
   };
