@@ -116,10 +116,12 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
     await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct(p),replayed:true});
    }
    const inserted=await c.query("INSERT INTO public.products(tenant_id,id,code,name,reference,unit,price,cost,stock,min_stock,category) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING "+columns,[i.accountId,id,code,name,ref,unit,price,cost,stock,min,category]);
+   const insertedProduct=inserted.rows?.[0];
+   if(!insertedProduct||insertedProduct.id!==id)fail("O banco não confirmou o ID do produto. Nenhuma confirmação foi enviada ao PDV.",500,"catalog_write_unconfirmed");
    for(let n=0;n<codes.length;n++)await c.query("INSERT INTO public.product_barcodes(tenant_id,id,product_id,barcode,is_primary) VALUES($1,$2,$3,$4,$5)",[i.accountId,id+":barcode:"+n,id,codes[n],n===0]);
    await appendCatalogEvent(c,i.accountId,i.userId,id,1,{operation:"upsert",product:{id,code,name,reference:ref,unit,price,cost,minStock:min,category,active:true,version:1,barcodes:codes}});
    await releaseTransaction(c,true);tx=null;
-   return Response.json({ok:true,product:mapProduct({...inserted.rows[0],barcodes:codes}),replayed:false},{status:201});
+   return Response.json({ok:true,product:mapProduct({...insertedProduct,barcodes:codes}),replayed:false},{status:201});
   }
   const id=field(body.id,"id",true,80)!,version=Number(body.expectedVersion);
   if(!Number.isSafeInteger(version)||version<1)fail("Versão esperada inválida.");
