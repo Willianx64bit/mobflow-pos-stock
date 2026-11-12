@@ -14,7 +14,7 @@ function getRealtimeServer() {
     throw new Error("Neon Realtime is not configured for this Preview.");
   }
 
-  const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\\/+/, ""));
+  const databaseName = decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\/+/, ""));
   if (!databaseName) throw new Error("Could not resolve the Neon database name.");
 
   if (!realtimeServer) realtimeServer = createRealtime({ secret, db: databaseName });
