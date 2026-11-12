@@ -34,6 +34,9 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
   };
 
   for (const event of events) {
+    // Product catalog mutations are manual-only. A different automatic event
+    // must never cause a queued catalog change to appear on another device.
+    if (event.delivery_mode === "manual" && event.category === "catalog" && event.entity_type === "product") continue;
     const payload = event.payload ?? {};
 
     if (event.category === "catalog" && event.entity_type === "product") {
