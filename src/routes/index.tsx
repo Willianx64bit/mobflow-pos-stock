@@ -355,12 +355,11 @@ function PDV() {
 
           <div className="grid grid-cols-3 gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
             {results.map((p, i) => {
-              const out = p.stock <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
+                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
                   <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground">
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
