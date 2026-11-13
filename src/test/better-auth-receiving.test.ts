@@ -206,6 +206,43 @@ describe("Neon receiving stock release", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
+  it("records the return action as completed without changing stock", async () => {
+    state.receiving[0]!.stockReleased = true;
+    state.receiving[0]!.decisionCompleted = true;
+    state.receiving[0]!.decisions = { "product-a": "aceitar", "product-b": "devolver" };
+    const response = await handleMobFlowReceiving(request("complete_action"));
+    const body = await response.json();
+    const updateCall = client.query.mock.calls.find((call) => String(call[0]).includes("UPDATE public.app_state"));
+    const saved = JSON.parse(updateCall?.[1]?.[1] as string);
+    const eventCalls = client.query.mock.calls.filter((call) => String(call[0]).includes("mobflow_append_sync_event"));
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true, data: true });
+    expect(saved.receiving[0]).toMatchObject({ stockReleased: true, actionCompleted: true });
+    expect(stockUpdates).toHaveLength(0);
+    expect(movementInserts).toHaveLength(0);
+    expect(eventCalls).toHaveLength(1);
+    expect(eventCalls[0]![0]).toContain("'receiving','automatic'");
+    expect(JSON.parse(eventCalls[0]![1][3] as string)).toEqual({
+      operation: "action_completed", actionCompleted: true,
+    });
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("treats a repeated action completion as a no-op", async () => {
+    state.receiving[0]!.stockReleased = true;
+    state.receiving[0]!.actionCompleted = true;
+    state.receiving[0]!.decisions = { "product-a": "aceitar", "product-b": "devolver" };
+    const response = await handleMobFlowReceiving(request("complete_action"));
+
+    expect(await response.json()).toEqual({ ok: true, data: true });
+    expect(stockUpdates).toHaveLength(0);
+    expect(movementInserts).toHaveLength(0);
+    expect(client.query.mock.calls.some((call) => String(call[0]).includes("UPDATE public.app_state"))).toBe(false);
+    expect(client.query.mock.calls.some((call) => String(call[0]).includes("mobflow_append_sync_event"))).toBe(false);
+    expect(releaseTransaction).toHaveBeenCalledWith(client, false);
+  });
+
   it("does not append or apply stock movements when the same receiving is accepted again", async () => {
     state.receiving[0]!.decisionCompleted = true;
     state.receiving[0]!.decisions = { "product-a": "aceitar", "product-b": "devolver" };
