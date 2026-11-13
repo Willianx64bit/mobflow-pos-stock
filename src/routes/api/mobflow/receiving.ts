@@ -77,7 +77,7 @@ export async function handleMobFlowReceiving(request: Request) {
       }
       // Idempotent acknowledgement only: this action never changes stock or
       // creates stock movements. A retry after completion is a no-op success.
-      if (note.actionCompleted === true) {
+      if (note["actionCompleted"] === true) {
         await releaseTransaction(client, false);
         transaction = null;
         return Response.json({ ok: true, data: true });
