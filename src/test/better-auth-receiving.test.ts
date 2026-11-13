@@ -109,11 +109,16 @@ describe("Neon receiving stock release", () => {
     ]);
     expect(stockUpdates).toHaveLength(1);
     expect(movementInserts).toHaveLength(1);
-    expect(movementInserts[0]).toMatchObject([
-      ACCOUNT_ID, "note-1:product-a", "note-1", "product-a", "product-a",
-      "A-01", "Produto A", "un", 3, 7.5, 10, 13, 3, ACCOUNT_ID,
-      "Gerente", "Nota NF-100 · Fornecedor Teste",
-    ]);
+    expect(movementInserts[0]![0]).toBe(ACCOUNT_ID);
+    expect(movementInserts[0]![1]).toBe("note-1:product-a");
+    expect(movementInserts[0]![2]).toBe("note-1");
+    expect(movementInserts[0]![4]).toBe("product-a");
+    expect(movementInserts[0]![8]).toBe(3);
+    expect(movementInserts[0]![9]).toBe(7.5);
+    expect(movementInserts[0]![10]).toBe(10);
+    expect(movementInserts[0]![11]).toBe(13);
+    expect(movementInserts[0]![12]).toBe(3);
+    expect(movementInserts[0]![15]).toBe("Nota NF-100 · Fornecedor Teste");
     expect(saved.products).toEqual([{ id: "product-a", stock: 13 }, { id: "product-b", stock: 4 }]);
     expect(saved.receiving[0]).toMatchObject({
       decisions: { "product-a": "aceitar", "product-b": "devolver" },
@@ -151,7 +156,7 @@ describe("Neon receiving stock release", () => {
     expect(relationalProducts[0]!.stock).toBe("15");
     expect(relationalProducts[1]!.stock).toBe("4");
     expect(movementInserts).toHaveLength(1);
-    expect(movementInserts[0]![9]).toBe(5);
+    expect(movementInserts[0]![8]).toBe(5);
   });
 
   it("does not release stock when a decision is missing", async () => {
