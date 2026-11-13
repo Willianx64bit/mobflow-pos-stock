@@ -72,19 +72,25 @@ describe("Neon atomic sale command", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
-  it("rejects sale when stock is insufficient without committing anything", async () => {
+  it("completes a sale and records a negative stock balance when quantity exceeds stock", async () => {
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("to_regclass")) return { rows: [{ sales: "sales", items: "sale_items", payments: "sale_payments", receivables: "receivable_payments", stock: "stock_movements", events: "mobflow_sync_events", append_fn: "mobflow_append_sync_event" }] };
       if (sql.includes("FROM public.sales WHERE")) return { rows: [] };
       if (sql.includes("FROM public.cash_sessions")) return { rows: [{ id: "cash-1", status: "open", operator_profile_id: USER }] };
       if (sql.includes("FROM public.products")) return { rows: [{ id: "product-1", code: "SKU-1", name: "Arroz", unit: "un", price: "10", cost: "4", stock: "1", active: true }] };
+      if (sql.includes("UPDATE public.products")) return { rowCount: 1, rows: [] };
       return { rows: [] };
     });
     const response = await handleMobFlowSale(request());
-    expect(response.status).toBe(409);
-    expect((await response.json()).code).toBe("insufficient_stock");
-    expect(client.query.mock.calls.some((c) => String(c[0]).includes("INSERT INTO public.sales"))).toBe(false);
-    expect(releaseTransaction).toHaveBeenCalledWith(client, false);
+    const body = await response.json();
+    expect(response.status).toBe(201);
+    expect(body).toMatchObject({ ok: true, sale: { id: "sale-100", total: 20 } });
+    const update = client.query.mock.calls.find((call) => String(call[0]).includes("UPDATE public.products"));
+    expect(update?.[0]).not.toContain("stock >=");
+    expect(update?.[1]).toEqual([ACCOUNT, "product-1", -1]);
+    const movement = client.query.mock.calls.find((call) => String(call[0]).includes("INSERT INTO public.stock_movements"));
+    expect(movement?.[1]).toContain(-1);
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
   it("returns the original sale on retry with the same idempotency key", async () => {
