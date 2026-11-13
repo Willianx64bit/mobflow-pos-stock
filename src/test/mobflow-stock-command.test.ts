@@ -30,11 +30,30 @@ describe("Neon stock commands",()=>{
   expect(payload).toMatchObject({operation:"upsert",stockOperation:{id:"op-writeoff",reason:"Doação",costMode:"media",donationDestination:"Instituição",number:"NF: 00010"}});
   expect(payload.stockOperation.items[0]).toMatchObject({unitCost:7,totalCost:14,previousStock:10,newStock:8});
  });
- it("rejects a writeoff that would create negative stock",async()=>{
-  const res=await handleMobFlowStock(req({operationId:"op-loss",idempotencyKey:KEY,operationType:"writeoff",reason:"Perda",costMode:"compra",items:[{productId:"p1",quantity:11}]}));
-  expect(res.status).toBe(409);expect((await res.json()).code).toBe("insufficient_stock");
-  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
-  expect(releaseTransaction).toHaveBeenCalledWith(client,false);
+ it("allows a writeoff to reduce stock below zero and records the exact balance",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-loss-negative",idempotencyKey:KEY,operationType:"writeoff",reason:"Perda",costMode:"compra",items:[{productId:"p1",quantity:12}]}));
+  const body=await res.json();
+  expect(res.status).toBe(201);
+  expect(body.operation.items[0]).toMatchObject({stockBefore:10,stockAfter:-2,delta:-12});
+  const update=client.query.mock.calls.find(c=>String(c[0]).includes("UPDATE public.products"));
+  expect(update?.[1]).toEqual([ACCOUNT,"p1",-2, "10"]);
+  const movement=client.query.mock.calls.find(c=>String(c[0]).includes("INSERT INTO public.stock_movements"));
+  expect(movement?.[1]).toContain(-2);
+  expect(releaseTransaction).toHaveBeenCalledWith(client,true);
+ });
+ it("allows a transfer to reduce stock below zero and publishes the negative balance incrementally",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-transfer-negative",idempotencyKey:KEY,operationType:"transfer",reason:"Transferência",destinationName:"Cliente",costMode:"media",items:[{productId:"p1",quantity:12}]}));
+  const body=await res.json();
+  expect(res.status).toBe(201);
+  expect(body.operation.items[0]).toMatchObject({stockBefore:10,stockAfter:-2,delta:-12});
+  const stockEvent=client.query.mock.calls.find(c=>String(c[0]).includes("'stock','automatic','product'"));
+  expect(stockEvent).toBeTruthy();
+  expect(JSON.parse(String(stockEvent?.[1]?.[3]))).toMatchObject({stockBefore:10,stockAfter:-2,delta:-12});
+  expect(releaseTransaction).toHaveBeenCalledWith(client,true);
+ });
+ it("still rejects a negative balance set by an inventory adjustment",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-negative-count",idempotencyKey:KEY,operationType:"adjustment",reason:"Balanço",items:[{productId:"p1",quantity:0,mode:"set"}]}));
+  expect(res.status).toBe(201);
  });
 
  it("records an external transfer and redacts private destination details from its event",async()=>{
