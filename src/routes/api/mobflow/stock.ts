@@ -57,7 +57,9 @@ export async function handleMobFlowStock(request:Request){
    const before=Number(p.stock);let after:number,delta:number;
    if(operationType==="adjustment"&&item.mode==="set"){after=item.quantity;delta=qty3(after-before);}
    else {delta=operationType==="entry"||operationType==="adjustment"?item.quantity:-item.quantity;after=qty3(before+delta);}
-   if(after<0)fail("Estoque insuficiente para "+p.name+".",409,"insufficient_stock");
+   // Writeoffs and transfers represent real outgoing movements and may take the balance below zero.
+   // Keep balance-setting adjustments non-negative so an inventory count cannot create an invalid count.
+   if(operationType==="adjustment"&&after<0)fail("O saldo definido não pode ser negativo para "+p.name+".",409,"negative_adjustment_balance");
    if(p.unit==="un"&&(!Number.isInteger(item.quantity)||!Number.isInteger(after)))fail("Produto por unidade não aceita quantidade fracionada.");
    const purchase=Math.max(0,Number(p.cost)),sale=Math.max(0,Number(p.price));
    const unitValue=costMode==="compra"?purchase:costMode==="venda"?sale:(purchase+sale)/2;
