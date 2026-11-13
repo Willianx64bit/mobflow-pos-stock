@@ -26,7 +26,7 @@ async function withIdentity(request:Request, action:(tenant:string)=>Promise<Res
  try{
   tx=await beginAuthenticatedTransaction(request);
   const tenant=tx.identity.accountId;
-  const allowedRole=tx.identity.role==="manager";
+  const allowedRole=tx.identity.role==="manager" || (Array.isArray(tx.identity.permissions) && tx.identity.permissions.includes("Gerência"));
   await releaseTransaction(tx.client,true);tx=null;
   if(requireManager&&!allowedRole)return Response.json({ok:false,error:"Somente a gerência pode alterar a logo da empresa."},{status:403});
   return await action(tenant);
