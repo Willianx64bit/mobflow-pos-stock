@@ -36,7 +36,7 @@ describe("Neon stock commands",()=>{
   expect(res.status).toBe(201);
   expect(body.operation.items[0]).toMatchObject({stockBefore:10,stockAfter:-2,delta:-12});
   const update=client.query.mock.calls.find(c=>String(c[0]).includes("UPDATE public.products"));
-  expect(update?.[1]).toEqual([ACCOUNT,"p1",-2, "10"]);
+  expect(update?.[1]).toEqual([ACCOUNT,"p1",-2, 10]);
   const movement=client.query.mock.calls.find(c=>String(c[0]).includes("INSERT INTO public.stock_movements"));
   expect(movement?.[1]).toContain(-2);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
