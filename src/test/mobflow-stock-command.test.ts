@@ -51,9 +51,10 @@ describe("Neon stock commands",()=>{
   expect(JSON.parse(String(stockEvent?.[1]?.[3]))).toMatchObject({stockBefore:10,stockAfter:-2,delta:-12});
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
- it("still rejects a negative balance set by an inventory adjustment",async()=>{
-  const res=await handleMobFlowStock(req({operationId:"op-negative-count",idempotencyKey:KEY,operationType:"adjustment",reason:"Balanço",items:[{productId:"p1",quantity:0,mode:"set"}]}));
-  expect(res.status).toBe(201);
+ it("rejects a negative quantity in a stock adjustment",async()=>{
+  const res=await handleMobFlowStock(req({operationId:"op-negative-count",idempotencyKey:KEY,operationType:"adjustment",reason:"Balanço",items:[{productId:"p1",quantity:-1,mode:"set"}]}));
+  expect(res.status).toBe(400);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("UPDATE public.products"))).toBe(false);
  });
 
  it("records an external transfer and redacts private destination details from its event",async()=>{
