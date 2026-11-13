@@ -223,8 +223,9 @@ describe("Neon receiving stock release", () => {
     expect(movementInserts).toHaveLength(0);
     expect(eventCalls).toHaveLength(1);
     expect(eventCalls[0]![0]).toContain("'receiving','automatic'");
-    expect(JSON.parse(eventCalls[0]![1][3] as string)).toEqual({
-      operation: "action_completed", actionCompleted: true,
+    expect(JSON.parse(eventCalls[0]![1][3] as string)).toMatchObject({
+      operation: "upsert",
+      receiving: { id: "note-1", actionCompleted: true, stockReleased: true },
     });
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
