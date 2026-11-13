@@ -96,7 +96,10 @@ export async function handleMobFlowReceiving(request: Request) {
           randomUUID(),
           stableIdempotencyUuid(transaction.identity.accountId + ":receiving:" + receivingId + ":action-completed"),
           receivingId,
-          JSON.stringify({ operation: "action_completed", actionCompleted: true }),
+          JSON.stringify({
+            operation: "upsert",
+            receiving: { ...nextReceiving.find((item) => item.id === receivingId)!, supplierCnpj: undefined },
+          }),
         ],
       );
       await releaseTransaction(client, true);
