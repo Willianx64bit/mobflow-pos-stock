@@ -27,6 +27,7 @@ const baseState = () => ({
     supplier: "Fornecedor Teste",
     status: "analisando",
     decisionCompleted: false,
+    actionCompleted: false,
     stockReleased: false,
     items: [{ productId: "product-a", received: 3 }],
     extras: [{ productId: "product-b", received: 2 }],
