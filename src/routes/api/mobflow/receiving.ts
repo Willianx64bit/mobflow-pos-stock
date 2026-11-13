@@ -128,37 +128,84 @@ export async function handleMobFlowReceiving(request: Request) {
       return Response.json({ ok: true, data: false });
     }
 
-    const products = Array.isArray(state["products"]) ? state["products"] as Array<Record<string, unknown>> : [];
     const additions = new Map<string, number>();
     for (const line of lines) {
-      if (decisions[line.productId!] !== "aceitar") continue;
+      const productId = line.productId!;
       const quantity = Number(line.received ?? 0);
-      if (!Number.isFinite(quantity) || quantity < 0) {
+      if (!Number.isFinite(quantity) || quantity < 0 || Math.round(quantity * 1000) !== quantity * 1000) {
         await releaseTransaction(client, false);
         transaction = null;
-        return Response.json({ ok: true, data: false });
+        return Response.json({ ok: false, data: false, error: "Quantidade recebida inválida." }, { status: 400 });
       }
-      additions.set(line.productId!, (additions.get(line.productId!) ?? 0) + quantity);
+      if (decisions[productId] !== "aceitar") continue;
+      additions.set(productId, (additions.get(productId) ?? 0) + quantity);
     }
 
-    const productIds = new Set(products.map((product) => String(product["id"] ?? "")));
-    if ([...additions.keys()].some((id) => !productIds.has(id))) {
+    const acceptedProductIds = [...additions.entries()].filter(([, quantity]) => quantity > 0).map(([id]) => id).sort();
+    const relationalProducts = acceptedProductIds.length
+      ? await client.query<{ id: string; code: string; name: string; unit: "un" | "kg"; cost: string; stock: string; active: boolean }>(
+          `SELECT id, code, name, unit, cost::text, stock::text, active
+           FROM public.products WHERE tenant_id = $1 AND id = ANY($2::text[])
+           ORDER BY id FOR UPDATE`,
+          [transaction.identity.accountId, acceptedProductIds],
+        )
+      : { rows: [] };
+    if (relationalProducts.rows.length !== acceptedProductIds.length) {
       await releaseTransaction(client, false);
       transaction = null;
-      return Response.json({ ok: true, data: false });
+      return Response.json({ ok: false, data: false, error: "Um ou mais produtos aceitos não existem no estoque oficial desta empresa." }, { status: 409 });
     }
 
-    const nextProducts = products.map((product) => {
-      const id = String(product["id"] ?? "");
-      const amount = additions.get(id) ?? 0;
-      if (!amount) return product;
-      const currentStock = product["stock"] === null || product["stock"] === undefined || product["stock"] === ""
-        ? 0
-        : Number(product["stock"]);
-      if (!Number.isFinite(currentStock) || currentStock < 0) {
-        throw new Error("Estoque atual inválido para concluir o recebimento.");
+    const operator = transaction.identity.displayName || transaction.identity.username || "Gerência";
+    const occurredAt = new Date().toISOString();
+    const operationKey = `${transaction.identity.accountId}:receiving:${receivingId}:release`;
+    const stockAfterByProduct = new Map<string, number>();
+    const stockEvents: Array<{ productId: string; quantity: number; before: number; after: number; delta: number; code: string; name: string; unit: "un" | "kg"; totalValue: number }> = [];
+
+    for (const product of relationalProducts.rows) {
+      const quantity = additions.get(product.id) ?? 0;
+      if (quantity <= 0) continue;
+      if (product.unit === "un" && !Number.isInteger(quantity)) {
+        await releaseTransaction(client, false);
+        transaction = null;
+        return Response.json({ ok: false, data: false, error: `A quantidade aceita de ${product.name} deve ser um número inteiro.` }, { status: 400 });
       }
-      return { ...product, stock: currentStock + amount };
+      const before = Number(product.stock);
+      if (!Number.isFinite(before) || before < 0) throw new Error("Estoque oficial inválido para concluir o recebimento.");
+      const after = Math.round((before + quantity + Number.EPSILON) * 1000) / 1000;
+      const totalValue = Math.round((quantity * Math.max(0, Number(product.cost)) + Number.EPSILON) * 100) / 100;
+      const update = await client.query(
+        `UPDATE public.products SET stock = $3, version = version + 1, updated_at = now()
+         WHERE tenant_id = $1 AND id = $2 AND stock = $4`,
+        [transaction.identity.accountId, product.id, after, product.stock],
+      );
+      if (update.rowCount !== 1) throw new Error("Estoque alterado por outra operação. Atualize e tente novamente.");
+
+      const movementId = `${receivingId}:${product.id}`;
+      const idempotencyKey = stableIdempotencyUuid(`${operationKey}:stock:${product.id}`);
+      const details = `Nota ${String(note["number"] ?? receivingId)} · ${String(note["supplier"] ?? "Fornecedor")}`;
+      await client.query(
+        `INSERT INTO public.stock_movements (
+          tenant_id, id, operation_id, operation_type, line_key, product_id,
+          product_code, product_name, unit, quantity, total_value,
+          stock_before, stock_after, delta, operator_profile_id,
+          operator_snapshot, details, occurred_at, idempotency_key
+        ) VALUES ($1, $2, $3, 'receiving', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+        [
+          transaction.identity.accountId, movementId, receivingId, product.id, product.id,
+          product.code, product.name, product.unit, quantity, totalValue,
+          before, after, quantity, transaction.identity.userId, operator,
+          details, occurredAt, idempotencyKey,
+        ],
+      );
+      stockAfterByProduct.set(product.id, after);
+      stockEvents.push({ productId: product.id, quantity, before, after, delta: quantity, code: product.code, name: product.name, unit: product.unit, totalValue });
+    }
+
+    const products = Array.isArray(state["products"]) ? state["products"] as Array<Record<string, unknown>> : [];
+    const nextProducts = products.map((product) => {
+      const stockAfter = stockAfterByProduct.get(String(product["id"] ?? ""));
+      return stockAfter === undefined ? product : { ...product, stock: stockAfter };
     });
 
     const nextReceiving = receiving.map((current, currentIndex) => {
@@ -209,17 +256,25 @@ export async function handleMobFlowReceiving(request: Request) {
       ],
     );
 
-    for (const [productId, delta] of additions) {
-      if (delta <= 0) continue;
+    for (const movement of stockEvents) {
       await client.query(
         `SELECT public.mobflow_append_sync_event(
           $1::uuid, $2::uuid, 'stock', 'automatic', 'product', $3, $4::jsonb
         )`,
         [
           randomUUID(),
-          stableIdempotencyUuid(`${operationKey}:stock:${productId}`),
-          productId,
-          JSON.stringify({ stockDelta: delta, source: "receiving" }),
+          stableIdempotencyUuid(`${operationKey}:stock-event:${movement.productId}`),
+          movement.productId,
+          JSON.stringify({
+            operationId: receivingId, operationType: "receiving",
+            delta: movement.delta, stockDelta: movement.delta,
+            stockBefore: movement.before, stockAfter: movement.after,
+            quantity: movement.quantity, productCode: movement.code,
+            productName: movement.name, unit: movement.unit,
+            totalValue: movement.totalValue,
+            reason: `Nota ${String(note["number"] ?? receivingId)} · ${String(note["supplier"] ?? "Fornecedor")}`,
+            operator, occurredAt, source: "receiving",
+          }),
         ],
       );
     }
