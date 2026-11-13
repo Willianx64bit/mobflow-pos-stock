@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createSyncCommand,
   flushSyncOutbox,
+  isValidSyncCursor,
   pullSyncEvents,
   type SyncCommand,
   type SyncEvent,
@@ -29,6 +30,13 @@ function response(body: unknown, status = 200) {
 }
 
 describe("MobFlow durable incremental outbox contract", () => {
+  it("accepts numeric global and receiving/conference cursors", () => {
+    expect(isValidSyncCursor("0")).toBe(true);
+    expect(isValidSyncCursor("123456789")).toBe(true);
+    expect(isValidSyncCursor("")).toBe(false);
+    expect(isValidSyncCursor("12x")).toBe(false);
+  });
+
   it("creates stable domain endpoint and keeps idempotency key in the payload", () => {
     const command = createSyncCommand({
       tenantId: TENANT,
