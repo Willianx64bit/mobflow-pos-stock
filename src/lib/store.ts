@@ -1095,15 +1095,30 @@ export const actions = {
       const stockAfter = Math.round((p.stock - c.qty) * 1000) / 1000;
       return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
     });
+    const checkoutCart = state.cart.map((item) => ({ productId: item.productId, qty: item.qty }));
     const queued = enqueueDomainCommand("sales", {
       saleId: sale.id, idempotencyKey: crypto.randomUUID(), cashSessionId: activeCash.id,
       paymentMethod: payment === "Dinheiro" ? "cash" : payment === "Pix" ? "pix" : payment === "Cartão" ? "card" : "fiado",
       receivedAmount: payment === "Fiado" ? 0 : payment === "Dinheiro" ? received ?? total : total,
       discountAmount: discount, discountType: discountType === "%" ? "percentage" : "fixed",
       customerName: customer || undefined, customerDocument: cpf || undefined,
-      items: state.cart.map((item) => ({ productId: item.productId, quantity: item.qty })),
+      items: checkoutCart.map((item) => ({ productId: item.productId, quantity: item.qty })),
     });
-    set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+
+    if (queued && lastDomainCommandPromise) {
+      // Keep the checkout visible until Neon confirms the transaction. The
+      // command promise already hydrates the authoritative sale and stock;
+      // only then clear the exact cart that was checked out. If the operator
+      // changed the cart while waiting, preserve those newer items.
+      lastDomainCommandPromise = lastDomainCommandPromise.then(() => {
+        const cartIsUnchanged = state.cart.length === checkoutCart.length &&
+          checkoutCart.every((item) => state.cart.some((current) => current.productId === item.productId && current.qty === item.qty));
+        if (cartIsUnchanged) set({ cart: [] }, { persist: false });
+      });
+    } else {
+      // Non-browser/local fallback: retain the existing local-only behavior.
+      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: true });
+    }
     return sale;
   },
   async addFiadoPayment(id: string, value: number, method: "cash" | "pix" | "card" = "cash") {
