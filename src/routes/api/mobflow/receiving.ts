@@ -223,7 +223,7 @@ export async function handleMobFlowReceiving(request: Request) {
     // keys protect retries; stockReleased prevents a second stock release.
     const acceptedLineCount = lines.filter((line) => decisions[line.productId!] === "aceitar" && Number(line.received ?? 0) > 0).length;
     const returnedLineCount = lines.filter((line) => decisions[line.productId!] === "devolver").length;
-    const operationKey = `${transaction.identity.accountId}:receiving:${receivingId}:release`;
+
     const receivingEventPayload = {
       status: "aceito",
       decisionCompleted: true,
