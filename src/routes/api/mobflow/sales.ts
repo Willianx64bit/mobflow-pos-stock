@@ -116,7 +116,7 @@ export async function handleMobFlowSale(request: Request) {
       if (!p.active) fail("Um produto da venda está inativo.", 409, "product_inactive");
       if (unit === "un" && !Number.isInteger(quantity)) fail("Quantidade fracionada não permitida para produto por unidade.");
       const stock = Number(p.stock), price = Number(p.price), cost = Number(p.cost);
-      if (!Number.isFinite(stock) || stock < quantity) fail("Estoque insuficiente para " + p.name + ".", 409, "insufficient_stock");
+      if (!Number.isFinite(stock)) fail("Saldo de estoque inválido para " + p.name + ".", 409, "invalid_stock_balance");
       return { product: p, quantity, unit, price, cost, lineTotal: money(price * quantity), lineCost: money(cost * quantity), lineKey: String(index + 1) };
     });
     const subtotal = money(lines.reduce((sum, l) => sum + l.lineTotal, 0));
@@ -144,7 +144,8 @@ export async function handleMobFlowSale(request: Request) {
       ]);
       const stockAfter = quantity3(Number(p.stock) - line.quantity);
       const movementId = saleId + ":" + p.id;
-      const stockUpdate = await client.query("UPDATE public.products SET stock=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2 AND stock >= $4", [identity.accountId, p.id, stockAfter, line.quantity]);
+      // The product row is already locked FOR UPDATE. Allow negative balances; never reject a sale only because the registered stock is lower than the sold quantity.
+      const stockUpdate = await client.query("UPDATE public.products SET stock=$3,version=version+1,updated_at=now() WHERE tenant_id=$1 AND id=$2", [identity.accountId, p.id, stockAfter]);
       if (stockUpdate.rowCount !== 1) fail("Estoque alterado por outra operação. Atualize e tente novamente.", 409, "stock_conflict");
       await client.query("INSERT INTO public.stock_movements(tenant_id,id,operation_id,operation_type,line_key,product_id,product_code,product_name,unit,quantity,total_value,stock_before,stock_after,delta,operator_profile_id,operator_snapshot,details,occurred_at,idempotency_key) VALUES($1,$2,$3,'sale',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)", [
         identity.accountId, movementId, saleId, line.lineKey, p.id, p.code, p.name, line.unit, line.quantity, line.lineTotal, Number(p.stock), stockAfter, -line.quantity, identity.userId, identity.displayName || identity.username, "Venda " + saleId, now.toISOString(), stableUuid(identity.accountId + ":sale:" + saleId + ":stock:" + p.id),
