@@ -53,6 +53,56 @@ export async function handleMobFlowReceiving(request: Request) {
       await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'conference','automatic','conference',$3,$4::jsonb)",[randomUUID(),stableIdempotencyUuid(transaction.identity.accountId+":receiving-conference:"+conference["id"]+":"+JSON.stringify(conference)),conference["id"],JSON.stringify({operation:"upsert",conference})]);
       await releaseTransaction(client,true);transaction=null;return Response.json({ok:true,data:true});
     }
+    if (action === "complete_action") {
+      if (!receivingId) return Response.json({ ok: false, error: "Identificador de recebimento inválido." }, { status: 400 });
+      transaction = await beginAuthenticatedTransaction(request);
+      const client = transaction.client;
+      const row = await client.query<{ state: Record<string, unknown> }>(
+        "SELECT state FROM public.app_state WHERE owner_id=$1 FOR UPDATE",
+        [transaction.identity.accountId],
+      );
+      const state = row.rows[0]?.state;
+      if (!state || typeof state !== "object") {
+        await releaseTransaction(client, false);
+        transaction = null;
+        return Response.json({ ok: true, data: false });
+      }
+      const receiving = Array.isArray(state["receiving"]) ? state["receiving"] as ReceivingNote[] : [];
+      const note = receiving.find((item) => item.id === receivingId);
+      const hasReturn = Object.values(note?.decisions ?? {}).includes("devolver");
+      if (!note || note.stockReleased !== true || !hasReturn) {
+        await releaseTransaction(client, false);
+        transaction = null;
+        return Response.json({ ok: true, data: false });
+      }
+      // Idempotent acknowledgement only: this action never changes stock or
+      // creates stock movements. A retry after completion is a no-op success.
+      if (note.actionCompleted === true) {
+        await releaseTransaction(client, false);
+        transaction = null;
+        return Response.json({ ok: true, data: true });
+      }
+      const nextReceiving = receiving.map((item) =>
+        item.id === receivingId ? { ...item, actionCompleted: true } : item,
+      );
+      const nextState = { ...state, receiving: nextReceiving };
+      await client.query(
+        "UPDATE public.app_state SET state=$2::jsonb,updated_at=now() WHERE owner_id=$1",
+        [transaction.identity.accountId, JSON.stringify(nextState)],
+      );
+      await client.query(
+        "SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'receiving','automatic','receiving',$3,$4::jsonb)",
+        [
+          randomUUID(),
+          stableIdempotencyUuid(transaction.identity.accountId + ":receiving:" + receivingId + ":action-completed"),
+          receivingId,
+          JSON.stringify({ operation: "action_completed", actionCompleted: true }),
+        ],
+      );
+      await releaseTransaction(client, true);
+      transaction = null;
+      return Response.json({ ok: true, data: true });
+    }
     if (action === "save" || action === "delete") {
       transaction = await beginAuthenticatedTransaction(request);
       const client = transaction.client;
