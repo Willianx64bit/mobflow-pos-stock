@@ -24,6 +24,10 @@ export type SyncEvent = {
 };
 
 type MetaRecord = { key: string; value: string };
+
+export function isValidSyncCursor(cursor: string): boolean {
+  return /^\\d+$/.test(cursor);
+}
 const DB_NAME = "mobflow-incremental-sync";
 const DB_VERSION = 1;
 const COMMANDS = "commands";
