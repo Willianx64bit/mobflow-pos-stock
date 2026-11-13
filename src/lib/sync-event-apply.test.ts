@@ -76,6 +76,34 @@ describe("applySyncEventsToState", () => {
     });
   });
 
+  it("reconciles a negative stock sale event with the optimistic local ledger without double-decrementing", () => {
+    const current = emptyState();
+    current.products[0] = { ...current.products[0]!, stock: -1 };
+    current.stockMovements = [{
+      id: "sale-negative:product-1", operationId: "sale-negative", date: "2026-11-12T10:00:00.000Z",
+      type: "Venda", productId: "product-1", productCode: "789", productName: "Produto teste",
+      unit: "un", quantity: 2, totalValue: 20, stockBefore: 1, stockAfter: -1, delta: -2,
+    }];
+    const stockEvent = event({
+      sequence: "31", category: "stock", entity_type: "product", entity_id: "product-1",
+      payload: {
+        stockDelta: -2, resultingStock: -1, source: "sale", saleId: "sale-negative",
+        operationId: "sale-negative", quantity: 2, stockBefore: 1, stockAfter: -1,
+        productCode: "789", productName: "Produto teste", unit: "un", totalValue: 20,
+      },
+    });
+
+    const once = applySyncEventsToState(current, [stockEvent]);
+    const twice = applySyncEventsToState(once, [stockEvent]);
+    expect(once.products[0]?.stock).toBe(-1);
+    expect(twice.products[0]?.stock).toBe(-1);
+    expect(twice.stockMovements).toHaveLength(1);
+    expect(twice.stockMovements[0]).toMatchObject({
+      id: "sale-negative:product-1", operationId: "sale-negative",
+      stockBefore: 1, stockAfter: -1, delta: -2,
+    });
+  });
+
   it("applies manual stock movement events and the complementary adjustment event", () => {
     const productEvent = event({
       sequence: "3", category: "stock", entity_type: "product", entity_id: "product-1",
