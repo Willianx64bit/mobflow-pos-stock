@@ -230,7 +230,7 @@ export class SyncOutbox {
   }
 
   async setCursor(tenantId: string, cursor: string, scope: "global" | "receiving-conference" = "global"): Promise<void> {
-    if (!/^\d+$/.test(cursor)) throw new Error("Cursor incremental inválido.");
+    if (!isValidSyncCursor(cursor)) throw new Error("Cursor incremental inválido.");
     const db = await this.db();
     const transaction = db.transaction(META, "readwrite");
     const store = transaction.objectStore(META);
