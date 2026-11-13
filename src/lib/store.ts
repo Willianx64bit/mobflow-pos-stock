@@ -1585,9 +1585,24 @@ export const actions = {
   async finishReceivingAction(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || !note.stockReleased || !Object.values(note.decisions ?? {}).includes("devolver")) return false;
+    if (note.actionCompleted) return true;
+
+    // Persist only the acknowledgement. The generic receiving save endpoint
+    // intentionally rejects already released notes and must never be used here.
+    const result = await callMobFlowApi("/api/mobflow/receiving", {
+      method: "POST",
+      body: JSON.stringify({ action: "complete_action", receivingId: id }),
+    });
+    if (!result.response.ok || result.body.data !== true) {
+      await hydrateStore();
+      return false;
+    }
+
     const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n);
-    set({ receiving: updated });
-    const saved = updated.find((n) => n.id === id); if (saved) void persistReceivingRecord(saved).catch((error)=>console.error("[MobFlow Receiving]",error));
+    state = { ...state, receiving: updated };
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    listeners.forEach((listener) => listener());
+    void hydrateStore();
     return true;
   },
   async setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
