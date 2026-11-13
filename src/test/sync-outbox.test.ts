@@ -172,7 +172,7 @@ describe("MobFlow durable incremental outbox contract", () => {
     const apply = vi.fn().mockResolvedValue(undefined);
     const result = await pullSyncEvents(outbox, TENANT, apply, transport);
     expect(apply).toHaveBeenCalledWith([event]);
-    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "6");
+    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "6", "global");
     expect(result).toMatchObject({ applied: 1, cursor: "6", hasMore: false });
   });
 
@@ -182,7 +182,7 @@ describe("MobFlow durable incremental outbox contract", () => {
     const apply = vi.fn();
     const result = await pullSyncEvents(outbox, TENANT, apply, transport);
     expect(apply).not.toHaveBeenCalled();
-    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "50");
+    expect(outbox.setCursor).toHaveBeenCalledWith(TENANT, "50", "global");
     expect(result).toMatchObject({ applied: 0, cursor: "50", hasMore: false });
   });
 
