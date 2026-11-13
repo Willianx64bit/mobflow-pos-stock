@@ -60,7 +60,7 @@ describe("MobFlow incremental sync event pull API", () => {
       ok: true, cursor: "10", nextCursor: "12", highWaterMark: "12", hasMore: false, events: rows,
     });
     expect(client.query).toHaveBeenNthCalledWith(1, expect.stringContaining("mobflow_sync_counters"), [TENANT_A]);
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "12", 3]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "12", null, 3]);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
@@ -107,7 +107,7 @@ describe("MobFlow incremental sync event pull API", () => {
 
     const response = await getHandler({ request: request("?cursor=0&limit=999") });
     expect(response.status).toBe(200);
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.any(String), [TENANT_A, "0", "500", 251]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.any(String), [TENANT_A, "0", "500", null, 251]);
   });
 
   it("returns manual-only events instead of skipping their payloads", async () => {
@@ -119,7 +119,7 @@ describe("MobFlow incremental sync event pull API", () => {
     await expect(json(response)).resolves.toMatchObject({
       events: [{ event_id: "manual-1", sequence: "25", delivery_mode: "manual" }], cursor: "10", nextCursor: "50", highWaterMark: "50", hasMore: false,
     });
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "50", 101]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "50", null, 101]);
   });
 
   it("rolls back and releases the transaction if the event query fails", async () => {
