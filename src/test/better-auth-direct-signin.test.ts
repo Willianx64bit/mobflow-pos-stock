@@ -70,6 +70,21 @@ describe("Better Auth direct sign-in security", () => {
     expect(mocks.client.query).toHaveBeenCalledWith("ROLLBACK");
   });
 
+  it("rejects direct sign-in when IP risk requires the company login challenge", async () => {
+    mocks.checkLoginSecurity.mockResolvedValue({
+      blockedUntil: null,
+      captchaRequired: true,
+      retryAfterSeconds: 0,
+    });
+
+    const response = await handleAuth(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(428);
+    expect(body).toMatchObject({ code: "CAPTCHA_REQUIRED" });
+    expect(mocks.handler).not.toHaveBeenCalled();
+  });
+
   it("records a failed direct sign-in in the same shared Neon counters", async () => {
     const req = request();
     const response = await handleAuth(req);
