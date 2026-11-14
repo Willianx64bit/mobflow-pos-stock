@@ -87,6 +87,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setUsername("");
     setPassword("");
     setError("");
+    setCaptchaRequired(false);
+    setCaptchaToken("");
     setRememberLogin(localStorage.getItem(REMEMBER_KEY) === "1");
   }, [mode]);
 
@@ -189,7 +191,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
         const email = username.trim().toUpperCase().toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
         const authResult = await withTimeout(
-          mobflowAuthClient.signIn.email({ email, password }),
+          mobflowAuthClient.signIn.email({ email, password }, { fetchOptions: { headers: { "X-MobFlow-Device": getMobFlowDeviceId() } } }),
           15000,
         );
         if (authResult.error) {
