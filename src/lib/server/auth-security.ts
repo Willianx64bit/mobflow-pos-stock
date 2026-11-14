@@ -39,12 +39,15 @@ function usernameKey(username: string): string {
   return username.trim().toLowerCase().replace(/@accounts\.mobflow\.local$/i, "");
 }
 
-export async function acquireLoginAttemptLock(client: PoolClient, username: string): Promise<string> {
+export async function acquireLoginAttemptLock(client: PoolClient, username: string): Promise<string | null> {
   const lockKey = digest("login", usernameKey(username));
-  // Session-level advisory lock survives transaction rollback, so a failed
-  // attempt remains serialized until its counter has been committed.
-  await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [lockKey]);
-  return lockKey;
+  // A non-blocking session lock survives transaction rollback and prevents
+  // parallel guesses without allowing requests to pile up and exhaust the pool.
+  const result = await client.query<{ locked: boolean }>(
+    "SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS locked",
+    [lockKey],
+  );
+  return result.rows[0]?.locked === true ? lockKey : null;
 }
 
 export async function releaseLoginAttemptLock(client: PoolClient, lockKey: string): Promise<void> {
