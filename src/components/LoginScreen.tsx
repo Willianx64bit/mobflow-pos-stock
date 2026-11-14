@@ -155,6 +155,33 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
   const formatLockout = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
+  const checkExistingLockout = async () => {
+    const normalizedUsername = username.trim();
+    if (mode !== "empresa" || normalizedUsername.length < 1) return;
+    try {
+      const response = await fetch("/api/mobflow/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-MobFlow-Device": getMobFlowDeviceId() },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          action: "status",
+          username: normalizedUsername,
+          expectedRole: "manager",
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 429 && result?.locked) {
+        setLockoutRemaining(Math.max(1, Number(result.retryAfterSeconds) || 1800));
+        setError(String(result.error || "Acesso temporariamente bloqueado por 30 minutos."));
+      } else if (response.ok && result?.ok) {
+        setLockoutRemaining(0);
+        setError((current) => current.includes("temporariamente bloqueado") ? "" : current);
+      }
+    } catch {
+      // A consulta informativa não substitui a validação obrigatória no servidor ao entrar.
+    }
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockoutRemaining > 0) return;
@@ -437,7 +464,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="on">
           <div>
             <label className="label-mono mb-1.5 block !text-muted-foreground">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
+            <input value={username} onChange={(e) => { setUsername(e.target.value); setLockoutRemaining(0); }} onBlur={checkExistingLockout} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
           </div>
 
           <div>
