@@ -115,7 +115,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     // sem esperar o usuário tocar ou sair do campo de usuário.
     let cancelled = false;
     setShowLocationNotice(true);
-    const noticeTimer = window.setTimeout(() => setShowLocationNotice(false), 5000);
+    const noticeTimer = window.setTimeout(() => setShowLocationNotice(false), 10000);
     loginLocationPromiseRef.current = requestLoginLocation().then((location) => {
       if (!cancelled) loginLocationRef.current = location;
       return location;
