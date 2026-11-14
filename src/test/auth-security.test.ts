@@ -20,6 +20,8 @@ function mockClient(query: ReturnType<typeof vi.fn>) {
 
 describe("MobFlow persistent authentication security", () => {
   const originalSecret = process.env["BETTER_AUTH_SECRET"];
+  const originalTurnstileSecret = process.env["TURNSTILE_SECRET"];
+  const originalTurnstileHostnames = process.env["TURNSTILE_HOSTNAMES"];
 
   beforeEach(() => {
     process.env["BETTER_AUTH_SECRET"] = "unit-test-only-secret";
@@ -28,6 +30,11 @@ describe("MobFlow persistent authentication security", () => {
   afterEach(() => {
     if (originalSecret === undefined) delete process.env["BETTER_AUTH_SECRET"];
     else process.env["BETTER_AUTH_SECRET"] = originalSecret;
+    if (originalTurnstileSecret === undefined) delete process.env["TURNSTILE_SECRET"];
+    else process.env["TURNSTILE_SECRET"] = originalTurnstileSecret;
+    if (originalTurnstileHostnames === undefined) delete process.env["TURNSTILE_HOSTNAMES"];
+    else process.env["TURNSTILE_HOSTNAMES"] = originalTurnstileHostnames;
+    vi.unstubAllGlobals();
   });
 
   it("detects account lockout and requests Turnstile when IP/device risk is elevated", async () => {
