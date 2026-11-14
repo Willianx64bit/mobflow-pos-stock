@@ -153,6 +153,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
+  const formatLockout = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
