@@ -454,7 +454,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
-          {lockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {formatLockout(lockoutRemaining)}.</p>}
+          {lockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {`${String(Math.floor(lockoutRemaining / 60)).padStart(2, "0")}:${String(lockoutRemaining % 60).padStart(2, "0")}`}.</p>}
 
           {mode !== "pdv" && (
             <div>
