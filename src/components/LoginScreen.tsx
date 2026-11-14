@@ -156,6 +156,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (lockoutRemaining > 0) return;
     setLoading(true);
     setError("");
     localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
