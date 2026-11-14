@@ -1,4 +1,4 @@
-export async function verifyManagerPassword(password: string): Promise<{ ok: boolean; error?: string }> {
+export async function verifyManagerPassword(password: string): Promise<{ ok: boolean; error?: string; retryAfterSeconds?: number }> {
   try {
     const response = await fetch("/api/mobflow/reauth-manager", {
       method: "POST",
@@ -9,7 +9,7 @@ export async function verifyManagerPassword(password: string): Promise<{ ok: boo
     const data = await response.json().catch(() => ({}));
     return response.ok && data?.ok
       ? { ok: true }
-      : { ok: false, error: String(data?.error || "Senha da gerência incorreta.") };
+      : { ok: false, error: String(data?.error || "Senha da gerência incorreta."), retryAfterSeconds: Number(data?.retryAfterSeconds) || undefined };
   } catch {
     return { ok: false, error: "Não foi possível validar a senha da gerência." };
   }
