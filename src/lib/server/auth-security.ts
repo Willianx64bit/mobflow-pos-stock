@@ -55,14 +55,16 @@ export async function checkLoginSecurity(
   client: PoolClient,
   request: Request,
   username: string,
+  cnpj?: string,
 ): Promise<LoginSecurityStatus> {
   const login = await getScopeState(client, "login", usernameKey(username));
   const ip = await getScopeState(client, "ip", clientIp(request));
   const device = await getScopeState(client, "device", deviceId(request));
+  const company = cnpj ? await getScopeState(client, "company", cnpj.replace(/\D/g, "")) : null;
   const blockedUntil = login.blockedUntil && login.blockedUntil.getTime() > Date.now() ? login.blockedUntil : null;
   return {
     blockedUntil,
-    captchaRequired: ip.count >= CAPTCHA_FAILURES || device.count >= CAPTCHA_FAILURES,
+    captchaRequired: ip.count >= CAPTCHA_FAILURES || device.count >= CAPTCHA_FAILURES || (company?.count ?? 0) >= CAPTCHA_FAILURES,
     retryAfterSeconds: blockedUntil ? Math.max(1, Math.ceil((blockedUntil.getTime() - Date.now()) / 1000)) : 0,
   };
 }
@@ -118,17 +120,19 @@ export async function recordLoginFailure(
   return { blockedUntil: login.blockedUntil, ipFailures: ip.count, deviceFailures: device.count, companyFailures: company?.count ?? 0 };
 }
 
-export async function recordLoginSuccess(client: PoolClient, request: Request, username: string) {
+export async function recordLoginSuccess(client: PoolClient, request: Request, username: string, cnpj?: string) {
   const loginHash = digest("login", usernameKey(username));
   const deviceHash = digest("device", deviceId(request));
   const ipHash = digest("ip", clientIp(request));
+  const companyHash = cnpj ? digest("company", cnpj.replace(/\D/g, "")) : null;
   await client.query(
     `UPDATE public.mobflow_auth_security_state
      SET failure_count = 0, blocked_until = NULL, window_started_at = now(), last_failure_at = NULL, updated_at = now()
      WHERE (scope_type = 'login' AND scope_hash = $1)
         OR (scope_type = 'device' AND scope_hash = $2)
-        OR (scope_type = 'ip' AND scope_hash = $3)`,
-    [loginHash, deviceHash, ipHash],
+        OR (scope_type = 'ip' AND scope_hash = $3)
+        OR ($4::text IS NOT NULL AND scope_type = 'company' AND scope_hash = $4)`,
+    [loginHash, deviceHash, ipHash, companyHash],
   );
   await client.query(
     `INSERT INTO public.mobflow_auth_security_events (event_type, scope_type, scope_hash)
