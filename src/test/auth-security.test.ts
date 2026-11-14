@@ -80,7 +80,7 @@ describe("MobFlow persistent authentication security", () => {
 
   it("writes manager-password failures with an account-scoped audit event", async () => {
     const blockedUntil = new Date(Date.now() + 30 * 60 * 1000);
-    const query = vi.fn(async (sql: string) => {
+    const query = vi.fn(async (sql: string, _values?: unknown[]) => {
       if (sql.includes("RETURNING failure_count")) return { rows: [{ failure_count: 3, blocked_until: blockedUntil }] };
       return { rows: [] };
     });
