@@ -59,6 +59,7 @@ function Gerencia() {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [managerPasswordLockoutRemaining, setManagerPasswordLockoutRemaining] = useState(0);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryCnpj, setRecoveryCnpj] = useState("");
@@ -76,6 +77,16 @@ function Gerencia() {
     window.addEventListener("mobflow-management-changed", syncLock);
     return () => window.removeEventListener("mobflow-management-changed", syncLock);
   }, []);
+
+  useEffect(() => {
+    if (managerPasswordLockoutRemaining <= 0) return;
+    const interval = window.setInterval(() => {
+      setManagerPasswordLockoutRemaining((seconds) => seconds <= 1 ? 0 : seconds - 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [managerPasswordLockoutRemaining > 0]);
+
+  const formatManagerLockout = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
   const lockManagement = () => {
     sessionStorage.removeItem("mobflow-management");
@@ -253,9 +264,11 @@ function Gerencia() {
     const result = await verifyManagerPassword(password);
     setPasswordLoading(false);
     if (!result.ok) {
+      if (result.retryAfterSeconds) setManagerPasswordLockoutRemaining(result.retryAfterSeconds);
       setPasswordError(result.error || "Senha da gerência incorreta.");
       return;
     }
+    setManagerPasswordLockoutRemaining(0);
     sessionStorage.setItem("mobflow-management", "1");
     setUnlocked(true);
     setPassword("");
@@ -271,9 +284,11 @@ function Gerencia() {
     const result = await verifyManagerPassword(password);
     setPasswordLoading(false);
     if (!result.ok) {
+      if (result.retryAfterSeconds) setManagerPasswordLockoutRemaining(result.retryAfterSeconds);
       setPasswordError(result.error || "Senha da gerência incorreta.");
       return;
     }
+    setManagerPasswordLockoutRemaining(0);
     setPassword("");
     setPasswordError("");
     setPromotionPasswordOpen(false);
@@ -437,7 +452,8 @@ function Gerencia() {
                   autoFocus
                 />
                 {passwordError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{passwordError}</div>}
-                <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+                {managerPasswordLockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {formatManagerLockout(managerPasswordLockoutRemaining)}.</p>}
+                <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading || managerPasswordLockoutRemaining > 0} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
                   {passwordLoading ? "Validando..." : "Confirmar senha"}
                 </button>
                 <button type="button" onClick={() => { setRecoveryMessage(""); setRecoveryOpen(true); }} className="w-full py-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">
@@ -550,7 +566,8 @@ function Gerencia() {
             <form className="mt-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void confirmPromotionPassword(); }}>
               <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }} placeholder="Senha da gerência" autoComplete="current-password" autoFocus className="field w-full text-foreground" />
               {passwordError && <div className="rounded-lg bg-destructive/10 p-3 text-center text-sm text-destructive">{passwordError}</div>}
-              <button type="submit" disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Validando..." : "Confirmar e abrir Promoções"}</button>
+              {managerPasswordLockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {formatManagerLockout(managerPasswordLockoutRemaining)}.</p>}
+              <button type="submit" disabled={passwordLoading || managerPasswordLockoutRemaining > 0} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Validando..." : "Confirmar e abrir Promoções"}</button>
               <button type="button" onClick={() => { setPromotionPasswordOpen(false); setPassword(""); setPasswordError(""); }} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Cancelar</button>
             </form>
           </div>
