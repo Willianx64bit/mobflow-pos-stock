@@ -121,12 +121,14 @@ export async function recordLoginFailure(
 export async function recordLoginSuccess(client: PoolClient, request: Request, username: string) {
   const loginHash = digest("login", usernameKey(username));
   const deviceHash = digest("device", deviceId(request));
+  const ipHash = digest("ip", clientIp(request));
   await client.query(
     `UPDATE public.mobflow_auth_security_state
      SET failure_count = 0, blocked_until = NULL, window_started_at = now(), last_failure_at = NULL, updated_at = now()
      WHERE (scope_type = 'login' AND scope_hash = $1)
-        OR (scope_type = 'device' AND scope_hash = $2)`,
-    [loginHash, deviceHash],
+        OR (scope_type = 'device' AND scope_hash = $2)
+        OR (scope_type = 'ip' AND scope_hash = $3)`,
+    [loginHash, deviceHash, ipHash],
   );
   await client.query(
     `INSERT INTO public.mobflow_auth_security_events (event_type, scope_type, scope_hash)
