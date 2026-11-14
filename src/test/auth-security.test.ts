@@ -52,7 +52,7 @@ describe("MobFlow persistent authentication security", () => {
   });
 
   it("records login failures as HMAC-scoped state without persisting raw identifiers", async () => {
-    const query = vi.fn(async (_sql: string) => ({ rows: [{ failure_count: 1, blocked_until: null }] }));
+    const query = vi.fn(async (_sql: string, _values?: unknown[]) => ({ rows: [{ failure_count: 1, blocked_until: null }] }));
     const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
       headers: { "x-real-ip": IP, "x-mobflow-device": DEVICE_ID },
     });
