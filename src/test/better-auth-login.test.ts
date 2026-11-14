@@ -107,6 +107,33 @@ describe("MobFlow Better Auth login validation", () => {
     expect(client.query).not.toHaveBeenCalledWith(expect.stringContaining('FROM public."account"'), expect.anything());
   });
 
+  it("validates an active PDV operator with the correct company and operator role", async () => {
+    client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("mobflow_find_login_profile")) {
+        return { rows: [{ ...PROFILE, role: "pdv", permissions: ["PDV", "Conferência"] }] };
+      }
+      if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };
+      if (sql.includes("mobflow_get_login_credential")) return { rows: [{ password: passwordHash }] };
+      return { rows: [] };
+    });
+
+    const response = await handleMobFlowLogin(request("senha-correta", "pdv"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      ok: true,
+      profile: {
+        username: "TESTE.MANAGER",
+        role: "pdv",
+        account_id: ACCOUNT_ID,
+        permissions: ["PDV", "Conferência"],
+      },
+    });
+    expect(client.query).toHaveBeenCalledWith("COMMIT");
+    expect(client.release).toHaveBeenCalledOnce();
+  });
+
   it("creates the first manager only when the username and CNPJ are allowlisted", async () => {
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("mobflow_find_login_profile")) return { rows: [] };
