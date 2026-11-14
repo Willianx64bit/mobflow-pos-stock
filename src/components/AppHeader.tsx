@@ -1,11 +1,11 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
+import { actions, useStore, syncNow } from "@/lib/store";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, ChevronLeft, ChevronRight, ChevronDown, Banknote, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
@@ -15,6 +15,15 @@ const tabs = [
   { to: "/operacoes", label: "Operações", icon: "operations" },
   { to: "/gerencia", label: "Acesso Gerência", icon: "management" },
 ] as const;
+
+const permissionByPath: Record<(typeof tabs)[number]["to"], string> = {
+  "/": "PDV",
+  "/operacoes": "Operações",
+  "/validade": "Validade",
+  "/fiado": "Fiado",
+  "/historico-vendas": "PDV",
+  "/gerencia": "Gerência",
+};
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -30,7 +39,48 @@ export function AppHeader() {
   const [pdvAuthorized, setPdvAuthorized] = useState(false);
   const [username, setUsername] = useState("Usuário");
   const [permissions, setPermissions] = useState<string[]>(["PDV"]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
   const settings = useStore((s) => s.settings);
+  const [companyLogoSrc, setCompanyLogoSrc] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    const loadCompanyLogo = async () => {
+      const key = settings.companyLogoObjectKey;
+      if (!key) { setCompanyLogoSrc(""); return; }
+      try {
+        const response = await fetch(`/api/mobflow/company-logo?key=${encodeURIComponent(key)}`, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("logo_load_failed");
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setCompanyLogoSrc(objectUrl);
+      } catch {
+        if (active) setCompanyLogoSrc("");
+      }
+    };
+    void loadCompanyLogo();
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [settings.companyLogoObjectKey]);
+
+  const handleManualSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    setSyncMessage("");
+    try {
+      // Product catalog and promotions are intentionally fetched only by this manual action.
+      await actions.refreshCatalog();
+      await actions.loadPromotions();
+      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
+      setSyncMessage(pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
+    } catch {
+      setSyncMessage("Sincronização não concluída");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     setOpen(() => {
@@ -85,7 +135,7 @@ export function AppHeader() {
   }, []);
 
   const selectTab = (to: (typeof tabs)[number]["to"]) => {
-    const required: Record<string, string> = { "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" };
+    const required = permissionByPath;
     const operationsOnly = permissions.includes("Operações") && !permissions.some((permission) => permission !== "Operações");
     if (operationsOnly && to !== "/operacoes") { window.alert("Este usuário tem acesso somente a Operações."); return; }
     if (!permissions.includes(required[to] ?? "")) { window.alert("Seu usuário não tem permissão para acessar esta área."); return; }
@@ -115,7 +165,7 @@ export function AppHeader() {
     sessionStorage.removeItem("mobflow-username");
     sessionStorage.removeItem("mobflow-permissions");
     localStorage.removeItem("mobflow-authenticated");
-    await supabase.auth.signOut();
+    await mobflowAuthClient.signOut();
     setPdvAuthorized(false);
     setUsername("Usuário");
     setShowLogoutConfirm(false);
@@ -127,12 +177,26 @@ export function AppHeader() {
 
   return createPortal(
     <>
-      {(pathname === "/" || pathname === "/operacoes") && (
+      {(pathname === "/" || pathname === "/operacoes" || pdvAuthorized) && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
-          <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
-            <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
-          </button>
           {pdvAuthorized && (
+            <>
+            <button type="button" onClick={() => void handleManualSync()} disabled={syncing} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
+              <RefreshCw className={`h-4 w-4 text-green-600 ${syncing ? "animate-spin" : ""}`} />
+            </button>
+            {(syncing || syncMessage) && (
+              <div role="status" aria-live="polite" className="absolute right-0 top-12 max-w-[min(85vw,20rem)] rounded-xl bg-popover px-3 py-2 text-xs font-medium text-foreground shadow-xl ring-1 ring-border">
+                {syncing ? "Sincronizando dados..." : syncMessage}
+              </div>
+            )}
+            </>
+          )}
+          {(pathname === "/" || pathname === "/operacoes") && (
+            <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
+              <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
+            </button>
+          )}
+          {pdvAuthorized && (pathname === "/" || pathname === "/operacoes") && (
             <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair da conta do usuário" title="Sair da conta">
               <LogOut className="h-4 w-4" />
             </button>
@@ -186,11 +250,11 @@ export function AppHeader() {
       <aside ref={sidebarRef} aria-hidden={!open} className={`fixed left-0 top-0 z-50 h-screen w-64 transform transition-transform duration-200 ease-out motion-reduce:transition-none ${open ? "translate-x-0 pointer-events-auto" : "-translate-x-full pointer-events-none"}`}>
           <div className="h-full bg-popover/95 backdrop-blur-xl ring-r-1 ring-border flex flex-col">
             <div className="h-20 flex items-center px-4 gap-3">
-              {settings.companyLogo ? <img src={settings.companyLogo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" /> : <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>}
+              {companyLogoSrc ? <img src={companyLogoSrc} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" /> : <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>}
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
             <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).slice(0, 3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
+              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(0, 3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
               {permissions.includes("PDV") && <div className="mt-1">
                 <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
@@ -204,7 +268,7 @@ export function AppHeader() {
                   <button type="button" onClick={() => selectCashAction("historico")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><History className="h-4 w-4 shrink-0 text-green-600" />Histórico</button>
                 </div>}
               </div>}
-              {tabs.filter((t) => permissions.includes(({ "/": "PDV", "/operacoes": "Operações", "/validade": "Validade", "/fiado": "Fiado", "/historico-vendas": "PDV", "/gerencia": "Gerência" } as Record<string, string>)[t.to])).slice(3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
+              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
             </nav>
             <div className="p-2 border-t border-border space-y-1">
               <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>

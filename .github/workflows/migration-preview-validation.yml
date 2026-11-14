@@ -1,0 +1,23 @@
+name: Migration Preview validation
+on:
+  push:
+    branches: [migration/neon-preparation]
+  pull_request:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Generate routes and validate production build
+        run: bun run build
+      - name: TypeScript validation (blocking)
+        run: bunx tsc --noEmit
+      - name: Login, session and authorization tests
+        run: bun run test -- src/test/better-auth-login.test.ts src/test/better-auth-session.test.ts src/test/mobflow-auth.test.ts
+      - name: Full test suite
+        run: bun run test

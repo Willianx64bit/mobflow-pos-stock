@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, useStore } from "@/lib/store";
+import { actions, brl, confirmLastDomainCommand, hydrateStore, useStore } from "@/lib/store";
 import { Banknote, ArrowDownToLine, ArrowUpFromLine, Clock3, CircleAlert, CheckCircle2 } from "lucide-react";
 
 export const Route = createFileRoute("/caixa")({
@@ -31,8 +31,15 @@ function CashPage() {
   const [result, setResult] = useState<{ expectedCash: number; countedCash: number; difference: number } | null>(null);
   const [username, setUsername] = useState("");
   const [busyAction, setBusyAction] = useState<"abrir" | "fechar" | "movimentacao" | null>(null);
-  const waitForConfirmation = () => new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
-  const active = sessions.find((s) => s.status === "open" && s.openedBy === username);
+  const confirmServer = async () => {
+    try { await confirmLastDomainCommand(); return true; }
+    catch (error) {
+      await hydrateStore().catch(() => undefined);
+      setMessage(error instanceof Error ? error.message : "O servidor não confirmou a operação. Tente sincronizar novamente.");
+      return false;
+    }
+  };
+  const active = sessions.find((s) => s.status === "open" && (s.operatorUsername?.trim().toLocaleLowerCase() === username.trim().toLocaleLowerCase() || s.openedBy.trim().toLocaleLowerCase() === username.trim().toLocaleLowerCase()));
   const myClosed = sessions.filter((s) => s.status === "closed" && (s.openedBy === username || s.closedBy === username)).filter((s) => (s.closedAt || s.openedAt).slice(0, 7) === historyMonth).filter((s) => historyDifference === "todos" || (historyDifference === "negative" ? (s.difference ?? 0) < 0 : (s.difference ?? 0) > 0)).sort((a, b) => new Date(b.closedAt || b.openedAt).getTime() - new Date(a.closedAt || a.openedAt).getTime());
   const activeSales = useMemo(() => sales.filter((s) => s.cashSessionId === active?.id), [sales, active?.id]);
   const activeMovements = movements.filter((m) => m.sessionId === active?.id);
@@ -62,10 +69,10 @@ function CashPage() {
     if (!Number.isFinite(value) || value < 0) { setMessage("Informe um valor inicial válido."); return; }
     setBusyAction("abrir");
     try {
-      await waitForConfirmation();
       const id = actions.openCashSession(value, note);
       if (!id) { setMessage("Não foi possível abrir. Confira se já existe um caixa aberto para este usuário."); return; }
-      setMessage("Caixa aberto com sucesso."); setNote("");
+      if (!(await confirmServer())) return;
+      setMessage("Caixa aberto e confirmado pelo servidor."); setNote("");
     } finally { setBusyAction(null); }
   };
   const saveMovement = async () => {
@@ -75,10 +82,10 @@ function CashPage() {
     if (!Number.isFinite(value) || value <= 0 || !reason.trim()) { setMessage("Informe um valor maior que zero e o motivo da movimentação."); return; }
     setBusyAction("movimentacao");
     try {
-      await waitForConfirmation();
       const id = actions.addCashMovement(movementType, value, reason);
       if (!id) { setMessage("Não foi possível registrar. Confirme se há um caixa aberto."); return; }
-      setMessage(movementType === "sangria" ? "Sangria registrada." : "Reforço registrado."); setAmount(""); setReason("");
+      if (!(await confirmServer())) return;
+      setMessage(movementType === "sangria" ? "Sangria confirmada pelo servidor." : "Reforço confirmado pelo servidor."); setAmount(""); setReason("");
     } finally { setBusyAction(null); }
   };
   const closeCash = async () => {
@@ -88,10 +95,10 @@ function CashPage() {
     if (!Number.isFinite(value) || value < 0) { setMessage("Informe o dinheiro contado no caixa."); return; }
     setBusyAction("fechar");
     try {
-      await waitForConfirmation();
       const closed = actions.closeCashSession(value, note);
       if (!closed) { setMessage("Não foi possível fechar o caixa. Confira se existe uma sessão aberta."); return; }
-      setResult(closed); setMessage("Fechamento registrado. A diferença ficou salva no histórico."); setCounted(""); setNote("");
+      if (!(await confirmServer())) return;
+      setResult(closed); setMessage("Fechamento confirmado pelo servidor. A diferença ficou salva no histórico."); setCounted(""); setNote("");
     } finally { setBusyAction(null); }
   };
 

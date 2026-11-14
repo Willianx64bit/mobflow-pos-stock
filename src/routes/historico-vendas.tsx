@@ -36,7 +36,13 @@ function HistoricoVendas() {
     if (!allowed) navigate({ to: "/" });
   }, [navigate]);
 
-  const ownSales = useMemo(() => sales.filter((sale) => !!username && (sale.seller || "").trim().toLocaleLowerCase("pt-BR") === username.toLocaleLowerCase("pt-BR")), [sales, username]);
+  const ownSales = useMemo(() => sales.filter((sale) => {
+    const login = username.trim().toLocaleLowerCase("pt-BR");
+    const sellerLogin = (sale.sellerUsername || "").trim().toLocaleLowerCase("pt-BR");
+    // The display label (seller) can differ from the login; use the stable profile username.
+    const sellerLabel = (sale.seller || "").trim().toLocaleLowerCase("pt-BR");
+    return !!login && (sellerLogin ? sellerLogin === login : sellerLabel === login);
+  }), [sales, username]);
   const filteredSales = useMemo(() => ownSales.filter((sale) => {
     const date = new Date(sale.date);
     const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");

@@ -1,3 +1,4 @@
+import "../lib/network-monitor";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -13,7 +14,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { supabase } from "@/lib/supabase";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
@@ -181,29 +182,16 @@ function RootComponent() {
     let active = true;
     const bootstrap = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const session = data.session;
+        let profile: { role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
 
-        if (!session) {
-          localStorage.removeItem("mobflow-authenticated");
-          sessionStorage.removeItem("mobflow-role");
-          sessionStorage.removeItem("mobflow-username");
-          sessionStorage.removeItem("mobflow-pdv-authorized");
-          if (active) {
-            setAuthenticated(false);
-            setCheckingSession(false);
-          }
-          return;
+        const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+        if (response.ok) {
+          const body = await response.json();
+          if (body?.ok && body.user) profile = { ...body.user, active: true };
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role,username,active,permissions")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
         if (!profile || profile.active === false || profile.role === "admin") {
-          await supabase.auth.signOut();
+          await mobflowAuthClient.signOut().catch(() => undefined);
           localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
           sessionStorage.removeItem("mobflow-username");

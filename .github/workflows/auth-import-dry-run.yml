@@ -1,0 +1,67 @@
+# Retry after user confirmed the full Session Pooler URI was replaced in GitHub Actions secrets.
+name: Auth migration rehearsal (dry-run)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - migration/neon-preparation
+    paths:
+      - .github/workflows/auth-import-dry-run.yml
+      - docs/migration/53-auth-import-rehearsal-environment.md
+
+permissions:
+  contents: read
+
+jobs:
+  auth-import-dry-run:
+    name: Validate Supabase accounts against isolated Neon database
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: migration/neon-preparation
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate connection DNS and IPv4 preference (no credentials printed)
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          MOBFLOW_AUTH_DATABASE_URL: ${{ secrets.MOBFLOW_AUTH_DATABASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import dns from 'node:dns/promises';
+          for (const key of ['SUPABASE_DATABASE_URL', 'MOBFLOW_AUTH_DATABASE_URL']) {
+            const value = process.env[key];
+            if (!value) {
+              console.error(key + ': MISSING');
+              process.exitCode = 1;
+              continue;
+            }
+            const host = new URL(value).hostname;
+            try {
+              const ipv4 = await dns.resolve4(host);
+              console.log(key + ': host=' + host + '; IPv4 available=' + (ipv4.length > 0));
+            } catch {
+              console.log(key + ': host=' + host + '; IPv4 unavailable');
+            }
+          }
+          NODE
+
+      - name: Validate source and empty Neon target (dry-run only)
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          MOBFLOW_AUTH_DATABASE_URL: ${{ secrets.MOBFLOW_AUTH_DATABASE_URL }}
+          NODE_OPTIONS: --dns-result-order=ipv4first
+        run: |
+          test -n "$SUPABASE_DATABASE_URL" || (echo "Missing SUPABASE_DATABASE_URL secret" && exit 1)
+          test -n "$MOBFLOW_AUTH_DATABASE_URL" || (echo "Missing MOBFLOW_AUTH_DATABASE_URL secret" && exit 1)
+          node scripts/migrate-supabase-auth-to-better-auth.mjs

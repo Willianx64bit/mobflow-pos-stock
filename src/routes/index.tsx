@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -160,13 +160,13 @@ function PDV() {
     const value = v.trim();
     // Aceita quantidade antes do código: 3* + bipe, ou 3*CODIGODEBARRAS.
     const multiplied = value.match(/^(\d+)\*(\d{6,})$/);
-    const barcode = multiplied ? multiplied[2] : value;
+    const barcode = multiplied?.[2] ?? value;
     if (!/^\d{6,}$/.test(barcode)) return;
     scanTimer.current = setTimeout(() => {
       const p = products.find((item) => productHasBarcode(item, barcode));
       if (!p) return;
       if (multiplied) {
-        const qty = Number(multiplied[1]);
+        const qty = Number(multiplied[1] ?? "");
         if (qty > 0 && Number.isSafeInteger(qty) && p.unit === "un" && pdvAuthorized) {
           actions.addToCart(p.id, qty);
           setFlash("+" + qty + " " + p.name);
@@ -214,26 +214,28 @@ function PDV() {
     }
     setIsFinalizing(true);
     window.setTimeout(() => {
-      try { completeSale(); }
-      finally { setIsFinalizing(false); }
+      void completeSale().finally(() => setIsFinalizing(false));
     }, 2000);
   };
 
-  const completeSale = () => {
-    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
-    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
+  const completeSale = async () => {
+    try {
+      const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
+      if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return; }
+      await confirmLastDomainCommand();
+      setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+    } catch (error) {
+      await hydrateStore().catch(() => undefined);
+      setFlash(error instanceof Error ? error.message : "A venda não foi confirmada pelo servidor. Tente sincronizar novamente.");
+    }
   };
 
   const confirmPixPayment = () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
     window.setTimeout(() => {
-      try {
-        setPixPayload("");
-        completeSale();
-      } finally {
-        setIsConfirmingPix(false);
-      }
+      setPixPayload("");
+      void completeSale().finally(() => setIsConfirmingPix(false));
     }, 2000);
   };
 
@@ -279,13 +281,13 @@ function PDV() {
       }
       const value = q.trim();
       const multipliedScan = quick ? value.match(/^(\d+)\*(\d{6,})$/) : null;
-      const scanCode = multipliedScan ? multipliedScan[2] : value;
+      const scanCode = multipliedScan?.[2] ?? value;
       if (/^\d{6,}$/.test(scanCode) && products.some((p) => productHasBarcode(p, scanCode))) {
         e.preventDefault();
         if (quick) {
           if (multipliedScan) {
             const p = products.find((item) => productHasBarcode(item, scanCode));
-            const qty = Number(multipliedScan[1]);
+            const qty = Number(multipliedScan[1] ?? "");
             if (p && qty > 0 && Number.isSafeInteger(qty) && p.unit === "un") {
               actions.addToCart(p.id, qty);
               setFlash("+" + qty + " " + p.name);
@@ -353,12 +355,11 @@ function PDV() {
 
           <div className="grid grid-cols-3 gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
             {results.map((p, i) => {
-              const out = p.stock <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
+                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
                   <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground">
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}

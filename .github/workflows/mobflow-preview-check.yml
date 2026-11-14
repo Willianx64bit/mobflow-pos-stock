@@ -1,0 +1,112 @@
+name: MobFlow Preview checks
+
+on:
+  push:
+    branches:
+      - migration/neon-preparation
+    paths:
+      - "src/**"
+      - "package.json"
+      - "vite.config.ts"
+      - "vitest.config.ts"
+      - "scripts/**"
+      - ".github/workflows/mobflow-preview-check.yml"
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "URL exata do Preview READY a validar (opcional)"
+        required: false
+        type: string
+  deployment_status:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobflow-preview-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-unit:
+    if: github.event_name != 'deployment_status'
+    name: TypeScript, unit tests and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: |
+          npm cache clean --force
+          npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Generate routes and build application
+        run: npm run build
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+      - name: Run unit tests
+        run: npm test
+
+  authenticated-preview-smoke:
+    name: Authenticated Preview login smoke test
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'migration/neon-preparation')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          mkdir -p /tmp/mobflow-playwright
+          npm install --prefix /tmp/mobflow-playwright --no-save --package-lock=false --no-audit --no-fund playwright@1.56.1
+          mkdir -p node_modules
+          ln -s /tmp/mobflow-playwright/node_modules/playwright node_modules/playwright
+          /tmp/mobflow-playwright/node_modules/.bin/playwright install --with-deps chromium
+      - name: Login to the migration Preview
+        env:
+          MOBFLOW_PREVIEW_URL: ${{ inputs.preview_url || 'https://mobflow-pos-stock-git-migration-neon-preparation-willianx64bit.vercel.app' }}
+          MOBFLOW_TEST_USERNAME: ${{ secrets.MOBFLOW_TEST_USERNAME }}
+          MOBFLOW_TEST_PASSWORD: ${{ secrets.MOBFLOW_TEST_PASSWORD }}
+          MOBFLOW_TEST_CNPJ: ${{ secrets.MOBFLOW_TEST_CNPJ }}
+        run: node scripts/preview-auth-smoke.mjs
+      - name: Upload authenticated browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobflow-pdv-authenticated-evidence
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  preview-browser-smoke:
+    name: Real browser smoke test on PDV Preview
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'migration/neon-preparation')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          mkdir -p /tmp/mobflow-playwright
+          npm install --prefix /tmp/mobflow-playwright --no-save --package-lock=false --no-audit --no-fund playwright@1.56.1
+          mkdir -p node_modules
+          ln -s /tmp/mobflow-playwright/node_modules/playwright node_modules/playwright
+          /tmp/mobflow-playwright/node_modules/.bin/playwright install --with-deps chromium
+      - name: Open the migration Preview and inspect browser errors
+        env:
+          MOBFLOW_PREVIEW_URL: ${{ inputs.preview_url || 'https://mobflow-pos-stock-git-migration-neon-preparation-willianx64bit.vercel.app' }}
+        run: node scripts/preview-smoke.mjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobflow-pdv-preview-browser-evidence
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7

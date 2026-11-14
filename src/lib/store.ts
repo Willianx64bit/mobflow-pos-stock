@@ -1,14 +1,17 @@
 import { useSyncExternalStore } from "react";
-import { supabase } from "@/lib/supabase";
+import { subscribeToTenantEvents } from "@/lib/neon-realtime";
+import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
+import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
-export type Product = { id: string; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined };
-export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string };
+export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
+export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string; version?: number; updatedAt?: string; eventId?: string };
+export type PromotionEvent = { event_id: string; sequence: string; entity_id: string; payload: { operation?: "create" | "update" | "delete"; promotionId?: string; version?: number; promotion?: Record<string, unknown> }; created_at: string };
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
-export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
+export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; companyLogoObjectKey?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string };
-export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
-export type ReceivingItem = { productId: string; name: string; expected: number; received?: number; expiry?: string; unit: "un" | "kg" };
+export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; sellerUsername?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
+export type ReceivingItem = { productId: string; name: string; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
 export type ReceivingExtra = { productId: string; name: string; received: number; expiry?: string; unit: "un" | "kg" };
@@ -28,11 +31,11 @@ export type ReceivingNote = {
   source?: "manual";
 };
 export type StockAdjustmentItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; mode: "somar" | "definir"; quantity: number; previousStock: number; newStock: number };
-export type StockAdjustment = { id: string; date: string; reason: string; operator?: string; items: StockAdjustmentItem[] };
+export type StockAdjustment = { id: string; date: string; reason: string; operator?: string | undefined; items: StockAdjustmentItem[] };
 export type StockWriteoffItem = { productId: string; code: string; ref?: string; name: string; unit: "un" | "kg"; quantity: number; previousStock: number; newStock: number; costMode: "compra" | "venda" | "media"; unitCost: number; totalCost: number };
-export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
-export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; operator?: string; items: StockWriteoffItem[]; document?: any };
-type CashSession = { id: string; openedAt: string; openedBy: string; openingAmount: number; status: "open" | "closed"; closedAt?: string; closedBy?: string; countedCash?: number; expectedCash?: number; difference?: number; note?: string };
+export type StockWriteoff = { id: string; number: string; date: string; reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any; accessKey?: string };
+export type StockTransfer = { id: string; number: string; date: string; reason: "Transferência de produtos, Vendas"; destinationName: string; destinationDocument?: string | undefined; destinationPhone?: string | undefined; destinationStreet?: string | undefined; destinationNumber?: string | undefined; destinationCep?: string | undefined; destinationNeighborhood?: string | undefined; destinationCity?: string | undefined; destinationState?: string | undefined; costMode: "compra" | "venda" | "media"; operator?: string | undefined; items: StockWriteoffItem[]; document?: any; accessKey?: string };
+type CashSession = { id: string; openedAt: string; openedBy: string; operatorUsername?: string | undefined; openingAmount: number; status: "open" | "closed"; closedAt?: string | undefined; closedBy?: string | undefined; countedCash?: number | undefined; expectedCash?: number | undefined; difference?: number | undefined; note?: string | undefined };
 export type CashMovement = { id: string; sessionId: string; type: "sangria" | "reforco"; amount: number; reason: string; operator: string; date: string };
 export type Conference = {
   id: string;
@@ -49,11 +52,14 @@ export type Conference = {
 };
 
 type ManualExpiry = { id: string; productId: string; name: string; quantity: number; expiry: string; unit: "un" | "kg" };
-export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string; details?: string; legacy?: boolean };
-type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
+export type StockMovement = { id: string; operationId: string; date: string; type: string; productId: string; productCode?: string | undefined; productName: string; unit: "un" | "kg"; quantity: number; totalValue: number; stockBefore: number; stockAfter: number; delta: number; operator?: string | undefined; details?: string | undefined; legacy?: boolean };
+export type State = { contacts: BusinessContact[]; products: Product[]; cart: CartItem[]; sales: Sale[]; stockMovements: StockMovement[]; cashSessions: CashSession[]; cashMovements: CashMovement[]; conferences: Conference[]; receiving: ReceivingNote[]; manualExpiries: ManualExpiry[]; stockAdjustments: StockAdjustment[]; stockWriteoffs: StockWriteoff[]; stockTransfers: StockTransfer[]; promotions: Promotion[]; suppliers: Supplier[]; settings: AppSettings };
 
 const KEY = "mobflow:v1";
+const tenantStateKey = (tenantId: string) => `${KEY}:${tenantId}`;
+let activeStateKey = KEY;
 const OWNER_KEY = "mobflow:owner";
+const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
 const uid = () => Math.random().toString(36).slice(2, 10);
 const currentOperator = () => typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined;
 const movementEntry = (input: Omit<StockMovement, "id" | "operator"> & { id?: string; operator?: string }): StockMovement => ({ ...input, id: input.id ?? uid(), operator: input.operator ?? currentOperator() });
@@ -78,10 +84,10 @@ const emptyState = (): State => ({
 });
 
 let state: State = emptyState();
+let receivingDraftPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let loaded = false;
 let cloudReady = false;
 let hydrating: Promise<void> | null = null;
-let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 let realtimeOwnerId: string | null = null;
 let cloudAccountId: string | null = null;
 let lastCloudUpdatedAt: string | null = null;
@@ -89,16 +95,29 @@ let lastSyncedState: State | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
-let syncFallbackTimer: ReturnType<typeof setInterval> | null = null;
-let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let stopRealtimeSubscription: (() => void) | null = null;
 let syncFallbackInFlight = false;
+let syncInFlight: Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; reconciliationRequired?: boolean }> | null = null;
+let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
+let realtimeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeCatchupTimer: ReturnType<typeof setInterval> | null = null;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
+const syncOutbox = new SyncOutbox();
+let lastDomainCommandPromise: Promise<void> | null = null;
+// Keep the command cutover fail-closed until the Neon snapshot bootstrap has relational projections.
+const incrementalSyncEnabled = () =>
+  import.meta.env["VITE_MOBFLOW_INCREMENTAL_SYNC"] === "true" &&
+  import.meta.env["VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY"] === "true";
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
+const isCashSessionForOperator = (session: CashSession, username: string) => {
+  const expected = username.trim().toLocaleLowerCase();
+  return !!expected && (session.operatorUsername?.trim().toLocaleLowerCase() === expected || session.openedBy.trim().toLocaleLowerCase() === expected);
+};
 
 function mergeConcurrentState(base: State | null, local: State, remote: State): State {
   const mergeById = <T extends { id: string }>(left: T[], right: T[]) => {
@@ -132,7 +151,12 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     if (localStockChanged && !remoteStockChanged) return lp;
     return rp;
   });
-  for (const lp of local.products) if (!remote.products.some((p) => p.id === lp.id)) products.push(lp);
+  // In Neon catalog mode, the relational tenant catalog is authoritative. Never resurrect
+  // cached products that are absent from the server response (including products deleted
+  // from this company or left in an old full-state snapshot).
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") {
+    for (const lp of local.products) if (!remote.products.some((p) => p.id === lp.id)) products.push(lp);
+  }
   return {
     ...remote,
     products,
@@ -162,8 +186,11 @@ function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(activeStateKey);
     if (raw) state = { ...state, ...JSON.parse(raw) };
+    // The cache key is tenant-scoped (mobflow:v1:<accountId>), and the
+    // authenticated account is resolved before this cache is loaded. Keep the
+    // last verified catalog visible while Neon is being reached or offline.
     state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
     normalizeState();
   } catch {}
@@ -187,12 +214,15 @@ function normalizeState() {
   // Build a read-only bridge for historical operations created before the ledger existed.
   // Legacy rows are explicitly marked so they never participate in stock delta reconciliation.
   const knownMovementIds = new Set(state.stockMovements.map((movement) => movement.id));
+  const hasRelationalLegacyMovement = (operationId: string, productId: string) =>
+    state.stockMovements.some((movement) => movement.operationId === operationId && movement.productId === productId);
   const legacyCandidates: StockMovement[] = [];
   for (const sale of state.sales) {
     if (state.stockMovements.some((movement) => movement.operationId === sale.id && !movement.legacy)) continue;
     (sale.items ?? []).forEach((item, index) => {
       const product = state.products.find((p) => p.id === item.productId) ?? state.products.find((p) => p.name.trim().toLocaleLowerCase() === item.name.trim().toLocaleLowerCase());
       const productId = product?.id ?? `legacy-product:${item.name.trim().toLocaleLowerCase()}`;
+      if (hasRelationalLegacyMovement(sale.id, productId)) return;
       const id = `legacy:sale:${sale.id}:${productId}:${index}`;
       if (knownMovementIds.has(id)) return;
       legacyCandidates.push({ id, operationId: sale.id, date: sale.date, type: "Venda", productId, productCode: product?.code, productName: item.name, unit: item.unit === "kg" ? "kg" : product?.unit ?? "un", quantity: item.qty, totalValue: Math.round(item.price * item.qty * 100) / 100, stockBefore: 0, stockAfter: 0, delta: -item.qty, operator: sale.seller, details: `Venda histórica ${sale.id}`, legacy: true });
@@ -201,6 +231,7 @@ function normalizeState() {
   for (const adjustment of state.stockAdjustments) {
     if (state.stockMovements.some((movement) => movement.operationId === adjustment.id && !movement.legacy)) continue;
     for (const item of adjustment.items) {
+      if (hasRelationalLegacyMovement(adjustment.id, item.productId)) continue;
       const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       const delta = item.newStock - item.previousStock;
@@ -210,6 +241,7 @@ function normalizeState() {
   for (const writeoff of state.stockWriteoffs) {
     if (state.stockMovements.some((movement) => movement.operationId === writeoff.id && !movement.legacy)) continue;
     for (const item of writeoff.items) {
+      if (hasRelationalLegacyMovement(writeoff.id, item.productId)) continue;
       const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       legacyCandidates.push({ id, operationId: writeoff.id, date: writeoff.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: writeoff.operator, details: `${writeoff.number} · ${writeoff.reason}`, legacy: true });
@@ -218,6 +250,7 @@ function normalizeState() {
   for (const transfer of state.stockTransfers) {
     if (state.stockMovements.some((movement) => movement.operationId === transfer.id && !movement.legacy)) continue;
     for (const item of transfer.items) {
+      if (hasRelationalLegacyMovement(transfer.id, item.productId)) continue;
       const id = `legacy:transfer:${transfer.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       legacyCandidates.push({ id, operationId: transfer.id, date: transfer.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, operator: transfer.operator, details: `${transfer.number} · Destino: ${transfer.destinationName}`, legacy: true });
@@ -235,6 +268,7 @@ function normalizeState() {
       totals.set(line.productId, { quantity: (previous?.quantity ?? 0) + quantity, name: line.name, unit: line.unit });
     }
     for (const [productId, line] of totals) {
+      if (hasRelationalLegacyMovement(note.id, productId)) continue;
       const id = `legacy:receiving:${note.id}:${productId}`;
       if (knownMovementIds.has(id)) continue;
       const product = state.products.find((p) => p.id === productId);
@@ -281,9 +315,236 @@ function normalizeState() {
   delete state.settings.companyLogo;
 }
 
+type MobFlowApiBody = {
+  ok?: boolean;
+  accountId?: string;
+  state?: unknown;
+  updatedAt?: string | null;
+  syncCursor?: string;
+  privateContactIds?: string[];
+  record?: unknown;
+  promotions?: unknown;
+  events?: unknown;
+  promotion?: unknown;
+  ids?: unknown[];
+  status?: string;
+  remoteState?: unknown;
+  remoteUpdatedAt?: string | null;
+  error?: string;
+  products?: unknown;
+  hasMore?: unknown;
+  nextCursor?: unknown;
+  session?: unknown;
+  data?: unknown;
+};
+
+async function callMobFlowApi(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  if (init.body !== undefined && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  const response = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  const body = await response.json().catch(() => ({})) as MobFlowApiBody;
+  return { response, body };
+
+}
+async function loadPrivateData(contactIds: string[] = []) {
+  const settingsResult = await callMobFlowApi("/api/mobflow/private-data?kind=settings");
+  if (!settingsResult.response.ok || settingsResult.body.ok !== true) throw new Error("Não foi possível recuperar as configurações privadas.");
+  const contacts = await Promise.all(contactIds.map(async (id) => {
+    const result = await callMobFlowApi("/api/mobflow/private-data?kind=contact&id=" + encodeURIComponent(id));
+    if (!result.response.ok || result.body.ok !== true || !result.body.record) throw new Error("Não foi possível recuperar um contato da empresa.");
+    return result.body.record as BusinessContact;
+  }));
+  return { contacts, settings: settingsResult.body.record as AppSettings };
+}
+async function savePrivateRecord(kind: "contact" | "settings", id: string | undefined, value: Record<string, unknown>) {
+  const result = await callMobFlowApi("/api/mobflow/private-data?kind=" + kind, { method: "PATCH", body: JSON.stringify({ id, value }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao salvar dados privados."));
+  return result.body.record;
+}
+async function removePrivateContact(id: string) {
+  const result = await callMobFlowApi("/api/mobflow/private-data?kind=contact&id=" + encodeURIComponent(id), { method: "DELETE" });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir contato."));
+}
+async function persistReceivingRecord(note: ReceivingNote) {
+  const result = await callMobFlowApi("/api/mobflow/receiving", { method: "POST", body: JSON.stringify({ action: "save", note }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao salvar recebimento."));
+}
+async function deleteReceivingRecord(id: string) {
+  const result = await callMobFlowApi("/api/mobflow/receiving", { method: "POST", body: JSON.stringify({ action: "delete", receivingId: id }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir recebimento."));
+}
+async function persistReceivingConference(conference: Conference) {
+  const result = await callMobFlowApi("/api/mobflow/receiving", { method: "POST", body: JSON.stringify({ action: "save_conference", conference }) });
+  if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao salvar conferência do recebimento."));
+}
+
+function readOutboxBackup(): import("@/lib/sync-outbox").SyncCommand[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(OUTBOX_BACKUP_KEY) ?? "[]");
+    return Array.isArray(value) ? value : [];
+  } catch { return []; }
+}
+
+function writeOutboxBackup(commands: import("@/lib/sync-outbox").SyncCommand[]) {
+  try {
+    if (commands.length) localStorage.setItem(OUTBOX_BACKUP_KEY, JSON.stringify(commands));
+    else localStorage.removeItem(OUTBOX_BACKUP_KEY);
+    return true;
+  } catch { return false; }
+}
+
+async function restoreOutboxBackup(tenantId: string) {
+  const commands = readOutboxBackup();
+  const remaining: import("@/lib/sync-outbox").SyncCommand[] = [];
+  for (const command of commands) {
+    if (command.tenantId !== tenantId) { remaining.push(command); continue; }
+    try { await syncOutbox.enqueue(command); }
+    catch { remaining.push(command); }
+  }
+  writeOutboxBackup(remaining);
+}
+
+function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
+  if (typeof window === "undefined") return false;
+  // Until incremental events are approved, critical operations go straight to
+  // their transactional Neon endpoints. They are never treated as completed
+  // merely because they were placed in the local outbox.
+  if (!incrementalSyncEnabled()) {
+    const idempotencyKey = typeof payload["idempotencyKey"] === "string"
+      ? String(payload["idempotencyKey"])
+      : crypto.randomUUID();
+    const body = { ...payload, idempotencyKey };
+    const endpoint = domain === "cash" ? "/api/mobflow/cash" : domain === "sales" ? "/api/mobflow/sales" : "/api/mobflow/stock";
+    lastDomainCommandPromise = (async () => {
+      const result = await callMobFlowApi(endpoint, { method: "POST", body: JSON.stringify(body) });
+      if (!result.response.ok || result.body.ok !== true) {
+        throw new Error(String(result.body.error ?? "O Neon não confirmou a operação."));
+      }
+      // The relational transaction is the source of truth. Refresh the
+      // snapshot after commit so the UI uses the server-generated values.
+      await hydrateStore().catch(() => undefined);
+    })();
+    void lastDomainCommandPromise.catch((error) => console.warn("[MobFlow Neon] Operation was not confirmed:", error));
+    return true;
+  }
+  const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
+  if (!tenantId) return false;
+  try {
+    const command = createSyncCommand({ tenantId, domain, payload });
+    // Persist synchronously before exposing the optimistic UI state.
+    const backup = readOutboxBackup().filter((item) => item.id !== command.id);
+    if (!writeOutboxBackup([...backup, command])) return false;
+    lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
+      writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        throw new Error("Sem conexão. A operação ficou pendente e ainda não foi confirmada pelo servidor.");
+      }
+      const result = await syncNow();
+      if (result.failed > 0 || result.pending > 0) {
+        throw new Error("O servidor ainda não confirmou a operação. Ela permanece na fila para nova tentativa.");
+      }
+    });
+    void lastDomainCommandPromise.catch((error) => {
+      console.warn("[MobFlow Sync] Server confirmation pending; command retained in outbox.", error);
+    });
+    return true;
+  } catch (error) {
+    console.error("[MobFlow Sync] Could not create command; operation was not sent.", error);
+    return false;
+  }
+}
+
+/** Waits for the most recently queued domain operation to be committed by Neon. */
+export async function confirmLastDomainCommand(): Promise<void> {
+  const pending = lastDomainCommandPromise;
+  lastDomainCommandPromise = null;
+  if (!pending) throw new Error("A operação não entrou na fila de sincronização e não foi enviada ao servidor.");
+  await pending;
+}
+
+async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full"): Promise<Product[]> {
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
+  try {
+    const products: Product[] = [];
+    const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
+    let cursor: string | null = null;
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ limit: "100" });
+      if (cursor) query.set("cursor", cursor);
+      const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
+      if (!response.ok || !Array.isArray(body.products)) {
+        // A transient API/network failure is not an authoritative empty catalog.
+        // Keep the last tenant-scoped catalog already verified in this session.
+        console.error("[MobFlow Catalog] Neon catalog request failed; keeping the last verified tenant catalog.");
+        return fallbackProducts;
+      }
+      for (const raw of body.products as any[]) {
+        const previous = existing.get(String(raw.id));
+        products.push({ id: String(raw.id), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
+          barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
+          ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
+          price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
+          minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
+          unit: raw.unit === "kg" ? "kg" : "un", photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
+      }
+      if (body.hasMore !== true) {
+        if (mode === "full") return products;
+        // Realtime may refresh only high-priority fields. Catalog identity and
+        // metadata remain frozen until the user runs the manual synchronization.
+        const latestById = new Map(products.map((product) => [product.id, product]));
+        return fallbackProducts.map((current) => {
+          const latest = latestById.get(current.id);
+          return latest ? { ...current, stock: latest.stock, price: latest.price } : current;
+        });
+      }
+      if (typeof body.nextCursor !== "string" || !body.nextCursor) {
+        console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
+        return fallbackProducts;
+      }
+      cursor = body.nextCursor;
+    }
+    console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
+    return fallbackProducts;
+  } catch (error) {
+    console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog; keeping the last verified tenant catalog:", error);
+    return fallbackProducts;
+  }
+}
+
+async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
+  try {
+    const balances = new Map<string, { price: number; stock: number }>();
+    let cursor: string | null = null;
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ projection: "live", limit: "100" });
+      if (cursor) query.set("cursor", cursor);
+      const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
+      if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
+      for (const raw of body.products as Array<Record<string, unknown>>) {
+        const id = typeof raw["id"] === "string" ? raw["id"] : "";
+        const price = Number(raw["price"]), stock = Number(raw["stock"]);
+        if (id && Number.isFinite(price) && Number.isFinite(stock)) balances.set(id, { price, stock });
+      }
+      if (body.hasMore !== true) {
+        // Never add/remove or replace product metadata from an automatic wake-up.
+        return fallbackProducts.map((product) => {
+          const live = balances.get(product.id);
+          return live ? { ...product, price: live.price, stock: live.stock } : product;
+        });
+      }
+      if (typeof body.nextCursor !== "string" || !body.nextCursor) return fallbackProducts;
+      cursor = body.nextCursor;
+    }
+    return fallbackProducts;
+  } catch (error) {
+    console.warn("[MobFlow Realtime] Could not refresh compact product balances:", error);
+    return fallbackProducts;
+  }
+}
+
 async function refreshFromCloud(accountId: string, forceLatest = false) {
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
-    // A read skipped during a write must be retried as soon as the write queue settles.
     refreshAfterPersist = true;
     return;
   }
@@ -296,278 +557,427 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
 
   syncFallbackInFlight = true;
   try {
-    const { data, error } = await supabase
-      .from("app_state")
-      .select("state,updated_at")
-      .eq("owner_id", accountId)
-      .maybeSingle();
+    const { response, body } = await callMobFlowApi("/api/mobflow/state");
+    if (!response.ok || !body.state || typeof body.state !== "object") return;
 
-    if (error || !data?.state || typeof data.state !== "object") return;
-
-    // A write can begin while this read is in flight. In that case, leave the
-    // current state untouched and let the next fallback tick read the committed row.
     if (!cloudReady || cloudAccountId !== accountId || persistWorker) {
       if (persistWorker && cloudReady && cloudAccountId === accountId) refreshAfterPersist = true;
       return;
     }
 
-    const remoteUpdatedAt = typeof data.updated_at === "string" ? data.updated_at : null;
+    const remoteUpdatedAt = typeof body.updatedAt === "string" ? body.updatedAt : null;
     if (!remoteUpdatedAt) return;
     const remoteTime = Date.parse(remoteUpdatedAt);
     const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
-    // Never roll the merge base backwards if an older read returns after a newer event.
     if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && (forceLatest ? remoteTime < currentTime : remoteTime <= currentTime)) return;
 
-    const remote = data.state as State;
+    const remote = body.state as State;
+    // Keep the catalog that was actually visible before merging the shared app_state.
+    // In Neon catalog mode that snapshot may intentionally contain products: [],
+    // so taking the fallback after merge would discard the last verified catalog.
+    const verifiedCatalog = state.products ?? [];
+    const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
+    state.products = await readRealtimeProductBalances(catalogFallback);
+    state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
+    realtimeRevision += 1;
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
     listeners.forEach((listener) => listener());
   } catch {
-    // Realtime and the next fallback tick can recover from temporary network errors.
+    // A próxima reconexão, foco da janela ou retorno da conexão recupera a sincronização.
   } finally {
     syncFallbackInFlight = false;
+    if (syncRefreshPending) {
+      syncRefreshPending = false;
+      void refreshFromCloud(accountId, true);
+    }
   }
 }
 
+function reconnect() {
+  const accountId = cloudAccountId;
+  if (!accountId || realtimeReconnectTimer) return;
+  realtimeReconnectTimer = setTimeout(() => {
+    realtimeReconnectTimer = null;
+    if (cloudAccountId === accountId && !stopRealtimeSubscription) {
+      realtimeOwnerId = null;
+      startRealtime(accountId);
+    }
+  }, 3_000);
+}
+
+let receivingConferencePull: Promise<unknown> | null = null;
+let receivingConferencePullPending = false;
+
+function pullReceivingConferenceEvents(accountId: string) {
+  if (typeof window === "undefined" || !cloudReady || cloudAccountId !== accountId) return Promise.resolve();
+  if (receivingConferencePull) {
+    // If another signal arrives during a pull, run one more pass after the current high-water mark.
+    receivingConferencePullPending = true;
+    return receivingConferencePull;
+  }
+  const pull = (async () => {
+    do {
+      receivingConferencePullPending = false;
+      await pullSyncEvents(
+        syncOutbox,
+        accountId,
+        applyIncrementalEvents,
+        fetch,
+        10,
+        "receiving-conference",
+        ["receiving", "conference"],
+      );
+    } while (receivingConferencePullPending && cloudReady && cloudAccountId === accountId);
+  })().catch((error) => {
+    console.warn("[MobFlow Receiving/Conference] Realtime pull deferred:", error);
+    throw error;
+  }).finally(() => {
+    if (receivingConferencePull === pull) receivingConferencePull = null;
+  });
+  receivingConferencePull = pull;
+  return pull;
+}
+
 function startRealtime(accountId: string) {
-  if (typeof window === "undefined" || realtimeOwnerId === accountId) return;
-  if (realtimeChannel) {
-    void supabase.removeChannel(realtimeChannel);
-    realtimeChannel = null;
+  if (typeof window === "undefined") return;
+  if (realtimeOwnerId !== accountId) {
+    stopRealtimeSubscription?.();
+    stopRealtimeSubscription = null;
+    realtimeOwnerId = accountId;
+  } else if (stopRealtimeSubscription) {
+    return;
   }
-  if (syncFallbackTimer) {
-    clearInterval(syncFallbackTimer);
-    syncFallbackTimer = null;
-  }
-  if (realtimeRefreshTimer) {
-    clearTimeout(realtimeRefreshTimer);
-    realtimeRefreshTimer = null;
-  }
-  realtimeOwnerId = accountId;
+
   if (!syncWakeListenersInstalled) {
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible" && cloudAccountId) void refreshFromCloud(cloudAccountId);
+      if (document.visibilityState !== "visible" || !cloudAccountId) return;
+      if (incrementalSyncEnabled()) void syncNow().catch(() => undefined);
+      else void pullReceivingConferenceEvents(cloudAccountId).catch(() => undefined);
+      if (!stopRealtimeSubscription) {
+        realtimeOwnerId = null;
+        startRealtime(cloudAccountId);
+      }
     };
     const refreshWhenOnline = () => {
-      if (cloudAccountId) void refreshFromCloud(cloudAccountId);
+      if (!cloudAccountId) return;
+      if (incrementalSyncEnabled()) void syncNow().catch(() => undefined);
+      else void pullReceivingConferenceEvents(cloudAccountId).catch(() => undefined);
+      if (!stopRealtimeSubscription) {
+        realtimeOwnerId = null;
+        startRealtime(cloudAccountId);
+      }
     };
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     window.addEventListener("online", refreshWhenOnline);
     syncWakeListenersInstalled = true;
   }
-  realtimeChannel = supabase
-    .channel(`mobflow-state:${accountId}`)
-    .on("postgres_changes", {
-      event: "UPDATE",
-      schema: "public",
-      table: "app_state",
-      filter: `owner_id=eq.${accountId}`,
-    }, (payload) => {
-      const remoteState = (payload.new as Record<string, unknown> | undefined)?.["state"];
-      const remoteUpdatedAt = (payload.new as Record<string, unknown> | undefined)?.["updated_at"];
-      if (!remoteState || typeof remoteState !== "object") return;
-      const remote = remoteState as State;
-      realtimeRevision += 1;
-      const incomingUpdatedAt = typeof remoteUpdatedAt === "string" ? remoteUpdatedAt : null;
-      const currentTime = lastCloudUpdatedAt ? Date.parse(lastCloudUpdatedAt) : Number.NaN;
-      const incomingTime = incomingUpdatedAt ? Date.parse(incomingUpdatedAt) : Number.NaN;
-      // Realtime payloads can arrive out of order; don't merge an older snapshot.
-      if (Number.isFinite(currentTime) && Number.isFinite(incomingTime) && incomingTime < currentTime) return;
-      state = mergeConcurrentState(lastSyncedState, state, remote);
-      lastSyncedState = cloneState(remote);
-      if (incomingUpdatedAt && (!Number.isFinite(currentTime) || !Number.isFinite(incomingTime) || incomingTime >= currentTime)) {
-        lastCloudUpdatedAt = incomingUpdatedAt;
+
+  // Realtime is only a wake-up signal; the client drains the durable outbox and pulls events by cursor.
+  void subscribeToTenantEvents(
+    () => {
+      if (incrementalSyncEnabled()) {
+        void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error));
+      } else {
+        // Receiving and Conference have their own cursor and never trigger a full tenant snapshot.
+        void pullReceivingConferenceEvents(accountId).catch(() => undefined);
       }
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      listeners.forEach((l) => l());
-      // Reconcile against the latest committed row after a burst of concurrent
-      // operations. Realtime carries a full snapshot, but another write may
-      // already have committed before this client applies that event.
-      if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
-      realtimeRefreshTimer = setTimeout(() => {
-        realtimeRefreshTimer = null;
-        void refreshFromCloud(accountId, true);
-      }, 180);
-    })
-    .subscribe((status) => {
-      // Keep a fallback active even if Realtime disconnects or misses a change.
-      if (status === "SUBSCRIBED") void refreshFromCloud(accountId);
-    });
-
-  // Realtime is the fast path; polling recovers missed cross-user updates.
-  if (!syncFallbackTimer) {
-    syncFallbackTimer = setInterval(() => {
-      // Periodically reconcile every active device with the latest committed
-      // snapshot, even when Realtime delivered an event with the same timestamp
-      // or a client missed one of the events in a rapid sequence.
-      void refreshFromCloud(accountId, true);
-    }, 3000);
-  }
-}
-
-function persistState() {
-  // Coalesce local changes, but never silently discard a failed cloud write.
-  persistRequested = true;
-  if (persistWorker) return persistQueue;
-
-  persistWorker = (async () => {
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (persistRequested && attempts < maxAttempts) {
-      persistRequested = false;
-      if (!cloudReady || typeof window === "undefined" || !cloudAccountId) break;
-
-      const snapshot = cloneState(state);
-      const revisionAtRequestStart = realtimeRevision;
-      const expected = lastCloudUpdatedAt;
-      let result;
-      try {
-        if (expected) {
-          result = await supabase.from("app_state")
-            .update({ state: snapshot, updated_at: new Date().toISOString() })
-            .eq("owner_id", cloudAccountId)
-            .eq("updated_at", expected)
-            .select("updated_at")
-            .maybeSingle();
-        } else {
-          result = await supabase.from("app_state")
-            .upsert({ owner_id: cloudAccountId, state: snapshot, updated_at: new Date().toISOString() }, { onConflict: "owner_id" })
-            .select("updated_at")
-            .maybeSingle();
-        }
-      } catch {
-        // Keep the latest state queued for a delayed retry.
-        persistRequested = true;
-        break;
-      }
-
-      if (result.error) {
-        persistRequested = true;
-        break;
-      }
-      if (result.data?.updated_at) {
-        // A Realtime event may have delivered a newer cloud snapshot while this HTTP
-        // request was in flight. Do not replace that newer merge base with our older snapshot.
-        if (!lastCloudUpdatedAt || Date.parse(result.data.updated_at) >= Date.parse(lastCloudUpdatedAt)) {
-          lastCloudUpdatedAt = result.data.updated_at;
-        }
-        if (revisionAtRequestStart === realtimeRevision) {
-          lastSyncedState = cloneState(snapshot);
-        }
-        attempts = 0;
-        continue;
-      }
-
-      // The compare-and-swap matched no row: another writer may have won.
-      // Read its version, merge, and let the next loop attempt a fresh CAS.
-      let remoteResult;
-      try {
-        remoteResult = await supabase.from("app_state")
-          .select("state,updated_at")
-          .eq("owner_id", cloudAccountId)
-          .maybeSingle();
-      } catch {
-        persistRequested = true;
-        break;
-      }
-      if (remoteResult.error || !remoteResult.data?.state) {
-        persistRequested = true;
-        break;
-      }
-
-      state = mergeConcurrentState(lastSyncedState, state, remoteResult.data.state as State);
-      lastCloudUpdatedAt = remoteResult.data.updated_at ?? null;
-      lastSyncedState = cloneState(remoteResult.data.state as State);
-      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-      // CAS conflict reconciliation changes the external store too; notify React now,
-      // otherwise the new stock may appear only after a page reload.
-      listeners.forEach((l) => l());
-      persistRequested = true;
-      attempts += 1;
+    },
+    (message) => {
+      console.warn("[MobFlow Realtime] Subscription stopped:", message);
+      stopRealtimeSubscription?.();
+      stopRealtimeSubscription = null;
+      realtimeOwnerId = null;
+      reconnect();
+    },
+  ).then((stop) => {
+    if (realtimeOwnerId !== accountId || cloudAccountId !== accountId) {
+      stop();
+      return;
     }
-  })().catch(() => {
-    // Preserve a retry request even if an unexpected exception escapes.
-    persistRequested = true;
-  }).finally(() => {
-    persistWorker = null;
-    if (persistRequested && cloudReady && typeof window !== "undefined" && cloudAccountId) {
-      // Avoid a tight retry loop during Supabase outages/timeouts.
-      setTimeout(() => { void persistState(); }, 1800);
-    }
-    // Retry a deferred read independently of write retries. Otherwise sustained
-    // local writes can starve cross-user refreshes until the tab becomes idle.
-    if (refreshAfterPersist && cloudReady && typeof window !== "undefined" && cloudAccountId) {
-      refreshAfterPersist = false;
-      void refreshFromCloud(cloudAccountId);
-    }
+    stopRealtimeSubscription = stop;
+  }).catch((error) => {
+    console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
+    realtimeOwnerId = null;
+    reconnect();
+    console.warn("[MobFlow Realtime] Reconnect scheduled; cursor catch-up remains active.");
   });
-  persistQueue = persistWorker;
-  return persistQueue;
 }
+
 
 export async function hydrateStore() {
   if (hydrating) return hydrating;
   hydrating = (async () => {
-    load();
-    // Preserve contacts saved locally for this same account if the cloud snapshot
-    // predates the contacts feature. Never merge another company's local data.
-    const localOwner = typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null;
-    const localContacts = localOwner && localOwner === cloudAccountId ? [...(state.contacts ?? [])] : [...(state.contacts ?? [])];
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: profile } = await supabase.from("profiles").select("account_id").eq("id", user.id).maybeSingle();
-    const accountId = profile?.account_id ?? user.id;
-    const sameOwner = localOwner === accountId;
-    cloudAccountId = accountId;
-    const { data, error } = await supabase
-      .from("app_state")
-      .select("state,updated_at")
-      .eq("owner_id", accountId)
-      .maybeSingle();
-
-    if (!error && data?.state) {
-      const remoteContacts = Array.isArray((data.state as State).contacts) ? (data.state as State).contacts : [];
-      const mergedContacts = sameOwner
-        ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remote => remote.id === local.id))]
-        : remoteContacts;
-      state = { ...emptyState(), ...data.state, contacts: mergedContacts };
-      state.settings = { ...emptyState().settings, ...(data.state as State).settings };
-      lastCloudUpdatedAt = data.updated_at ?? null;
-      lastSyncedState = cloneState(data.state as State);
-    } else if (!error) {
-      // Conta sem dados na nuvem é uma empresa nova: não reutilizar dados
-      // de demonstração nem o armazenamento local de outra conta.
-      state = emptyState();
-      lastCloudUpdatedAt = null;
-      lastSyncedState = null;
-    }
-    const hadLegacyLogo = Boolean(state.settings?.companyLogo);
-    normalizeState();
-
     try {
-      localStorage.setItem(OWNER_KEY, accountId);
-      localStorage.setItem(KEY, JSON.stringify(state));
-    } catch {}
-    cloudReady = true;
-    startRealtime(accountId);
-    // Remove the oversized legacy logo from the existing cloud row once,
-    // using the normal compare-and-swap writer so stock/history remain intact.
-    if (hadLegacyLogo) void persistState();
-    if (!data?.state && !error) await persistState();
-    listeners.forEach((l) => l());
+      const contextResult = await callMobFlowApi("/api/mobflow/session-context");
+      if (!contextResult.response.ok || !contextResult.body.ok || typeof contextResult.body.accountId !== "string") {
+        throw new Error("Não foi possível validar a sessão no servidor MobFlow.");
+      }
+      const accountId = contextResult.body.accountId;
+      activeStateKey = tenantStateKey(accountId);
+      loaded = false;
+      state = emptyState();
+      load();
+      const localContacts = [...(state.contacts ?? [])];
+      const localProducts = [...(state.products ?? [])];
+      const localCart = [...(state.cart ?? [])];
+      const sameOwner = true;
+
+      const stateResult = await callMobFlowApi("/api/mobflow/state");
+      if (!stateResult.response.ok || !stateResult.body.ok) {
+        throw new Error("Não foi possível carregar os dados da empresa pelo Neon.");
+      }
+
+      const remoteState = stateResult.body.state;
+      if (typeof stateResult.body.syncCursor === "string") {
+        await syncOutbox.setCursor(accountId, stateResult.body.syncCursor);
+        const receivingCursor = await syncOutbox.getCursor(accountId, "receiving-conference");
+        if (receivingCursor === "0") {
+          await syncOutbox.setCursor(accountId, stateResult.body.syncCursor, "receiving-conference");
+        }
+      }
+      if (remoteState && typeof remoteState === "object") {
+        const remote = remoteState as State;
+        const remoteContacts = Array.isArray(remote.contacts) ? remote.contacts : [];
+        const mergedContacts = sameOwner
+          ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remoteContact => remoteContact.id === local.id))]
+          : remoteContacts;
+        state = { ...emptyState(), ...remote, contacts: mergedContacts };
+        state.settings = { ...emptyState().settings, ...(remote.settings ?? {}) };
+        // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
+        // unreachable. A successful Neon response still replaces it with the
+        // authoritative active catalog.
+        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []));
+        // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
+        // refreshes, but keep only products confirmed by the authoritative tenant catalog.
+        state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
+        lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
+        lastSyncedState = cloneState(remote);
+      } else {
+        state = emptyState();
+        lastCloudUpdatedAt = null;
+        lastSyncedState = null;
+      }
+
+      // Resolve the authenticated operator identity separately from the display name.
+      // The snapshot keeps the display label; operatorUsername is the stable login key
+      // used by cash actions on every device, including compatibility mode.
+      try {
+        const cashStatus = await callMobFlowApi("/api/mobflow/cash");
+        if (cashStatus.response.ok && cashStatus.body.ok === true) {
+          const remote = cashStatus.body.session as null | { id: string; status: "open"; openingAmount: number; openedAt: string; note?: string; operatorUsername: string };
+          const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+          if (username) {
+            const retained = state.cashSessions.filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
+            const canonical: CashSession[] = remote ? [{
+              id: remote.id, status: "open", openingAmount: Number(remote.openingAmount), openedAt: remote.openedAt,
+              openedBy: remote.operatorUsername, operatorUsername: remote.operatorUsername,
+              ...(remote.note ? { note: remote.note } : {}),
+            }] : [];
+            state = { ...state, cashSessions: [...canonical, ...retained] };
+          }
+        }
+      } catch (error) {
+        console.warn("[MobFlow Cash] Could not reconcile the current operator session:", error);
+      }
+
+      // Publish the authoritative Neon snapshot before loading secondary private data.
+      // A contacts/settings failure must never hide persisted sales, cash sessions or stock.
+      normalizeState();
+      try {
+        localStorage.setItem(OWNER_KEY, accountId);
+        localStorage.setItem(activeStateKey, JSON.stringify(state));
+      } catch {}
+      listeners.forEach((listener) => listener());
+
+      try {
+        const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
+        state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+        normalizeState();
+        try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+        listeners.forEach((listener) => listener());
+      } catch (error) {
+        // Private settings/contacts are secondary; core relational data is already loaded.
+        console.error("[MobFlow Hydration] Private company data could not be loaded:", error);
+      }
+
+      cloudAccountId = accountId;
+      cloudReady = true;
+      startRealtime(accountId);
+      // Catch up only the two enabled modules in compatibility mode; no global incremental cutover.
+      if (!incrementalSyncEnabled()) void pullReceivingConferenceEvents(accountId).catch(() => undefined);
+      // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
+      void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
+    } catch (error) {
+      console.error("[MobFlow Hydration] Could not load the authoritative Neon state:", error);
+      cloudReady = false;
+      // Notify the UI so it does not silently keep presenting an empty/stale view.
+      listeners.forEach((listener) => listener());
+    }
   })().finally(() => { hydrating = null; });
   return hydrating;
 }
 
-function set(next: Partial<State>) {
+function scheduleStatePersist() {
+  if (!cloudReady || !cloudAccountId || typeof window === "undefined") return;
+  persistRequested = true;
+  if (persistWorker) return;
+  const worker = (async () => {
+    while (persistRequested) {
+      persistRequested = false;
+      const accountId = cloudAccountId;
+      if (!accountId || !cloudReady) break;
+      // Private contacts/settings have their own authenticated endpoint.
+      // Keep only the public company caption in the shared snapshot.
+      const snapshot = cloneState(state);
+      snapshot.contacts = [];
+      snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
+      let attempts = 0;
+      let saved = false;
+      while (!saved && attempts < 4) {
+        attempts += 1;
+        const result = await callMobFlowApi("/api/mobflow/state", {
+          method: "PUT",
+          body: JSON.stringify({ state: snapshot, expectedUpdatedAt: lastCloudUpdatedAt }),
+        });
+        if (result.response.ok && result.body.ok === true && typeof result.body.updatedAt === "string") {
+          lastCloudUpdatedAt = result.body.updatedAt;
+          lastSyncedState = cloneState(snapshot);
+          saved = true;
+          continue;
+        }
+        if (result.response.status === 409 && result.body.status === "conflict" &&
+            result.body.remoteState && typeof result.body.remoteState === "object") {
+          const remote = result.body.remoteState as State;
+          lastCloudUpdatedAt = typeof result.body.remoteUpdatedAt === "string" ? result.body.remoteUpdatedAt : null;
+          state = mergeConcurrentState(lastSyncedState, state, remote);
+          const retrySnapshot = cloneState(state);
+          retrySnapshot.contacts = [];
+          retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
+          Object.assign(snapshot, retrySnapshot);
+          lastSyncedState = cloneState(remote);
+          listeners.forEach((listener) => listener());
+          continue;
+        }
+        throw new Error(String(result.body.error ?? "Não foi possível salvar o estado completo no Neon."));
+      }
+      if (!saved) throw new Error("O estado mudou em outro dispositivo várias vezes. A gravação foi interrompida para evitar sobrescrita.");
+      try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+      if (refreshAfterPersist) {
+        refreshAfterPersist = false;
+        void refreshFromCloud(accountId, true);
+      }
+    }
+  })();
+  persistWorker = worker;
+  persistQueue = worker;
+  void worker.catch((error) => {
+    console.error("[MobFlow State] Persistência no Neon não concluída:", error);
+  }).finally(() => {
+    if (persistWorker === worker) persistWorker = null;
+    if (persistRequested) scheduleStatePersist();
+  });
+}
+
+function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
-  if (cloudReady) void persistState();
+  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
   listeners.forEach((l) => l());
+  if (options.persist !== false) scheduleStatePersist();
+}
+
+export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
+  const next = applySyncEventsToState(state, events);
+  state = next;
+  if (events.some((event) => (event.category === "master_data" && event.entity_type === "business_contact") || (event.category === "settings" && event.entity_type === "company_settings"))) {
+    const list = await callMobFlowApi("/api/mobflow/private-data?kind=contacts");
+    if (!list.response.ok || list.body.ok !== true || !Array.isArray(list.body.ids)) throw new Error("Falha ao recuperar os contatos atualizados.");
+    const privateData = await loadPrivateData(list.body.ids.filter((id): id is string => typeof id === "string"));
+    state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+  }
+  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  listeners.forEach((listener) => listener());
+}
+
+async function performSyncNow(options: { retryFailed?: boolean } = {}) {
+  // Keep both the manual button and automatic wake-ups inert until the Preview flag is approved.
+  if (!incrementalSyncEnabled()) {
+    let tenantId = cloudAccountId;
+    if (!tenantId && typeof window !== "undefined") {
+      try { tenantId = localStorage.getItem(OWNER_KEY); } catch {}
+    }
+    if (!tenantId) return { sent: 0, failed: 0, pending: 0, applied: 0, cursor: "0", hasMore: false };
+    await restoreOutboxBackup(tenantId);
+    const [failed, pending, cursor] = await Promise.all([
+      syncOutbox.failedCount(tenantId),
+      syncOutbox.pendingCount(tenantId),
+      syncOutbox.getCursor(tenantId),
+    ]);
+    return { sent: 0, failed, pending, applied: 0, cursor, hasMore: false };
+  }
+
+  // O botão manual também pode ser acionado antes da hidratação inicial do app.
+  // Revalida a sessão no servidor e carrega o tenant antes de acessar a fila.
+  if (!cloudReady || !cloudAccountId) {
+    await hydrateStore();
+  }
+  const tenantId = cloudAccountId;
+  if (!tenantId || !cloudReady) {
+    throw new Error("Não foi possível validar a sessão da empresa. Entre novamente e tente sincronizar.");
+  }
+  if (persistWorker) await persistQueue;
+  await restoreOutboxBackup(tenantId);
+  if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
+  try {
+    const result = await runIncrementalSync({
+      outbox: syncOutbox,
+      tenantId,
+      applyEvents: (events) => applyIncrementalEvents(events),
+    });
+    // Reconcile this operator's open cash session against Neon, including devices
+    // that missed the original event notification.
+    const cashStatus = await callMobFlowApi("/api/mobflow/cash");
+    if (cashStatus.response.ok && cashStatus.body.ok === true) {
+      const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
+      const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+      if (username) {
+        const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
+        const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
+        set({ cashSessions: [...canonical, ...retained] }, { persist: false });
+      }
+    }
+    return { ...result, failed: await syncOutbox.failedCount(tenantId) };
+  } catch (error) {
+    if (error instanceof UnsupportedSyncEventError) {
+      // Do not silently download the full company state during automatic sync.
+      // The cursor remains unchanged so a manual full reconciliation can recover it.
+      return {
+        sent: 0, failed: await syncOutbox.failedCount(tenantId),
+        pending: await syncOutbox.pendingCount(tenantId), applied: 0,
+        cursor: await syncOutbox.getCursor(tenantId), hasMore: false, reconciliationRequired: true,
+      };
+    }
+    throw error;
+  }
+}
+
+
+/**
+ * Coalesce Realtime, focus, online and command-triggered sync requests.
+ * Only one cursor read/apply cycle may run for this app instance at a time.
+ */
+export function syncNow(options: { retryFailed?: boolean } = {}) {
+  if (syncInFlight) return syncInFlight;
+  const running = performSyncNow(options);
+  const shared = running.finally(() => {
+    if (syncInFlight === shared) syncInFlight = null;
+  });
+  syncInFlight = shared;
+  return shared;
 }
 
 const serverState = state;
@@ -590,22 +1000,24 @@ export const actions = {
   openCashSession(openingAmount: number, note = "") {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
     if (!operator || !Number.isFinite(openingAmount) || openingAmount < 0) return false;
-    if ((state.cashSessions ?? []).some((session) => session.status === "open" && session.openedBy === operator)) return false;
-    const session: CashSession = { id: uid(), openedAt: new Date().toISOString(), openedBy: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
-    set({ cashSessions: [session, ...(state.cashSessions ?? [])] });
+    if ((state.cashSessions ?? []).some((session) => session.status === "open" && isCashSessionForOperator(session, operator))) return false;
+    const session: CashSession = { id: crypto.randomUUID(), openedAt: new Date().toISOString(), openedBy: operator, operatorUsername: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
+    const queued = enqueueDomainCommand("cash", { action: "open", sessionId: session.id, openingAmount: session.openingAmount, note: session.note ?? "", idempotencyKey: crypto.randomUUID() });
+    set({ cashSessions: [session, ...(state.cashSessions ?? [])] }, { persist: !queued });
     return session.id;
   },
   addCashMovement(type: "sangria" | "reforco", amount: number, reason: string) {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
-    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
+    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && isCashSessionForOperator(item, operator));
     if (!session || !Number.isFinite(amount) || amount <= 0 || !reason.trim()) return false;
-    const movement: CashMovement = { id: uid(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
-    set({ cashMovements: [movement, ...(state.cashMovements ?? [])] });
+    const movement: CashMovement = { id: crypto.randomUUID(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
+    const queued = enqueueDomainCommand("cash", { action: "movement", sessionId: session.id, amount: movement.amount, movementType: type === "reforco" ? "addition" : "withdrawal", reason: movement.reason, idempotencyKey: movement.id });
+    set({ cashMovements: [movement, ...(state.cashMovements ?? [])] }, { persist: !queued });
     return movement.id;
   },
   closeCashSession(countedCash: number, note = "") {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
-    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && item.openedBy === operator);
+    const session = (state.cashSessions ?? []).find((item) => item.status === "open" && isCashSessionForOperator(item, operator));
     if (!session || !Number.isFinite(countedCash) || countedCash < 0) return false;
     const sessionSales = (state.sales ?? []).filter((sale) => sale.cashSessionId === session.id);
     const cashSales = sessionSales.filter((sale) => sale.payment === "Dinheiro" && sale.paid !== false).reduce((sum, sale) => sum + sale.total, 0);
@@ -614,17 +1026,22 @@ export const actions = {
     const additions = movements.filter((item) => item.type === "reforco").reduce((sum, item) => sum + item.amount, 0);
     const expectedCash = Math.round((session.openingAmount + cashSales - withdrawals + additions) * 100) / 100;
     const counted = Math.round(countedCash * 100) / 100;
-    set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) });
+    const queued = enqueueDomainCommand("cash", { action: "close", sessionId: session.id, countedAmount: counted, note: note.trim(), idempotencyKey: crypto.randomUUID() });
+    set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) }, { persist: !queued });
     return { expectedCash, countedCash: counted, difference: Math.round((counted - expectedCash) * 100) / 100 };
   },
-  saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
+  async saveContact(contact: Omit<BusinessContact, "id"> & { id?: string }) {
     const id = contact.id || uid();
     const value: BusinessContact = { ...contact, id, name: contact.name.trim() };
+    await savePrivateRecord("contact", id, value as unknown as Record<string, unknown>);
     const existing = (state.contacts ?? []).some((c) => c.id === id);
     set({ contacts: existing ? state.contacts.map((c) => c.id === id ? value : c) : [value, ...(state.contacts ?? [])] });
     return id;
   },
-  deleteContact(id: string) { set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) }); },
+  async deleteContact(id: string) {
+    await removePrivateContact(id);
+    set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) });
+  },
   addToCart(productId: string, qty = 1) {
     const p = state.products.find((x) => x.id === productId);
     if (!p) return;
@@ -633,7 +1050,11 @@ export const actions = {
     const cart = nextQty === 0
       ? state.cart.filter((c) => c.productId !== productId)
       : cur ? state.cart.map((c) => (c.productId === productId ? { ...c, qty: nextQty } : c)) : [...state.cart, { productId, qty: nextQty }];
-    set({ cart });
+    // Cart contents are a device-local draft. Persist synchronously to the
+    // tenant-scoped localStorage cache, but never PUT the full company snapshot
+    // to Neon for an individual product tap. That snapshot can race catalog
+    // refreshes and replace the visible catalog/cart with an older projection.
+    set({ cart }, { persist: false });
   },
   setCartQty(productId: string, qty: number) {
     const p = state.products.find((x) => x.id === productId);
@@ -643,15 +1064,15 @@ export const actions = {
     const cart = nextQty <= 0
       ? state.cart.filter((c) => c.productId !== productId)
       : state.cart.map((c) => c.productId === productId ? { ...c, qty: nextQty } : c);
-    set({ cart });
+    set({ cart }, { persist: false });
   },
-  removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }); },
-  clearCart() { set({ cart: [] }); },
+  removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }, { persist: false }); },
+  clearCart() { set({ cart: [] }, { persist: false }); },
   checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Sale | null {
     if (!state.cart.length) return null;
     // Regra de segurança: nenhuma venda pode ser registrada sem caixa aberto para o operador atual.
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
-    const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && session.openedBy === operator);
+    const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && isCashSessionForOperator(session, operator));
     if (!operator || !activeCash) return null;
     const items = state.cart.map((c) => {
       const p = state.products.find((x) => x.id === c.productId)!;
@@ -663,7 +1084,7 @@ export const actions = {
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = payment === "Fiado" ? 0 : total - costTotal;
     const seller = operator;
-    const sale: Sale = { id: uid(), date: new Date().toISOString(), cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
+    const sale: Sale = { id: crypto.randomUUID(), date: new Date().toISOString() , cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.round((p.stock - c.qty) * 1000) / 1000 } : p;
@@ -674,24 +1095,57 @@ export const actions = {
       const stockAfter = Math.round((p.stock - c.qty) * 1000) / 1000;
       return [movementEntry({ id: `${sale.id}:${p.id}`, operationId: sale.id, date: sale.date, type: "Venda", productId: p.id, productCode: p.code, productName: p.name, unit: p.unit, quantity: c.qty, totalValue: Math.round(effectivePrice(p) * c.qty * 100) / 100, stockBefore: p.stock, stockAfter, delta: stockAfter - p.stock, details: `Venda ${sale.id}` })];
     });
-    set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
+    const checkoutCart = state.cart.map((item) => ({ productId: item.productId, qty: item.qty }));
+    const queued = enqueueDomainCommand("sales", {
+      saleId: sale.id, idempotencyKey: crypto.randomUUID(), cashSessionId: activeCash.id,
+      paymentMethod: payment === "Dinheiro" ? "cash" : payment === "Pix" ? "pix" : payment === "Cartão" ? "card" : "fiado",
+      receivedAmount: payment === "Fiado" ? 0 : payment === "Dinheiro" ? received ?? total : total,
+      discountAmount: discount, discountType: discountType === "%" ? "percentage" : "fixed",
+      customerName: customer || undefined, customerDocument: cpf || undefined,
+      items: checkoutCart.map((item) => ({ productId: item.productId, quantity: item.qty })),
+    });
+
+    if (queued && lastDomainCommandPromise) {
+      // Keep the checkout visible until Neon confirms the transaction. The
+      // command promise already hydrates the authoritative sale and stock;
+      // only then clear the exact cart that was checked out. If the operator
+      // changed the cart while waiting, preserve those newer items.
+      lastDomainCommandPromise = lastDomainCommandPromise.then(() => {
+        const cartIsUnchanged = state.cart.length === checkoutCart.length &&
+          checkoutCart.every((item) => state.cart.some((current) => current.productId === item.productId && current.qty === item.qty));
+        if (cartIsUnchanged) set({ cart: [] }, { persist: false });
+      });
+    } else {
+      // Non-browser/local fallback: retain the existing local-only behavior.
+      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: true });
+    }
     return sale;
   },
-  addFiadoPayment(id: string, value: number) {
+  async addFiadoPayment(id: string, value: number, method: "cash" | "pix" | "card" = "cash") {
     const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
     if (!sale || sale.paid || !Number.isFinite(value) || value <= 0) return false;
-    const payments = sale.payments ?? (sale.paid ? [{ value: sale.total, date: sale.paidAt ?? sale.date }] : []);
-    const alreadyPaid = payments.reduce((sum, p) => sum + p.value, 0);
-    const remaining = Math.max(0, sale.total - alreadyPaid);
-    const amount = Math.min(remaining, Math.round(value * 100) / 100);
+    const amount = Math.min(Math.max(0, sale.total - (sale.payments ?? []).reduce((sum, p) => sum + p.value, 0)), Math.round(value * 100) / 100);
     if (amount <= 0) return false;
-    const nextPayments = [...payments, { value: amount, date: new Date().toISOString() }];
-    const paidTotal = nextPayments.reduce((sum, p) => sum + p.value, 0);
-    const isPaid = paidTotal >= sale.total - 0.005;
-    const costTotal = sale.items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
-    const profit = isPaid ? sale.total - costTotal : 0;
-    set({ sales: state.sales.map((s) => s.id === id ? { ...s, payments: nextPayments, paid: isPaid, paidAt: isPaid ? new Date().toISOString() : undefined, profit } : s) });
-    return true;
+    const paidBefore = (sale.payments ?? []).reduce((sum, payment) => sum + payment.value, 0);
+    const idempotencyKey = crypto.randomUUID();
+    try {
+      const result = await callMobFlowApi("/api/mobflow/receivables", {
+        method: "POST",
+        body: JSON.stringify({ saleId: id, amount, paymentMethod: method, idempotencyKey }),
+      });
+      if (!result.response.ok || result.body.ok !== true) {
+        throw new Error(String(result.body.error ?? "O recebimento não foi confirmado pelo Neon."));
+      }
+      await hydrateStore();
+      return true;
+    } catch (error) {
+      // If the connection drops after Neon commits, reconcile before allowing a retry.
+      await hydrateStore().catch(() => undefined);
+      const refreshed = state.sales.find((item) => item.id === id && item.payment === "Fiado");
+      const paidAfter = (refreshed?.payments ?? []).reduce((sum, payment) => sum + payment.value, 0);
+      if (paidAfter >= paidBefore + amount - 0.005) return true;
+      throw error;
+    }
   },
   hideFiadoCustomer(customer: string) {
     const normalized = customer.trim().toLocaleLowerCase();
@@ -701,44 +1155,95 @@ export const actions = {
     set({ sales: state.sales.map((s) => matching.some((item) => item.id === s.id) ? { ...s, hiddenFromFiado: true } : s) });
     return true;
   },
-  markFiadoPaid(id: string) {
+  async markFiadoPaid(id: string) {
     const sale = state.sales.find((s) => s.id === id && s.payment === "Fiado");
     if (!sale || sale.paid) return;
-    actions.addFiadoPayment(id, sale.total);
+    await actions.addFiadoPayment(id, sale.total);
   },
-  updateSettings(settings: AppSettings) { set({ settings }); },
-  savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
+  async updateSettings(settings: AppSettings) {
+    // Company settings are stored through the private-data endpoint. Do not enqueue
+    // a whole-state PUT here: that snapshot intentionally contains only companyName
+    // and would otherwise overwrite the private settings we just saved.
+    const saved = await savePrivateRecord("settings", undefined, settings as unknown as Record<string, unknown>);
+    set({ settings: { ...settings, ...(saved && typeof saved === "object" ? saved as AppSettings : {}) } }, { persist: false });
+  },
+  async loadPromotions() {
+    const result = await callMobFlowApi("/api/mobflow/promotions");
+    if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao carregar promoções do Neon."));
+    // A manual refresh of the promotions projection must not enqueue a full
+    // app_state snapshot PUT. The relational catalog is authoritative and the
+    // snapshot intentionally omits products; persisting it here can wake a
+    // reconciliation cycle with an incomplete catalog snapshot.
+    set({ promotions: Array.isArray(result.body.promotions) ? result.body.promotions as Promotion[] : [] }, { persist: false });
+    return Array.isArray(result.body.events) ? result.body.events as PromotionEvent[] : [];
+  },
+  async savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
     const product = state.products.find((p) => p.id === promotion.productId);
     if (!product || !Number.isFinite(promotion.promoPrice) || promotion.promoPrice < 0 || !promotion.startsAt || !promotion.endsAt || new Date(promotion.endsAt) <= new Date(promotion.startsAt)) return false;
-    const item: Promotion = { ...promotion, id: promotion.id ?? uid(), productName: product.name, originalPrice: product.price };
-    set({ promotions: promotion.id ? state.promotions.map((p) => p.id === promotion.id ? item : p) : [item, ...state.promotions] });
+    const existing = promotion.id ? state.promotions.find((p) => p.id === promotion.id) : undefined;
+    const method = promotion.id ? "PATCH" : "POST";
+    const payload = { id: promotion.id, productId: promotion.productId, promoPrice: promotion.promoPrice, startsAt: promotion.startsAt, endsAt: promotion.endsAt, ...(existing ? { expectedVersion: existing.version ?? 1 } : {}) };
+    const result = await callMobFlowApi("/api/mobflow/promotions", { method, body: JSON.stringify(payload) });
+    if (!result.response.ok || result.body.ok !== true || !result.body.promotion) throw new Error(String(result.body.error ?? "Falha ao salvar promoção no Neon."));
+    const item = result.body.promotion as Promotion;
+    set({ promotions: item.id === existing?.id ? state.promotions.map((p) => p.id === item.id ? item : p) : [item, ...state.promotions] });
     return true;
   },
-  deletePromotion(id: string) { set({ promotions: state.promotions.filter((p) => p.id !== id) }); },
-  resetAppData() {
-    // Zera os dados operacionais e a identidade da empresa, preservando o login.
+  async deletePromotion(id: string) {
+    const existing = state.promotions.find((p) => p.id === id);
+    if (!existing) throw new Error("Promoção não encontrada na lista atual.");
+    const result = await callMobFlowApi("/api/mobflow/promotions", { method: "DELETE", body: JSON.stringify({ id, expectedVersion: existing.version ?? 1 }) });
+    if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir promoção no Neon."));
+    set({ promotions: state.promotions.filter((p) => p.id !== id) });
+  },
+  async resetAppData() {
+    // Descarta também comandos offline antigos para que vendas/movimentos não reapareçam após a limpeza.
+    if (cloudAccountId) {
+      await persistQueue.catch(() => undefined);
+      await syncOutbox.clearTenant(cloudAccountId);
+      writeOutboxBackup(readOutboxBackup().filter((command) => command.tenantId !== cloudAccountId));
+    }
     set({
+      contacts: [],
       products: [],
       cart: [],
       sales: [],
+      stockMovements: [],
+      cashSessions: [],
+      cashMovements: [],
       conferences: [],
       receiving: [],
       manualExpiries: [],
       stockAdjustments: [],
       stockWriteoffs: [],
       stockTransfers: [],
-      stockMovements: [],
       promotions: [],
       suppliers: [],
       settings: { companyName: "" },
     });
   },
+  async refreshCatalog() {
+    const products = await readPreviewNeonCatalog(state.products ?? [], "full");
+    set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
+    return products.length;
+  },
+  applyCatalogProduct(product: Product) {
+    const existing = state.products.some((item) => item.id === product.id);
+    // The relational catalog API already committed this product and its sync event.
+    // Do not race that transaction with a stale whole-app-state PUT.
+    set({ products: existing
+      ? state.products.map((item) => item.id === product.id ? { ...item, ...product } : item)
+      : [product, ...state.products] }, { persist: false });
+  },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
-    if (p.id) {
+    if (p.id && state.products.some((x) => x.id === p.id)) {
       const old = state.products.find((x) => x.id === p.id);
       const updated = { ...old, ...p, id: p.id } as Product;
       const movements = old && old.stock !== updated.stock ? [movementEntry({ operationId: `manual:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: old.id, productCode: old.code, productName: old.name, unit: old.unit, quantity: Math.abs(updated.stock - old.stock), totalValue: Math.round(Math.abs(updated.stock - old.stock) * updated.price * 100) / 100, stockBefore: old.stock, stockAfter: updated.stock, delta: updated.stock - old.stock, details: "Alteração manual do cadastro" })] : [];
       set({ products: state.products.map((x) => (x.id === p.id ? updated : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] });
+    } else if (p.id) {
+      const product = { ...p, id: p.id } as Product;
+      set({ products: [product, ...state.products] });
     } else {
       const id = uid();
       const product = { ...p, id } as Product;
@@ -804,11 +1309,19 @@ export const actions = {
       const changed = items.find((item) => item.productId === product.id);
       return changed ? { ...product, stock: changed.newStock } : product;
     });
-    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: /balanço/i.test(reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
-    set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
+    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: "Balanço", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
+    const queued = enqueueDomainCommand("stock", {
+      operationId: id, operationType: "adjustment", reason,
+      items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
+    });
+    if (!queued || incrementalSyncEnabled()) {
+      set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    }
+    // With incremental sync disabled, enqueueDomainCommand commits through Neon and
+    // hydrateStore refreshes the authoritative state before confirmLastDomainCommand resolves.
     return id;
   },
-  applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
+  applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     const reason = input.reason;
     if (!input.items.length || (reason === "Doação" && !input.donationDestination?.trim())) return false;
     const prepared = input.items.map((item) => {
@@ -837,19 +1350,62 @@ export const actions = {
       return item ? { ...p, stock: item.newStock } : p;
     });
     const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · ${reason}` }));
-    set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
+    const queued = enqueueDomainCommand("stock", {
+      operationId: entry.id, operationType: "writeoff", reason, costMode: input.costMode, donationDestination: entry.donationDestination,
+      number: entry.number, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    });
+    if (!queued || incrementalSyncEnabled()) {
+      set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    }
+    // With incremental sync disabled, wait for the transactional Neon response and
+    // the subsequent hydration before exposing the new stock balance locally.
     return entry;
   },
-  applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
+  async applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     if (!input.destinationName.trim() || !input.items.length) return false;
-    const prepared = input.items.map((item) => { const p = state.products.find((x) => x.id === item.productId); if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null; const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity; const purchase = Math.max(0, p.cost ?? 0); const sale = Math.max(0, p.price ?? 0); const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2; return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 }; });
-    if (prepared.some((x) => x === null)) return false; const items = prepared as StockWriteoffItem[]; const existing = state.stockTransfers ?? [];
-    const previousNumbers = existing.map((transfer) => String(transfer.number).match(/^NF:\s*(\d+)$/)).filter((match): match is RegExpMatchArray => Boolean(match)).map((match) => Number(match[1])).filter((number) => Number.isFinite(number));
-    const sequence = previousNumbers.length ? Math.max(...previousNumbers) + 1 : 10;
-    const entry: StockTransfer = { id: uid(), number: `NF:${String(sequence).padStart(4, "0")}`, date: new Date().toISOString(), reason: "Transferência de produtos, Vendas", destinationName: input.destinationName.trim(), destinationDocument: input.destinationDocument?.trim() || undefined, destinationPhone: input.destinationPhone?.trim() || undefined, destinationStreet: input.destinationStreet?.trim() || undefined, destinationNumber: input.destinationNumber?.trim() || undefined, destinationCep: input.destinationCep?.trim() || undefined, destinationNeighborhood: input.destinationNeighborhood?.trim() || undefined, destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined, costMode: input.costMode, operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined, items };
-    const products = state.products.map((p) => { const item = items.find((x) => x.productId === p.id); return item ? { ...p, stock: item.newStock } : p; });
-    const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Transferência", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · Destino: ${entry.destinationName}` }));
-    set({ products, stockTransfers: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }); return entry;
+    const prepared = input.items.map((item) => {
+      const p = state.products.find((x) => x.id === item.productId);
+      if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null;
+      const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
+      const purchase = Math.max(0, p.cost ?? 0), sale = Math.max(0, p.price ?? 0);
+      const unitCost = input.costMode === "compra" ? purchase : input.costMode === "venda" ? sale : (purchase + sale) / 2;
+      return { productId: p.id, code: p.code, ref: p.ref, name: p.name, unit: p.unit, quantity, previousStock: p.stock, newStock: Math.round((p.stock - quantity) * 1000) / 1000, costMode: input.costMode, unitCost, totalCost: Math.round(unitCost * quantity * 100) / 100 };
+    });
+    if (prepared.some((item) => item === null)) return false;
+    const items = prepared as StockWriteoffItem[];
+    const sequence = (state.stockTransfers ?? []).length + 10;
+    const entry: StockTransfer = {
+      id: uid(), number: "NF:" + String(sequence).padStart(4, "0"), date: new Date().toISOString(),
+      reason: "Transferência de produtos, Vendas", destinationName: input.destinationName.trim(),
+      destinationDocument: input.destinationDocument?.trim() || undefined, destinationPhone: input.destinationPhone?.trim() || undefined,
+      destinationStreet: input.destinationStreet?.trim() || undefined, destinationNumber: input.destinationNumber?.trim() || undefined,
+      destinationCep: input.destinationCep?.trim() || undefined, destinationNeighborhood: input.destinationNeighborhood?.trim() || undefined,
+      destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined,
+      costMode: input.costMode, operator: currentOperator(), items,
+    };
+    try {
+      const result = await callMobFlowApi("/api/mobflow/stock", {
+        method: "POST",
+        body: JSON.stringify({
+          operationId: entry.id, idempotencyKey: crypto.randomUUID(), operationType: "transfer",
+          reason: entry.reason, number: entry.number, costMode: input.costMode, destinationName: entry.destinationName,
+          destinationDocument: entry.destinationDocument, destinationPhone: entry.destinationPhone,
+          destinationStreet: entry.destinationStreet, destinationNumber: entry.destinationNumber, destinationCep: entry.destinationCep,
+          destinationNeighborhood: entry.destinationNeighborhood, destinationCity: entry.destinationCity, destinationState: entry.destinationState,
+          items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        }),
+      });
+      if (!result.response.ok || result.body.ok !== true) { console.error("[MobFlow Transfer]", result.body.error ?? result.response.status); return false; }
+      await hydrateStore();
+      return entry;
+      } catch (error) {
+      // The server may commit and the response may be lost. Reload the relational
+      // snapshot before telling the operator to retry, otherwise stock could be deducted twice.
+      await hydrateStore().catch(() => undefined);
+      if ((state.stockTransfers ?? []).some((item) => item.id === entry.id)) return entry;
+      console.error("[MobFlow Transfer]", error);
+      return false;
+    }
   },
   attachStockTransferDocument(id: string, document: unknown) { if (!(state.stockTransfers ?? []).some((item) => item.id === id)) return false; set({ stockTransfers: (state.stockTransfers ?? []).map((item) => item.id === id ? { ...item, document } : item) }); return true; },
   attachStockWriteoffDocument(id: string, document: unknown) {
@@ -857,7 +1413,15 @@ export const actions = {
     set({ stockWriteoffs: (state.stockWriteoffs ?? []).map((item) => item.id === id ? { ...item, document } : item) });
     return true;
   },
-  deleteProduct(id: string) { set({ products: state.products.filter((x) => x.id !== id), cart: state.cart.filter((c) => c.productId !== id) }); },
+  deleteProduct(id: string) {
+    const neonCatalog = import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon";
+    // In Neon mode the archive/delete event was already committed by DELETE /products.
+    // Avoid a second, stale app_state write that can produce a harmless CAS 409.
+    set(
+      { products: state.products.filter((x) => x.id !== id), cart: state.cart.filter((c) => c.productId !== id) },
+      { persist: !neonCatalog },
+    );
+  },
   newConference(name: string): string {
     const c: Conference = { id: uid(), name: name || `Conferência ${new Date().toLocaleDateString("pt-BR")}`, date: new Date().toISOString(), status: "aberta", counts: {}, unknown: [] };
     set({ conferences: [c, ...(state.conferences ?? [])] });
@@ -917,7 +1481,7 @@ export const actions = {
     set({ manualExpiries: (state.manualExpiries ?? []).filter((e) => e.id !== noteId) });
     return true;
   },
-  createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
+  async createReceiving(number: string, supplier: string, supplierCnpj: string | undefined, items: { productId: string; expected: number }[]) {
     const receiving: ReceivingNote = {
       id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado", supplierCnpj: supplierCnpj?.trim() || undefined,
       date: new Date().toISOString(),
@@ -928,12 +1492,14 @@ export const actions = {
       status: "pendente",
     };
     set({ receiving: [receiving, ...(state.receiving ?? [])], suppliers: supplier.trim() ? (() => { const name = supplier.trim(); const cnpj = supplierCnpj?.trim() || undefined; const existing = (state.suppliers ?? []).find(s => s.name.toLowerCase() === name.toLowerCase()); return existing ? (state.suppliers ?? []).map(s => s.name.toLowerCase() === name.toLowerCase() ? { ...s, name, cnpj: cnpj || s.cnpj } : s) : [{ name, cnpj }, ...(state.suppliers ?? [])]; })() : (state.suppliers ?? []) });
+    await persistReceivingRecord(receiving);
     return receiving.id;
   },
-  updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, ...patch } : n) });
+  async updateReceiving(id: string, patch: Partial<Pick<ReceivingNote, "number" | "supplier">>) {
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, ...patch } : n); set({ receiving: updated });
+    const note = updated.find((n) => n.id === id); if (note) await persistReceivingRecord(note);
   },
-  addReceivingItems(id: string, items: { productId: string; expected: number }[]) {
+  async addReceivingItems(id: string, items: { productId: string; expected: number }[]) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || note.status !== "pendente") return;
     const additions = items
@@ -952,7 +1518,8 @@ export const actions = {
       if (existing) existing.expected += item.expected;
       else merged.push(item);
     }
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, items: merged } : n) });
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, items: merged } : n); set({ receiving: updated });
+    const saved = updated.find((n) => n.id === id); if (saved) await persistReceivingRecord(saved);
   },
   startReceivingConference(receivingId: string) {
     const n = (state.receiving ?? []).find((x) => x.id === receivingId);
@@ -964,6 +1531,7 @@ export const actions = {
       status: "aberta", counts: {}, unknown: [], extraCounts: {}, extraExpiries: {}, receivingId,
     };
     set({ conferences: [c, ...(state.conferences ?? [])] });
+    void persistReceivingConference(c).catch((error)=>console.error("[MobFlow Receiving]",error));
     return c.id;
   },
   saveReceivingConferenceDraft(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
@@ -977,12 +1545,14 @@ export const actions = {
       };
       set({ conferences: [conference, ...(state.conferences ?? [])] });
     }
-    set({ conferences: state.conferences.map((c) => c.id === conference!.id ? {
-      ...c, counts: { ...counts }, expiries: { ...expiries },
-      extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries },
-    } : c) });
+    const updatedConference = { ...conference, counts: { ...counts }, expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries } };
+    set({ conferences: state.conferences.map((c) => c.id === conference!.id ? updatedConference : c) });
+    if (receivingDraftPersistTimer) clearTimeout(receivingDraftPersistTimer);
+    receivingDraftPersistTimer = setTimeout(() => { void persistReceivingConference(updatedConference).catch((error)=>console.error("[MobFlow Receiving draft]",error)); }, 500);
   },
-  saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
+  async saveReceivingConference(receivingId: string, counts: Record<string, number>, expiries: Record<string, string>, extraCounts: Record<string, number>, extraExpiries: Record<string, string>) {
+    if (receivingDraftPersistTimer) clearTimeout(receivingDraftPersistTimer);
+    receivingDraftPersistTimer = null;
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);
     if (!note || note.status !== "pendente") return false;
     const extras = Object.entries(extraCounts).filter(([, received]) => received > 0).map(([productId, received]) => {
@@ -995,24 +1565,28 @@ export const actions = {
       expiries: { ...expiries }, extraCounts: { ...extraCounts }, extraExpiries: { ...extraExpiries },
     };
     const divergent = extras.length > 0 || note.items.some((i) => (counts[i.productId] ?? 0) !== i.expected);
+    const updatedReceiving = (state.receiving ?? []).map((n) => n.id === note.id ? {
+      ...n,
+      items: n.items.map((i) => ({ ...i, received: counts[i.productId] ?? 0, expiry: expiries[i.productId] || undefined })),
+      extras, status: "analisando" as const, decisions: {}, decisionCompleted: false, stockReleased: false,
+    } : n);
     set({
-      receiving: (state.receiving ?? []).map((n) => n.id === note.id ? {
-        ...n,
-        items: n.items.map((i) => ({ ...i, received: counts[i.productId] ?? 0, expiry: expiries[i.productId] || undefined })),
-        extras,
-        status: "analisando",
-        decisions: {},
-        decisionCompleted: false,
-        stockReleased: false,
-      } : n),
+      receiving: updatedReceiving,
       conferences: [conference, ...(state.conferences ?? []).filter((item) => item.receivingId !== receivingId || item.status !== "aberta")],
     });
+    const saved = updatedReceiving.find((n) => n.id === note.id); if (saved) await persistReceivingRecord(saved);
+    await persistReceivingConference(conference);
     return true;
   },
   async acceptReceiving(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || (note.status !== "analisando" && note.status !== "divergente" && note.status !== "conferido") || note.stockReleased || !note.decisionCompleted) return false;
-    const { data, error } = await supabase.rpc("accept_receiving", { p_receiving_id: id });
+    const result = await callMobFlowApi("/api/mobflow/receiving", {
+      method: "POST",
+      body: JSON.stringify({ action: "accept", receivingId: id }),
+    });
+    const data = result.body.data;
+    const error = result.response.ok ? null : result.body.error;
     if (error || data !== true) {
       await hydrateStore();
       return false;
@@ -1023,21 +1597,39 @@ export const actions = {
     await hydrateStore();
     return true;
   },
-  finishReceivingAction(id: string) {
+  async finishReceivingAction(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || !note.stockReleased || !Object.values(note.decisions ?? {}).includes("devolver")) return false;
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n) });
+    if (note.actionCompleted) return true;
+
+    // Persist only the acknowledgement. The generic receiving save endpoint
+    // intentionally rejects already released notes and must never be used here.
+    const result = await callMobFlowApi("/api/mobflow/receiving", {
+      method: "POST",
+      body: JSON.stringify({ action: "complete_action", receivingId: id }),
+    });
+    if (!result.response.ok || result.body.data !== true) {
+      await hydrateStore();
+      return false;
+    }
+
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n);
+    state = { ...state, receiving: updated };
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    listeners.forEach((listener) => listener());
+    void hydrateStore();
     return true;
   },
-  setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n) });
+  async setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n); set({ receiving: updated });
+    const note = updated.find((n) => n.id === id); if (note) await persistReceivingRecord(note);
   },
   async completeReceivingDecision(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
     if (!note || note.status !== "analisando" || note.stockReleased) return false;
     const keys = [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)];
     const decisions = note.decisions ?? {};
-    if (!keys.length || keys.some(key => !["aceitar", "devolver"].includes(decisions[key]))) return false;
+    if (!keys.length || keys.some(key => !["aceitar", "devolver"].includes(decisions[key] ?? ""))) return false;
 
     // Send the current decisions directly. The database validates them and
     // releases accepted quantities in one transaction, avoiding a race where
@@ -1046,10 +1638,16 @@ export const actions = {
     // before the database validates and releases stock.
     await persistQueue;
     const rpcResult = await Promise.race([
-      supabase.rpc("finalize_receiving_decisions", {
-        p_receiving_id: id,
-        p_decisions: decisions,
-      }).then(({ data, error }) => ({ data, error })),
+      (async () => {
+        const result = await callMobFlowApi("/api/mobflow/receiving", {
+          method: "POST",
+          body: JSON.stringify({ action: "finalize_decisions", receivingId: id, decisions }),
+        });
+        return {
+          data: result.body.data,
+          error: result.response.ok ? null : { message: String(result.body.error || "Falha ao finalizar o recebimento.") },
+        };
+      })(),
       new Promise<{ data: null; error: { message: string } }>((resolve) =>
         setTimeout(() => resolve({ data: null, error: { message: "Tempo limite ao atualizar o estoque." } }), 20000)
       ),
@@ -1070,15 +1668,17 @@ export const actions = {
         ? { ...n, decisions, decisionCompleted: true, status: "aceito", stockReleased: true }
         : n),
     };
-    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
     listeners.forEach((l) => l());
     void hydrateStore();
     return true;
   },
-  rejectReceiving(id: string) {
-    set({ receiving: (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "rejeitado", stockReleased: false } : n) });
+  async rejectReceiving(id: string) {
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, status: "rejeitado" as const, stockReleased: false } : n); set({ receiving: updated });
+    const note = updated.find((n) => n.id === id); if (note) void persistReceivingRecord(note).catch((error)=>console.error("[MobFlow Receiving]",error));
   },
-  deleteReceiving(id: string) {
+  async deleteReceiving(id: string) {
+    await deleteReceivingRecord(id);
     set({ receiving: (state.receiving ?? []).filter((n) => n.id !== id), conferences: state.conferences.filter((c) => c.receivingId !== id) });
   },
 };
@@ -1130,7 +1730,7 @@ export function printReceipt(s: Sale, companyName = "") {
   let receiptCompanyName = companyName.trim() || state.settings?.companyName?.trim() || "";
   if (!receiptCompanyName && typeof window !== "undefined") {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(activeStateKey);
       if (raw) receiptCompanyName = JSON.parse(raw)?.settings?.companyName?.trim() || "";
     } catch {}
   }

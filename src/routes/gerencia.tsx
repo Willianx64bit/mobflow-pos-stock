@@ -3,9 +3,20 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { verifyManagerPassword } from "@/lib/manager-auth";
 import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent, Scale, Workflow } from "lucide-react";
+
+const postBetterAuth = async (path: string, body: Record<string, unknown>) => {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  return { data, error: response.ok ? null : true };
+};
 
 const managementTabs = [
   { to: "/promocoes", label: "Promoções", icon: "promotions" },
@@ -48,6 +59,7 @@ function Gerencia() {
   const [password, setPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [managerPasswordLockoutRemaining, setManagerPasswordLockoutRemaining] = useState(0);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoveryCnpj, setRecoveryCnpj] = useState("");
@@ -66,6 +78,16 @@ function Gerencia() {
     return () => window.removeEventListener("mobflow-management-changed", syncLock);
   }, []);
 
+  useEffect(() => {
+    if (managerPasswordLockoutRemaining <= 0) return;
+    const interval = window.setInterval(() => {
+      setManagerPasswordLockoutRemaining((seconds) => seconds <= 1 ? 0 : seconds - 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [managerPasswordLockoutRemaining > 0]);
+
+  const formatManagerLockout = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
   const lockManagement = () => {
     sessionStorage.removeItem("mobflow-management");
     setUnlocked(false);
@@ -83,9 +105,8 @@ function Gerencia() {
     }
     setRecoveryLoading(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-manager-password-recovery", {
-        body: { action: "request", email, cnpj },
-      });
+      const recoveryResult = await postBetterAuth("/api/mobflow/manager-password-recovery", { action: "request", email, cnpj });
+      const { data, error: invokeError } = recoveryResult;
       if (invokeError || !data?.ok) {
         setRecoveryMessage(String(data?.error ?? "Não foi possível processar a solicitação agora. Tente novamente mais tarde."));
       } else {
@@ -139,7 +160,7 @@ function Gerencia() {
     }));
     const parseExpiry = (value: string) => {
       const parts = value.includes("-") ? value.split("-").map(Number) : value.split("/").map(Number);
-      const [year, month, day] = value.includes("-") ? parts : [parts[2], parts[1], parts[0]];
+      const [year = 0, month = 0, day = 0] = value.includes("-") ? parts : [parts[2], parts[1], parts[0]];
       return new Date(year, month - 1, day).getTime();
     };
     const today = new Date();
@@ -160,21 +181,26 @@ function Gerencia() {
     let active = true;
     const checkManager = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (!sessionData.session) {
+        let hasSession = false;
+        const sessionResponse = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+        const sessionBody = await sessionResponse.json().catch(() => ({}));
+        hasSession = sessionResponse.ok && sessionBody?.ok === true;
+        if (!hasSession) {
           if (active) {
             setAccessIssue("Sua sessão não está ativa. Entre novamente com a conta da empresa para acessar a Gerência.");
             setCheckingManager(false);
           }
           return;
         }
-        const { data: securityStatus, error: securityStatusError } = await supabase.functions.invoke("mobflow-reauth-manager", { body: { action: "status" } });
+        const statusResult = await postBetterAuth("/api/mobflow/reauth-manager", { action: "status" });
+        const { data: securityStatus, error: securityStatusError } = statusResult;
         if (securityStatusError || typeof securityStatus?.configured !== "boolean" || !["manager", "pdv"].includes(securityStatus?.role)) {
           throw new Error("Não foi possível verificar a permissão da Gerência.");
         }
         let needsFirstUser = false;
         if (securityStatus.role === "manager" && securityStatus.configured) {
-          const { data: usersData, error: usersError } = await supabase.functions.invoke("mobflow-users", { body: { action: "list" } });
+          const usersResult = await postBetterAuth("/api/mobflow/users", { action: "list" });
+          const { data: usersData, error: usersError } = usersResult;
           if (usersError || !Array.isArray(usersData?.users)) throw new Error("Não foi possível verificar o primeiro usuário.");
           needsFirstUser = usersData.users.length === 0;
         }
@@ -207,9 +233,8 @@ function Gerencia() {
     }
     setPasswordLoading(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-reauth-manager", {
-        body: { action: "set_password", password: setupPassword },
-      });
+      const setResult = await postBetterAuth("/api/mobflow/reauth-manager", { action: "set_password", password: setupPassword });
+      const { data, error: invokeError } = setResult;
       if (invokeError || !data?.ok) {
         setSetupPasswordError(data?.error || "Não foi possível salvar a senha. Tente novamente.");
         return;
@@ -230,6 +255,7 @@ function Gerencia() {
   };
 
   const confirmManagerPassword = async () => {
+    if (managerPasswordLockoutRemaining > 0) return;
     setPasswordError("");
     if (password.length < 6) {
       setPasswordError("Informe a senha da gerência.");
@@ -239,15 +265,18 @@ function Gerencia() {
     const result = await verifyManagerPassword(password);
     setPasswordLoading(false);
     if (!result.ok) {
+      if (result.retryAfterSeconds) setManagerPasswordLockoutRemaining(result.retryAfterSeconds);
       setPasswordError(result.error || "Senha da gerência incorreta.");
       return;
     }
+    setManagerPasswordLockoutRemaining(0);
     sessionStorage.setItem("mobflow-management", "1");
     setUnlocked(true);
     setPassword("");
   };
 
   const confirmPromotionPassword = async () => {
+    if (managerPasswordLockoutRemaining > 0) return;
     setPasswordError("");
     if (password.length < 6) {
       setPasswordError("Informe a senha da gerência.");
@@ -257,9 +286,11 @@ function Gerencia() {
     const result = await verifyManagerPassword(password);
     setPasswordLoading(false);
     if (!result.ok) {
+      if (result.retryAfterSeconds) setManagerPasswordLockoutRemaining(result.retryAfterSeconds);
       setPasswordError(result.error || "Senha da gerência incorreta.");
       return;
     }
+    setManagerPasswordLockoutRemaining(0);
     setPassword("");
     setPasswordError("");
     setPromotionPasswordOpen(false);
@@ -284,7 +315,7 @@ function Gerencia() {
             <div className="mt-6 grid gap-2">
               <button type="button" onClick={() => navigate({ to: "/" })} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground ring-1 ring-border">Voltar ao PDV</button>
               <button type="button" onClick={async () => {
-                await supabase.auth.signOut();
+                await mobflowAuthClient.signOut().catch(() => undefined);
                 localStorage.removeItem("mobflow-authenticated");
                 sessionStorage.removeItem("mobflow-role");
                 sessionStorage.removeItem("mobflow-username");
@@ -342,18 +373,18 @@ function Gerencia() {
     }
     setFirstUserLoading(true);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke("mobflow-users", {
-        body: {
-          action: "create",
-          username,
-          displayName: firstDisplayName.trim() || username,
-          password: firstPassword,
-          permissions: ["PDV", "Operações", "Validade", "Fiado", "Gerência"],
-        },
-      });
+      const createBody = {
+        action: "create",
+        username,
+        displayName: firstDisplayName.trim() || username,
+        password: firstPassword,
+        permissions: ["PDV", "Operações", "Validade", "Fiado", "Gerência"],
+      };
+      const createResult = await postBetterAuth("/api/mobflow/users", createBody);
+      const { data, error: invokeError } = createResult;
       if (invokeError || !data?.ok) {
         let message = data?.error || "";
-        try { message = message || String((await (invokeError as { context?: Response })?.context?.json())?.error || ""); } catch {}
+        message = message || (invokeError ? "Não foi possível cadastrar o primeiro usuário." : "");
         setFirstUserError(message || "Não foi possível cadastrar o primeiro usuário. Tente novamente.");
         return;
       }
@@ -423,7 +454,8 @@ function Gerencia() {
                   autoFocus
                 />
                 {passwordError && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{passwordError}</div>}
-                <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
+                {managerPasswordLockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {formatManagerLockout(managerPasswordLockoutRemaining)}.</p>}
+                <button type="button" onClick={() => void confirmManagerPassword()} disabled={passwordLoading || managerPasswordLockoutRemaining > 0} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground disabled:opacity-50">
                   {passwordLoading ? "Validando..." : "Confirmar senha"}
                 </button>
                 <button type="button" onClick={() => { setRecoveryMessage(""); setRecoveryOpen(true); }} className="w-full py-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">
@@ -492,7 +524,7 @@ function Gerencia() {
                 navigate({ to: tab.to });
               }
             }} className="group flex min-h-36 flex-col items-center justify-center rounded-2xl bg-white p-6 text-center shadow-sm ring-1 ring-border transition-all duration-200 ease-out hover:-translate-y-2 hover:shadow-lg hover:ring-primary/60 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:translate-y-0 sm:min-h-40">
-              <div className="relative mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">{tab.icon === "settings" ? <Settings className="h-7 w-7" /> : tab.icon === "stock" ? <Package className="h-7 w-7" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-7 w-7" /> : tab.icon === "receiving" ? <Truck className="h-7 w-7" /> : tab.icon === "promotions" ? <Percent className="h-7 w-7" /> : tab.icon === "balance" ? <Scale className="h-7 w-7" /> : tab.icon === "operations" ? <Workflow className="h-7 w-7" /> : null}</div><div className="relative text-base font-extrabold text-heading">{tab.label}{tab.icon === "receiving" && hasPendingReceivingAction && <span className="ml-2 inline-flex -translate-y-0.5 rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">PENDENTE</span>}</div>
+              <div className="relative mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">{tab.icon === "settings" ? <Settings className="h-7 w-7" /> : tab.icon === "stock" ? <Package className="h-7 w-7" /> : tab.icon === "sales" ? <ChartNoAxesCombined className="h-7 w-7" /> : tab.icon === "receiving" ? <Truck className="h-7 w-7" /> : tab.icon === "promotions" ? <Percent className="h-7 w-7" /> : tab.icon === "operations" ? <Workflow className="h-7 w-7" /> : null}</div><div className="relative text-base font-extrabold text-heading">{tab.label}{tab.icon === "receiving" && hasPendingReceivingAction && <span className="ml-2 inline-flex -translate-y-0.5 rounded-md bg-amber-300 px-2 py-1 text-[10px] font-extrabold leading-tight text-amber-950 shadow-sm">PENDENTE</span>}</div>
             </button>
           ))}
         </div>
@@ -536,7 +568,8 @@ function Gerencia() {
             <form className="mt-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void confirmPromotionPassword(); }}>
               <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setPasswordError(""); }} placeholder="Senha da gerência" autoComplete="current-password" autoFocus className="field w-full text-foreground" />
               {passwordError && <div className="rounded-lg bg-destructive/10 p-3 text-center text-sm text-destructive">{passwordError}</div>}
-              <button type="submit" disabled={passwordLoading} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Validando..." : "Confirmar e abrir Promoções"}</button>
+              {managerPasswordLockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {formatManagerLockout(managerPasswordLockoutRemaining)}.</p>}
+              <button type="submit" disabled={passwordLoading || managerPasswordLockoutRemaining > 0} className="w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-50">{passwordLoading ? "Validando..." : "Confirmar e abrir Promoções"}</button>
               <button type="button" onClick={() => { setPromotionPasswordOpen(false); setPassword(""); setPasswordError(""); }} className="w-full rounded-xl bg-secondary py-3 font-semibold text-secondary-foreground">Cancelar</button>
             </form>
           </div>
