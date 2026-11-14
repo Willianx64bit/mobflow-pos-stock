@@ -2,6 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { getNeonPool } from "@/lib/server/neon";
+import {
+  checkLoginSecurity,
+  recordLoginFailure,
+  recordLoginSuccess,
+  verifyCompanyLoginCaptcha,
+} from "@/lib/server/auth-security";
 
 const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerência"];
 const PDV_PERMISSIONS = ["PDV", "Conferência"];
@@ -23,6 +29,7 @@ export async function handleMobFlowLogin(request: Request) {
   const username = String(input["username"] ?? "").trim().toUpperCase();
   const password = String(input["password"] ?? "");
   const cnpj = String(input["cnpj"] ?? "").replace(/\D/g, "");
+  const captchaToken = String(input["captchaToken"] ?? "");
   const expectedRole = input["expectedRole"] === "pdv" || (!input["expectedRole"] && !cnpj) ? "pdv" : "manager";
   if (!username || password.length < 6) {
     return Response.json({ ok: false, error: "Usuário ou senha inválido." }, { status: 400 });
@@ -33,9 +40,18 @@ export async function handleMobFlowLogin(request: Request) {
   try {
     await client.query("BEGIN");
     open = true;
-    // Run authentication queries under the explicitly scoped application role.
-    // The pool connection may use a provisioning/admin database role that cannot execute auth helpers.
     await client.query("SET LOCAL ROLE mobflow_api");
+
+    const security = await checkLoginSecurity(client, request, username);
+    if (security.blockedUntil) {
+      throw new LoginError("Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos.", 429);
+    }
+    if (expectedRole === "manager" && security.captchaRequired) {
+      if (!captchaToken || !(await verifyCompanyLoginCaptcha(request, captchaToken))) {
+        throw new LoginError("Confirme a verificação de segurança para continuar.", 428);
+      }
+    }
+
     const found = await client.query<{
       id: string; username: string; cnpj: string; account_id: string; role: string;
       active: boolean; display_name: string | null; permissions: unknown;
@@ -48,7 +64,6 @@ export async function handleMobFlowLogin(request: Request) {
     let firstManagerLogin = false;
 
     if (profile?.account_id) {
-      // Establish the tenant/user context before querying RLS-protected tables.
       await client.query(
         `SELECT
            set_config('app.account_id', $1, true),
@@ -83,11 +98,11 @@ export async function handleMobFlowLogin(request: Request) {
       if (expectedRole === "manager" && !management) deny("Esse usuário não tem permissão de Gerência.", 403);
       if (expectedRole === "manager" && profile.cnpj !== cnpj) deny("CNPJ da empresa inválido.");
       if (expectedRole === "manager" && profile.account_id) {
-        const security = await client.query<{ first_manager_login: boolean }>(
+        const securityResult = await client.query<{ first_manager_login: boolean }>(
           "SELECT public.mobflow_is_first_manager_login($1::uuid) AS first_manager_login",
           [profile.account_id],
         );
-        firstManagerLogin = security.rows[0]?.first_manager_login === true;
+        firstManagerLogin = securityResult.rows[0]?.first_manager_login === true;
       }
       const account = await client.query<{ password: string | null }>(
         "SELECT public.mobflow_get_login_credential($1::uuid) AS password",
@@ -127,6 +142,7 @@ export async function handleMobFlowLogin(request: Request) {
       firstManagerLogin = existing.rows.length === 0;
     }
 
+    await recordLoginSuccess(client, request, username);
     await client.query("COMMIT");
     open = false;
     return Response.json({
@@ -142,7 +158,35 @@ export async function handleMobFlowLogin(request: Request) {
     });
   } catch (error) {
     if (open) await client.query("ROLLBACK").catch(() => undefined);
-    if (error instanceof LoginError) return Response.json({ ok: false, error: error.message }, { status: error.status });
+    open = false;
+    if (error instanceof LoginError) {
+      if (error.status === 401 && username) {
+        try {
+          await client.query("BEGIN");
+          await client.query("SET LOCAL ROLE mobflow_api");
+          const failure = await recordLoginFailure(client, request, username, expectedRole === "manager" ? cnpj : undefined);
+          await client.query("COMMIT");
+          if (failure.blockedUntil && failure.blockedUntil.getTime() > Date.now()) {
+            const retryAfter = Math.max(1, Math.ceil((failure.blockedUntil.getTime() - Date.now()) / 1000));
+            return Response.json(
+              { ok: false, locked: true, retryAfterSeconds: retryAfter, error: "Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos." },
+              { status: 429, headers: { "Retry-After": String(retryAfter) } },
+            );
+          }
+        } catch (securityError) {
+          await client.query("ROLLBACK").catch(() => undefined);
+          console.error("[MobFlow auth security] Could not record login failure", securityError instanceof Error ? securityError.message : "unknown");
+          return Response.json({ ok: false, error: "Não foi possível validar a segurança do acesso agora." }, { status: 503 });
+        }
+      }
+      if (error.status === 428) {
+        return Response.json({ ok: false, captchaRequired: true, error: error.message }, { status: 428 });
+      }
+      if (error.status === 429) {
+        return Response.json({ ok: false, locked: true, error: error.message }, { status: 429 });
+      }
+      return Response.json({ ok: false, error: error.message }, { status: error.status });
+    }
     console.error("[MobFlow Better Auth login]", error instanceof Error ? error.message : "unknown error");
     return Response.json({ ok: false, error: "Não foi possível entrar agora." }, { status: 500 });
   } finally {
