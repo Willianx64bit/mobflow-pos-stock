@@ -316,19 +316,25 @@ export async function recordLoginAuditEvent(
     ? input.accountId
     : null;
   const cnpj = input.cnpj && /^\d{14}$/.test(input.cnpj) ? input.cnpj : null;
+  const header = (name: string) => {
+    const value = request.headers.get(name)?.trim();
+    if (!value) return null;
+    try { return decodeURIComponent(value).slice(0, 160); } catch { return value.slice(0, 160); }
+  };
 
   await client.query(
     "INSERT INTO public.mobflow_login_audit_events " +
     "(account_id, company_cnpj, attempted_username, attempted_role, event_type, success, " +
     "http_status, ip_address, device_id, user_agent, browser, operating_system, " +
-    "location_permission, latitude, longitude, location_accuracy_m) " +
-    "VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+    "country, region, city, location_permission, latitude, longitude, location_accuracy_m) " +
+    "VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)",
     [
       accountId, cnpj, input.username.trim().slice(0, 128) || "(vazio)", input.role,
       input.eventType, input.success, input.httpStatus,
       ip === "unknown" ? null : ip, device === "unknown" ? null : device,
-      agent.userAgent, agent.browser, agent.operatingSystem, locationPermission,
-      hasCoordinates ? latitude : null, hasCoordinates ? longitude : null,
+      agent.userAgent, agent.browser, agent.operatingSystem,
+      header("x-vercel-ip-country"), header("x-vercel-ip-country-region"), header("x-vercel-ip-city"),
+      locationPermission, hasCoordinates ? latitude : null, hasCoordinates ? longitude : null,
       hasCoordinates && Number.isFinite(accuracy) && accuracy > 0 ? Math.min(accuracy, 100000) : null,
     ],
   );
