@@ -33,6 +33,8 @@ async function requestLoginLocation(): Promise<LoginLocation> {
   try {
     const permission = await navigator.permissions?.query({ name: "geolocation" });
     if (permission?.state === "denied") return { permission: "denied" };
+    // A autorização persistente do navegador dispensa repetir o aviso visual.
+    if (permission?.state === "granted") localStorage.setItem("mobflow-location-notice-accepted", "1");
   } catch {
     // A Permissions API não existe em todos os navegadores; a leitura GPS continua.
   }
@@ -60,6 +62,8 @@ async function requestLoginLocation(): Promise<LoginLocation> {
           if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude) ||
               !Number.isFinite(accuracy) || accuracy <= 0) return;
 
+          // Em navegadores sem Permissions API, a primeira posição válida confirma a autorização.
+          localStorage.setItem("mobflow-location-notice-accepted", "1");
           finish({
             permission: "granted",
             latitude: coords.latitude,
@@ -273,7 +277,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
       // Cada envio do formulário faz uma leitura nova; nunca reutiliza
       // coordenadas capturadas ao abrir a tela ou em uma tentativa anterior.
-      setShowLocationNotice(true);
+      setShowLocationNotice(
+        mode === "empresa" &&
+        localStorage.getItem("mobflow-location-notice-accepted") !== "1"
+      );
       const loginLocation = await requestLoginLocation();
 
       await mobflowAuthClient.signOut().catch(() => undefined);
