@@ -30,19 +30,74 @@ async function requestLoginLocation(): Promise<LoginLocation> {
     const permission = await navigator.permissions?.query({ name: "geolocation" });
     if (permission?.state === "denied") return { permission: "denied" };
   } catch {
-    // Alguns navegadores não expõem a Permissions API; getCurrentPosition continua válido.
+    // Alguns navegadores não expõem a Permissions API; watchPosition continua válido.
   }
+
+  // Não aceitar posição antiga/de baixa precisão (Wi-Fi/IP/rede) como se fosse GPS exato.
+  // Aguarda leituras de alta precisão e só considera coordenadas com margem <= 100 m.
   return new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve({
-        permission: "granted",
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-      }),
-      (error) => resolve({ permission: error.code === 1 ? "denied" : "unavailable" }),
-      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
-    );
+    let watchId: number | null = null;
+    let timeoutId: number | null = null;
+    let best: GeolocationPosition | null = null;
+    let previousAccurate: GeolocationPosition | null = null;
+    let accurateStableReadings = 0;
+    let settled = false;
+
+    const finish = (result: LoginLocation) => {
+      if (settled) return;
+      settled = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      resolve(result);
+    };
+
+    const toResult = (position: GeolocationPosition): LoginLocation => ({
+      permission: "granted",
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+    });
+
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const accuracy = position.coords.accuracy;
+          if (!Number.isFinite(accuracy) || accuracy <= 0) return;
+          if (!best || accuracy < best.coords.accuracy) best = position;
+
+          if (accuracy <= 100) {
+            if (previousAccurate) {
+              const toRad = (degrees: number) => degrees * Math.PI / 180;
+              const lat1 = toRad(previousAccurate.coords.latitude);
+              const lat2 = toRad(position.coords.latitude);
+              const dLat = lat2 - lat1;
+              const dLon = toRad(position.coords.longitude - previousAccurate.coords.longitude);
+              const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+              const distance = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              accurateStableReadings = distance <= 150 ? accurateStableReadings + 1 : 1;
+            } else {
+              accurateStableReadings = 1;
+            }
+            previousAccurate = position;
+            // Duas leituras próximas e com boa precisão evitam gravar uma posição inicial instável.
+            if (accurateStableReadings >= 2) finish(toResult(position));
+          }
+        },
+        (error) => {
+          if (error.code === 1) finish({ permission: "denied" });
+          // Erros temporários não encerram imediatamente: ainda pode chegar uma leitura GPS válida.
+        },
+        { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 },
+      );
+      timeoutId = window.setTimeout(() => {
+        // Se não houver precisão suficiente, não grava coordenadas enganosas.
+        if (best && best.coords.accuracy <= 100) finish(toResult(best));
+        else finish({ permission: "granted" });
+      }, 25000);
+    } catch {
+      finish({ permission: "unavailable" });
+    }
   });
 }
 
