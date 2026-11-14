@@ -6,6 +6,7 @@ import {
   checkManagerPasswordLockout,
   recordManagerPasswordFailure,
   enforcePublicRateLimit,
+  verifyCompanyLoginCaptcha,
 } from "@/lib/server/auth-security";
 
 const DEVICE_ID = "a8b9c0d1-e2f3-4a56-8b9c-0d1e2f3a4b5c";
@@ -85,6 +86,44 @@ describe("MobFlow persistent authentication security", () => {
     const serializedParams = JSON.stringify(query.mock.calls.map((call) => call[1]));
     expect(serializedParams).not.toContain(IP);
     expect(serializedParams).not.toContain("signup-create-company");
+  });
+
+  it("accepts Turnstile only when Siteverify succeeds for an allowed hostname", async () => {
+    process.env["TURNSTILE_SECRET"] = "unit-test-turnstile-secret";
+    process.env["TURNSTILE_HOSTNAMES"] = "preview.mobflow.test,mobflow-pdv-gestao.vercel.app";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      hostname: "preview.mobflow.test",
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = new Request("https://preview.mobflow.test/api/mobflow/login");
+
+    await expect(verifyCompanyLoginCaptcha(request, "turnstile-token")).resolves.toBe(true);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("rejects Turnstile when Siteverify returns another hostname", async () => {
+    process.env["TURNSTILE_SECRET"] = "unit-test-turnstile-secret";
+    process.env["TURNSTILE_HOSTNAMES"] = "preview.mobflow.test";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      hostname: "attacker.example",
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = new Request("https://preview.mobflow.test/api/mobflow/login");
+
+    await expect(verifyCompanyLoginCaptcha(request, "turnstile-token")).resolves.toBe(false);
+  });
+
+  it("does not call Siteverify for a hostname outside the allowlist", async () => {
+    process.env["TURNSTILE_SECRET"] = "unit-test-turnstile-secret";
+    process.env["TURNSTILE_HOSTNAMES"] = "preview.mobflow.test";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const request = new Request("https://untrusted.example/api/mobflow/login");
+
+    await expect(verifyCompanyLoginCaptcha(request, "turnstile-token")).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("shares the manager-password lockout by account across devices", async () => {
