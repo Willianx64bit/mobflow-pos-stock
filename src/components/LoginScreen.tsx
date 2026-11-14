@@ -585,7 +585,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <span>Salvar login</span>
           </label>
 
-          <button type="submit" disabled={loading || lockoutRemaining > 0 || (mode === "empresa" && captchaRequired && !captchaToken)} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={loading || lockoutRemaining > 0 || (captchaRequired && !captchaToken)} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
           {mode === "empresa" && !onClose && (
