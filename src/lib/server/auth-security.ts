@@ -262,3 +262,74 @@ export async function verifyCompanyLoginCaptcha(request: Request, token: string)
     return false;
   }
 }
+
+export type LoginAuditEventInput = {
+  username: string;
+  cnpj?: string;
+  role: "manager" | "pdv";
+  eventType: "login_succeeded" | "login_failed" | "login_blocked" | "login_denied" | "captcha_rejected";
+  success: boolean;
+  httpStatus: number;
+  accountId?: string | null;
+  location?: unknown;
+};
+
+function clientAgentDetails(request: Request) {
+  const userAgent = request.headers.get("user-agent")?.slice(0, 512) ?? "";
+  const browser = /Edg\//i.test(userAgent) ? "Microsoft Edge"
+    : /OPR\//i.test(userAgent) ? "Opera"
+    : /Firefox\//i.test(userAgent) ? "Firefox"
+    : /Chrome\//i.test(userAgent) ? "Google Chrome"
+    : /Safari\//i.test(userAgent) ? "Safari"
+    : "Desconhecido";
+  const operatingSystem = /Android/i.test(userAgent) ? "Android"
+    : /iPhone|iPad|iPod/i.test(userAgent) ? "iOS"
+    : /Windows NT/i.test(userAgent) ? "Windows"
+    : /Mac OS X/i.test(userAgent) ? "macOS"
+    : /Linux/i.test(userAgent) ? "Linux"
+    : "Desconhecido";
+  return { userAgent: userAgent || null, browser, operatingSystem };
+}
+
+export async function recordLoginAuditEvent(
+  client: PoolClient,
+  request: Request,
+  input: LoginAuditEventInput,
+): Promise<void> {
+  const rawLocation = input.location && typeof input.location === "object"
+    ? input.location as Record<string, unknown>
+    : {};
+  const permissionValue = String(rawLocation["permission"] ?? "not_requested");
+  const locationPermission = ["granted", "denied", "unavailable", "not_requested"].includes(permissionValue)
+    ? permissionValue
+    : "unavailable";
+  const latitude = Number(rawLocation["latitude"]);
+  const longitude = Number(rawLocation["longitude"]);
+  const accuracy = Number(rawLocation["accuracy"]);
+  const hasCoordinates = locationPermission === "granted" &&
+    Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
+    Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+  const ip = clientIp(request);
+  const device = deviceId(request);
+  const agent = clientAgentDetails(request);
+  const accountId = input.accountId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.accountId)
+    ? input.accountId
+    : null;
+  const cnpj = input.cnpj && /^\d{14}$/.test(input.cnpj) ? input.cnpj : null;
+
+  await client.query(
+    "INSERT INTO public.mobflow_login_audit_events " +
+    "(account_id, company_cnpj, attempted_username, attempted_role, event_type, success, " +
+    "http_status, ip_address, device_id, user_agent, browser, operating_system, " +
+    "location_permission, latitude, longitude, location_accuracy_m) " +
+    "VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+    [
+      accountId, cnpj, input.username.trim().slice(0, 128) || "(vazio)", input.role,
+      input.eventType, input.success, input.httpStatus,
+      ip === "unknown" ? null : ip, device === "unknown" ? null : device,
+      agent.userAgent, agent.browser, agent.operatingSystem, locationPermission,
+      hasCoordinates ? latitude : null, hasCoordinates ? longitude : null,
+      hasCoordinates && Number.isFinite(accuracy) && accuracy > 0 ? Math.min(accuracy, 100000) : null,
+    ],
+  );
+}
