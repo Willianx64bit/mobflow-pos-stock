@@ -48,6 +48,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [error, setError] = useState("");
   const [captchaRequired, setCaptchaRequired] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,6 +91,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setError("");
     setCaptchaRequired(false);
     setCaptchaToken("");
+    setLockoutRemaining(0);
     setRememberLogin(localStorage.getItem(REMEMBER_KEY) === "1");
   }, [mode]);
 
@@ -129,6 +131,14 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       captchaWidgetIdRef.current = null;
     };
   }, [captchaRequired, mode]);
+
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const interval = window.setInterval(() => {
+      setLockoutRemaining((seconds) => seconds <= 1 ? 0 : seconds - 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [lockoutRemaining > 0]);
 
   const logoutAccount = async () => {
     await mobflowAuthClient.signOut().catch(() => undefined);
@@ -181,6 +191,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           }),
         }), 20000);
         const validation = await validationResponse.json().catch(() => ({}));
+        if (validationResponse.status === 429 && validation?.locked) {
+          setLockoutRemaining(Math.max(1, Number(validation?.retryAfterSeconds) || 1800));
+          setError(String(validation?.error || "Muitas tentativas incorretas. Acesso temporariamente bloqueado."));
+          return;
+        }
         if (validationResponse.status === 428 && validation?.captchaRequired && mode === "empresa") {
           setCaptchaRequired(true);
           setCaptchaToken("");
@@ -208,6 +223,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         localStorage.setItem(AUTH_KEY, "1");
         setCaptchaRequired(false);
         setCaptchaToken("");
+        setLockoutRemaining(0);
         if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
         if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
         sessionStorage.setItem("mobflow-role", validation.profile.role);
@@ -436,6 +452,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
 
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
+          {lockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {formatLockout(lockoutRemaining)}.</p>}
 
           {mode !== "pdv" && (
             <div>
@@ -449,7 +466,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <span>Salvar login</span>
           </label>
 
-          <button type="submit" disabled={loading || (mode === "empresa" && captchaRequired && !captchaToken)} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={loading || lockoutRemaining > 0 || (mode === "empresa" && captchaRequired && !captchaToken)} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
           {mode === "empresa" && !onClose && (
