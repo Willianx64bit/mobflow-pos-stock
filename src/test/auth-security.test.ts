@@ -3,6 +3,7 @@ import type { PoolClient } from "@neondatabase/serverless";
 import {
   checkLoginSecurity,
   recordLoginFailure,
+  recordLoginAuditEvent,
   checkManagerPasswordLockout,
   recordManagerPasswordFailure,
   enforcePublicRateLimit,
@@ -126,6 +127,67 @@ describe("MobFlow persistent authentication security", () => {
     const serializedParams = JSON.stringify(query.mock.calls.map((call) => call[1]));
     expect(serializedParams).not.toContain(IP);
     expect(serializedParams).not.toContain("signup-create-company");
+  });
+
+
+  it("stores detailed login audit metadata and only records coordinates after consent", async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
+      headers: {
+        "x-real-ip": IP,
+        "x-mobflow-device": DEVICE_ID,
+        "user-agent": "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36",
+        "x-vercel-ip-country": "BR",
+        "x-vercel-ip-country-region": "SP",
+        "x-vercel-ip-city": "Sao%20Paulo",
+      },
+    });
+
+    await recordLoginAuditEvent(mockClient(query), request, {
+      username: USERNAME,
+      cnpj: "12345678000199",
+      role: "manager",
+      eventType: "login_failed",
+      success: false,
+      httpStatus: 401,
+      location: { permission: "granted", latitude: -23.55, longitude: -46.63, accuracy: 18 },
+    });
+
+    expect(query).toHaveBeenCalledOnce();
+    const [sql, values] = query.mock.calls[0] as [string, unknown[]];
+    expect(sql).toContain("mobflow_login_audit_events");
+    expect(values).toContain(USERNAME);
+    expect(values).toContain(IP);
+    expect(values).toContain(DEVICE_ID);
+    expect(values).toContain("BR");
+    expect(values).toContain("SP");
+    expect(values).toContain("Sao Paulo");
+    expect(values[15]).toBe("granted");
+    expect(values[16]).toBe(-23.55);
+    expect(values[17]).toBe(-46.63);
+    expect(values[18]).toBe(18);
+  });
+
+  it("does not store geolocation coordinates when permission is denied", async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
+      headers: { "x-real-ip": IP, "x-mobflow-device": DEVICE_ID },
+    });
+
+    await recordLoginAuditEvent(mockClient(query), request, {
+      username: USERNAME,
+      role: "pdv",
+      eventType: "login_denied",
+      success: false,
+      httpStatus: 403,
+      location: { permission: "denied", latitude: -23.55, longitude: -46.63 },
+    });
+
+    const values = query.mock.calls[0]?.[1] as unknown[];
+    expect(values[15]).toBe("denied");
+    expect(values[16]).toBeNull();
+    expect(values[17]).toBeNull();
+    expect(values[18]).toBeNull();
   });
 
   it("accepts Turnstile only when Siteverify succeeds for an allowed hostname", async () => {
