@@ -136,8 +136,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | null>(null);
-  const loginLocationRef = useRef<LoginLocation>({ permission: "not_requested" });
-  const loginLocationPromiseRef = useRef<Promise<LoginLocation> | null>(null);
   const [showLocationNotice, setShowLocationNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -157,29 +155,6 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupForm, setSignupForm] = useState({
     companyName: "", username: "", password: "", cnpj: "", email: "", phone: "",
   });
-
-  useEffect(() => {
-    if (mode !== "empresa") {
-      loginLocationRef.current = { permission: "not_requested" };
-      loginLocationPromiseRef.current = null;
-      setShowLocationNotice(false);
-      return;
-    }
-
-    // Solicita a localização assim que a tela de login da empresa é aberta,
-    // sem esperar o usuário tocar ou sair do campo de usuário.
-    let cancelled = false;
-    setShowLocationNotice(true);
-    const noticeTimer = window.setTimeout(() => setShowLocationNotice(false), 30000);
-    loginLocationPromiseRef.current = requestLoginLocation().then((location) => {
-      if (!cancelled) loginLocationRef.current = location;
-      return location;
-    });
-    return () => {
-      cancelled = true;
-      window.clearTimeout(noticeTimer);
-    };
-  }, [mode]);
 
   useEffect(() => {
     if (mode !== "empresa" || !showSignup || signupResult) return;
@@ -312,9 +287,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
       }
 
-      const loginLocation = loginLocationPromiseRef.current
-        ? await loginLocationPromiseRef.current
-        : loginLocationRef.current;
+      // Cada envio do formulário faz uma leitura nova; nunca reutiliza
+      // coordenadas capturadas ao abrir a tela ou em uma tentativa anterior.
+      setShowLocationNotice(true);
+      const loginLocation = await requestLoginLocation();
 
       await mobflowAuthClient.signOut().catch(() => undefined);
       sessionStorage.removeItem("mobflow-management");
@@ -387,6 +363,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         ? "O servidor está demorando para responder. Tente novamente em instantes."
         : "Não foi possível conectar ao servidor.");
     } finally {
+      setShowLocationNotice(false);
       setLoading(false);
     }
   };
