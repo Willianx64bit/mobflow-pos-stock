@@ -75,6 +75,9 @@ export async function handleMobFlowLogin(request: Request) {
   let loginLockKey: string | null = null;
   try {
     loginLockKey = await acquireLoginAttemptLock(client, username);
+    if (!loginLockKey) {
+      return Response.json({ ok: false, error: "Já existe uma tentativa de acesso em andamento. Aguarde alguns segundos." }, { status: 429, headers: { "Retry-After": "2" } });
+    }
     await client.query("BEGIN");
     open = true;
     await client.query("SET LOCAL ROLE mobflow_api");
