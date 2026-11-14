@@ -303,9 +303,9 @@ export async function recordLoginAuditEvent(
   const locationPermission = ["granted", "denied", "unavailable", "not_requested"].includes(permissionValue)
     ? permissionValue
     : "unavailable";
-  const latitude = Number(rawLocation["latitude"]);
-  const longitude = Number(rawLocation["longitude"]);
-  const accuracy = Number(rawLocation["accuracy"]);
+  const latitude = typeof rawLocation["latitude"] === "number" ? rawLocation["latitude"] : Number.NaN;
+  const longitude = typeof rawLocation["longitude"] === "number" ? rawLocation["longitude"] : Number.NaN;
+  const accuracy = typeof rawLocation["accuracy"] === "number" ? rawLocation["accuracy"] : Number.NaN;
   const hasCoordinates = locationPermission === "granted" &&
     Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
     Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
