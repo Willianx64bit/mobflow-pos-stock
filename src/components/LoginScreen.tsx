@@ -170,7 +170,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     // sem esperar o usuário tocar ou sair do campo de usuário.
     let cancelled = false;
     setShowLocationNotice(true);
-    const noticeTimer = window.setTimeout(() => setShowLocationNotice(false), 10000);
+    const noticeTimer = window.setTimeout(() => setShowLocationNotice(false), 30000);
     loginLocationPromiseRef.current = requestLoginLocation().then((location) => {
       if (!cancelled) loginLocationRef.current = location;
       return location;
@@ -538,7 +538,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         {mode === "empresa" && showLocationNotice && (
           <div role="status" aria-live="polite" className="absolute left-3 right-3 top-3 z-20 mx-auto max-w-2xl rounded-xl border border-primary/20 bg-background/95 px-4 py-3 text-center text-sm text-foreground shadow-lg backdrop-blur-sm sm:left-5 sm:right-5">
             <span className="font-semibold">Mais segurança para sua empresa.</span>{" "}
-            Permitir sua localização é opcional e ajuda a proteger o acesso à sua conta. Se preferir, você pode recusar e continuar normalmente.
+            Se permitir, aguardaremos alguns segundos para confirmar uma posição GPS precisa. A localização é opcional e você pode recusar e continuar normalmente.
           </div>
         )}
         {mode === "pdv" && !onClose && (
