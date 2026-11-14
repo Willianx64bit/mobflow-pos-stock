@@ -137,7 +137,7 @@ export async function recordLoginSuccess(client: PoolClient, _request: Request, 
   const loginHash = digest("login", usernameKey(username));
   const deviceHash = digest("device", deviceId(_request));
   const ipHash = digest("ip", clientIp(_request));
-  const companyHash = cnpj ? digest("company", cnpj.replace(/\\D/g, "")) : null;
+  const companyHash = cnpj ? digest("company", cnpj.replace(/\D/g, "")) : null;
   // A successful password check is reached only after any required Turnstile
   // challenge has passed. Clear shared risk counters so a legitimate login
   // does not keep the device/IP stuck behind a challenge.
