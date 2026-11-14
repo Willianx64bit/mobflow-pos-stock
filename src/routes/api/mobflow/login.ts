@@ -13,7 +13,7 @@ const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerên
 const PDV_PERMISSIONS = ["PDV", "Conferência"];
 
 class LoginError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
+  constructor(message: string, readonly status: number, readonly retryAfterSeconds = 0) { super(message); }
 }
 const deny = (message: string, status = 401): never => { throw new LoginError(message, status); };
 const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
@@ -44,7 +44,7 @@ export async function handleMobFlowLogin(request: Request) {
 
     const security = await checkLoginSecurity(client, request, username, expectedRole === "manager" ? cnpj : undefined);
     if (security.blockedUntil) {
-      throw new LoginError("Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos.", 429);
+      throw new LoginError("Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos.", 429, security.retryAfterSeconds);
     }
     if (expectedRole === "manager" && security.captchaRequired) {
       if (!captchaToken || !(await verifyCompanyLoginCaptcha(request, captchaToken))) {
@@ -183,7 +183,11 @@ export async function handleMobFlowLogin(request: Request) {
         return Response.json({ ok: false, captchaRequired: true, error: error.message }, { status: 428 });
       }
       if (error.status === 429) {
-        return Response.json({ ok: false, locked: true, error: error.message }, { status: 429 });
+        const retryAfter = error.retryAfterSeconds || 1800;
+        return Response.json(
+          { ok: false, locked: true, retryAfterSeconds: retryAfter, error: error.message },
+          { status: 429, headers: { "Retry-After": String(retryAfter) } },
+        );
       }
       return Response.json({ ok: false, error: error.message }, { status: error.status });
     }
