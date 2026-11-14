@@ -49,6 +49,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [captchaRequired, setCaptchaRequired] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const captchaWidgetIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
@@ -97,7 +98,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     let cancelled = false;
     let widgetId: string | undefined;
     const renderWidget = () => {
-      const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string; remove: (id: string) => void } }).turnstile;
+      const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string; remove: (id: string) => void; reset: (id: string) => void } }).turnstile;
       if (cancelled || !captchaContainerRef.current || !turnstile) return;
       widgetId = turnstile.render(captchaContainerRef.current, {
         sitekey: import.meta.env["VITE_TURNSTILE_SITE_KEY"],
@@ -106,6 +107,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         "error-callback": () => setCaptchaToken(""),
         theme: "auto",
       });
+      captchaWidgetIdRef.current = widgetId;
     };
     const existingScript = document.querySelector<HTMLScriptElement>('script[src*="challenges.cloudflare.com/turnstile/v0/api.js"]');
     if ((window as Window & { turnstile?: unknown }).turnstile) {
@@ -124,6 +126,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       cancelled = true;
       const turnstile = (window as Window & { turnstile?: { remove: (id: string) => void } }).turnstile;
       if (widgetId && turnstile) turnstile.remove(widgetId);
+      captchaWidgetIdRef.current = null;
     };
   }, [captchaRequired, mode]);
 
@@ -181,6 +184,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         if (validationResponse.status === 428 && validation?.captchaRequired && mode === "empresa") {
           setCaptchaRequired(true);
           setCaptchaToken("");
+          const turnstile = (window as Window & { turnstile?: { reset: (id: string) => void } }).turnstile;
+          if (captchaWidgetIdRef.current && turnstile) turnstile.reset(captchaWidgetIdRef.current);
           setError(String(validation?.error || "Confirme a verificação de segurança para continuar."));
           return;
         }
