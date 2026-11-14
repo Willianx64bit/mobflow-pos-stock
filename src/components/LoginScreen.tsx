@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { mobflowAuthClient } from "@/lib/auth-client";
 import { useStore } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
@@ -6,6 +6,15 @@ import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
 const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
 const PENDING_PAYMENT_KEY = "mobflow-pending-payment";
+
+function getMobFlowDeviceId(): string {
+  const key = "mobflow-device-id";
+  const existing = localStorage.getItem(key);
+  if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+  const id = window.crypto.randomUUID();
+  localStorage.setItem(key, id);
+  return id;
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -37,6 +46,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   // Deixa o campo vazio para o navegador oferecer o CNPJ salvo ao tocar nele.
   const [cnpj, setCnpj] = useState("");
   const [error, setError] = useState("");
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
@@ -78,6 +90,41 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setRememberLogin(localStorage.getItem(REMEMBER_KEY) === "1");
   }, [mode]);
 
+  useEffect(() => {
+    if (!captchaRequired || mode !== "empresa") return;
+    let cancelled = false;
+    let widgetId: string | undefined;
+    const renderWidget = () => {
+      const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string; remove: (id: string) => void } }).turnstile;
+      if (cancelled || !captchaContainerRef.current || !turnstile) return;
+      widgetId = turnstile.render(captchaContainerRef.current, {
+        sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
+        callback: (token: string) => setCaptchaToken(token),
+        "expired-callback": () => setCaptchaToken(""),
+        "error-callback": () => setCaptchaToken(""),
+        theme: "auto",
+      });
+    };
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src*="challenges.cloudflare.com/turnstile/v0/api.js"]');
+    if ((window as Window & { turnstile?: unknown }).turnstile) {
+      renderWidget();
+    } else if (existingScript) {
+      existingScript.addEventListener("load", renderWidget, { once: true });
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.defer = true;
+      script.addEventListener("load", renderWidget, { once: true });
+      document.head.appendChild(script);
+    }
+    return () => {
+      cancelled = true;
+      const turnstile = (window as Window & { turnstile?: { remove: (id: string) => void } }).turnstile;
+      if (widgetId && turnstile) turnstile.remove(widgetId);
+    };
+  }, [captchaRequired, mode]);
+
   const logoutAccount = async () => {
     await mobflowAuthClient.signOut().catch(() => undefined);
     localStorage.removeItem(AUTH_KEY);
@@ -118,16 +165,23 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
       const validationResponse = await withTimeout(fetch("/api/mobflow/login", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "X-MobFlow-Device": getMobFlowDeviceId() },
           credentials: "same-origin",
           body: JSON.stringify({
             username: username.trim(),
             password,
             cnpj: loginCnpj,
             expectedRole: mode === "pdv" ? "pdv" : "manager",
+            captchaToken,
           }),
         }), 20000);
         const validation = await validationResponse.json().catch(() => ({}));
+        if (validationResponse.status === 428 && validation?.captchaRequired && mode === "empresa") {
+          setCaptchaRequired(true);
+          setCaptchaToken("");
+          setError(String(validation?.error || "Confirme a verificação de segurança para continuar."));
+          return;
+        }
         if (!validationResponse.ok || !validation?.ok || !validation?.profile) {
           setError(String(validation?.error || "Usuário ou senha inválido."));
           return;
@@ -145,6 +199,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
 
         localStorage.setItem(AUTH_KEY, "1");
+        setCaptchaRequired(false);
+        setCaptchaToken("");
         if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
         if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
         sessionStorage.setItem("mobflow-role", validation.profile.role);
@@ -364,6 +420,14 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" />
           </div>
 
+          {mode === "empresa" && captchaRequired && (
+            <div className="rounded-xl border border-border bg-background p-3">
+              <p className="mb-2 text-sm font-medium text-foreground">Verificação adicional de segurança</p>
+              <div ref={captchaContainerRef} className="flex min-h-[65px] justify-center" />
+              {!captchaToken && <p className="mt-1 text-center text-xs text-muted-foreground">Conclua a verificação para liberar o acesso.</p>}
+            </div>
+          )}
+
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
 
           {mode !== "pdv" && (
@@ -378,7 +442,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <span>Salvar login</span>
           </label>
 
-          <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={loading || (mode === "empresa" && captchaRequired && !captchaToken)} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
           {mode === "empresa" && !onClose && (
