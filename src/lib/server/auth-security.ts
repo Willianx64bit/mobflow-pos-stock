@@ -135,9 +135,6 @@ export async function recordLoginFailure(
 
 export async function recordLoginSuccess(client: PoolClient, request: Request, username: string, cnpj?: string) {
   const loginHash = digest("login", usernameKey(username));
-  const deviceHash = digest("device", deviceId(request));
-  const ipHash = digest("ip", clientIp(request));
-  const companyHash = cnpj ? digest("company", cnpj.replace(/\D/g, "")) : null;
   await client.query(
     `UPDATE public.mobflow_auth_security_state
      SET failure_count = 0, blocked_until = NULL, window_started_at = now(), last_failure_at = NULL, updated_at = now()
