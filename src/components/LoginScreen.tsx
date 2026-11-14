@@ -16,6 +16,36 @@ function getMobFlowDeviceId(): string {
   return id;
 }
 
+
+type LoginLocation = {
+  permission: "granted" | "denied" | "unavailable" | "not_requested";
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
+};
+
+async function requestCompanyLoginLocation(): Promise<LoginLocation> {
+  if (!("geolocation" in navigator)) return { permission: "unavailable" };
+  try {
+    const permission = await navigator.permissions?.query({ name: "geolocation" });
+    if (permission?.state === "denied") return { permission: "denied" };
+  } catch {
+    // Alguns navegadores não expõem a Permissions API; getCurrentPosition continua válido.
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({
+        permission: "granted",
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      }),
+      (error) => resolve({ permission: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable" }),
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+    );
+  });
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error("LOGIN_TIMEOUT")), ms);
@@ -201,6 +231,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
       }
 
+      const loginLocation = mode === "empresa"
+        ? await requestCompanyLoginLocation()
+        : { permission: "not_requested" as const };
+
       await mobflowAuthClient.signOut().catch(() => undefined);
       sessionStorage.removeItem("mobflow-management");
       sessionStorage.removeItem("mobflow-pdv-authorized");
@@ -217,6 +251,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             cnpj: loginCnpj,
             expectedRole: mode === "pdv" ? "pdv" : "manager",
             captchaToken,
+            location: loginLocation,
           }),
         }), 20000);
         const validation = await validationResponse.json().catch(() => ({}));
