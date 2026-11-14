@@ -7,7 +7,7 @@ import {
   recordLoginSuccess,
 } from "@/lib/server/auth-security";
 
-async function handleAuth(request: Request): Promise<Response> {
+export async function handleAuth(request: Request): Promise<Response> {
   const isEmailSignIn = request.method === "POST" &&
     new URL(request.url).pathname.replace(/\/+$/, "").endsWith("/sign-in/email");
 
