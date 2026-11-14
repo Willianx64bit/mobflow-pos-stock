@@ -39,6 +39,12 @@ export async function handleAuth(request: Request): Promise<Response> {
     let loginLockKey: string | null = null;
     try {
       loginLockKey = await acquireLoginAttemptLock(client, username);
+      if (!loginLockKey) {
+        return Response.json(
+          { message: "Já existe uma tentativa de acesso em andamento. Aguarde alguns segundos.", code: "AUTH_BUSY" },
+          { status: 429, headers: { "Retry-After": "2" } },
+        );
+      }
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE mobflow_api");
       const security = await checkLoginSecurity(client, request, username, undefined, true);
