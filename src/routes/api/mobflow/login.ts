@@ -64,7 +64,7 @@ export async function handleMobFlowLogin(request: Request) {
     }
   }
 
-  if (!username || password.length < 6) {
+  if (!username) {
     return Response.json({ ok: false, error: "Usuário ou senha inválido." }, { status: 400 });
   }
 
@@ -74,6 +74,8 @@ export async function handleMobFlowLogin(request: Request) {
     await client.query("BEGIN");
     open = true;
     await client.query("SET LOCAL ROLE mobflow_api");
+
+    if (password.length < 6) deny("Usuário ou senha inválido.", 400);
 
     const security = await checkLoginSecurity(client, request, username, expectedRole === "manager" ? cnpj : undefined);
     if (security.blockedUntil) {
