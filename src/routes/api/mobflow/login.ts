@@ -8,6 +8,8 @@ import {
   recordLoginSuccess,
   recordLoginAuditEvent,
   verifyCompanyLoginCaptcha,
+  acquireLoginAttemptLock,
+  releaseLoginAttemptLock,
 } from "@/lib/server/auth-security";
 
 const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerência"];
@@ -70,18 +72,20 @@ export async function handleMobFlowLogin(request: Request) {
 
   const client = await getNeonPool().connect();
   let open = false;
+  let loginLockKey: string | null = null;
   try {
+    loginLockKey = await acquireLoginAttemptLock(client, username);
     await client.query("BEGIN");
     open = true;
     await client.query("SET LOCAL ROLE mobflow_api");
 
     if (password.length < 6) deny("Usuário ou senha inválido.", 400);
 
-    const security = await checkLoginSecurity(client, request, username, expectedRole === "manager" ? cnpj : undefined);
+    const security = await checkLoginSecurity(client, request, username, cnpj.length === 14 ? cnpj : undefined);
     if (security.blockedUntil) {
       throw new LoginError("Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos.", 429, security.retryAfterSeconds);
     }
-    if (expectedRole === "manager" && security.captchaRequired) {
+    if (security.captchaRequired) {
       if (!captchaToken || !(await verifyCompanyLoginCaptcha(request, captchaToken))) {
         throw new LoginError("Confirme a verificação de segurança para continuar.", 428);
       }
@@ -212,7 +216,7 @@ export async function handleMobFlowLogin(request: Request) {
           await client.query("BEGIN");
           await client.query("SET LOCAL ROLE mobflow_api");
           const failure = error.status === 401
-            ? await recordLoginFailure(client, request, username, expectedRole === "manager" ? cnpj : undefined)
+            ? await recordLoginFailure(client, request, username, cnpj.length === 14 ? cnpj : undefined)
             : null;
           const eventType = error.status === 428 ? "captcha_rejected"
             : error.status === 429 ? "login_blocked"
@@ -259,6 +263,11 @@ export async function handleMobFlowLogin(request: Request) {
     console.error("[MobFlow Better Auth login]", error instanceof Error ? error.message : "unknown error");
     return Response.json({ ok: false, error: "Não foi possível entrar agora." }, { status: 500 });
   } finally {
+    if (loginLockKey) {
+      await releaseLoginAttemptLock(client, loginLockKey).catch((error) => {
+        console.error("[MobFlow auth security] Could not release login lock", error instanceof Error ? error.message : "unknown error");
+      });
+    }
     client.release();
   }
 }
