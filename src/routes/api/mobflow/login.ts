@@ -31,6 +31,38 @@ export async function handleMobFlowLogin(request: Request) {
   const cnpj = String(input["cnpj"] ?? "").replace(/\D/g, "");
   const captchaToken = String(input["captchaToken"] ?? "");
   const expectedRole = input["expectedRole"] === "pdv" || (!input["expectedRole"] && !cnpj) ? "pdv" : "manager";
+
+  // A tela consulta este estado ao sair do campo de usuário. O bloqueio é
+  // sempre lido do Neon, nunca reconstruído a partir de estado local.
+  if (input["action"] === "status") {
+    if (!username) return Response.json({ ok: true, locked: false });
+    const statusClient = await getNeonPool().connect();
+    try {
+      await statusClient.query("BEGIN");
+      await statusClient.query("SET LOCAL ROLE mobflow_api");
+      const security = await checkLoginSecurity(
+        statusClient,
+        request,
+        username,
+        expectedRole === "manager" ? cnpj : undefined,
+      );
+      await statusClient.query("COMMIT");
+      if (security.blockedUntil) {
+        return Response.json(
+          { ok: false, locked: true, retryAfterSeconds: security.retryAfterSeconds, error: "Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos." },
+          { status: 429, headers: { "Retry-After": String(security.retryAfterSeconds) } },
+        );
+      }
+      return Response.json({ ok: true, locked: false });
+    } catch (error) {
+      await statusClient.query("ROLLBACK").catch(() => undefined);
+      console.error("[MobFlow auth security] Could not read login lockout", error instanceof Error ? error.message : "unknown error");
+      return Response.json({ ok: false, error: "Não foi possível consultar o bloqueio de acesso." }, { status: 503 });
+    } finally {
+      statusClient.release();
+    }
+  }
+
   if (!username || password.length < 6) {
     return Response.json({ ok: false, error: "Usuário ou senha inválido." }, { status: 400 });
   }
