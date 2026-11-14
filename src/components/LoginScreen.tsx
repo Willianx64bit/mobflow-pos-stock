@@ -21,26 +21,27 @@ type LoginLocation = {
   permission: "granted" | "denied" | "unavailable" | "not_requested";
   latitude?: number;
   longitude?: number;
+  altitude?: number;
   accuracy?: number;
+  altitudeAccuracy?: number;
+  positionTimestamp?: number;
 };
 
 async function requestLoginLocation(): Promise<LoginLocation> {
   if (!("geolocation" in navigator)) return { permission: "unavailable" };
+
   try {
     const permission = await navigator.permissions?.query({ name: "geolocation" });
     if (permission?.state === "denied") return { permission: "denied" };
   } catch {
-    // Alguns navegadores não expõem a Permissions API; watchPosition continua válido.
+    // A Permissions API não existe em todos os navegadores; a leitura GPS continua.
   }
 
-  // Não aceitar posição antiga/de baixa precisão (Wi-Fi/IP/rede) como se fosse GPS exato.
-  // Aguarda leituras de alta precisão e só considera coordenadas com margem <= 100 m.
+  // Uma nova solicitação real em CADA envio. maximumAge: 0 impede reutilizar
+  // a posição armazenada pelo navegador; não depende de uma segunda leitura.
   return new Promise((resolve) => {
     let watchId: number | null = null;
     let timeoutId: number | null = null;
-    let best: GeolocationPosition | null = null;
-    let previousAccurate: GeolocationPosition | null = null;
-    let accurateStableReadings = 0;
     let settled = false;
 
     const finish = (result: LoginLocation) => {
@@ -51,50 +52,33 @@ async function requestLoginLocation(): Promise<LoginLocation> {
       resolve(result);
     };
 
-    const toResult = (position: GeolocationPosition): LoginLocation => ({
-      permission: "granted",
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-      accuracy: position.coords.accuracy,
-    });
-
     try {
       watchId = navigator.geolocation.watchPosition(
         (position) => {
-          const accuracy = position.coords.accuracy;
-          if (!Number.isFinite(accuracy) || accuracy <= 0) return;
-          if (!best || accuracy < best.coords.accuracy) best = position;
+          const coords = position.coords;
+          const accuracy = coords.accuracy;
+          if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude) ||
+              !Number.isFinite(accuracy) || accuracy <= 0) return;
 
-          if (accuracy <= 100) {
-            if (previousAccurate) {
-              const toRad = (degrees: number) => degrees * Math.PI / 180;
-              const lat1 = toRad(previousAccurate.coords.latitude);
-              const lat2 = toRad(position.coords.latitude);
-              const dLat = lat2 - lat1;
-              const dLon = toRad(position.coords.longitude - previousAccurate.coords.longitude);
-              const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-              const distance = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-              accurateStableReadings = distance <= 150 ? accurateStableReadings + 1 : 1;
-            } else {
-              accurateStableReadings = 1;
-            }
-            previousAccurate = position;
-            // Duas leituras próximas e com boa precisão evitam gravar uma posição inicial instável.
-            if (accurateStableReadings >= 2) finish(toResult(position));
-          }
+          finish({
+            permission: "granted",
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            ...(typeof coords.altitude === "number" && Number.isFinite(coords.altitude)
+              ? { altitude: coords.altitude } : {}),
+            accuracy,
+            ...(typeof coords.altitudeAccuracy === "number" && Number.isFinite(coords.altitudeAccuracy)
+              ? { altitudeAccuracy: coords.altitudeAccuracy } : {}),
+            positionTimestamp: position.timestamp,
+          });
         },
         (error) => {
           if (error.code === 1) finish({ permission: "denied" });
-          // Erros temporários não encerram imediatamente: ainda pode chegar uma leitura GPS válida.
+          // Falhas temporárias continuam aguardando até o timeout.
         },
         { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 },
       );
-      timeoutId = window.setTimeout(() => {
-        // Se não houver precisão suficiente, não grava coordenadas enganosas.
-        if (best && best.coords.accuracy <= 100) finish(toResult(best));
-        else finish({ permission: "granted" });
-      }, 25000);
+      timeoutId = window.setTimeout(() => finish({ permission: "granted" }), 25000);
     } catch {
       finish({ permission: "unavailable" });
     }
