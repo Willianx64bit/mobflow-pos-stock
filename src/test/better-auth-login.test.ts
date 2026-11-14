@@ -12,6 +12,13 @@ vi.mock("@/lib/server/neon", () => ({
   getNeonPool: () => ({ connect }),
 }));
 
+vi.mock("@/lib/server/auth-security", () => ({
+  checkLoginSecurity: vi.fn(async () => ({ blockedUntil: null, captchaRequired: false, retryAfterSeconds: 0 })),
+  recordLoginFailure: vi.fn(async () => ({ blockedUntil: null, ipFailures: 0, deviceFailures: 0, companyFailures: 0 })),
+  recordLoginSuccess: vi.fn(async () => undefined),
+  verifyCompanyLoginCaptcha: vi.fn(async () => true),
+}));
+
 import { handleMobFlowLogin } from "@/routes/api/mobflow/login";
 
 const USER_ID = "9c47eaac-2abf-4cd6-b614-24e27077bdf6";
