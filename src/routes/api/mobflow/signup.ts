@@ -362,7 +362,7 @@ async function handleSignup(request: Request) {
   try { body = await request.json(); } catch { return errorResponse("Solicitação inválida."); }
   const action = String(body["action"] ?? "create_company");
   const endpoint = action === "submit_payment_proof" ? "signup-payment-proof" : action === "complete_manager_setup" ? "signup-manager-setup" : "signup-create-company";
-  const maxRequests = action === "complete_manager_setup" ? 5 : 10;
+  const maxRequests = action === "complete_manager_setup" ? 5 : action === "submit_payment_proof" ? 10 : 20;
   try {
     const limit = await checkPublicSignupLimit(request, endpoint, maxRequests);
     if (limit.blockedUntil) {
