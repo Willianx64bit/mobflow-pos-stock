@@ -37,7 +37,7 @@ export async function handleAuth(request: Request): Promise<Response> {
     try {
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE mobflow_api");
-      const security = await checkLoginSecurity(client, request, username);
+      const security = await checkLoginSecurity(client, request, username, undefined, false);
       if (security.blockedUntil) {
         await client.query("ROLLBACK");
         return Response.json(
