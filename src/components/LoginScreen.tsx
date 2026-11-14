@@ -81,6 +81,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | null>(null);
+  const loginLocationRef = useRef<LoginLocation>({ permission: "not_requested" });
+  const loginLocationPromiseRef = useRef<Promise<LoginLocation> | null>(null);
+  const [showLocationNotice, setShowLocationNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
@@ -99,6 +102,29 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupForm, setSignupForm] = useState({
     companyName: "", username: "", password: "", cnpj: "", email: "", phone: "",
   });
+
+  useEffect(() => {
+    if (mode !== "empresa") {
+      loginLocationRef.current = { permission: "not_requested" };
+      loginLocationPromiseRef.current = null;
+      setShowLocationNotice(false);
+      return;
+    }
+
+    // Solicita a localização assim que a tela de login da empresa é aberta,
+    // sem esperar o usuário tocar ou sair do campo de usuário.
+    let cancelled = false;
+    setShowLocationNotice(true);
+    const noticeTimer = window.setTimeout(() => setShowLocationNotice(false), 5000);
+    loginLocationPromiseRef.current = requestLoginLocation().then((location) => {
+      if (!cancelled) loginLocationRef.current = location;
+      return location;
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(noticeTimer);
+    };
+  }, [mode]);
 
   useEffect(() => {
     if (mode !== "empresa" || !showSignup || signupResult) return;
@@ -231,7 +257,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
       }
 
-      const loginLocation = await requestLoginLocation();
+      const loginLocation = loginLocationPromiseRef.current
+        ? await loginLocationPromiseRef.current
+        : loginLocationRef.current;
 
       await mobflowAuthClient.signOut().catch(() => undefined);
       sessionStorage.removeItem("mobflow-management");
@@ -452,6 +480,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-8 text-foreground md:px-8 md:py-10">
       <style>{`input.field, input.field[type="password"], input.field[type="text"] { background-color: #fff !important; color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; color-scheme: light; } input.field:-webkit-autofill, input.field:-webkit-autofill:hover, input.field:-webkit-autofill:focus, input.field:-webkit-autofill:active { -webkit-text-fill-color: #0f172a !important; -webkit-box-shadow: 0 0 0 1000px #fff inset !important; box-shadow: 0 0 0 1000px #fff inset !important; background-color: #fff !important; caret-color: #0f172a !important; color-scheme: light; } @keyframes mobflowLoginReveal { 0% { opacity: 0; transform: translateX(26px) scale(.975); filter: blur(7px); } 65% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } } @media (prefers-reduced-motion: reduce) { .mobflow-login-reveal { animation: none !important; } }`}</style>
       <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-border bg-surface p-6 text-foreground shadow-xl shadow-black/10 sm:p-8 ${mode === "empresa" ? "max-w-xl lg:max-w-3xl lg:p-12" : "max-w-xl lg:max-w-2xl lg:p-12"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+        {mode === "empresa" && showLocationNotice && (
+          <div role="status" aria-live="polite" className="absolute left-3 right-3 top-3 z-20 mx-auto max-w-2xl rounded-xl border border-primary/20 bg-background/95 px-4 py-3 text-center text-sm text-foreground shadow-lg backdrop-blur-sm sm:left-5 sm:right-5">
+            <span className="font-semibold">Mais segurança para sua empresa.</span>{" "}
+            Permitir sua localização é opcional e ajuda a proteger o acesso à sua conta. Se preferir, você pode recusar e continuar normalmente.
+          </div>
+        )}
         {mode === "pdv" && !onClose && (
           <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
