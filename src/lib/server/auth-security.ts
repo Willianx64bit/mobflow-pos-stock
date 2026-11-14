@@ -56,6 +56,7 @@ export async function checkLoginSecurity(
   request: Request,
   username: string,
   cnpj?: string,
+  includeDeviceRisk = true,
 ): Promise<LoginSecurityStatus> {
   const login = await getScopeState(client, "login", usernameKey(username));
   const ip = await getScopeState(client, "ip", clientIp(request));
@@ -64,7 +65,7 @@ export async function checkLoginSecurity(
   const blockedUntil = login.blockedUntil && login.blockedUntil.getTime() > Date.now() ? login.blockedUntil : null;
   return {
     blockedUntil,
-    captchaRequired: ip.count >= CAPTCHA_FAILURES || device.count >= CAPTCHA_FAILURES || (company?.count ?? 0) >= CAPTCHA_FAILURES,
+    captchaRequired: ip.count >= CAPTCHA_FAILURES || (includeDeviceRisk && device.count >= CAPTCHA_FAILURES) || (company?.count ?? 0) >= CAPTCHA_FAILURES,
     retryAfterSeconds: blockedUntil ? Math.max(1, Math.ceil((blockedUntil.getTime() - Date.now()) / 1000)) : 0,
   };
 }
