@@ -22,6 +22,8 @@ vi.mock("@/lib/server/auth-security", () => ({
   checkLoginSecurity: mocks.checkLoginSecurity,
   recordLoginFailure: mocks.recordLoginFailure,
   recordLoginSuccess: mocks.recordLoginSuccess,
+  acquireLoginAttemptLock: vi.fn(async () => "test-lock"),
+  releaseLoginAttemptLock: vi.fn(async () => undefined),
 }));
 
 import { handleAuth } from "@/routes/api/auth/$";
@@ -90,6 +92,7 @@ describe("Better Auth direct sign-in security", () => {
     const response = await handleAuth(req);
 
     expect(response.status).toBe(401);
+    expect(mocks.checkLoginSecurity).toHaveBeenCalledWith(mocks.client, req, "teste.manager", undefined, true);
     expect(mocks.recordLoginFailure).toHaveBeenCalledWith(mocks.client, req, "teste.manager");
     expect(mocks.client.query).toHaveBeenCalledWith("COMMIT");
   });
