@@ -39,6 +39,18 @@ function usernameKey(username: string): string {
   return username.trim().toLowerCase().replace(/@accounts\.mobflow\.local$/i, "");
 }
 
+export async function acquireLoginAttemptLock(client: PoolClient, username: string): Promise<string> {
+  const lockKey = digest("login", usernameKey(username));
+  // Session-level advisory lock survives transaction rollback, so a failed
+  // attempt remains serialized until its counter has been committed.
+  await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [lockKey]);
+  return lockKey;
+}
+
+export async function releaseLoginAttemptLock(client: PoolClient, lockKey: string): Promise<void> {
+  await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [lockKey]);
+}
+
 async function getScopeState(client: PoolClient, scope: ScopeType, value: string) {
   const scopeHash = digest(scope, value);
   const result = await client.query<{ failure_count: number; blocked_until: Date | null }>(
@@ -129,11 +141,8 @@ export async function recordLoginSuccess(client: PoolClient, request: Request, u
   await client.query(
     `UPDATE public.mobflow_auth_security_state
      SET failure_count = 0, blocked_until = NULL, window_started_at = now(), last_failure_at = NULL, updated_at = now()
-     WHERE (scope_type = 'login' AND scope_hash = $1)
-        OR (scope_type = 'device' AND scope_hash = $2)
-        OR (scope_type = 'ip' AND scope_hash = $3)
-        OR ($4::text IS NOT NULL AND scope_type = 'company' AND scope_hash = $4)`,
-    [loginHash, deviceHash, ipHash, companyHash],
+     WHERE scope_type = 'login' AND scope_hash = $1`,
+    [loginHash],
   );
   await client.query(
     `INSERT INTO public.mobflow_auth_security_events (event_type, scope_type, scope_hash)
