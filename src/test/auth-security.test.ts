@@ -169,7 +169,7 @@ describe("MobFlow persistent authentication security", () => {
   });
 
   it("does not store geolocation coordinates when permission is denied", async () => {
-    const query = vi.fn(async () => ({ rows: [] }));
+    const query = vi.fn(async (_sql: string, _values: unknown[] = []) => ({ rows: [] }));
     const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
       headers: { "x-real-ip": IP, "x-mobflow-device": DEVICE_ID },
     });
