@@ -5,6 +5,7 @@ import {
   recordLoginFailure,
   checkManagerPasswordLockout,
   recordManagerPasswordFailure,
+  enforcePublicRateLimit,
 } from "@/lib/server/auth-security";
 
 const DEVICE_ID = "a8b9c0d1-e2f3-4a56-8b9c-0d1e2f3a4b5c";
@@ -65,6 +66,25 @@ describe("MobFlow persistent authentication security", () => {
     expect(serializedParams).not.toContain(IP);
     expect(serializedParams).not.toContain(DEVICE_ID);
     expect(serializedParams).not.toContain("12345678000199");
+  });
+
+  it("rate limits public endpoints by HMAC-hashed IP and endpoint", async () => {
+    const blockedUntil = new Date(Date.now() + 60 * 60 * 1000);
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ failure_count: 11, blocked_until: blockedUntil }] });
+    const request = new Request("https://preview.mobflow.test/api/mobflow/signup", {
+      headers: { "x-real-ip": IP },
+    });
+
+    const status = await enforcePublicRateLimit(mockClient(query), request, "signup-create-company", 10, 60, 60);
+
+    expect(status.blockedUntil).toEqual(blockedUntil);
+    expect(status.retryAfterSeconds).toBeGreaterThan(0);
+    expect(query).toHaveBeenCalledTimes(2);
+    const serializedParams = JSON.stringify(query.mock.calls.map((call) => call[1]));
+    expect(serializedParams).not.toContain(IP);
+    expect(serializedParams).not.toContain("signup-create-company");
   });
 
   it("shares the manager-password lockout by account across devices", async () => {
