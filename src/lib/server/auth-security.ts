@@ -175,6 +175,68 @@ export async function recordManagerPasswordSuccess(client: PoolClient, accountId
   );
 }
 
+
+export async function enforcePublicRateLimit(
+  client: PoolClient,
+  request: Request,
+  endpoint: string,
+  maxRequests: number,
+  windowMinutes = 60,
+  blockMinutes = 60,
+) {
+  const ip = clientIp(request);
+  if (ip === "unknown") return { blockedUntil: null as Date | null, retryAfterSeconds: 0 };
+  const scopeHash = digest("ip", `public-api:${endpoint}:${ip}`);
+  const existing = await client.query<{ blocked_until: Date | null }>(
+    `SELECT blocked_until FROM public.mobflow_auth_security_state
+     WHERE scope_type = 'ip' AND scope_hash = $1 LIMIT 1`,
+    [scopeHash],
+  );
+  const currentBlock = existing.rows[0]?.blocked_until ?? null;
+  if (currentBlock && currentBlock.getTime() > Date.now()) {
+    return {
+      blockedUntil: currentBlock,
+      retryAfterSeconds: Math.max(1, Math.ceil((currentBlock.getTime() - Date.now()) / 1000)),
+    };
+  }
+
+  const result = await client.query<{ failure_count: number; blocked_until: Date | null }>(
+    `INSERT INTO public.mobflow_auth_security_state
+       (scope_type, scope_hash, failure_count, window_started_at, last_failure_at, blocked_until, updated_at)
+     VALUES ('ip', $1, 1, now(), now(), NULL, now())
+     ON CONFLICT (scope_type, scope_hash) DO UPDATE SET
+       failure_count = CASE
+         WHEN public.mobflow_auth_security_state.last_failure_at < now() - ($2::text || ' minutes')::interval THEN 1
+         ELSE public.mobflow_auth_security_state.failure_count + 1
+       END,
+       window_started_at = CASE
+         WHEN public.mobflow_auth_security_state.last_failure_at < now() - ($2::text || ' minutes')::interval THEN now()
+         ELSE public.mobflow_auth_security_state.window_started_at
+       END,
+       last_failure_at = now(),
+       blocked_until = CASE
+         WHEN (
+           CASE
+             WHEN public.mobflow_auth_security_state.last_failure_at < now() - ($2::text || ' minutes')::interval THEN 1
+             ELSE public.mobflow_auth_security_state.failure_count + 1
+           END
+         ) > $3 THEN now() + ($4::text || ' minutes')::interval
+         WHEN public.mobflow_auth_security_state.blocked_until > now() THEN public.mobflow_auth_security_state.blocked_until
+         ELSE NULL
+       END,
+       updated_at = now()
+     RETURNING failure_count, blocked_until`,
+    [scopeHash, windowMinutes, maxRequests, blockMinutes],
+  );
+  const blockedUntil = result.rows[0]?.blocked_until ?? null;
+  return {
+    blockedUntil,
+    retryAfterSeconds: blockedUntil && blockedUntil.getTime() > Date.now()
+      ? Math.max(1, Math.ceil((blockedUntil.getTime() - Date.now()) / 1000))
+      : 0,
+  };
+}
+
 export async function verifyCompanyLoginCaptcha(request: Request, token: string): Promise<boolean> {
   const secret = process.env["TURNSTILE_SECRET"]?.trim();
   const allowedHosts = (process.env["TURNSTILE_HOSTNAMES"] ?? "").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
