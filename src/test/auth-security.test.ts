@@ -59,7 +59,7 @@ describe("MobFlow persistent authentication security", () => {
 
     await recordLoginFailure(mockClient(query), request, USERNAME, "12345678000199");
 
-    expect(query).toHaveBeenCalledTimes(4);
+    expect(query).toHaveBeenCalledTimes(5);
     const serializedParams = JSON.stringify(query.mock.calls.map((call) => call[1]));
     expect(serializedParams).not.toContain(USERNAME);
     expect(serializedParams).not.toContain(IP);
