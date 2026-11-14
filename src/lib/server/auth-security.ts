@@ -309,7 +309,9 @@ export async function recordLoginAuditEvent(
   const altitude = typeof rawLocation["altitude"] === "number" ? rawLocation["altitude"] : Number.NaN;
   const altitudeAccuracy = typeof rawLocation["altitudeAccuracy"] === "number" ? rawLocation["altitudeAccuracy"] : Number.NaN;
   const positionTimestamp = typeof rawLocation["positionTimestamp"] === "number" ? rawLocation["positionTimestamp"] : Number.NaN;
-  const freshPosition = Number.isFinite(positionTimestamp) &&
+  // Clientes atualizados enviam timestamp para rejeitar uma posição antiga.
+  // Compatibilidade: versões anteriores não enviavam esse campo.
+  const freshPosition = !Number.isFinite(positionTimestamp) ||
     Math.abs(Date.now() - positionTimestamp) <= 120000;
   const hasCoordinates = locationPermission === "granted" && freshPosition &&
     Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
