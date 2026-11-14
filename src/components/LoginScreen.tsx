@@ -24,7 +24,7 @@ type LoginLocation = {
   accuracy?: number;
 };
 
-async function requestCompanyLoginLocation(): Promise<LoginLocation> {
+async function requestLoginLocation(): Promise<LoginLocation> {
   if (!("geolocation" in navigator)) return { permission: "unavailable" };
   try {
     const permission = await navigator.permissions?.query({ name: "geolocation" });
@@ -40,7 +40,7 @@ async function requestCompanyLoginLocation(): Promise<LoginLocation> {
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
       }),
-      (error) => resolve({ permission: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable" }),
+      (error) => resolve({ permission: error.code === 1 ? "denied" : "unavailable" }),
       { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
     );
   });
