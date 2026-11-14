@@ -42,7 +42,7 @@ export async function handleMobFlowLogin(request: Request) {
     open = true;
     await client.query("SET LOCAL ROLE mobflow_api");
 
-    const security = await checkLoginSecurity(client, request, username);
+    const security = await checkLoginSecurity(client, request, username, expectedRole === "manager" ? cnpj : undefined);
     if (security.blockedUntil) {
       throw new LoginError("Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos.", 429);
     }
@@ -142,7 +142,7 @@ export async function handleMobFlowLogin(request: Request) {
       firstManagerLogin = existing.rows.length === 0;
     }
 
-    await recordLoginSuccess(client, request, username);
+    await recordLoginSuccess(client, request, username, expectedRole === "manager" ? cnpj : undefined);
     await client.query("COMMIT");
     open = false;
     return Response.json({
