@@ -6,6 +6,7 @@ import {
   checkLoginSecurity,
   recordLoginFailure,
   recordLoginSuccess,
+  recordLoginAuditEvent,
   verifyCompanyLoginCaptcha,
 } from "@/lib/server/auth-security";
 
@@ -175,6 +176,18 @@ export async function handleMobFlowLogin(request: Request) {
     }
 
     await recordLoginSuccess(client, request, username, expectedRole === "manager" ? cnpj : undefined);
+    await client.query("SAVEPOINT login_audit_event");
+    try {
+      await recordLoginAuditEvent(client, request, {
+        username, cnpj, role: expectedRole, eventType: "login_succeeded", success: true,
+        httpStatus: 200, accountId: profile.account_id, location: input["location"],
+      });
+      await client.query("RELEASE SAVEPOINT login_audit_event");
+    } catch (auditError) {
+      await client.query("ROLLBACK TO SAVEPOINT login_audit_event");
+      await client.query("RELEASE SAVEPOINT login_audit_event");
+      console.error("[MobFlow login audit] Could not record successful login", auditError instanceof Error ? auditError.message : "unknown");
+    }
     await client.query("COMMIT");
     open = false;
     return Response.json({
@@ -192,13 +205,31 @@ export async function handleMobFlowLogin(request: Request) {
     if (open) await client.query("ROLLBACK").catch(() => undefined);
     open = false;
     if (error instanceof LoginError) {
-      if (error.status === 401 && username) {
+      if (username) {
         try {
           await client.query("BEGIN");
           await client.query("SET LOCAL ROLE mobflow_api");
-          const failure = await recordLoginFailure(client, request, username, expectedRole === "manager" ? cnpj : undefined);
+          const failure = error.status === 401
+            ? await recordLoginFailure(client, request, username, expectedRole === "manager" ? cnpj : undefined)
+            : null;
+          const eventType = error.status === 428 ? "captcha_rejected"
+            : error.status === 429 ? "login_blocked"
+            : error.status === 401 ? "login_failed"
+            : "login_denied";
+          await client.query("SAVEPOINT login_audit_event");
+          try {
+            await recordLoginAuditEvent(client, request, {
+              username, cnpj, role: expectedRole, eventType, success: false,
+              httpStatus: error.status, location: input["location"],
+            });
+            await client.query("RELEASE SAVEPOINT login_audit_event");
+          } catch (auditError) {
+            await client.query("ROLLBACK TO SAVEPOINT login_audit_event");
+            await client.query("RELEASE SAVEPOINT login_audit_event");
+            console.error("[MobFlow login audit] Could not record failed login", auditError instanceof Error ? auditError.message : "unknown");
+          }
           await client.query("COMMIT");
-          if (failure.blockedUntil && failure.blockedUntil.getTime() > Date.now()) {
+          if (failure?.blockedUntil && failure.blockedUntil.getTime() > Date.now()) {
             const retryAfter = Math.max(1, Math.ceil((failure.blockedUntil.getTime() - Date.now()) / 1000));
             return Response.json(
               { ok: false, locked: true, retryAfterSeconds: retryAfter, error: "Muitas tentativas incorretas. Acesso temporariamente bloqueado por 30 minutos." },
