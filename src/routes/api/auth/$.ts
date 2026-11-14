@@ -5,6 +5,8 @@ import {
   checkLoginSecurity,
   recordLoginFailure,
   recordLoginSuccess,
+  acquireLoginAttemptLock,
+  releaseLoginAttemptLock,
 } from "@/lib/server/auth-security";
 
 export async function handleAuth(request: Request): Promise<Response> {
@@ -34,10 +36,12 @@ export async function handleAuth(request: Request): Promise<Response> {
     if (!username) return Response.json({ message: "Credenciais inválidas." }, { status: 401 });
 
     const client = await getNeonPool().connect();
+    let loginLockKey: string | null = null;
     try {
+      loginLockKey = await acquireLoginAttemptLock(client, username);
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE mobflow_api");
-      const security = await checkLoginSecurity(client, request, username, undefined, false);
+      const security = await checkLoginSecurity(client, request, username, undefined, true);
       if (security.blockedUntil) {
         await client.query("ROLLBACK");
         return Response.json(
@@ -82,6 +86,11 @@ export async function handleAuth(request: Request): Promise<Response> {
       await client.query("ROLLBACK").catch(() => undefined);
       throw error;
     } finally {
+      if (loginLockKey) {
+        await releaseLoginAttemptLock(client, loginLockKey).catch((error) => {
+          console.error("[MobFlow Better Auth] Could not release login lock", error instanceof Error ? error.message : "unknown error");
+        });
+      }
       client.release();
     }
   } catch (error) {
