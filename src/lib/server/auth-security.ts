@@ -306,7 +306,12 @@ export async function recordLoginAuditEvent(
   const latitude = typeof rawLocation["latitude"] === "number" ? rawLocation["latitude"] : Number.NaN;
   const longitude = typeof rawLocation["longitude"] === "number" ? rawLocation["longitude"] : Number.NaN;
   const accuracy = typeof rawLocation["accuracy"] === "number" ? rawLocation["accuracy"] : Number.NaN;
-  const hasCoordinates = locationPermission === "granted" &&
+  const altitude = typeof rawLocation["altitude"] === "number" ? rawLocation["altitude"] : Number.NaN;
+  const altitudeAccuracy = typeof rawLocation["altitudeAccuracy"] === "number" ? rawLocation["altitudeAccuracy"] : Number.NaN;
+  const positionTimestamp = typeof rawLocation["positionTimestamp"] === "number" ? rawLocation["positionTimestamp"] : Number.NaN;
+  const freshPosition = Number.isFinite(positionTimestamp) &&
+    Math.abs(Date.now() - positionTimestamp) <= 120000;
+  const hasCoordinates = locationPermission === "granted" && freshPosition &&
     Number.isFinite(latitude) && latitude >= -90 && latitude <= 90 &&
     Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
   const ip = clientIp(request);
@@ -326,8 +331,8 @@ export async function recordLoginAuditEvent(
     "INSERT INTO public.mobflow_login_audit_events " +
     "(account_id, company_cnpj, attempted_username, attempted_role, event_type, success, " +
     "http_status, ip_address, device_id, user_agent, browser, operating_system, " +
-    "country, region, city, location_permission, latitude, longitude, location_accuracy_m) " +
-    "VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)",
+    "country, region, city, location_permission, latitude, longitude, location_accuracy_m, altitude_m, altitude_accuracy_m) " +
+    "VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)",
     [
       accountId, cnpj, input.username.trim().slice(0, 128) || "(vazio)", input.role,
       input.eventType, input.success, input.httpStatus,
@@ -336,6 +341,8 @@ export async function recordLoginAuditEvent(
       header("x-vercel-ip-country"), header("x-vercel-ip-country-region"), header("x-vercel-ip-city"),
       locationPermission, hasCoordinates ? latitude : null, hasCoordinates ? longitude : null,
       hasCoordinates && Number.isFinite(accuracy) && accuracy > 0 ? Math.min(accuracy, 100000) : null,
+      hasCoordinates && Number.isFinite(altitude) && altitude >= -12000 && altitude <= 100000 ? altitude : null,
+      hasCoordinates && Number.isFinite(altitudeAccuracy) && altitudeAccuracy > 0 ? Math.min(altitudeAccuracy, 100000) : null,
     ],
   );
 }
