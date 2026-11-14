@@ -170,7 +170,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   }, [mode]);
 
   useEffect(() => {
-    if (!captchaRequired || mode !== "empresa") return;
+    if (!captchaRequired) return;
     let cancelled = false;
     let widgetId: string | undefined;
     const renderWidget = () => {
@@ -308,7 +308,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           setError(String(validation?.error || "Muitas tentativas incorretas. Acesso temporariamente bloqueado."));
           return;
         }
-        if (validationResponse.status === 428 && validation?.captchaRequired && mode === "empresa") {
+        if (validationResponse.status === 428 && validation?.captchaRequired) {
           setCaptchaRequired(true);
           setCaptchaToken("");
           const turnstile = (window as Window & { turnstile?: { reset: (id: string) => void } }).turnstile;
@@ -562,7 +562,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" />
           </div>
 
-          {mode === "empresa" && captchaRequired && (
+          {captchaRequired && (
             <div className="rounded-xl border border-border bg-background p-3">
               <p className="mb-2 text-sm font-medium text-foreground">Verificação adicional de segurança</p>
               <div ref={captchaContainerRef} className="flex min-h-[65px] justify-center" />
