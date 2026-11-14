@@ -255,6 +255,7 @@ function Gerencia() {
   };
 
   const confirmManagerPassword = async () => {
+    if (managerPasswordLockoutRemaining > 0) return;
     setPasswordError("");
     if (password.length < 6) {
       setPasswordError("Informe a senha da gerência.");
@@ -275,6 +276,7 @@ function Gerencia() {
   };
 
   const confirmPromotionPassword = async () => {
+    if (managerPasswordLockoutRemaining > 0) return;
     setPasswordError("");
     if (password.length < 6) {
       setPasswordError("Informe a senha da gerência.");
