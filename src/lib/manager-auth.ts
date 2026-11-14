@@ -7,9 +7,14 @@ export async function verifyManagerPassword(password: string): Promise<{ ok: boo
       body: JSON.stringify({ password }),
     });
     const data = await response.json().catch(() => ({}));
+    const retryAfterSeconds = Number(data?.retryAfterSeconds);
     return response.ok && data?.ok
       ? { ok: true }
-      : { ok: false, error: String(data?.error || "Senha da gerência incorreta."), retryAfterSeconds: Number(data?.retryAfterSeconds) || undefined };
+      : {
+          ok: false,
+          error: String(data?.error || "Senha da gerência incorreta."),
+          ...(Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? { retryAfterSeconds } : {}),
+        };
   } catch {
     return { ok: false, error: "Não foi possível validar a senha da gerência." };
   }
