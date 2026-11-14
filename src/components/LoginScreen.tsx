@@ -231,9 +231,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
       }
 
-      const loginLocation = mode === "empresa"
-        ? await requestCompanyLoginLocation()
-        : { permission: "not_requested" as const };
+      const loginLocation = await requestLoginLocation();
 
       await mobflowAuthClient.signOut().catch(() => undefined);
       sessionStorage.removeItem("mobflow-management");
