@@ -181,7 +181,7 @@ export async function handleMobFlowLogin(request: Request) {
       firstManagerLogin = existing.rows.length === 0;
     }
 
-    await recordLoginSuccess(client, request, username, expectedRole === "manager" ? cnpj : undefined);
+    await recordLoginSuccess(client, request, username, cnpj.length === 14 ? cnpj : undefined);
     await client.query("SAVEPOINT login_audit_event");
     try {
       await recordLoginAuditEvent(client, request, {
