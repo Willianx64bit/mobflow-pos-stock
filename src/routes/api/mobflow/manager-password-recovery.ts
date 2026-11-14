@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash, randomBytes } from "node:crypto";
 import { getNeonPool } from "@/lib/server/neon";
+import { enforcePublicRateLimit } from "@/lib/server/auth-security";
 
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const genericMessage = "Se os dados corresponderem à conta da Gerência, enviaremos um link para o e-mail cadastrado. Verifique a caixa de entrada e o spam.";
@@ -156,6 +157,23 @@ async function resetRecovery(body: Record<string, unknown>) {
   }
 }
 
+
+async function checkRecoveryIpLimit(request: Request) {
+  const client = await getNeonPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE mobflow_api");
+    const result = await enforcePublicRateLimit(client, request, "manager-password-recovery", 10, 60, 60);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function handleRecovery(request: Request) {
   if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return Response.json({ ok: false, error: "Este fluxo ainda não está ativo neste ambiente." }, { status: 503 });
@@ -165,7 +183,21 @@ async function handleRecovery(request: Request) {
     return Response.json({ ok: false, error: "Solicitação inválida." }, { status: 400 });
   }
   const action = String(body["action"] ?? "");
-  if (action === "request") return requestRecovery(body);
+  if (action === "request") {
+    try {
+      const limit = await checkRecoveryIpLimit(request);
+      if (limit.blockedUntil) {
+        return Response.json(
+          { ok: false, error: "Muitas solicitações de recuperação. Aguarde antes de tentar novamente." },
+          { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+        );
+      }
+    } catch (error) {
+      console.error("[MobFlow recovery rate limit]", error instanceof Error ? error.message : "unknown error");
+      return Response.json({ ok: false, error: "Não foi possível validar a segurança da recuperação agora." }, { status: 503 });
+    }
+    return requestRecovery(body);
+  }
   if (action === "reset") return resetRecovery(body);
   return Response.json({ ok: false, error: "Ação inválida." }, { status: 400 });
 }
