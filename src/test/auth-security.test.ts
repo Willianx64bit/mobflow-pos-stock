@@ -60,6 +60,39 @@ describe("MobFlow persistent authentication security", () => {
     expect(serializedParams).not.toContain(DEVICE_ID);
   });
 
+  it("starts a 30-minute identity lockout on the third consecutive failed login", async () => {
+    let identityFailures = 0;
+    const blockedUntil = new Date(Date.now() + 30 * 60 * 1000);
+    const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+      if (sql.includes("INSERT INTO public.mobflow_auth_security_state")) {
+        const scope = values[0];
+        if (scope === "login") {
+          identityFailures += 1;
+          return { rows: [{ failure_count: identityFailures, blocked_until: identityFailures >= 3 ? blockedUntil : null }] };
+        }
+        return { rows: [{ failure_count: 1, blocked_until: null }] };
+      }
+      return { rows: [] };
+    });
+    const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
+      headers: { "x-real-ip": IP, "x-mobflow-device": DEVICE_ID },
+    });
+
+    const first = await recordLoginFailure(mockClient(query), request, USERNAME);
+    const second = await recordLoginFailure(mockClient(query), request, USERNAME);
+    const third = await recordLoginFailure(mockClient(query), request, USERNAME);
+
+    expect(first.blockedUntil).toBeNull();
+    expect(second.blockedUntil).toBeNull();
+    expect(third.blockedUntil).toEqual(blockedUntil);
+    const identityInsert = query.mock.calls.find((call) =>
+      call[0].includes("INSERT INTO public.mobflow_auth_security_state") && call[1]?.[0] === "login",
+    );
+    expect(identityInsert?.[0]).toContain("now() + interval '30 minutes'");
+    expect(identityInsert?.[0]).toContain(">= $5");
+    expect(identityInsert?.[1]).toEqual(["login", expect.any(String), 30, true, 3]);
+  });
+
   it("records login failures as HMAC-scoped state without persisting raw identifiers", async () => {
     const query = vi.fn(async (_sql: string, _values?: unknown[]) => ({ rows: [{ failure_count: 1, blocked_until: null }] }));
     const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
