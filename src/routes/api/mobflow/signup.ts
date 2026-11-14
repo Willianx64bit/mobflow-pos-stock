@@ -3,6 +3,7 @@ import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { getNeonPool, getSignupPool } from "@/lib/server/neon";
+import { enforcePublicRateLimit } from "@/lib/server/auth-security";
 
 const MANAGER_PERMISSIONS = ["PDV", "Conferência", "Validade", "Fiado", "Gerência"];
 const R2_ACCOUNT_ID = process.env["CLOUDFLARE_R2_ACCOUNT_ID"]?.trim() ?? "";
@@ -336,14 +337,46 @@ async function createCompany(body: Record<string, unknown>) {
   }
 }
 
+
+async function checkPublicSignupLimit(request: Request, endpoint: string, maxRequests: number) {
+  const client = await getNeonPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE mobflow_api");
+    const result = await enforcePublicRateLimit(client, request, endpoint, maxRequests, 60, 60);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 async function handleSignup(request: Request) {
   if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
     return errorResponse("Este fluxo ainda não está ativo neste ambiente.", 503);
   }
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return errorResponse("Solicitação inválida."); }
-  if (body["action"] === "submit_payment_proof") return submitPaymentProof(body);
-  if (body["action"] === "complete_manager_setup") return completeManagerSetup(body);
+  const action = String(body["action"] ?? "create_company");
+  const endpoint = action === "submit_payment_proof" ? "signup-payment-proof" : action === "complete_manager_setup" ? "signup-manager-setup" : "signup-create-company";
+  const maxRequests = action === "complete_manager_setup" ? 5 : 10;
+  try {
+    const limit = await checkPublicSignupLimit(request, endpoint, maxRequests);
+    if (limit.blockedUntil) {
+      return Response.json(
+        { ok: false, error: "Muitas solicitações deste dispositivo/rede. Aguarde antes de tentar novamente." },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } },
+      );
+    }
+  } catch (error) {
+    console.error("[MobFlow public signup rate limit]", error instanceof Error ? error.message : "unknown error");
+    return errorResponse("Não foi possível validar a segurança do cadastro agora.", 503);
+  }
+  if (action === "submit_payment_proof") return submitPaymentProof(body);
+  if (action === "complete_manager_setup") return completeManagerSetup(body);
   return createCompany(body);
 }
 
