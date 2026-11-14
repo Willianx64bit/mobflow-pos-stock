@@ -131,7 +131,7 @@ describe("MobFlow persistent authentication security", () => {
 
 
   it("stores detailed login audit metadata and only records coordinates after consent", async () => {
-    const query = vi.fn(async () => ({ rows: [] }));
+    const query = vi.fn(async (_sql: string, _values: unknown[] = []) => ({ rows: [] }));
     const request = new Request("https://preview.mobflow.test/api/mobflow/login", {
       headers: {
         "x-real-ip": IP,
