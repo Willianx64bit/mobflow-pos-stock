@@ -100,7 +100,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string; remove: (id: string) => void } }).turnstile;
       if (cancelled || !captchaContainerRef.current || !turnstile) return;
       widgetId = turnstile.render(captchaContainerRef.current, {
-        sitekey: import.meta.env.VITE_TURNSTILE_SITE_KEY,
+        sitekey: import.meta.env["VITE_TURNSTILE_SITE_KEY"],
         callback: (token: string) => setCaptchaToken(token),
         "expired-callback": () => setCaptchaToken(""),
         "error-callback": () => setCaptchaToken(""),
@@ -191,7 +191,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
         const email = username.trim().toUpperCase().toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
         const authResult = await withTimeout(
-          mobflowAuthClient.signIn.email({ email, password }, { fetchOptions: { headers: { "X-MobFlow-Device": getMobFlowDeviceId() } } }),
+          mobflowAuthClient.signIn.email({ email, password }),
           15000,
         );
         if (authResult.error) {
