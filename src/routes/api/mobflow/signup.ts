@@ -207,25 +207,36 @@ async function createCompany(body: Record<string, unknown>) {
   if (phone.length < 10 || phone.length > 13) return errorResponse("Informe um telefone válido com DDD.");
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return errorResponse("Informe um e-mail válido.");
 
-  let paymentSettings: { pix_phone: string; monthly_price: number; payment_method: "pix"; recipient_name: string; recipient_city: string };
+  const planCode = String(body["planCode"] ?? "monthly");
+  const planMonths: Record<string, number> = { monthly: 1, semiannual: 6, annual: 12 };
+  if (!(planCode in planMonths)) return errorResponse("Selecione um período de assinatura válido.");
+  let paymentSettings: { pix_phone: string; monthly_price: number; contracted_amount: number; plan_code: string; plan_months: number; payment_method: "pix"; recipient_name: string; recipient_city: string };
   try {
     const billingResult = await getSignupPool().query<{
       pix_phone: string;
       monthly_price: string | number;
+      semiannual_price: string | number | null;
+      annual_price: string | number | null;
       payment_method: string;
     }>(
-      "SELECT pix_phone, monthly_price, payment_method FROM public.admin_billing_settings WHERE id = true LIMIT 1",
+      "SELECT pix_phone, monthly_price, semiannual_price, annual_price, payment_method FROM public.admin_billing_settings WHERE id = true LIMIT 1",
     );
     const billing = billingResult.rows[0];
     const pixKey = String(billing?.pix_phone ?? "").trim();
     const monthlyPrice = Number(billing?.monthly_price);
+    const configuredPrice = planCode === "semiannual" ? Number(billing?.semiannual_price)
+      : planCode === "annual" ? Number(billing?.annual_price) : monthlyPrice;
     if (!billing || billing.payment_method !== "pix" || !/^\+?\d{10,15}$/.test(pixKey) ||
-        !Number.isFinite(monthlyPrice) || monthlyPrice <= 0) {
-      return errorResponse("As configurações Pix ainda não estão disponíveis. Tente novamente mais tarde.", 503);
+        !Number.isFinite(monthlyPrice) || monthlyPrice <= 0 ||
+        !Number.isFinite(configuredPrice) || configuredPrice <= 0 || configuredPrice > 9999.99) {
+      return errorResponse("O preço deste plano ainda não está configurado no MobFlow Admin.", 503);
     }
     paymentSettings = {
       pix_phone: pixKey,
       monthly_price: monthlyPrice,
+      contracted_amount: configuredPrice,
+      plan_code: planCode,
+      plan_months: planMonths[planCode],
       payment_method: "pix",
       recipient_name: "MOBFLOW",
       recipient_city: "CAPAO BONITO",
@@ -236,6 +247,7 @@ async function createCompany(body: Record<string, unknown>) {
   }
   const pixKey = paymentSettings.pix_phone;
   const monthlyPrice = paymentSettings.monthly_price;
+  const contractedAmount = paymentSettings.contracted_amount;
 
   const client = await getSignupPool().connect();
   try {
@@ -281,10 +293,11 @@ async function createCompany(body: Record<string, unknown>) {
     const companyResult = await client.query<{ payment_request_token: string }>(
       `INSERT INTO public.companies
         (account_id,company_name,cnpj,username,manager_setup_token,manager_setup_completed_at,
-         email,phone,plan_code,monthly_price,payment_method,subscription_status)
-       VALUES ($1,$2,$3,$4,NULL,now(),$5,$6,'complete',$7,'pix','pending_payment')
+         email,phone,plan_code,monthly_price,payment_method,subscription_status,
+         subscription_plan_code,subscription_months,contracted_amount)
+       VALUES ($1,$2,$3,$4,NULL,now(),$5,$6,'complete',$7,'pix','pending_payment',$8,$9,$10)
        RETURNING payment_request_token::text`,
-      [id, companyName, cnpj, username, email, phone, monthlyPrice],
+      [id, companyName, cnpj, username, email, phone, monthlyPrice, paymentSettings.plan_code, paymentSettings.plan_months, contractedAmount],
     );
     const requestToken = companyResult.rows[0]?.payment_request_token;
     if (!requestToken) throw new Error("payment_request_token missing");
@@ -303,14 +316,16 @@ async function createCompany(body: Record<string, unknown>) {
       pixKey,
       String(paymentSettings.recipient_name || "MOBFLOW"),
       String(paymentSettings.recipient_city || "SAO PAULO"),
-      monthlyPrice,
+      contractedAmount,
     );
     const pixQrCode = "https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=" + encodeURIComponent(pixCopyPaste);
     return Response.json({
       ok: true,
       subscriptionStatus: "pending_payment",
       paymentMethod: "pix",
-      amount: monthlyPrice,
+      amount: contractedAmount,
+      planCode: paymentSettings.plan_code,
+      months: paymentSettings.plan_months,
       pixCopyPaste,
       pixQrCode,
       pixRecipientName: paymentSettings.recipient_name || "MOBFLOW",
@@ -384,8 +399,10 @@ async function getPublicBillingSettings() {
   try {
     const result = await getSignupPool().query<{
       monthly_price: string | number;
+      semiannual_price: string | number | null;
+      annual_price: string | number | null;
       payment_method: string;
-    }>("SELECT monthly_price,payment_method FROM public.admin_billing_settings WHERE id=true LIMIT 1");
+    }>("SELECT monthly_price,semiannual_price,annual_price,payment_method FROM public.admin_billing_settings WHERE id=true LIMIT 1");
     const settings = result.rows[0];
     const monthlyPrice = Number(settings?.monthly_price);
     if (!settings || settings.payment_method !== "pix" || !Number.isFinite(monthlyPrice) || monthlyPrice <= 0) {
@@ -394,7 +411,13 @@ async function getPublicBillingSettings() {
         headers: { "Cache-Control": "no-store" },
       });
     }
-    return Response.json({ ok: true, monthly_price: monthlyPrice, payment_method: "pix" }, {
+    return Response.json({
+      ok: true,
+      monthly_price: monthlyPrice,
+      semiannual_price: settings.semiannual_price == null ? null : Number(settings.semiannual_price),
+      annual_price: settings.annual_price == null ? null : Number(settings.annual_price),
+      payment_method: "pix",
+    }, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
