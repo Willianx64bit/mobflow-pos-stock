@@ -132,10 +132,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [signupResult, setSignupResult] = useState<{
-    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string; requestToken?: string;
+    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string; requestToken?: string; planCode: string; months: number;
   } | null>(null);
   const [signupCopied, setSignupCopied] = useState(false);
-  const [signupMonthlyPrice, setSignupMonthlyPrice] = useState<number | null>(null);
+  const [signupPrices, setSignupPrices] = useState<{ monthly: number; semiannual: number | null; annual: number | null } | null>(null);
+  const [selectedSignupPlan, setSelectedSignupPlan] = useState<"monthly" | "semiannual" | "annual">("monthly");
   const [pendingPayment, setPendingPayment] = useState<any>(null);
   const [savedPendingPayment, setSavedPendingPayment] = useState<any>(() => {
     try { return JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null"); } catch { return null; }
@@ -150,10 +151,18 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     fetch("/api/mobflow/signup", { method: "GET", credentials: "same-origin" })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Configuração indisponível")))
       .then((settings) => {
-        const price = Number(settings?.monthly_price);
-        if (!cancelled && settings?.ok === true && Number.isFinite(price) && price > 0) setSignupMonthlyPrice(price);
+        const monthly = Number(settings?.monthly_price);
+        const semiannual = settings?.semiannual_price == null ? null : Number(settings.semiannual_price);
+        const annual = settings?.annual_price == null ? null : Number(settings.annual_price);
+        if (!cancelled && settings?.ok === true && Number.isFinite(monthly) && monthly > 0) {
+          setSignupPrices({
+            monthly,
+            semiannual: semiannual !== null && Number.isFinite(semiannual) && semiannual > 0 ? semiannual : null,
+            annual: annual !== null && Number.isFinite(annual) && annual > 0 ? annual : null,
+          });
+        }
       })
-      .catch(() => { if (!cancelled) setSignupMonthlyPrice(null); });
+      .catch(() => { if (!cancelled) setSignupPrices(null); });
     return () => { cancelled = true; };
   }, [mode, showSignup, signupResult]);
 
@@ -371,6 +380,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         cnpj: signupForm.cnpj,
         email: signupForm.email.trim().toLowerCase(),
         phone: signupForm.phone,
+        planCode: selectedSignupPlan,
       };
       const response = await withTimeout(fetch("/api/mobflow/signup", {
         method: "POST",
@@ -389,6 +399,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         pixRecipientName: String(data.pixRecipientName || "MOBFLOW"),
         username: String(data.username || signupForm.username.toUpperCase()),
         requestToken: String(data.requestToken || ""),
+        planCode: String(data.planCode || selectedSignupPlan),
+        months: Number(data.months || (selectedSignupPlan === "annual" ? 12 : selectedSignupPlan === "semiannual" ? 6 : 1)),
       });
       const pending = {
         amount: Number(data.amount), pixCopyPaste: String(data.pixCopyPaste), pixQrCode: String(data.pixQrCode),
@@ -396,6 +408,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         username: String(data.username || signupForm.username.toUpperCase()),
         requestToken: String(data.requestToken || ""), cnpj: signupForm.cnpj.replace(/\D/g, ""),
         email: signupForm.email.trim().toLowerCase(),
+        planCode: String(data.planCode || selectedSignupPlan),
+        months: Number(data.months || (selectedSignupPlan === "annual" ? 12 : selectedSignupPlan === "semiannual" ? 6 : 1)),
       };
       localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
       setSavedPendingPayment(pending);
@@ -452,7 +466,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-secondary text-primary"><CheckCircle2 className="h-7 w-7" /></div>
             <h1 className="mt-4 font-display text-xl tracking-[.08em] text-heading">CADASTRO RECEBIDO</h1>
             <p className="mt-2 text-sm text-muted-foreground">Usuário gerente: <strong>{signupResult.username}</strong></p>
-            <p className="mt-3 text-sm text-muted-foreground">Mensalidade: <strong className="text-foreground">{signupResult.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong></p>
+            <p className="mt-3 text-sm text-muted-foreground">Plano {signupResult.planCode === "annual" ? "anual" : signupResult.planCode === "semiannual" ? "semestral" : "mensal"} · {signupResult.months} {signupResult.months === 1 ? "mês" : "meses"}: <strong className="text-foreground">{signupResult.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong></p>
           </div>
           <div className="mt-5 rounded-xl border border-border bg-background p-4 text-center">
             <p className="mb-3 text-sm font-semibold">Pague com Pix para {signupResult.pixRecipientName}</p>
@@ -483,7 +497,40 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <button type="button" onClick={() => { setShowSignup(false); setSignupError(""); }} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Voltar ao login</button>
           <h1 className="font-display text-xl tracking-[.08em] text-heading">CRIAR CONTA</h1>
           <p className="mt-1 text-sm text-muted-foreground">Preencha os dados da empresa para gerar a cobrança Pix.</p>
-          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 p-4"><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Mensalidade do MobFlow</p><div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-black text-foreground">{signupMonthlyPrice === null ? "Consultar valor" : signupMonthlyPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>{signupMonthlyPrice !== null && <span className="text-sm text-muted-foreground">/ mês</span>}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">O pagamento inicial é feito por Pix e o acesso é liberado após a confirmação do administrador.</p></div>
+          <div className="mt-4 rounded-xl border border-border bg-background p-4">
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Escolha seu plano</p>
+            <div className="mt-3 grid gap-2">
+              {([
+                { code: "monthly" as const, title: "Mensal", months: 1, price: signupPrices?.monthly ?? null },
+                { code: "semiannual" as const, title: "Semestral", months: 6, price: signupPrices?.semiannual ?? null },
+                { code: "annual" as const, title: "Anual", months: 12, price: signupPrices?.annual ?? null },
+              ]).map((plan) => {
+                const reference = signupPrices ? signupPrices.monthly * plan.months : 0;
+                const savings = plan.price !== null ? reference - plan.price : 0;
+                const savingsPercent = reference > 0 && savings > 0 ? (savings / reference) * 100 : 0;
+                const available = plan.price !== null;
+                const selected = selectedSignupPlan === plan.code;
+                return (
+                  <button key={plan.code} type="button" disabled={!available || signupLoading}
+                    onClick={() => setSelectedSignupPlan(plan.code)}
+                    aria-pressed={selected}
+                    className={`w-full rounded-xl border p-3 text-left transition ${selected ? "border-primary bg-primary/10 ring-1 ring-primary/30" : "border-border bg-surface hover:bg-accent"} ${!available ? "cursor-not-allowed opacity-50" : ""}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-foreground">{plan.title}</span>
+                      <span className="text-xs text-muted-foreground">{plan.months} {plan.months === 1 ? "mês" : "meses"}</span>
+                    </div>
+                    <div className="mt-1 text-xl font-black text-foreground">{plan.price === null ? "Preço não configurado" : plan.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
+                    {available && <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                      <span>{(plan.price / plan.months).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por mês</span>
+                      {savingsPercent > 0 && <span className="font-semibold text-primary">Economize {savings.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} · {savingsPercent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</span>}
+                    </div>}
+                    {!available && <p className="mt-1 text-xs text-muted-foreground">Aguarde a configuração deste plano pelo administrador.</p>}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">O Pix será gerado pelo valor total do período escolhido. O acesso é liberado após a confirmação do administrador.</p>
+          </div>
           <form onSubmit={submitSignup} className="mt-5 space-y-3" autoComplete="off">
             <div><label className="label-mono mb-1 block">Nome da empresa</label><input required minLength={2} maxLength={120} value={signupForm.companyName} onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })} className="field w-full text-foreground" placeholder="Nome da empresa" /></div>
             <div><label className="label-mono mb-1 block">Usuário do gerente</label><input required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]+" value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value.toUpperCase() })} className="field w-full text-foreground" placeholder="Ex.: MERCADO01" /></div>
