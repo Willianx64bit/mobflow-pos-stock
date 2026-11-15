@@ -330,7 +330,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           return;
         }
 
-        const email = username.trim().toUpperCase().toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+        const email = String(validation.profile.authEmail || "");
+        if (!email) {
+          setError("Não foi possível identificar a conta de autenticação deste usuário.");
+          return;
+        }
         const authResult = await withTimeout(
           mobflowAuthClient.signIn.email({ email, password }),
           15000,
