@@ -19,7 +19,7 @@ class LoginError extends Error {
   constructor(message: string, readonly status: number, readonly retryAfterSeconds = 0) { super(message); }
 }
 const deny = (message: string, status = 401): never => { throw new LoginError(message, status); };
-const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+const emailFor = (username: string, accountId: string) => `${username.toLowerCase().replace(/[^a-z0-9._-]/g, "-")}-${accountId.replace(/-/g, "")}@accounts.mobflow.local`;
 
 export async function handleMobFlowLogin(request: Request) {
   if (process.env["MOBFLOW_AUTH_PROVIDER"] !== "better-auth") {
@@ -99,8 +99,8 @@ export async function handleMobFlowLogin(request: Request) {
       active: boolean; display_name: string | null; permissions: unknown;
     }>(
       `SELECT id::text, username, cnpj, account_id::text, role, active, display_name, permissions
-       FROM public.mobflow_find_login_profile($1)`,
-      [username],
+       FROM public.mobflow_find_login_profile($1, $2)`,
+      [username, cnpj],
     );
     let profile = found.rows[0] ?? null;
     let firstManagerLogin = false;
@@ -168,7 +168,7 @@ export async function handleMobFlowLogin(request: Request) {
       await client.query(
         `INSERT INTO public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
          VALUES ($1,$2,$3,true,$4,$4)`,
-        [id, username, emailFor(username), now],
+        [id, username, emailFor(username, id), now],
       );
       await client.query(
         `INSERT INTO public."account" (id,"accountId","providerId","userId",password,"createdAt","updatedAt")
@@ -183,6 +183,13 @@ export async function handleMobFlowLogin(request: Request) {
       profile = { id, username, cnpj, account_id: id, role: "manager", active: true, display_name: username, permissions: MANAGER_PERMISSIONS };
       firstManagerLogin = existing.rows.length === 0;
     }
+
+    const authUser = await client.query<{ email: string }>(
+      `SELECT email FROM public."user" WHERE id=$1 LIMIT 1`,
+      [profile.id],
+    );
+    const authEmail = authUser.rows[0]?.email;
+    if (!authEmail) deny("Não foi possível localizar a identidade de autenticação deste usuário.", 503);
 
     await recordLoginSuccess(client, request, username, cnpj.length === 14 ? cnpj : undefined);
     await client.query("SAVEPOINT login_audit_event");
@@ -204,6 +211,7 @@ export async function handleMobFlowLogin(request: Request) {
       firstManagerLogin,
       profile: {
         username: profile.username,
+        authEmail,
         role: expectedRole === "manager" ? "manager" : profile.role,
         account_id: profile.account_id,
         display_name: profile.display_name ?? username,
