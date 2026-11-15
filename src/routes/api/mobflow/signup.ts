@@ -382,7 +382,7 @@ async function handleSignup(request: Request) {
 
 async function getPublicBillingSettings() {
   try {
-    const result = await getNeonPool().query<{
+    const result = await getSignupPool().query<{
       monthly_price: string | number;
       payment_method: string;
     }>("SELECT monthly_price,payment_method FROM public.admin_billing_settings WHERE id=true LIMIT 1");
