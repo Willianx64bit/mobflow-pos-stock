@@ -59,7 +59,7 @@ async function deleteOperationalR2Objects(tenantId: string) {
   }
 }
 
-const emailFor = (username: string) => username.toLowerCase().replace(/[^a-z0-9._-]/g, "-") + "@accounts.mobflow.local";
+const emailFor = (username: string, accountId: string) => `${username.toLowerCase().replace(/[^a-z0-9._-]/g, "-")}-${accountId.replace(/-/g, "")}@accounts.mobflow.local`;
 
 function normalizePermissions(value: unknown) {
   if (!Array.isArray(value)) return [...DEFAULT_PERMISSIONS];
@@ -122,7 +122,7 @@ async function handleUsers(request: Request) {
           displayName,
           JSON.stringify(permissions),
           passwordHash,
-          emailFor(username),
+          emailFor(username, identity.accountId),
         ],
       );
       if (!created.rows[0]?.created) deny("Não foi possível confirmar a criação do usuário.", 500);
