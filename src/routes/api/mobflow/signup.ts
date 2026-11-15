@@ -209,7 +209,7 @@ async function createCompany(body: Record<string, unknown>) {
 
   const planCode = String(body["planCode"] ?? "monthly");
   const planMonths: Record<string, number> = { monthly: 1, semiannual: 6, annual: 12 };
-  if (!(planCode in planMonths)) return errorResponse("Selecione um período de assinatura válido.");
+  if (!Object.prototype.hasOwnProperty.call(planMonths, planCode)) return errorResponse("Selecione um período de assinatura válido.");
   let paymentSettings: { pix_phone: string; monthly_price: number; contracted_amount: number; plan_code: string; plan_months: number; payment_method: "pix"; recipient_name: string; recipient_city: string };
   try {
     const billingResult = await getSignupPool().query<{
