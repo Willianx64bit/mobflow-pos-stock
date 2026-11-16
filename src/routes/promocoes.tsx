@@ -2,7 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, norm, useStore, type Promotion, type PromotionEvent } from "@/lib/store";
-import { ChevronDown, Filter, History, Loader2 } from "lucide-react";
+import { ChevronDown, Filter, History, Loader2, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/promocoes")({
   head: () => ({ meta: [{ title: "MobFlow — Promoções" }] }),
@@ -41,6 +42,8 @@ function Promotions() {
   const [historyTo, setHistoryTo] = useState("");
   const [historyType, setHistoryType] = useState("all");
   const [historyProduct, setHistoryProduct] = useState("");
+  const [promotionToDelete, setPromotionToDelete] = useState<Promotion | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -167,7 +170,7 @@ function Promotions() {
           <h2 className="font-bold text-heading">Promoções cadastradas</h2>
           {promotions.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhuma promoção cadastrada.</p> : <div className="mt-3 divide-y divide-border">{[...promotions].sort((a,b) => new Date(a.startsAt).getTime()-new Date(b.startsAt).getTime()).map((promo) => {
             const product = products.find((p) => p.id === promo.productId);
-            return <div key={promo.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="font-semibold text-heading">{promo.productName}</div><div className="text-sm text-muted-foreground">Atual: R$ {brl(product?.price ?? promo.originalPrice)} · Promoção: R$ {brl(promo.promoPrice)}</div><div className="text-xs text-muted-foreground">{new Date(promo.startsAt).toLocaleString("pt-BR")} até {new Date(promo.endsAt).toLocaleString("pt-BR")}</div><div className="mt-1 text-xs font-semibold">{status(promo)}</div></div><button onClick={() => edit(promo)} className="rounded-lg border border-border px-3 py-2 text-sm">Editar</button><button onClick={() => { if (window.confirm("Excluir esta promoção?")) void actions.deletePromotion(promo.id).then(() => actions.loadPromotions()).then((events) => { setHistory(events); setHistoryError(""); }).catch((e) => setHistoryError(e instanceof Error ? e.message : "Falha ao excluir promoção.")); }} className="rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive">Excluir</button></div>;
+            return <div key={promo.id} className="flex flex-wrap items-center gap-3 py-3"><div className="min-w-0 flex-1"><div className="font-semibold text-heading">{promo.productName}</div><div className="text-sm text-muted-foreground">Atual: R$ {brl(product?.price ?? promo.originalPrice)} · Promoção: R$ {brl(promo.promoPrice)}</div><div className="text-xs text-muted-foreground">{new Date(promo.startsAt).toLocaleString("pt-BR")} até {new Date(promo.endsAt).toLocaleString("pt-BR")}</div><div className="mt-1 text-xs font-semibold">{status(promo)}</div></div><button onClick={() => edit(promo)} className="rounded-lg border border-border px-3 py-2 text-sm">Editar</button><button type="button" onClick={() => setPromotionToDelete(promo)} className="rounded-lg border border-destructive/30 px-3 py-2 text-sm text-destructive">Excluir</button></div>;
           })}</div>}
         </section>}
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
@@ -194,6 +197,30 @@ function Promotions() {
           </div>}
         </section>
       </main>
+      <AlertDialog open={!!promotionToDelete} onOpenChange={(open) => { if (!open && !deleting) setPromotionToDelete(null); }}>
+        <AlertDialogContent className="rounded-2xl border-border">
+          <AlertDialogHeader>
+            <div className="mx-auto mb-2 grid h-12 w-12 place-items-center rounded-full bg-destructive/10 text-destructive sm:mx-0"><Trash2 className="h-6 w-6" /></div>
+            <AlertDialogTitle className="font-display text-heading">Excluir promoção?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir a promoção de <strong>{promotionToDelete?.productName ?? "este produto"}</strong>? Essa ação não poderá ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={(event) => {
+              event.preventDefault();
+              if (!promotionToDelete || deleting) return;
+              setDeleting(true);
+              void actions.deletePromotion(promotionToDelete.id)
+                .then(() => actions.loadPromotions())
+                .then((events) => { setHistory(events); setHistoryError(""); setPromotionToDelete(null); })
+                .catch((e) => setHistoryError(e instanceof Error ? e.message : "Falha ao excluir promoção."))
+                .finally(() => setDeleting(false));
+            }}>{deleting ? "Excluindo..." : "Sim, excluir"}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
