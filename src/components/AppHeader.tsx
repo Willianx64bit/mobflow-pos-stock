@@ -1,5 +1,5 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { actions, useStore, syncNow } from "@/lib/store";
+import { actions, useStore, syncNow, syncNewContacts } from "@/lib/store";
 import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -73,8 +73,13 @@ export function AppHeader() {
       await actions.refreshCatalog();
       await actions.loadPromotions();
       const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      // Contacts are deliberately excluded from background/realtime pulls.
+      // Fetch only newly registered customer/supplier IDs when the user taps this button.
+      const newContacts = await syncNewContacts();
       const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
-      setSyncMessage(pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
+      setSyncMessage(newContacts > 0
+        ? `${newContacts} novo(s) cliente(s)/fornecedor(es) sincronizado(s)`
+        : pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
     } catch {
       setSyncMessage("Sincronização não concluída");
     } finally {
