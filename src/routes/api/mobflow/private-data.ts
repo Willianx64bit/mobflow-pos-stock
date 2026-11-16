@@ -23,7 +23,7 @@ async function handle(request: Request, method: "GET" | "PATCH" | "DELETE") {
   const contacts = Array.isArray(state["contacts"]) ? state["contacts"] as Array<Record<string,unknown>> : [];
   const settings = object(state["settings"]) ?? {companyName:""};
   const permissions = Array.isArray(identity.permissions) ? identity.permissions : [];
-  const canManageContacts = identity.role === "manager" || (identity.role === "pdv" && (permissions.includes("Cadastros") || permissions.includes("Gerência")));
+  const canManageContacts = identity.role === "manager" || (identity.role === "pdv" && (permissions.includes("Operações") || permissions.includes("Conferência") || permissions.includes("Cadastros") || permissions.includes("Gerência")));
   const canManageSettings = identity.role === "manager" || (identity.role === "pdv" && (permissions.includes("Configurações") || permissions.includes("Gerência")));
   if (method === "GET") {
    if (kind === "contacts") { const ids=contacts.map((item)=>text(item["id"],100)).filter(Boolean);await releaseTransaction(client,true);tx=null;return Response.json({ok:true,ids}); }
