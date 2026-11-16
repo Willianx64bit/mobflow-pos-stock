@@ -893,14 +893,53 @@ function set(next: Partial<State>, options: { persist?: boolean } = {}) {
 export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
   const next = applySyncEventsToState(state, events);
   state = next;
-  if (events.some((event) => (event.category === "master_data" && event.entity_type === "business_contact") || (event.category === "settings" && event.entity_type === "company_settings"))) {
-    const list = await callMobFlowApi("/api/mobflow/private-data?kind=contacts");
-    if (!list.response.ok || list.body.ok !== true || !Array.isArray(list.body.ids)) throw new Error("Falha ao recuperar os contatos atualizados.");
-    const privateData = await loadPrivateData(list.body.ids.filter((id): id is string => typeof id === "string"));
-    state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+  // Contact records are private master data: automatic event delivery only signals
+  // that something changed. Full contact details are fetched only by the manual button.
+  if (events.some((event) => event.category === "settings" && event.entity_type === "company_settings")) {
+    const privateData = await loadPrivateData([]);
+    state = { ...state, settings: { ...state.settings, ...privateData.settings } };
   }
   try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
   listeners.forEach((listener) => listener());
+}
+
+/**
+ * Manual-only contact pull. The server returns IDs as a lightweight index; this
+ * device downloads details only for IDs it does not already have locally.
+ * Existing customer/supplier records are never re-downloaded or overwritten.
+ */
+export async function syncNewContacts(): Promise<number> {
+  if (!cloudReady || !cloudAccountId) await hydrateStore();
+  if (!cloudReady || !cloudAccountId) throw new Error("Não foi possível validar a empresa para sincronizar clientes e fornecedores.");
+  const list = await callMobFlowApi("/api/mobflow/private-data?kind=contacts");
+  if (!list.response.ok || list.body.ok !== true || !Array.isArray(list.body.ids)) {
+    throw new Error("Não foi possível consultar os novos clientes e fornecedores.");
+  }
+  const knownIds = new Set((state.contacts ?? []).map((contact) => contact.id));
+  const newIds = [...new Set(list.body.ids.filter((id): id is string => typeof id === "string" && id.length > 0))]
+    .filter((id) => !knownIds.has(id));
+  if (!newIds.length) return 0;
+
+  const downloaded = await Promise.all(newIds.map(async (id) => {
+    const result = await callMobFlowApi("/api/mobflow/private-data?kind=contact&id=" + encodeURIComponent(id));
+    if (!result.response.ok || result.body.ok !== true || !result.body.record) {
+      throw new Error("Não foi possível baixar um novo cliente ou fornecedor. A sincronização pode ser tentada novamente.");
+    }
+    const contact = result.body.record as BusinessContact;
+    if (contact.id !== id || (contact.type !== "Cliente" && contact.type !== "Fornecedor") || !contact.name?.trim()) {
+      throw new Error("O servidor retornou um cadastro inválido; nenhum contato novo foi aplicado.");
+    }
+    return contact;
+  }));
+
+  const currentIds = new Set((state.contacts ?? []).map((contact) => contact.id));
+  const additions = downloaded.filter((contact) => !currentIds.has(contact.id));
+  if (additions.length) {
+    state = { ...state, contacts: [...additions, ...(state.contacts ?? [])] };
+    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    listeners.forEach((listener) => listener());
+  }
+  return additions.length;
 }
 
 async function performSyncNow(options: { retryFailed?: boolean } = {}) {
