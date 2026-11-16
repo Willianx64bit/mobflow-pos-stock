@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, norm, useStore, type Promotion, type PromotionEvent } from "@/lib/store";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Filter, History, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/promocoes")({
   head: () => ({ meta: [{ title: "MobFlow — Promoções" }] }),
@@ -35,6 +35,12 @@ function Promotions() {
   const [history, setHistory] = useState<PromotionEvent[]>([]);
   const [historyError, setHistoryError] = useState("");
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyFiltersOpen, setHistoryFiltersOpen] = useState(false);
+  const [historyMonth, setHistoryMonth] = useState("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyType, setHistoryType] = useState("all");
+  const [historyProduct, setHistoryProduct] = useState("");
 
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -97,6 +103,28 @@ function Promotions() {
     if (now <= new Date(promo.endsAt).getTime()) return "Em andamento";
     return "Encerrada";
   };
+  const filteredHistory = useMemo(() => history.filter((event) => {
+    const created = new Date(event.created_at);
+    if (!Number.isFinite(created.getTime())) return false;
+    if (historyMonth && !historyFrom && !historyTo) {
+      const month = String(created.getFullYear()) + "-" + String(created.getMonth() + 1).padStart(2, "0");
+      if (month !== historyMonth) return false;
+    }
+    if (historyFrom && created < new Date(historyFrom + "T00:00:00")) return false;
+    if (historyTo && created > new Date(historyTo + "T23:59:59.999")) return false;
+    if (historyType !== "all" && event.payload?.operation !== historyType) return false;
+    if (historyProduct) {
+      const promotion = event.payload?.promotion as Record<string, unknown> | undefined;
+      if (String(promotion?.productId ?? "") !== historyProduct) return false;
+    }
+    return true;
+  }), [history, historyMonth, historyFrom, historyTo, historyType, historyProduct]);
+  const formatEventDate = (value: unknown) => {
+    if (typeof value !== "string" || !value) return "—";
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleString("pt-BR") : "—";
+  };
+
 
   return (
     <div className="mfb-in min-h-screen bg-sky-50/35 p-4 md:p-6">
@@ -141,15 +169,27 @@ function Promotions() {
           })}</div>}
         </section>}
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border md:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-bold text-heading">Histórico de eventos</h2><span className="text-xs text-muted-foreground">Últimos 100 registros</span></div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><History className="h-5 w-5" /></div><div><h2 className="font-display text-xl text-heading">Histórico de eventos</h2><p className="text-xs text-muted-foreground">Últimos 100 registros</p></div></div>
+            <button type="button" onClick={() => setHistoryFiltersOpen((open) => !open)} aria-expanded={historyFiltersOpen} className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground"><Filter className="h-4 w-4" /> {historyFiltersOpen ? "Fechar filtros" : "Filtrar"} <ChevronDown className={"h-4 w-4 transition-transform " + (historyFiltersOpen ? "rotate-180" : "")} /></button>
+          </div>
+          {historyFiltersOpen && <div className="mt-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2">
+            <div><label className="mb-1 block text-xs font-semibold text-heading">Mês</label><input type="month" value={historyMonth} onChange={(e) => { setHistoryMonth(e.target.value); setHistoryFrom(""); setHistoryTo(""); }} className="field w-full text-foreground" /></div>
+            <div><label className="mb-1 block text-xs font-semibold text-heading">Tipo de evento</label><select value={historyType} onChange={(e) => setHistoryType(e.target.value)} className="field w-full text-foreground"><option value="all">Todos</option><option value="create">Criou</option><option value="update">Editou</option><option value="delete">Excluiu</option></select></div>
+            <div><label className="mb-1 block text-xs font-semibold text-heading">Data inicial</label><input type="date" value={historyFrom} onChange={(e) => { setHistoryFrom(e.target.value); if (e.target.value) setHistoryMonth(""); }} className="field w-full text-foreground" /></div>
+            <div><label className="mb-1 block text-xs font-semibold text-heading">Data final</label><input type="date" value={historyTo} onChange={(e) => { setHistoryTo(e.target.value); if (e.target.value) setHistoryMonth(""); }} className="field w-full text-foreground" /></div>
+            <div className="sm:col-span-2"><label className="mb-1 block text-xs font-semibold text-heading">Produto</label><select value={historyProduct} onChange={(e) => setHistoryProduct(e.target.value)} className="field w-full text-foreground"><option value="">Todos os produtos</option>{products.map((product) => <option key={product.id} value={product.id}>{product.code} — {product.name}</option>)}</select></div>
+            <div className="sm:col-span-2"><button type="button" onClick={() => { setHistoryMonth(""); setHistoryFrom(""); setHistoryTo(""); setHistoryType("all"); setHistoryProduct(""); }} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Limpar filtros</button></div>
+          </div>}
           {historyLoading && <p className="mt-3 text-sm text-muted-foreground">Carregando histórico...</p>}
           {historyError && <p className="mt-3 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{historyError}</p>}
-          {!historyLoading && !historyError && history.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">Nenhum evento de promoção registrado ainda.</p> : !historyLoading && !historyError ? <div className="mt-3 divide-y divide-border">
-            {history.map((event) => { const operation=event.payload?.operation; const label=operation==="create"?"Criação":operation==="update"?"Edição":operation==="delete"?"Exclusão":"Evento"; return <div key={event.event_id} className="py-3">
-              <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold text-heading">{label} · Versão {event.payload?.version ?? "—"}</span><span className="text-xs text-muted-foreground">{new Date(event.created_at).toLocaleString("pt-BR")}</span></div>
-              <div className="mt-1 break-all text-xs text-muted-foreground">Evento: {event.event_id}</div><div className="break-all text-xs text-muted-foreground">Promoção: {event.entity_id} · Sequência: {event.sequence}</div>
-            </div>; })}
-          </div> : null}
+          {!historyLoading && !historyError && history.length === 0 && <p className="mt-3 text-sm text-muted-foreground">Nenhum evento de promoção registrado ainda.</p>}
+          {!historyLoading && !historyError && history.length > 0 && filteredHistory.length === 0 && <p className="mt-3 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum evento encontrado com esses filtros.</p>}
+          {!historyLoading && !historyError && filteredHistory.length > 0 && <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="w-full min-w-[620px] border-collapse text-sm"><thead className="bg-secondary/70 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-3 py-3 font-semibold">Data hora</th><th className="px-3 py-3 font-semibold">Eventos</th><th className="px-3 py-3 font-semibold">Data hora início</th><th className="px-3 py-3 font-semibold">Data hora fim</th></tr></thead>
+              <tbody>{filteredHistory.map((event) => { const op = event.payload?.operation; const label = op === "create" ? "Criou" : op === "update" ? "Editou" : op === "delete" ? "Excluiu" : "Evento"; const promotion = event.payload?.promotion as Record<string, unknown> | undefined; return <tr key={event.event_id} className="border-t border-border/70"><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(event.created_at)}</td><td className="px-3 py-3 font-semibold text-heading">{label}</td><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(promotion?.startsAt)}</td><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(promotion?.endsAt)}</td></tr>; })}</tbody>
+            </table>
+          </div>}
         </section>
       </main>
     </div>
