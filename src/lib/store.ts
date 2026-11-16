@@ -125,7 +125,40 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
     return Array.from(map.values());
   };
-  if (!base) return { ...remote, ...local, products: local.products, sales: mergeById(local.sales, remote.sales), stockMovements: mergeById(local.stockMovements ?? [], remote.stockMovements ?? []), conferences: mergeById(local.conferences ?? [], remote.conferences ?? []), receiving: mergeById(local.receiving ?? [], remote.receiving ?? []), manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []), stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []), stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []), stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []), promotions: mergeById(local.promotions ?? [], remote.promotions ?? []), cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []), cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []), suppliers: remote.suppliers ?? local.suppliers };
+  // Promotions are relational records in Neon. Use a three-way merge so a
+  // locally observed deletion is not resurrected by an unchanged stale app_state snapshot.
+  const mergePromotions = (baseItems: Promotion[] = [], localItems: Promotion[] = [], remoteItems: Promotion[] = []) => {
+    const baseMap = new Map(baseItems.map((item) => [item.id, item]));
+    const localMap = new Map(localItems.map((item) => [item.id, item]));
+    const remoteMap = new Map(remoteItems.map((item) => [item.id, item]));
+    const ids = new Set([...baseMap.keys(), ...localMap.keys(), ...remoteMap.keys()]);
+    const merged: Promotion[] = [];
+    for (const id of ids) {
+      const baseItem = baseMap.get(id);
+      const localItem = localMap.get(id);
+      const remoteItem = remoteMap.get(id);
+      if (baseItem && !localItem) {
+        if (remoteItem && (remoteItem.version ?? 0) > (baseItem.version ?? 0)) merged.push(remoteItem);
+        continue;
+      }
+      if (baseItem && !remoteItem) {
+        if (localItem && (localItem.version ?? 0) > (baseItem.version ?? 0)) merged.push(localItem);
+        continue;
+      }
+      if (!baseItem) {
+        const item = remoteItem ?? localItem;
+        if (item) merged.push(item);
+        continue;
+      }
+      if (localItem && remoteItem) {
+        merged.push((localItem.version ?? 0) > (remoteItem.version ?? 0) ? localItem : remoteItem);
+      } else if (localItem ?? remoteItem) {
+        merged.push((localItem ?? remoteItem)!);
+      }
+    }
+    return merged;
+  };
+  if (!base) return { ...remote, ...local, products: local.products, sales: mergeById(local.sales, remote.sales), stockMovements: mergeById(local.stockMovements ?? [], remote.stockMovements ?? []), conferences: mergeById(local.conferences ?? [], remote.conferences ?? []), receiving: mergeById(local.receiving ?? [], remote.receiving ?? []), manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []), stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []), stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []), stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []), promotions: mergePromotions([], local.promotions ?? [], remote.promotions ?? []), cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []), cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []), suppliers: remote.suppliers ?? local.suppliers };
   const stockMovements = mergeById(local.stockMovements ?? [], remote.stockMovements ?? []);
   const baseMovementIds = new Set((base.stockMovements ?? []).map((movement) => movement.id));
   const newMovementDeltas = new Map<string, number>();
@@ -1225,7 +1258,7 @@ export const actions = {
     const result = await callMobFlowApi("/api/mobflow/promotions", { method, body: JSON.stringify(payload) });
     if (!result.response.ok || result.body.ok !== true || !result.body.promotion) throw new Error(String(result.body.error ?? "Falha ao salvar promoção no Neon."));
     const item = result.body.promotion as Promotion;
-    set({ promotions: item.id === existing?.id ? state.promotions.map((p) => p.id === item.id ? item : p) : [item, ...state.promotions] });
+    set({ promotions: item.id === existing?.id ? state.promotions.map((p) => p.id === item.id ? item : p) : [item, ...state.promotions] }, { persist: false });
     return true;
   },
   async deletePromotion(id: string) {
@@ -1233,7 +1266,7 @@ export const actions = {
     if (!existing) throw new Error("Promoção não encontrada na lista atual.");
     const result = await callMobFlowApi("/api/mobflow/promotions", { method: "DELETE", body: JSON.stringify({ id, expectedVersion: existing.version ?? 1 }) });
     if (!result.response.ok || result.body.ok !== true) throw new Error(String(result.body.error ?? "Falha ao excluir promoção no Neon."));
-    set({ promotions: state.promotions.filter((p) => p.id !== id) });
+    set({ promotions: state.promotions.filter((p) => p.id !== id) }, { persist: false });
   },
   async resetAppData() {
     // Descarta também comandos offline antigos para que vendas/movimentos não reapareçam após a limpeza.
