@@ -76,8 +76,11 @@ function Estoque() {
           <button onClick={() => setImporting(true)} className="rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 bg-secondary ring-border text-secondary-foreground hover:bg-accent">
             ⬆ Importar planilha
           </button>
+          <button onClick={() => setExporting(true)} className="rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 bg-secondary ring-border text-secondary-foreground hover:bg-accent">
+            ⬇ Exportar estoque
+          </button>
           <button onClick={() => setEditing(null)} className="text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg px-4 py-2 hover:bg-primary/85">
-            + Produto <kbd className="font-mono text-[10px] opacity-70">F7</kbd>
+            + Produto 
           </button>
         </div>
         <div className="overflow-x-auto">
