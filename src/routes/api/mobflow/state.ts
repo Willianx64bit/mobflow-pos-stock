@@ -75,7 +75,7 @@ SELECT
             FROM public.sale_items item
             WHERE item.tenant_id = sale.tenant_id AND item.sale_id = sale.id
           ), '[]'::jsonb),
-          'total', sale.total, 'profit', sale.profit_total, 'subtotal', sale.subtotal,
+          'total', sale.total, 'profit', CASE WHEN sale.payment_method = 'fiado' THEN sale.total - sale.cost_total ELSE sale.profit_total END, 'subtotal', sale.subtotal,
           'discount', sale.discount_amount,
           'discountType', CASE sale.discount_type WHEN 'fixed' THEN 'R$' WHEN 'percentage' THEN '%' ELSE NULL END,
           'payment', CASE sale.payment_method WHEN 'cash' THEN 'Dinheiro' WHEN 'pix' THEN 'Pix' WHEN 'card' THEN 'Cartão' ELSE 'Fiado' END,
@@ -85,7 +85,7 @@ SELECT
           'paid', sale.payment_status = 'paid', 'paidAt', sale.paid_at,
           'hiddenFromFiado', sale.hidden_from_fiado,
           'payments', COALESCE((
-            SELECT jsonb_agg(jsonb_build_object('value', rp.amount, 'date', rp.occurred_at) ORDER BY rp.occurred_at)
+            SELECT jsonb_agg(jsonb_build_object('value', rp.amount, 'date', rp.occurred_at, 'method', rp.payment_method) ORDER BY rp.occurred_at)
             FROM public.receivable_payments rp
             WHERE rp.tenant_id = sale.tenant_id AND rp.sale_id = sale.id
           ), '[]'::jsonb)
