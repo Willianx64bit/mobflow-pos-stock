@@ -212,23 +212,29 @@ function PDV() {
     void completeSale().finally(() => setIsFinalizing(false));
   };
 
-  const completeSale = async () => {
+  const completeSale = async (): Promise<boolean> => {
     try {
       const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
-      if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return; }
+      if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return false; }
       await confirmLastDomainCommand();
       setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+      return true;
     } catch (error) {
       await hydrateStore().catch(() => undefined);
       setFlash(error instanceof Error ? error.message : "A venda não foi confirmada pelo servidor. Tente sincronizar novamente.");
+      return false;
     }
   };
 
-  const confirmPixPayment = () => {
+  const confirmPixPayment = async () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
-    setPixPayload("");
-    void completeSale().finally(() => setIsConfirmingPix(false));
+    try {
+      const confirmed = await completeSale();
+      if (confirmed) setPixPayload("");
+    } finally {
+      setIsConfirmingPix(false);
+    }
   };
 
   useEffect(() => {
