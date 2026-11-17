@@ -19,7 +19,7 @@ function Fiado() {
   const navigate = useNavigate();
   const [paymentValue, setPaymentValue] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
-  const [purchaseFilter, setPurchaseFilter] = useState<"todos" | "pendentes" | "quitados">("todos");
+  const [purchaseFilter, setPurchaseFilter] = useState<"todos" | "pendentes" | "quitados">("pendentes");
   const [authorizing, setAuthorizing] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -159,7 +159,7 @@ function Fiado() {
                 {[...selectedSales].filter((sale) => purchaseFilter === "todos" || (purchaseFilter === "pendentes" ? remaining(sale) > 0 : remaining(sale) <= 0)).sort((a,b) => +new Date(b.date)-+new Date(a.date)).map((s) => {
                   const paidAmount=paidTotal(s), due=remaining(s), draft=paymentValue;
                   return <article key={s.id} className="rounded-xl border-2 border-black bg-background/50 p-4 shadow-sm">
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3"><div><div className="font-semibold text-heading">{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div></div><div className="text-right"><div className="font-semibold">Total: R$ {brl(s.total)}</div><div className="text-sm text-green-600">Pago: R$ {brl(paidAmount)}</div><div className={`font-semibold ${due > 0 ? "text-orange-600" : "text-green-600"}`}>{due > 0 ? "Falta: " : "Quitado: "}R$ {brl(due > 0 ? due : s.total)}</div></div></div>
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3"><div><div className={`font-semibold ${due > 0 ? "text-amber-500" : "text-green-600"}`}>{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div></div><div className="text-right"><div className="font-semibold">Total: R$ {brl(s.total)}</div><div className="text-sm text-green-600">Pago: R$ {brl(paidAmount)}</div><div className={`font-semibold ${due > 0 ? "text-orange-600" : "text-green-600"}`}>{due > 0 ? "Falta: " : "Quitado: "}R$ {brl(due > 0 ? due : s.total)}</div></div></div>
                     <div className="overflow-x-auto rounded-xl border border-border/70">
                       <table className="w-full min-w-[480px] text-sm">
                         <thead className="bg-secondary/70 text-left text-xs uppercase tracking-wide text-muted-foreground">
