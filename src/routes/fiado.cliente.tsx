@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
+import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/fiado/cliente")({
   head: () => ({ meta: [{ title: "MobFlow — Detalhes do cliente" }] }),
@@ -52,7 +52,6 @@ function FiadoCliente() {
             <div className="text-right">
               <div className="label-mono">SALDO RESTANTE</div>
               <div className={`font-display text-4xl ${paid ? "text-green-600" : "text-destructive"}`}>R$ {brl(balance)}</div>
-              <button onClick={() => printFiadoBalance(customer, customerSales)} className="mt-2 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🖨 Imprimir saldo</button>
             </div>
           </div>
         </section>
