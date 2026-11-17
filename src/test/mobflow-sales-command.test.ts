@@ -120,6 +120,9 @@ describe("Neon atomic sale command", () => {
     const eventCall = client.query.mock.calls.find((call) => String(call[0]).includes("'sales','automatic','sale'"));
     expect(eventCall).toBeTruthy();
     expect(String(eventCall?.[1]?.[3])).toContain('"payment":"Fiado"');
+    expect(String(eventCall?.[1]?.[3])).toContain('"profit":12');
+    const saleInsert = client.query.mock.calls.find((call) => String(call[0]).includes("INSERT INTO public.sales"));
+    expect(saleInsert?.[1]?.[16]).toBe(12);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
