@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
+import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
 
-import { UserRound, Printer, ArrowLeft, ReceiptText, LockKeyhole } from "lucide-react";
+import { UserRound, ArrowLeft, ReceiptText, LockKeyhole } from "lucide-react";
 
 export const Route = createFileRoute("/fiado")({
   head: () => ({ meta: [{ title: "MobFlow — Fiado" }] }),
@@ -127,7 +127,6 @@ function Fiado() {
                       <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${customerPending ? "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30" : "bg-green-500/15 text-green-600 ring-1 ring-green-500/30"}`}>{customerPending ? "Pendente" : "Pago"}</span><div className="text-lg font-bold text-heading">{customer}</div></div><div className="text-xs text-muted-foreground">{customerSales.length} compra(s) · {customerSales.filter((s) => remaining(s) > 0).length} pendente(s)</div></div>
                       <div className="text-right"><div className={`font-display text-2xl ${customerPending ? "text-orange-600" : "text-green-600"}`}>R$ {brl(total)}</div><div className="text-[11px] text-muted-foreground">saldo restante</div></div>
                       <button onClick={() => setSelectedCustomer(customer)} className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20"><UserRound className="mr-1 inline h-4 w-4 text-green-600" />Ver cliente</button>
-                      <button onClick={() => printFiadoBalance(customer, customerSales)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent"><Printer className="mr-1 inline h-4 w-4 text-green-600" />Imprimir saldo</button>
 
                     </div>
                   </div>
@@ -140,7 +139,7 @@ function Fiado() {
             <button onClick={() => { setSelectedCustomer(null); setPaymentValue(""); }} className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold hover:bg-accent"><ArrowLeft className="mr-1 inline h-4 w-4 text-green-600" />Voltar para Fiado</button>
             <section className="glass p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0 flex-1"><div className="label-mono">DETALHES DO CLIENTE</div><div className="mt-1 flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${selectedPaid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{selectedPaid ? "Pago" : "Pendente"}</span><h1 className="font-display text-3xl tracking-[.06em] text-heading">{selectedCustomer}</h1></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl border border-border bg-background/70 px-3 py-2"><div className="text-xs text-muted-foreground">Compras</div><div className="font-display text-xl">{selectedSales.length}</div></div><div className="rounded-xl border border-border bg-background/70 px-3 py-2"><div className="text-xs text-muted-foreground">Já pago</div><div className="font-display text-xl text-green-600">R$ {brl(selectedSales.reduce((sum,s)=>sum+paidTotal(s),0))}</div></div><div className="col-span-2 rounded-xl border border-border bg-background/70 px-3 py-2 sm:col-span-1"><div className="text-xs text-muted-foreground">Saldo restante</div><div className={`font-display text-xl ${selectedPaid ? "text-green-600" : "text-orange-600"}`}>R$ {brl(selectedBalance)}</div></div></div></div><div className="flex flex-wrap items-start justify-end gap-2"><button onClick={() => printFiadoBalance(selectedCustomer, selectedSales)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent"><Printer className="mr-1 inline h-4 w-4 text-green-600" />Imprimir saldo</button><button onClick={() => { if (selectedBalance > 0) { const amountPaid = selectedBalance; const customerName = selectedCustomer; void confirmFiadoChange(async () => { for (const sale of selectedSales) { const due = remaining(sale); if (due > 0) await actions.addFiadoPayment(sale.id, due, "cash"); } setPaymentValue(""); setSettledReceipt({ customer: customerName, amount: amountPaid }); }); } }} disabled={authorizing || selectedBalance <= 0} className="rounded-lg bg-green-500/15 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-500/25 disabled:opacity-50"><ReceiptText className="mr-1 inline h-4 w-4" />Quitar tudo do cliente</button></div>
+                <div className="min-w-0 flex-1"><div className="label-mono">DETALHES DO CLIENTE</div><div className="mt-1 flex flex-wrap items-center gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${selectedPaid ? "bg-green-500/15 text-green-600 ring-1 ring-green-500/30" : "bg-orange-500/15 text-orange-600 ring-1 ring-orange-500/30"}`}>{selectedPaid ? "Pago" : "Pendente"}</span><h1 className="font-display text-3xl tracking-[.06em] text-heading">{selectedCustomer}</h1></div><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"><div className="rounded-xl border border-border bg-background/70 px-3 py-2"><div className="text-xs text-muted-foreground">Compras</div><div className="font-display text-xl">{selectedSales.length}</div></div><div className="rounded-xl border border-border bg-background/70 px-3 py-2"><div className="text-xs text-muted-foreground">Já pago</div><div className="font-display text-xl text-green-600">R$ {brl(selectedSales.reduce((sum,s)=>sum+paidTotal(s),0))}</div></div><div className="col-span-2 rounded-xl border border-border bg-background/70 px-3 py-2 sm:col-span-1"><div className="text-xs text-muted-foreground">Saldo restante</div><div className={`font-display text-xl ${selectedPaid ? "text-green-600" : "text-orange-600"}`}>R$ {brl(selectedBalance)}</div></div></div></div><div className="flex flex-wrap items-start justify-end gap-2"><button onClick={() => { if (selectedBalance > 0) { const amountPaid = selectedBalance; const customerName = selectedCustomer; void confirmFiadoChange(async () => { for (const sale of selectedSales) { const due = remaining(sale); if (due > 0) await actions.addFiadoPayment(sale.id, due, "cash"); } setPaymentValue(""); setSettledReceipt({ customer: customerName, amount: amountPaid }); }); } }} disabled={authorizing || selectedBalance <= 0} className="rounded-lg bg-green-500/15 px-3 py-2 text-xs font-bold text-green-700 hover:bg-green-500/25 disabled:opacity-50"><ReceiptText className="mr-1 inline h-4 w-4" />Quitar tudo do cliente</button></div>
               </div>
             </section>
             <section className="glass p-5">
@@ -211,10 +210,7 @@ function Fiado() {
               <div className="text-xs font-bold uppercase tracking-wide text-green-700">Total pago</div>
               <div className="mt-1 font-display text-3xl font-bold text-green-600">R$ {brl(settledReceipt.amount)}</div>
             </div>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              <button onClick={() => { printFiadoBalance(settledReceipt.customer, customers.find(([name]) => name === settledReceipt.customer)?.[1] ?? []); setSettledReceipt(null); }} className="rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground"><Printer className="mr-2 inline h-4 w-4" />Imprimir saldo</button>
-              <button onClick={() => setSettledReceipt(null)} className="rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Fechar comprovante</button>
-            </div>
+            <div className="mt-5"><button onClick={() => setSettledReceipt(null)} className="w-full rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Fechar comprovante</button></div>
           </div>
         </div>
       )}
