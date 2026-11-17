@@ -31,6 +31,9 @@ describe("Neon cash commands",()=>{
   const res=await handleMobFlowCash(req({action:"open",sessionId:SESSION,idempotencyKey:KEY,openingAmount:100}));
   expect(res.status).toBe(201);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.cash_sessions"))).toBe(true);
+  const cashSalesQuery=client.query.mock.calls.find(c=>String(c[0]).includes("FROM public.sale_payments"))?.[0] as string;
+  expect(cashSalesQuery).toContain("sp.method='cash'");
+  expect(cashSalesQuery).not.toContain("s.payment_method='fiado'");
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("'cash','automatic','cash_session'"))).toBe(true);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
@@ -60,7 +63,7 @@ describe("Neon cash commands",()=>{
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.cash_movements"))).toBe(true);
   expect(client.query.mock.calls.some(c=>String(c[0]).includes("'cash','automatic','cash_movement'"))).toBe(true);
  });
- it("closes and reconciles cash using server-side sales and movements",async()=>{
+ it("closes cash including cash-method Fiado installments from sale_payments",async()=>{
   client.query.mockImplementation(async(sql:string)=>{
    if(sql.includes("to_regclass"))return{rows:[{sessions:"cash_sessions",movements:"cash_movements",sales:"sales",events:"mobflow_sync_events",append_fn:"fn"}]};
    if(sql.includes("FROM public.cash_sessions WHERE tenant_id=$1 AND id=$2 FOR UPDATE"))return{rows:[{id:SESSION,status:"open",operator_profile_id:USER,opening_amount:"100"}]};
