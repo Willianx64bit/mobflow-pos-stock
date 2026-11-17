@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import type { Product } from "@/lib/store";
 
 type ExportField = "alternateCode" | "ref" | "barcode" | "description" | "quantity" | "cost" | "price";
+type QuantityMode = "any" | "greater" | "less" | "equal" | "negative";
 
+const allFields: ExportField[] = ["alternateCode", "ref", "barcode", "description", "quantity", "cost", "price"];
 const fieldLabels: Record<ExportField, string> = {
   alternateCode: "Código alternativo",
   ref: "REF",
@@ -31,18 +33,50 @@ export function buildStockExportRows(products: Product[], selected: ExportField[
 }
 
 export function StockExportDialog({ products, onClose }: { products: Product[]; onClose: () => void }) {
-  const [codesOpen, setCodesOpen] = useState(false);
-  const [selected, setSelected] = useState<ExportField[]>(["barcode", "description", "quantity"]);
-  const toggle = (field: ExportField) => setSelected((current) =>
+  const [selectedFields, setSelectedFields] = useState<ExportField[]>(["barcode", "description", "quantity"]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>(() => products.map((product) => product.id));
+  const [search, setSearch] = useState("");
+  const [quantityMode, setQuantityMode] = useState<QuantityMode>("any");
+  const [quantityValue, setQuantityValue] = useState("0");
+
+  const filteredProducts = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    const target = Number(quantityValue);
+    return products.filter((product) => {
+      const matchesSearch = !term || [product.name, product.code, product.ref ?? "", ...(product.barcodes ?? [])]
+        .some((value) => String(value).toLocaleLowerCase("pt-BR").includes(term));
+      if (!matchesSearch) return false;
+      switch (quantityMode) {
+        case "greater": return Number.isFinite(target) && product.stock > target;
+        case "less": return Number.isFinite(target) && product.stock < target;
+        case "equal": return Number.isFinite(target) && product.stock === target;
+        case "negative": return product.stock < 0;
+        default: return true;
+      }
+    });
+  }, [products, search, quantityMode, quantityValue]);
+
+  const allFieldsSelected = selectedFields.length === allFields.length;
+  const allVisibleProductsSelected = filteredProducts.length > 0 && filteredProducts.every((product) => selectedProducts.includes(product.id));
+  const exportProducts = products.filter((product) => selectedProducts.includes(product.id));
+
+  const toggleField = (field: ExportField) => setSelectedFields((current) =>
     current.includes(field) ? current.filter((item) => item !== field) : [...current, field]
   );
+  const toggleVisibleProducts = () => setSelectedProducts((current) => {
+    if (allVisibleProductsSelected) {
+      const visibleIds = new Set(filteredProducts.map((product) => product.id));
+      return current.filter((id) => !visibleIds.has(id));
+    }
+    return Array.from(new Set([...current, ...filteredProducts.map((product) => product.id)]));
+  });
 
   const download = () => {
-    if (!selected.length) return;
-    const { columns, rows } = buildStockExportRows(products, selected);
+    if (!selectedFields.length || !exportProducts.length) return;
+    const { columns, rows } = buildStockExportRows(exportProducts, selectedFields);
     const sheet = XLSX.utils.aoa_to_sheet([columns, ...rows]);
     sheet["!cols"] = columns.map((column) => ({ wch: Math.max(16, column.length + 3) }));
-    selected.forEach((field, columnIndex) => {
+    selectedFields.forEach((field, columnIndex) => {
       if (field === "barcode" || field === "alternateCode" || field === "ref") {
         for (let rowIndex = 2; rowIndex <= rows.length + 1; rowIndex++) {
           const address = XLSX.utils.encode_cell({ r: rowIndex - 1, c: columnIndex });
@@ -57,37 +91,103 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
     onClose();
   };
 
-  const check = (field: ExportField) => (
-    <label key={field} className="flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-accent cursor-pointer">
-      <input type="checkbox" checked={selected.includes(field)} onChange={() => toggle(field)} className="h-4 w-4 accent-primary" />
-      {fieldLabels[field]}
-    </label>
-  );
+  const checkClass = "flex min-h-11 items-center gap-3 rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-sm text-foreground hover:bg-accent cursor-pointer";
+  const inputClass = "field min-w-0 w-full text-sm text-foreground";
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-labelledby="stock-export-title" onClick={(event) => event.stopPropagation()} className="mfb-in w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-popover p-5 ring-1 ring-border shadow-xl space-y-4">
-        <header className="flex items-center justify-between gap-3">
-          <h2 id="stock-export-title" className="font-display text-xl tracking-[.1em] text-heading">EXPORTAR ESTOQUE</h2>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-accent">✕</button>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background/75 backdrop-blur-sm p-3 md:p-6" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-labelledby="stock-export-title" onClick={(event) => event.stopPropagation()} className="mfb-in flex w-full max-w-6xl max-h-[94vh] flex-col overflow-hidden rounded-2xl bg-popover ring-1 ring-border shadow-2xl">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-5 py-4 md:px-7">
+          <div>
+            <h2 id="stock-export-title" className="font-display text-xl md:text-2xl tracking-[.1em] text-heading">EXPORTAR ESTOQUE</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Configure as colunas e escolha exatamente quais produtos deseja baixar.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar" className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent text-xl">✕</button>
         </header>
-        <p className="text-sm text-muted-foreground">Escolha quais informações deseja incluir na planilha. Você pode selecionar várias opções.</p>
-        <div className="rounded-xl border border-border p-2 space-y-1">
-          <button type="button" onClick={() => setCodesOpen((open) => !open)} aria-expanded={codesOpen} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent">
-            <span>Códigos</span><span className="text-muted-foreground">{codesOpen ? "−" : "+"}</span>
-          </button>
-          {codesOpen && <div className="border-t border-border pt-1">{check("alternateCode")}{check("ref")}{check("barcode")}</div>}
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 md:p-7">
+          <div className="grid gap-7 xl:grid-cols-[minmax(280px,.8fr)_minmax(0,1.5fr)]">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-foreground">Colunas da planilha</h3>
+                <button type="button" onClick={() => setSelectedFields(allFieldsSelected ? [] : allFields)} className="text-sm font-semibold text-primary hover:underline">
+                  {allFieldsSelected ? "Desmarcar todos" : "Selecionar todos"}
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                {allFields.map((field) => (
+                  <label key={field} className={checkClass}>
+                    <input type="checkbox" checked={selectedFields.includes(field)} onChange={() => toggleField(field)} className="h-4 w-4 accent-primary" />
+                    <span>{fieldLabels[field]}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">{selectedFields.length} de {allFields.length} colunas selecionadas. Os três tipos de código ficam disponíveis na mesma lista.</p>
+            </section>
+
+            <section className="min-w-0 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="font-semibold text-foreground">Produtos para exportar</h3>
+                <span className="text-sm text-muted-foreground">{exportProducts.length} selecionado(s) de {products.length}</span>
+              </div>
+
+              <div className="grid gap-3 rounded-xl border border-border bg-background/40 p-4 md:grid-cols-[minmax(180px,1fr)_190px_130px]">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-muted-foreground">Buscar produto</span>
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, código ou REF..." className={inputClass} />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-muted-foreground">Quantidade</span>
+                  <select value={quantityMode} onChange={(event) => setQuantityMode(event.target.value as QuantityMode)} className={inputClass}>
+                    <option value="any">Todas as quantidades</option>
+                    <option value="greater">Maior que</option>
+                    <option value="less">Menor que</option>
+                    <option value="equal">Igual a</option>
+                    <option value="negative">Negativa (abaixo de zero)</option>
+                  </select>
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-xs font-semibold text-muted-foreground">Número desejado</span>
+                  <input type="number" value={quantityValue} onChange={(event) => setQuantityValue(event.target.value)} disabled={quantityMode === "any" || quantityMode === "negative"} className={inputClass} />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-semibold text-foreground hover:bg-accent cursor-pointer">
+                  <input type="checkbox" checked={allVisibleProductsSelected} onChange={toggleVisibleProducts} disabled={!filteredProducts.length} className="h-4 w-4 accent-primary" />
+                  Selecionar todos os produtos exibidos
+                </label>
+                <span className="text-xs text-muted-foreground">{filteredProducts.length} produto(s) encontrado(s)</span>
+              </div>
+
+              <div className="max-h-[360px] overflow-auto rounded-xl border border-border">
+                {filteredProducts.length ? filteredProducts.map((product) => (
+                  <label key={product.id} className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-border/60 px-4 py-2 last:border-0 hover:bg-accent/60">
+                    <input type="checkbox" checked={selectedProducts.includes(product.id)} onChange={() => setSelectedProducts((current) =>
+                      current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id]
+                    )} className="h-4 w-4 shrink-0 accent-primary" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-foreground">{product.name}</span>
+                      <span className="block truncate font-mono text-xs text-muted-foreground">{product.code || "Sem código"}</span>
+                    </span>
+                    <span className={`shrink-0 text-sm font-semibold tabular-nums ${product.stock < 0 ? "text-destructive" : "text-foreground"}`}>
+                      {product.stock} {product.unit === "kg" ? "kg" : "un"}
+                    </span>
+                  </label>
+                )) : <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>}
+              </div>
+              <p className="text-xs text-muted-foreground">Os filtros apenas reduzem a lista exibida. Produtos já selecionados continuam selecionados até você desmarcá-los.</p>
+            </section>
+          </div>
         </div>
-        <div className="rounded-xl border border-border p-2 space-y-1">
-          {check("description")}
-          {check("quantity")}
-          {check("cost")}
-          {check("price")}
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">{selected.length} coluna(s) selecionada(s) · {products.length} produto(s)</span>
-          <button type="button" onClick={download} disabled={!selected.length || !products.length} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/85 disabled:opacity-50">Baixar planilha</button>
-        </div>
+
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-background/60 px-5 py-4 md:px-7">
+          <span className="text-sm text-muted-foreground">{selectedFields.length} coluna(s) · {exportProducts.length} produto(s)</span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-3 text-sm font-semibold text-foreground hover:bg-accent">Cancelar</button>
+            <button type="button" onClick={download} disabled={!selectedFields.length || !exportProducts.length} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/85 disabled:opacity-50">Baixar planilha</button>
+          </div>
+        </footer>
       </section>
     </div>
   );
