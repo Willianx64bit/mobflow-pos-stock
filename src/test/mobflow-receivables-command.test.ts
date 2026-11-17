@@ -36,7 +36,7 @@ describe("Neon Fiado receivable payments", () => {
       }] };
       if (sql.includes("COALESCE(SUM(amount),0)")) return { rows: [{ paid: "0" }] };
       if (sql.includes("SELECT product_id,product_name_snapshot")) return { rows: [{ product_id: "p1", product_name_snapshot: "Arroz", unit_price: "50", unit_cost: "20", quantity: "1", unit: "un" }] };
-      if (sql.includes("SELECT amount::text,occurred_at FROM public.receivable_payments")) return { rows: [{ amount: "20", occurred_at: "2026-11-10T10:05:00.000Z" }] };
+      if (sql.includes("SELECT amount::text,payment_method,occurred_at FROM public.receivable_payments")) return { rows: [{ amount: "20", payment_method: "cash", occurred_at: "2026-11-10T10:05:00.000Z" }] };
       return { rows: [] };
     });
     beginAuthenticatedTransaction.mockResolvedValue({
@@ -61,6 +61,25 @@ describe("Neon Fiado receivable payments", () => {
     const event = client.query.mock.calls.find((call) => String(call[0]).includes("'sales','automatic','sale'"));
     expect(event).toBeTruthy();
     expect(String(event?.[1]?.[3])).toContain('"payment":"Fiado"');
+    expect(String(event?.[1]?.[3])).toContain('"profit":30');
+    expect(String(event?.[1]?.[3])).toContain('"method":"cash"');
+    const saleUpdate = client.query.mock.calls.find((call) => String(call[0]).includes("UPDATE public.sales SET payment_status"));
+    expect(String(saleUpdate?.[0])).not.toContain("profit_total");
+    expect(releaseTransaction).toHaveBeenCalledWith(client, true);
+  });
+
+  it("replays the same idempotency key without inserting a second payment", async () => {
+    client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("FROM public.receivable_payments WHERE tenant_id=$1 AND idempotency_key")) {
+        return { rows: [{ id: "existing-payment", sale_id: "sale-fiado-1", amount: "20", payment_method: "cash" }] };
+      }
+      return { rows: [] };
+    });
+    const response = await handleMobFlowReceivable(request());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, replayed: true, payment: { id: "existing-payment", amount: 20, paymentMethod: "cash" } });
+    expect(client.query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO public.receivable_payments"))).toBe(false);
+    expect(client.query.mock.calls.some((call) => String(call[0]).includes("INSERT INTO public.sale_payments"))).toBe(false);
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
