@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
+import { actions, brl, buildPixPayload, printReceipt, useStore, type Sale } from "@/lib/store";
 
 import { UserRound, ArrowLeft, ReceiptText, LockKeyhole } from "lucide-react";
 
@@ -13,12 +13,14 @@ export const Route = createFileRoute("/fiado")({
 
 function Fiado() {
   const sales = useStore((s) => s.sales);
+  const settings = useStore((s) => s.settings);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "pendentes" | "pagos">("todos");
   const navigate = useNavigate();
   const [paymentValue, setPaymentValue] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "pix">("cash");
+  const [pixPayment, setPixPayment] = useState<{ saleId: string; amount: number; payload: string } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [purchaseFilter, setPurchaseFilter] = useState<"todos" | "pendentes" | "quitados">("pendentes");
   const [authorizing, setAuthorizing] = useState(false);
@@ -189,7 +191,7 @@ function Fiado() {
                         </tfoot>
                       </table>
                     </div>
-                    {due>0 && <div className="mt-3 rounded-xl bg-background/60 p-2"><div className="flex flex-wrap items-center gap-2"><div className="relative min-w-[105px] flex-1"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">R$</span><input aria-label="Valor do pagamento" inputMode="decimal" value={draft} onChange={e=>setPaymentValue(formatMoneyInput(e.target.value))} placeholder="0,00" className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm font-bold text-center outline-none focus:border-primary"/></div><div className="flex shrink-0 items-center rounded-lg border border-border bg-background p-0.5">{([{value:"cash",label:"Dinheiro"},{value:"card",label:"Cartão"},{value:"pix",label:"Pix"}] as const).map(method=><button key={method.value} type="button" aria-pressed={paymentMethod===method.value} onClick={()=>setPaymentMethod(method.value)} className={`rounded-md px-2 py-2 text-xs font-semibold ${paymentMethod===method.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}>{method.label}</button>)}</div><button onClick={()=>{const value=Number(draft.replace(/\\./g,"").replace(",","."));if(Number.isFinite(value)&&value>0){void confirmFiadoChange(async()=>{await actions.addFiadoPayment(s.id,value,paymentMethod);setPaymentValue("");});}}} disabled={!draft || !(Number(draft.replace(/\\./g,"").replace(",","."))>0)} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">Confirmar pagamento</button></div><button onClick={()=>{void confirmFiadoChange(async()=>{await actions.addFiadoPayment(s.id,due,paymentMethod);setPaymentValue("");});}} className="mt-2 rounded-lg bg-green-500/15 px-3 py-2 text-xs font-bold text-green-700">Quitar esta compra</button></div>}
+                    {due>0 && <div className="mt-3 rounded-xl bg-background/60 p-2.5"><div className="flex flex-wrap items-center gap-2"><div className="relative w-[116px] shrink-0"><span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">R$</span><input aria-label="Valor do pagamento" inputMode="decimal" value={draft} onChange={e=>setPaymentValue(formatMoneyInput(e.target.value))} placeholder="0,00" className="w-full rounded-lg border border-border bg-background py-2.5 pl-8 pr-2 text-sm font-bold text-center outline-none focus:border-primary"/></div><div className="flex min-w-0 flex-1 items-center gap-1.5">{([{value:"cash",label:"Dinheiro"},{value:"card",label:"Cartão"},{value:"pix",label:"Pix"}] as const).map(method=><button key={method.value} type="button" aria-pressed={paymentMethod===method.value} onClick={()=>setPaymentMethod(method.value)} className={`min-h-11 flex-1 rounded-lg border px-2 py-2.5 text-sm font-bold transition-colors ${paymentMethod===method.value ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-background text-muted-foreground hover:bg-secondary"}`}>{method.label}</button>)}</div><button onClick={()=>{const value=Number(draft.replace(/\\./g,"").replace(",","."));if(Number.isFinite(value)&&value>0&&value<=due+0.005){if(paymentMethod==="pix"){const key=settings.pixKey?.trim();if(!key){setPasswordError("Cadastre a chave Pix em Gerência → Configurações.");return;}setPixPayment({saleId:s.id,amount:value,payload:buildPixPayload(key,value,settings.companyName||"MOBFLOW")});}else{void confirmFiadoChange(async()=>{await actions.addFiadoPayment(s.id,value,paymentMethod);setPaymentValue("");});}}}} disabled={!draft || !(Number(draft.replace(/\\./g,"").replace(",","."))>0) || Number(draft.replace(/\\./g,"").replace(",","."))>due+0.005} className="min-h-11 w-full rounded-lg bg-primary px-3 py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50 sm:w-auto">Confirmar pagamento</button></div><button onClick={()=>{void confirmFiadoChange(async()=>{await actions.addFiadoPayment(s.id,due,paymentMethod);setPaymentValue("");});}} className="mt-2 rounded-lg bg-green-500/15 px-3 py-2 text-xs font-bold text-green-700">Quitar esta compra</button></div>}
                     <div className="mt-4"><div className="mb-2"><span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pagamentos já feitos</span></div>{(s.payments??[]).length>0?<div className="max-w-xl space-y-2">{(s.payments??[]).map((p,i)=><div key={i} className="grid grid-cols-[1fr_auto] items-center rounded-xl bg-background/70 px-4 py-3"><span className="text-sm text-muted-foreground">{new Date(p.date).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"})}<span className="ml-2 font-semibold text-foreground">{p.method === "cash" ? "Dinheiro" : p.method === "card" ? "Cartão" : p.method === "pix" ? "Pix" : "Forma não informada"}</span></span><span className="font-display text-xl font-bold text-green-600">R$ {brl(p.value)}</span></div>)}</div>:<div className="text-sm text-muted-foreground">Nenhum pagamento registrado ainda.</div>}</div>
                     <div className="mt-4 flex justify-end"><button onClick={()=>printReceipt(s)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent"><ReceiptText className="mr-1 inline h-4 w-4 text-green-600" />Imprimir compra</button></div>
                   </article>;
@@ -199,6 +201,24 @@ function Fiado() {
           </>
         )}
 
+      {pixPayment && (
+        <div className="fixed inset-0 z-[65] grid place-items-center bg-background/85 p-4 backdrop-blur-sm" onClick={() => setPixPayment(null)}>
+          <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover p-5 text-center ring-1 ring-primary/40 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="font-mono text-[11px] uppercase tracking-[.18em] text-primary">PAGAMENTO PIX DO FIADO</div>
+            <h2 className="mt-2 font-display text-2xl tracking-[.06em] text-heading">ESCANEIE PARA PAGAR</h2>
+            <p className="mt-2 font-display text-4xl text-primary">R$ {brl(pixPayment.amount)}</p>
+            <div className="mx-auto mt-4 w-fit rounded-2xl bg-white p-3 ring-1 ring-border">
+              <img src={`https://quickchart.io/qr?size=280&text=${encodeURIComponent(pixPayment.payload)}`} alt="QR Code Pix do pagamento do fiado" className="h-60 w-60" />
+            </div>
+            <p className="mt-3 break-all font-mono text-[10px] text-muted-foreground">Chave: {settings.pixKey}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Após receber o Pix, confirme para registrar o pagamento no histórico do cliente.</p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => setPixPayment(null)} className="flex-1 rounded-xl bg-secondary py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+              <button type="button" onClick={() => { const payment = pixPayment; setPixPayment(null); void confirmFiadoChange(async () => { await actions.addFiadoPayment(payment.saleId,payment.amount,"pix"); setPaymentValue(""); }); }} className="flex-1 rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground">Confirmar recebimento</button>
+            </div>
+          </div>
+        </div>
+      )}
       {confirmDialogOpen && (
         <div className="fixed inset-0 z-[70] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
           <div className="w-full max-w-md glass p-6 shadow-2xl">
