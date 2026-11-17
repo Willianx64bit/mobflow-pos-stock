@@ -205,17 +205,11 @@ function PDV() {
       const key = settings.pixKey?.trim();
       if (!key) { setFlash("Cadastre a chave Pix em Gerência → Configurações"); return; }
       const payload = buildPixPayload(key, total, settings.companyName || "MOBFLOW");
-      setIsFinalizing(true);
-      window.setTimeout(() => {
-        setPixPayload(payload);
-        setIsFinalizing(false);
-      }, 2000);
+      setPixPayload(payload);
       return;
     }
     setIsFinalizing(true);
-    window.setTimeout(() => {
-      void completeSale().finally(() => setIsFinalizing(false));
-    }, 2000);
+    void completeSale().finally(() => setIsFinalizing(false));
   };
 
   const completeSale = async () => {
@@ -233,10 +227,8 @@ function PDV() {
   const confirmPixPayment = () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
-    window.setTimeout(() => {
-      setPixPayload("");
-      void completeSale().finally(() => setIsConfirmingPix(false));
-    }, 2000);
+    setPixPayload("");
+    void completeSale().finally(() => setIsConfirmingPix(false));
   };
 
   useEffect(() => {
