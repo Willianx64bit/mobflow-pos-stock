@@ -373,7 +373,7 @@ function PDV() {
                     ) : (
                       <div className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
-                    <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= 0 ? "text-destructive" : p.stock <= p.minStock ? "text-amber-500" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
                     </div>
                   </div>
