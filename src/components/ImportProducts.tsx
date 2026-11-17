@@ -17,7 +17,7 @@ export function downloadTemplate() {
   XLSX.writeFile(wb, "modelo-importacao-mobflow.xlsx");
 }
 
-const key = (s: string) => s.normalize("NFD").replace(/[\u0300-\\u036f]/g, "").toLowerCase().trim();
+const key = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 const headerValue = (row: Record<string, unknown>, aliases: string[]) => {
   const found = Object.entries(row).find(([name]) => aliases.includes(key(name)));
   return found?.[1] ?? "";
