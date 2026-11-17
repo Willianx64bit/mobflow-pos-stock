@@ -2,7 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { ImportProducts } from "@/components/ImportProducts";\nimport { StockExportDialog } from "@/components/StockExportDialog";
+import { ImportProducts } from "@/components/ImportProducts";
+import { StockExportDialog } from "@/components/StockExportDialog";
 import { actions, brl, norm, useStore, type Product } from "@/lib/store";
 
 export const Route = createFileRoute("/estoque")({
@@ -45,7 +46,8 @@ function Estoque() {
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
-  const [importing, setImporting] = useState(false);\n  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const list = useMemo(() => {
     const n = norm(q);
@@ -115,7 +117,8 @@ function Estoque() {
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Use o ✎ no início do produto para editar.</p>
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
-      {importing && <ImportProducts onClose={() => setImporting(false)} />}\n      {exporting && <StockExportDialog products={products} onClose={() => setExporting(false)} />}
+      {importing && <ImportProducts onClose={() => setImporting(false)} />}
+      {exporting && <StockExportDialog products={products} onClose={() => setExporting(false)} />}
     </div>
   );
 }
