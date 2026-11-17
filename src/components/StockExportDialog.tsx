@@ -34,16 +34,18 @@ export function buildStockExportRows(products: Product[], selected: ExportField[
 
 export function StockExportDialog({ products, onClose }: { products: Product[]; onClose: () => void }) {
   const [selectedFields, setSelectedFields] = useState<ExportField[]>(["barcode", "description", "quantity"]);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>(() => products.map((product) => product.id));
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("any");
   const [quantityValue, setQuantityValue] = useState("0");
 
+  const hasSearch = search.trim().length > 0;
   const filteredProducts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR");
     const target = Number(quantityValue);
+    if (!term) return [];
     return products.filter((product) => {
-      const matchesSearch = !term || [product.name, product.code, product.ref ?? "", ...(product.barcodes ?? [])]
+      const matchesSearch = [product.name, product.code, product.ref ?? "", ...(product.barcodes ?? [])]
         .some((value) => String(value).toLocaleLowerCase("pt-BR").includes(term));
       if (!matchesSearch) return false;
       switch (quantityMode) {
@@ -108,13 +110,12 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
         <div className="min-h-0 flex-1 overflow-y-auto p-5 md:p-7">
           <div className="grid gap-7 xl:grid-cols-[minmax(280px,.8fr)_minmax(0,1.5fr)]">
             <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-semibold text-foreground">Colunas da planilha</h3>
-                <button type="button" onClick={() => setSelectedFields(allFieldsSelected ? [] : allFields)} className="text-sm font-semibold text-primary hover:underline">
-                  {allFieldsSelected ? "Desmarcar todos" : "Selecionar todos"}
-                </button>
-              </div>
+              <h3 className="font-semibold text-foreground">Colunas da planilha</h3>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                <label className={checkClass}>
+                  <input type="checkbox" checked={allFieldsSelected} onChange={() => setSelectedFields(allFieldsSelected ? [] : allFields)} className="h-4 w-4 accent-primary" />
+                  <span className="font-bold">Selecionar todos</span>
+                </label>
                 {allFields.map((field) => (
                   <label key={field} className={checkClass}>
                     <input type="checkbox" checked={selectedFields.includes(field)} onChange={() => toggleField(field)} className="h-4 w-4 accent-primary" />
@@ -152,31 +153,39 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
                 </label>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-semibold text-foreground hover:bg-accent cursor-pointer">
-                  <input type="checkbox" checked={allVisibleProductsSelected} onChange={toggleVisibleProducts} disabled={!filteredProducts.length} className="h-4 w-4 accent-primary" />
-                  Selecionar todos os produtos exibidos
-                </label>
-                <span className="text-xs text-muted-foreground">{filteredProducts.length} produto(s) encontrado(s)</span>
-              </div>
-
-              <div className="max-h-[360px] overflow-auto rounded-xl border border-border">
-                {filteredProducts.length ? filteredProducts.map((product) => (
-                  <label key={product.id} className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-border/60 px-4 py-2 last:border-0 hover:bg-accent/60">
-                    <input type="checkbox" checked={selectedProducts.includes(product.id)} onChange={() => setSelectedProducts((current) =>
-                      current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id]
-                    )} className="h-4 w-4 shrink-0 accent-primary" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-foreground">{product.name}</span>
-                      <span className="block truncate font-mono text-xs text-muted-foreground">{product.code || "Sem código"}</span>
-                    </span>
-                    <span className={`shrink-0 text-sm font-semibold tabular-nums ${product.stock < 0 ? "text-destructive" : "text-foreground"}`}>
-                      {product.stock} {product.unit === "kg" ? "kg" : "un"}
-                    </span>
-                  </label>
-                )) : <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>}
-              </div>
-              <p className="text-xs text-muted-foreground">Os filtros apenas reduzem a lista exibida. Produtos já selecionados continuam selecionados até você desmarcá-los.</p>
+              {hasSearch && (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-semibold text-foreground hover:bg-accent cursor-pointer">
+                      <input type="checkbox" checked={allVisibleProductsSelected} onChange={toggleVisibleProducts} disabled={!filteredProducts.length} className="h-4 w-4 accent-primary" />
+                      Selecionar todos os produtos encontrados
+                    </label>
+                    <span className="text-xs text-muted-foreground">{filteredProducts.length} produto(s) encontrado(s)</span>
+                  </div>
+                  <div className="max-h-[360px] overflow-auto rounded-xl border border-border">
+                    {filteredProducts.length ? filteredProducts.map((product) => (
+                      <label key={product.id} className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-border/60 px-4 py-2 last:border-0 hover:bg-accent/60">
+                        <input type="checkbox" checked={selectedProducts.includes(product.id)} onChange={() => setSelectedProducts((current) =>
+                          current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id]
+                        )} className="h-4 w-4 shrink-0 accent-primary" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">{product.name}</span>
+                          <span className="block truncate font-mono text-xs text-muted-foreground">{product.code || "Sem código"}</span>
+                        </span>
+                        <span className={`shrink-0 text-sm font-semibold tabular-nums ${product.stock < 0 ? "text-destructive" : "text-foreground"}`}>
+                          {product.stock} {product.unit === "kg" ? "kg" : "un"}
+                        </span>
+                      </label>
+                    )) : <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>}
+                  </div>
+                </>
+              )}
+              {!hasSearch && (
+                <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                  Pesquise pelo nome, código ou REF para localizar e selecionar os produtos que deseja exportar.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Os filtros apenas reduzem os resultados da busca. Produtos já selecionados continuam selecionados até você desmarcá-los.</p>
             </section>
           </div>
         </div>
