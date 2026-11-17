@@ -68,6 +68,32 @@ describe("Neon Fiado receivable payments", () => {
     expect(releaseTransaction).toHaveBeenCalledWith(client, true);
   });
 
+  it("settles the final installment without recognizing profit a second time", async () => {
+    client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("FROM public.receivable_payments WHERE tenant_id=$1 AND idempotency_key")) return { rows: [] };
+      if (sql.includes("FROM public.sales WHERE tenant_id=$1 AND id=$2 FOR UPDATE")) return { rows: [{
+        id: "sale-fiado-1", cash_session_id: "cash-1", seller_snapshot: "Operador",
+        customer_name_snapshot: "Maria", customer_document_snapshot: null, status: "completed",
+        payment_status: "partial", paid_at: null, payment_method: "fiado",
+        occurred_at: "2026-11-10T10:00:00.000Z", subtotal: "50", discount_amount: "0",
+        discount_type: "fixed", total: "50", cost_total: "20", profit_total: "30", hidden_from_fiado: false,
+      }] };
+      if (sql.includes("COALESCE(SUM(amount),0)")) return { rows: [{ paid: "20" }] };
+      if (sql.includes("SELECT product_id,product_name_snapshot")) return { rows: [{ product_id: "p1", product_name_snapshot: "Arroz", unit_price: "50", unit_cost: "20", quantity: "1", unit: "un" }] };
+      if (sql.includes("SELECT amount::text,payment_method,occurred_at FROM public.receivable_payments")) return { rows: [{ amount: "20", payment_method: "cash", occurred_at: "2026-11-10T10:05:00.000Z" }, { amount: "30", payment_method: "pix", occurred_at: "2026-11-10T10:10:00.000Z" }] };
+      return { rows: [] };
+    });
+    const response = await handleMobFlowReceivable(request({ ...body(), amount: 30, paymentMethod: "pix" }));
+    const result = await response.json();
+    expect(response.status).toBe(201);
+    expect(result.payment).toMatchObject({ paid: true, paidTotal: 50, remaining: 0, paymentMethod: "pix" });
+    const update = client.query.mock.calls.find((call) => String(call[0]).includes("UPDATE public.sales SET payment_status"));
+    expect(String(update?.[0])).not.toContain("profit_total");
+    const event = client.query.mock.calls.find((call) => String(call[0]).includes("'sales','automatic','sale'"));
+    expect(String(event?.[1]?.[3])).toContain('"profit":30');
+    expect(String(event?.[1]?.[3])).toContain('"method":"pix"');
+  });
+
   it("replays the same idempotency key without inserting a second payment", async () => {
     client.query.mockImplementation(async (sql: string) => {
       if (sql.includes("FROM public.receivable_payments WHERE tenant_id=$1 AND idempotency_key")) {
