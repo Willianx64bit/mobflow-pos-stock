@@ -22,7 +22,34 @@ const headerValue = (row: Record<string, unknown>, aliases: string[]) => {
   const found = Object.entries(row).find(([name]) => aliases.includes(key(name)));
   return found?.[1] ?? "";
 };
-const barcodeText = (value: unknown) => String(value ?? "").trim().replace(/\\D/g, "");
+const barcodeText = (value: unknown) => {
+  if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 ? String(value) : "";
+  const text = String(value ?? "").trim().replace(/[.,]0+$/, "");
+  return text.replace(/\\D/g, "");
+};
+const worksheetRows = (sheet: XLSX.WorkSheet) => {
+  if (!sheet["!ref"]) return [];
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const headers = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => {
+    const cell = sheet[XLSX.utils.encode_cell({ r: range.s.r, c: range.s.c + offset })];
+    return String(cell?.v ?? "").trim();
+  });
+  const rows: Record<string, unknown>[] = [];
+  for (let rowIndex = range.s.r + 1; rowIndex <= range.e.r; rowIndex++) {
+    const row: Record<string, unknown> = {};
+    headers.forEach((header, offset) => {
+      if (!header) return;
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: range.s.c + offset })];
+      let value: unknown = cell?.v ?? "";
+      if (typeof value === "number" && /^(c[oó]digo|ean|gtin|barcode)/i.test(key(header)) && typeof cell?.z === "string" && /^0+$/.test(cell.z)) {
+        value = XLSX.SSF.format(cell.z, value);
+      }
+      row[header] = value;
+    });
+    rows.push(row);
+  }
+  return rows;
+};
 
 export function parseImportRows(data: Record<string, unknown>[]) {
   const rows: Row[] = [];
@@ -58,7 +85,7 @@ export function ImportProducts({ onClose }: { onClose: () => void }) {
       if (!sheet) throw new Error("A planilha não contém uma aba para importar.");
       // raw:false respects Excel's displayed text format (including leading zeroes
       // when the spreadsheet column is formatted as text or with a zero mask).
-      const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
+      const data = worksheetRows(sheet);
       const parsed = parseImportRows(data);
       setRows(parsed.rows);
       setErrors(parsed.errors);
