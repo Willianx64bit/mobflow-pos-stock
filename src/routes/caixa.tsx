@@ -43,7 +43,7 @@ function CashPage() {
   const myClosed = sessions.filter((s) => s.status === "closed" && (s.openedBy === username || s.closedBy === username)).filter((s) => (s.closedAt || s.openedAt).slice(0, 7) === historyMonth).filter((s) => historyDifference === "todos" || (historyDifference === "negative" ? (s.difference ?? 0) < 0 : (s.difference ?? 0) > 0)).sort((a, b) => new Date(b.closedAt || b.openedAt).getTime() - new Date(a.closedAt || a.openedAt).getTime());
   const activeSales = useMemo(() => sales.filter((s) => s.cashSessionId === active?.id), [sales, active?.id]);
   const activeMovements = movements.filter((m) => m.sessionId === active?.id);
-  const cashSales = activeSales.filter((s) => s.payment === "Dinheiro" && s.paid !== false).reduce((sum, s) => sum + s.total, 0);
+  const cashSales = activeSales.reduce((sum, sale) => sum + (sale.payment === "Dinheiro" && sale.paid !== false ? sale.total : sale.payment === "Fiado" ? (sale.payments ?? []).filter((payment) => payment.method === "cash").reduce((paid, payment) => paid + payment.value, 0) : 0), 0);
   const withdrawals = activeMovements.filter((m) => m.type === "sangria").reduce((sum, m) => sum + m.amount, 0);
   const additions = activeMovements.filter((m) => m.type === "reforco").reduce((sum, m) => sum + m.amount, 0);
   const expected = active ? Math.round((active.openingAmount + cashSales - withdrawals + additions) * 100) / 100 : 0;
