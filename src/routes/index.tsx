@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, LockKeyhole, ReceiptText } from "lucide-react";
+import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
 import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
@@ -61,6 +61,7 @@ function PDV() {
   const [discountType, setDiscountType] = useState<"R$" | "%">("R$");
   const [discountInput, setDiscountInput] = useState("");
   const [quick, setQuick] = useState(false);
+  const [productView, setProductView] = useState<"cards" | "list">("cards");
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
   const [doneProgress, setDoneProgress] = useState(100);
@@ -93,11 +94,17 @@ function PDV() {
 
   useEffect(() => {
     setQuick(localStorage.getItem("mobflow:quick") === "1");
+    setProductView(localStorage.getItem("mobflow:product-view") === "list" ? "list" : "cards");
     setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
     return () => { if (scanTimer.current) clearTimeout(scanTimer.current); };
   }, []);
 
   const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
+  const toggleProductView = () => setProductView((v) => {
+    const next = v === "cards" ? "list" : "cards";
+    localStorage.setItem("mobflow:product-view", next);
+    return next;
+  });
 
   const parseWeight = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -343,35 +350,45 @@ function PDV() {
               </span>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
               <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
               Bipe rápido {quick ? "ligado" : "desligado"}
             </button>
-            {flash && <span className={`font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
+            <div className="ml-auto flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+              <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
+                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => productView !== "list" && toggleProductView()} aria-label="Visualizar em lista" aria-pressed={productView === "list"} title="Lista"
+                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+            {flash && <span className={`w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-col"} gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1`}>
             {results.map((p, i) => {
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
+                  className={`${productView === "cards" ? "text-left rounded-xl p-2 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
-                  <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground">
+                  <div className={`${productView === "cards" ? "w-full aspect-[5/3]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
-                  <div className="mt-2 text-base md:text-lg font-semibold text-foreground line-clamp-2 min-h-[3rem] leading-snug">{p.name}</div>
-                  <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
-                  <div className="mt-auto pt-2 text-center">
+                  <div className={`${productView === "cards" ? "mt-2" : "min-w-0 flex-1"} text-base md:text-lg font-semibold text-foreground ${productView === "cards" ? "line-clamp-2 min-h-[3rem]" : "line-clamp-2"} leading-snug`}>{p.name}</div>
+                  <div className={`${productView === "cards" ? "mt-1" : "min-w-0 w-24 hidden sm:block"} truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground`}>{p.barcodes?.[0] || p.code}</div>
+                  <div className={`${productView === "cards" ? "mt-auto pt-2 text-center" : "shrink-0 text-right"}`}>
                     {effectivePrice(p) < p.price ? (
-                      <div className="flex flex-col items-center gap-1">
+                      <div className={`flex ${productView === "cards" ? "flex-col items-center" : "flex-col items-end"} gap-1`}>
                         <span className="text-xs md:text-sm text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
                         <span className="text-lg md:text-xl font-bold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
+                      <div className={`font-extrabold leading-tight text-heading ${productView === "cards" ? "text-2xl md:text-3xl" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
                     <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= 0 ? "text-destructive" : p.stock <= p.minStock ? "text-amber-500" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
