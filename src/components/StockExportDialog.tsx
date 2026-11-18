@@ -130,10 +130,36 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
               <h3 className="font-semibold text-foreground">Produtos para exportar</h3>
 
               <div className="grid gap-3 rounded-xl border border-border bg-background/40 p-4 md:grid-cols-[minmax(180px,1fr)_190px_130px]">
-                <label className="space-y-1.5">
-                  <span className="text-xs font-semibold text-muted-foreground">Buscar produto</span>
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, código ou REF..." className={inputClass} />
-                </label>
+                <div className="relative z-20 min-w-0">
+                  <label className="block space-y-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground">Buscar produto</span>
+                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, código ou REF..." className={inputClass} />
+                  </label>
+                  {hasSearch && (
+                    <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
+                      <label className="flex min-h-11 cursor-pointer items-center gap-3 border-b border-border bg-background/70 px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent">
+                        <input type="checkbox" checked={allVisibleProductsSelected} onChange={toggleVisibleProducts} disabled={!filteredProducts.length} className="h-4 w-4 accent-primary" />
+                        Selecionar todos os produtos encontrados
+                      </label>
+                      <div className="max-h-[320px] overflow-y-auto">
+                        {filteredProducts.length ? filteredProducts.map((product) => (
+                          <label key={product.id} className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-border/60 px-3 py-2 last:border-0 hover:bg-accent/60">
+                            <input type="checkbox" checked={selectedProducts.includes(product.id)} onChange={() => setSelectedProducts((current) =>
+                              current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id]
+                            )} className="h-4 w-4 shrink-0 accent-primary" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-foreground">{product.name}</span>
+                              <span className="block truncate font-mono text-xs text-muted-foreground">{product.code || "Sem código"}</span>
+                            </span>
+                            <span className={`shrink-0 text-sm font-semibold tabular-nums ${product.stock < 0 ? "text-destructive" : "text-foreground"}`}>
+                              {product.stock} {product.unit === "kg" ? "kg" : "un"}
+                            </span>
+                          </label>
+                        )) : <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <label className="space-y-1.5">
                   <span className="text-xs font-semibold text-muted-foreground">Quantidade</span>
                   <select value={quantityMode} onChange={(event) => setQuantityMode(event.target.value as QuantityMode)} className={inputClass}>
@@ -149,33 +175,6 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
                   <input type="number" value={quantityValue} onChange={(event) => setQuantityValue(event.target.value)} disabled={quantityMode === "any" || quantityMode === "negative"} className={inputClass} />
                 </label>
               </div>
-
-              {hasSearch && (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <label className="flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-semibold text-foreground hover:bg-accent cursor-pointer">
-                      <input type="checkbox" checked={allVisibleProductsSelected} onChange={toggleVisibleProducts} disabled={!filteredProducts.length} className="h-4 w-4 accent-primary" />
-                      Selecionar todos os produtos encontrados
-                    </label>
-                  </div>
-                  <div className="max-h-[360px] overflow-auto rounded-xl border border-border">
-                    {filteredProducts.length ? filteredProducts.map((product) => (
-                      <label key={product.id} className="flex min-h-14 cursor-pointer items-center gap-3 border-b border-border/60 px-4 py-2 last:border-0 hover:bg-accent/60">
-                        <input type="checkbox" checked={selectedProducts.includes(product.id)} onChange={() => setSelectedProducts((current) =>
-                          current.includes(product.id) ? current.filter((id) => id !== product.id) : [...current, product.id]
-                        )} className="h-4 w-4 shrink-0 accent-primary" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-foreground">{product.name}</span>
-                          <span className="block truncate font-mono text-xs text-muted-foreground">{product.code || "Sem código"}</span>
-                        </span>
-                        <span className={`shrink-0 text-sm font-semibold tabular-nums ${product.stock < 0 ? "text-destructive" : "text-foreground"}`}>
-                          {product.stock} {product.unit === "kg" ? "kg" : "un"}
-                        </span>
-                      </label>
-                    )) : <p className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum produto encontrado com esses filtros.</p>}
-                  </div>
-                </>
-              )}
             </section>
           </div>
         </div>
