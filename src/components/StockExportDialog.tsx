@@ -127,10 +127,7 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
             </section>
 
             <section className="min-w-0 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="font-semibold text-foreground">Produtos para exportar</h3>
-                <span className="text-sm text-muted-foreground">{exportProducts.length} selecionado(s) de {products.length}</span>
-              </div>
+              <h3 className="font-semibold text-foreground">Produtos para exportar</h3>
 
               <div className="grid gap-3 rounded-xl border border-border bg-background/40 p-4 md:grid-cols-[minmax(180px,1fr)_190px_130px]">
                 <label className="space-y-1.5">
@@ -160,7 +157,6 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
                       <input type="checkbox" checked={allVisibleProductsSelected} onChange={toggleVisibleProducts} disabled={!filteredProducts.length} className="h-4 w-4 accent-primary" />
                       Selecionar todos os produtos encontrados
                     </label>
-                    <span className="text-xs text-muted-foreground">{filteredProducts.length} produto(s) encontrado(s)</span>
                   </div>
                   <div className="max-h-[360px] overflow-auto rounded-xl border border-border">
                     {filteredProducts.length ? filteredProducts.map((product) => (
@@ -180,18 +176,11 @@ export function StockExportDialog({ products, onClose }: { products: Product[]; 
                   </div>
                 </>
               )}
-              {!hasSearch && (
-                <p className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-                  Pesquise pelo nome, código ou REF para localizar e selecionar os produtos que deseja exportar.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">Os filtros apenas reduzem os resultados da busca. Produtos já selecionados continuam selecionados até você desmarcá-los.</p>
             </section>
           </div>
         </div>
 
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-background/60 px-5 py-4 md:px-7">
-          <span className="text-sm text-muted-foreground">{selectedFields.length} coluna(s) · {exportProducts.length} produto(s)</span>
           <div className="flex items-center gap-2">
             <button type="button" onClick={onClose} className="rounded-xl border border-border px-4 py-3 text-sm font-semibold text-foreground hover:bg-accent">Cancelar</button>
             <button type="button" onClick={download} disabled={!selectedFields.length || !exportProducts.length} className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:bg-primary/85 disabled:opacity-50">Baixar planilha</button>
