@@ -126,10 +126,17 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       if (!existing) throw new UnsupportedSyncEventError(event);
       const lines = Array.isArray(payload["lines"]) ? payload["lines"] as Array<Record<string, unknown>> : [];
       const decisions: Record<string, "aceitar" | "devolver"> = {};
+      const rawDecisions = record(payload["decisions"]);
+      if (rawDecisions) {
+        for (const [productId, decision] of Object.entries(rawDecisions)) {
+          if (decision !== "aceitar" && decision !== "devolver") throw new UnsupportedSyncEventError(event);
+          decisions[productId] = decision;
+        }
+      }
       const received = new Map<string, number>();
       for (const line of lines) {
-        if (typeof line["productId"] !== "string" || (line["decision"] !== "aceitar" && line["decision"] !== "devolver")) throw new UnsupportedSyncEventError(event);
-        decisions[line["productId"]] = line["decision"];
+        if (typeof line["productId"] !== "string") throw new UnsupportedSyncEventError(event);
+        if (line["decision"] === "aceitar" || line["decision"] === "devolver") decisions[line["productId"]] = line["decision"];
         const quantity = number(line["received"]);
         if (quantity !== null) received.set(line["productId"], quantity);
       }
