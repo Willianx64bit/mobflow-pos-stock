@@ -11,7 +11,7 @@ const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
   { to: "/historico-vendas", label: "Histórico de vendas", icon: "sales-history" },
   { to: "/fiado", label: "Fiado", icon: "credit" },
-  { to: "/validade", label: "Validade dos produtos", icon: "expiry" },
+  { to: "/validade", label: "Validade", icon: "expiry" },
   { to: "/operacoes", label: "Operações", icon: "operations" },
   { to: "/gerencia", label: "Acesso Gerência", icon: "management" },
 ] as const;
@@ -258,22 +258,26 @@ export function AppHeader() {
               {companyLogoSrc ? <img src={companyLogoSrc} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" /> : <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/15 ring-1 ring-primary/40 grid place-items-center font-display text-xl text-primary">M</div>}
               <div className="leading-none min-w-0"><div className="font-display tracking-[.12em] text-[18px] text-heading truncate">{settings.companyName || "MOBFLOW"}</div></div>
             </div>
-            <nav className="flex-1 px-2 space-y-1">
-              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(0, 3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
-              {permissions.includes("PDV") && <div className="mt-1">
-                <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
+            <nav className="flex-1 overflow-y-auto px-2 py-2">
+              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(0, 1).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-[17px] md:text-[19px] font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600"><ShoppingCart className="h-5 w-5" /></span><span className="flex-1 text-left">{t.label}</span></button>)}
+              {permissions.includes("PDV") && <div className="border-t border-border pt-2 mt-2">
+                <button type="button" onClick={() => setCashMenuOpen((value) => !value)} aria-expanded={cashMenuOpen} className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-[17px] md:text-[19px] font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground">
                   <span className="flex w-6 shrink-0 justify-center text-green-600"><Banknote className="h-5 w-5" /></span>
                   <span className="flex-1 text-left">Caixa</span>
                   <ChevronDown className={"h-4 w-4 transition-transform " + (cashMenuOpen ? "rotate-180" : "")} />
                 </button>
                 {cashMenuOpen && <div className="ml-8 mt-1 space-y-1 border-l border-border pl-2">
-                  <button type="button" onClick={() => selectCashAction("abrir")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><DoorOpen className="h-4 w-4 shrink-0 text-green-600" />Abertura</button>
-                  <button type="button" onClick={() => selectCashAction("fechar")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><DoorClosed className="h-4 w-4 shrink-0 text-green-600" />Fechamento</button>
-                  <button type="button" onClick={() => selectCashAction("movimentacao")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><ArrowLeftRight className="h-4 w-4 shrink-0 text-green-600" />Sangria/Reforço</button>
-                  <button type="button" onClick={() => selectCashAction("historico")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><History className="h-4 w-4 shrink-0 text-green-600" />Histórico</button>
+                  <button type="button" onClick={() => selectCashAction("abrir")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><DoorOpen className="h-4 w-4 shrink-0 text-green-600" />Abertura</button>
+                  <button type="button" onClick={() => selectCashAction("fechar")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><DoorClosed className="h-4 w-4 shrink-0 text-green-600" />Fechamento</button>
+                  <button type="button" onClick={() => selectCashAction("movimentacao")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><ArrowLeftRight className="h-4 w-4 shrink-0 text-green-600" />Sangria/Reforço</button>
+                  <button type="button" onClick={() => selectCashAction("historico")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-secondary-foreground hover:bg-accent hover:text-foreground"><History className="h-4 w-4 shrink-0 text-green-600" />Histórico</button>
                 </div>}
               </div>}
-              {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(3).map((t) => <button key={t.to} type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "pdv" ? <ShoppingCart className="h-5 w-5" /> : t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left text-base md:text-lg">{t.label}</span></button>)}
+              <div className="mt-2 border-t border-border pt-2">
+                {tabs.filter((t) => permissions.includes(permissionByPath[t.to])).slice(1).map((t) => <div key={t.to} className="border-b border-border/70 last:border-b-0">
+                  <button type="button" onClick={() => selectTab(t.to)} className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-[17px] md:text-[19px] font-medium text-secondary-foreground transition-colors hover:bg-accent hover:text-foreground"><span className="flex w-6 shrink-0 justify-center text-green-600">{t.icon === "operations" ? <ClipboardCheck className="h-5 w-5" /> : t.icon === "expiry" ? <CalendarDays className="h-5 w-5" /> : t.icon === "credit" ? <CreditCard className="h-5 w-5" /> : t.icon === "sales-history" ? <ReceiptText className="h-5 w-5" /> : <LockKeyhole className="h-5 w-5" />}</span><span className="flex-1 text-left">{t.label}</span></button>
+                </div>)}
+              </div>
             </nav>
             <div className="p-2 border-t border-border space-y-1">
               <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>
