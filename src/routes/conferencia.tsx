@@ -23,7 +23,10 @@ function Conferencia() {
   const history = notes.filter(n => n.status !== "pendente");
   const note = notes.find(n => n.id === open);
 
-  useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);\n  useEffect(() => {\n    void actions.refreshCatalog();\n  }, []);
+  useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);
+  useEffect(() => {
+    void actions.refreshCatalog();
+  }, []);
   const historyStatus = (n: ReceivingNote) => {
     const decisions = n.decisions ?? {};
     const needsAction = !!n.stockReleased && Object.values(decisions).includes("devolver") && !n.actionCompleted;
