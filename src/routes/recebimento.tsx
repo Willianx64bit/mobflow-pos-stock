@@ -210,8 +210,8 @@ function Recebimento() {
     try {
       await actions.createReceiving(number.trim(), supplier.trim(), supplierCnpj || undefined, drafts.map(d => ({ productId: d.productId, expected: Number(d.quantity.replace(",", ".")) })));
       resetForm();
-    } catch {
-      setError("Não foi possível salvar a nota. Confira os dados e tente novamente.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível salvar a nota. Confira os dados e tente novamente.");
     } finally {
       setSavingNote(false);
     }
