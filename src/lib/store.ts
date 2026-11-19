@@ -4,6 +4,11 @@ import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } fro
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
 export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
+
+const normalizeProductUnit = (unit: unknown): "kg" | "un" => {
+  const value = String(unit ?? "").trim().toLowerCase();
+  return ["kg", "quilo", "quilograma", "peso", "weight", "kg/g"].includes(value) ? "kg" : "un";
+};
 export type Promotion = { id: string; productId: string; productName: string; originalPrice: number; promoPrice: number; startsAt: string; endsAt: string; version?: number; updatedAt?: string; eventId?: string };
 export type PromotionEvent = { event_id: string; sequence: string; entity_id: string; payload: { operation?: "create" | "update" | "delete"; promotionId?: string; version?: number; promotion?: Record<string, unknown> }; created_at: string };
 export type CartItem = { productId: string; qty: number };
@@ -249,7 +254,7 @@ function load() {
     // The cache key is tenant-scoped (mobflow:v1:<accountId>), and the
     // authenticated account is resolved before this cache is loaded. Keep the
     // last verified catalog visible while Neon is being reached or offline.
-    state.products = state.products.map((p) => ({ ...p, unit: p.unit === "kg" ? "kg" : "un" }));
+    state.products = state.products.map((p) => ({ ...p, unit: normalizeProductUnit(p.unit) }));
     normalizeState();
   } catch {}
 }
@@ -543,7 +548,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
           ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
           price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
           minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
-          unit: raw.unit === "kg" ? "kg" : "un", photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
+          unit: normalizeProductUnit(raw.unit), photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
       }
       if (body.hasMore !== true) {
         if (mode === "full") return products;
