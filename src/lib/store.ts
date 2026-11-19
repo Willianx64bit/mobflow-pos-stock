@@ -1620,8 +1620,15 @@ export const actions = {
       if (existing) existing.expected += item.expected;
       else merged.push(item);
     }
-    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, items: merged } : n); set({ receiving: updated });
-    const saved = updated.find((n) => n.id === id); if (saved) await persistReceivingRecord(saved);
+    const updatedNote = { ...note, items: merged };
+    const previousReceiving = state.receiving ?? [];
+    set({ receiving: previousReceiving.map((n) => n.id === id ? updatedNote : n) });
+    try {
+      await persistReceivingRecord(updatedNote);
+    } catch (error) {
+      set({ receiving: previousReceiving });
+      throw error;
+    }
   },
   startReceivingConference(receivingId: string) {
     const n = (state.receiving ?? []).find((x) => x.id === receivingId);
