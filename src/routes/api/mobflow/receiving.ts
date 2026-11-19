@@ -128,10 +128,18 @@ export async function handleMobFlowReceiving(request: Request) {
       }
       const old = current.find((item)=>item.id===raw.id);
       if (old?.stockReleased) { await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Um recebimento já liberado não pode ser alterado."},{status:409}); }
-      const productIds = new Set((Array.isArray(state["products"])?state["products"] as Array<Record<string,unknown>>:[]).map((item)=>String(item["id"]??"")));
       const lines = [...raw.items,...(Array.isArray((raw as any).extras)?(raw as any).extras:[])];
-      if (!lines.length || lines.some((line:any)=>typeof line.productId!=="string"||!productIds.has(line.productId))) {
-        await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Os produtos do recebimento não pertencem a esta empresa."},{status:400});
+      const lineProductIds = lines.map((line:any)=>typeof line.productId==="string"?line.productId:"");
+      const uniqueProductIds = [...new Set(lineProductIds.filter(Boolean))];
+      const ownedProducts = uniqueProductIds.length
+        ? await client.query<{id:string}>(
+            "SELECT id FROM public.products WHERE tenant_id=$1 AND id=ANY($2::text[])",
+            [transaction.identity.accountId, uniqueProductIds],
+          )
+        : {rows:[]};
+      const ownedProductIds = new Set(ownedProducts.rows.map((product)=>product.id));
+      if (!lines.length || lineProductIds.some((id)=>!id || !ownedProductIds.has(id))) {
+        await releaseTransaction(client,false);transaction=null;return Response.json({ok:false,error:"Um ou mais produtos selecionados não foram encontrados no estoque oficial desta empresa. Atualize a lista de produtos e tente novamente."},{status:400});
       }
       const saved:ReceivingNote={...raw,stockReleased:false};
       const nextReceiving = old ? current.map((item)=>item.id===raw.id?saved:item) : [saved,...current];
