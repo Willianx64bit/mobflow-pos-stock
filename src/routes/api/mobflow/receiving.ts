@@ -232,7 +232,7 @@ export async function handleMobFlowReceiving(request: Request) {
         return Response.json({ ok: false, data: false, error: `A quantidade aceita de ${product.name} deve ser um número inteiro.` }, { status: 400 });
       }
       const before = Number(product.stock);
-      if (!Number.isFinite(before) || before < 0) throw new Error("Estoque oficial inválido para concluir o recebimento.");
+      if (!Number.isFinite(before)) throw new Error("Saldo de estoque oficial inválido para concluir o recebimento.");
       const after = Math.round((before + quantity + Number.EPSILON) * 1000) / 1000;
       const totalValue = Math.round((quantity * Math.max(0, Number(product.cost)) + Number.EPSILON) * 100) / 100;
       const update = await client.query(
