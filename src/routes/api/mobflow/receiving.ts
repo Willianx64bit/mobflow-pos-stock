@@ -290,11 +290,14 @@ export async function handleMobFlowReceiving(request: Request) {
       decisionCompleted: true,
       acceptedLineCount,
       returnedLineCount,
-      lines: lines.map((line) => ({
-        productId: line.productId,
-        received: Number(line.received ?? 0),
-        decision: decisions[line.productId!],
-      })),
+      // Decisions belong to this note; quantities are sent only for products actually collected.
+      decisions,
+      lines: lines
+        .filter((line) => Number(line.received ?? 0) > 0)
+        .map((line) => ({
+          productId: line.productId,
+          received: Number(line.received ?? 0),
+        })),
     };
     const serializedReceivingEvent = JSON.stringify(receivingEventPayload);
     if (new TextEncoder().encode(serializedReceivingEvent).byteLength > 15_000) {
