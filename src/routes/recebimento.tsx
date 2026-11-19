@@ -350,6 +350,9 @@ function expiryInfo(expiry?: string) {
 
 function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => void }) {
   const products = useStore((s) => s.products);
+  useEffect(() => {
+    void actions.refreshCatalog();
+  }, []);
   const conference = useStore((s) => s.conferences.find(c => c.receivingId === note.id));
   const [productId, setProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
