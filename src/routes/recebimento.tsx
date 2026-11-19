@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, productHasBarcode, type ReceivingNote, type Product } from "@/lib/store";
-import { Filter, History, Search, Loader2, Download, Pencil, Trash2 } from "lucide-react";
+import { Filter, History, Search, Loader2, Download, Pencil, Trash2, ReceiptText, Building2, Package, ArrowUpRight, ClipboardCheck } from "lucide-react";
 
 export const Route = createFileRoute("/recebimento")({
   head: () => ({ meta: [{ title: "MobFlow — Recebimento" }, { name: "description", content: "Cadastro e aprovação de notas recebidas." }] }),
@@ -220,12 +220,15 @@ function Recebimento() {
   if (selected) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} /></div>;
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
-    <section className="glass p-4">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div>
-        <div className="flex items-center gap-2">
-          {!showNewNote && <button type="button" onClick={() => { resetForm(); setShowNewNote(true); }} className="rounded-xl bg-primary px-6 py-3 text-base font-bold text-primary-foreground shadow-sm hover:opacity-90">+ Nova nota</button>}
-          {!showNewNote && <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">← Voltar</button>}
+    <section className="glass p-4 md:p-6">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><ReceiptText className="h-5 w-5" /></div>
+          <div><div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div><p className="text-sm text-muted-foreground">Entrada e acompanhamento de notas fiscais</p></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          {!showNewNote && <button type="button" onClick={() => { resetForm(); setShowNewNote(true); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90 sm:px-5"><span className="text-lg leading-none">+</span> Nova nota</button>}
+          {!showNewNote && <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent"><ArrowUpRight className="h-4 w-4 rotate-[-135deg]" /> Voltar</button>}
         </div>
       </div>
 
@@ -288,16 +291,35 @@ function Recebimento() {
         <div><label className="mb-1 block text-xs font-semibold">Situação</label><select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="field w-full"><option value="todos">Todas as situações</option><option value="Aceito correto">Aceito correto</option><option value="Aceito com divergências">Aceito com divergências</option><option value="Recusado">Recusado</option><option value="Pendente">Pendente</option><option value="Em conferência">Em conferência</option><option value="Ação pendente">Ação pendente</option></select></div>
         <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); setFilterStatus("todos"); }} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold">Limpar filtros</button></div>
       </div>}
-      <div className="divide-y divide-border/50">
-        {!filteredNotes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{notes.length ? "nenhuma nota corresponde aos filtros" : "nenhuma nota cadastrada"}</p>}
-        {filteredNotes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier}{n.supplierCnpj ? ` · ${n.supplierCnpj}` : ""} · ${n.items.length} produtos${n.extras?.length ? ` · ${n.extras.length} extras` : ""}</div></div>
-          <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${receivingLabel(n) === "Aceito correto" ? "bg-emerald-500/15 text-emerald-700" : receivingLabel(n) === "Aceito com divergências" || receivingLabel(n) === "Ação pendente" ? "bg-amber-300/30 text-amber-800" : receivingLabel(n) === "Recusado" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground"}`}>{receivingLabel(n)}</span>
-          <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
-          {n.status === "pendente" && <button onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-semibold">Conferir</button>}
-          {(n.status === "divergente" || n.status === "conferido") && <div className="flex gap-2"><button onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-bold disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button onClick={async () => { try { await actions.rejectReceiving(n.id); } catch (error) { alert(error instanceof Error ? error.message : "Não foi possível rejeitar o recebimento."); } }} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Rejeitar</button>}</div>}
-          {n.status === "rejeitado" && <span className="text-[11px] text-muted-foreground">estoque não alterado</span>}
-        </div>)}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {!filteredNotes.length && <p className="col-span-full py-8 text-center text-sm text-muted-foreground">{notes.length ? "Nenhuma nota corresponde aos filtros." : "Nenhuma nota cadastrada ainda."}</p>}
+        {filteredNotes.map(n => {
+          const status = receivingLabel(n);
+          const statusClass = status === "Aceito correto" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : status === "Aceito com divergências" || status === "Ação pendente" ? "bg-amber-300/30 text-amber-800 dark:text-amber-300" : status === "Recusado" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground";
+          return <article key={n.id} className="min-w-0 rounded-xl border border-border bg-background/70 p-3 shadow-sm transition-colors hover:border-primary/30 md:p-4">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><ReceiptText className="h-5 w-5" /></div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-semibold text-foreground">NF {n.number}</h3>
+                  <span className={`inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[11px] font-semibold ${statusClass}`}>{status}</span>
+                </div>
+                <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"><Building2 className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{n.supplier}</span></div>
+                {n.supplierCnpj && <div className="mt-0.5 pl-5 font-mono text-[11px] text-muted-foreground">{n.supplierCnpj}</div>}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-secondary/70 px-2 py-1"><Package className="h-3.5 w-3.5" />{n.items.length} {n.items.length === 1 ? "produto" : "produtos"}</span>
+              {!!n.extras?.length && <span className="inline-flex items-center gap-1.5 rounded-md bg-secondary/70 px-2 py-1"><ClipboardCheck className="h-3.5 w-3.5" />{n.extras.length} {n.extras.length === 1 ? "extra" : "extras"}</span>}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent"><ArrowUpRight className="h-4 w-4" /> Abrir nota</button>
+              {n.status === "pendente" && <button type="button" onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"><ClipboardCheck className="h-4 w-4" /> Conferir</button>}
+              {(n.status === "divergente" || n.status === "conferido") && <div className="flex w-full flex-wrap gap-2"><button type="button" onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="min-h-10 flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button type="button" onClick={async () => { try { await actions.rejectReceiving(n.id); } catch (error) { alert(error instanceof Error ? error.message : "Não foi possível rejeitar o recebimento."); } }} className="min-h-10 rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border">Rejeitar</button>}</div>}
+              {n.status === "rejeitado" && <p className="w-full text-xs text-muted-foreground">Estoque não alterado.</p>}
+            </div>
+          </article>;
+        })}
       </div>
     </section>}
   </div>;
