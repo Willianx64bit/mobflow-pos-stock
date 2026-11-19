@@ -16,7 +16,7 @@ export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; companyLogoObjectKey?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string; method?: "cash" | "card" | "pix" };
 export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; sellerUsername?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
-export type ReceivingItem = { productId: string; name: string; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
+export type ReceivingItem = { productId: string; name: string; code?: string | undefined; barcodes?: string[] | undefined; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
 export type ReceivingExtra = { productId: string; name: string; received: number; expiry?: string; unit: "un" | "kg" };
@@ -1589,7 +1589,7 @@ export const actions = {
       date: new Date().toISOString(),
       items: items.map((i) => {
         const p = state.products.find((x) => x.id === i.productId)!;
-        return { productId: p.id, name: p.name, expected: Math.max(0, i.expected), unit: p.unit };
+        return { productId: p.id, name: p.name, code: p.code, barcodes: p.barcodes ?? [], expected: Math.max(0, i.expected), unit: p.unit };
       }),
       status: "pendente",
     };
@@ -1609,7 +1609,7 @@ export const actions = {
         const p = state.products.find((x) => x.id === item.productId);
         const expected = Number(item.expected);
         return p && Number.isFinite(expected) && expected > 0
-          ? { productId: p.id, name: p.name, expected, unit: p.unit as "un" | "kg" }
+          ? { productId: p.id, name: p.name, code: p.code, barcodes: p.barcodes ?? [], expected, unit: p.unit as "un" | "kg" }
           : null;
       })
       .filter(Boolean) as ReceivingItem[];
