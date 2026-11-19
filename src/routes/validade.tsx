@@ -3,6 +3,10 @@ import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore } from "@/lib/store";
 import { useMemo, useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/validade")({
   head: () => ({ meta: [{ title: "MobFlow — Validade dos produtos" }, { name: "description", content: "Produtos recebidos com validade cadastrada." }] }),
@@ -22,6 +26,7 @@ function ValidadeProdutos() {
   const [expiryDate, setExpiryDate] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [formError, setFormError] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const entries = useMemo(() => [
     ...notes.filter((note) => note.source !== "manual").flatMap((note) =>
       note.items.filter((item) => !!item.expiry && note.decisions?.[item.productId] !== "devolver").map((item) => ({
@@ -276,9 +281,7 @@ function ValidadeProdutos() {
                     }} className="grid h-10 w-10 place-items-center rounded-lg border border-green-600/30 text-green-600 hover:bg-green-600/10">
                       <Pencil className="h-[18px] w-[18px]" aria-hidden="true" />
                     </button>
-                    <button type="button" aria-label="Excluir validade" title="Excluir validade" onClick={() => {
-                      if (window.confirm("Deseja excluir este cadastro de validade?")) actions.deleteManualExpiry(item.noteId);
-                    }} className="grid h-10 w-10 place-items-center rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/10">
+                    <button type="button" aria-label="Excluir validade" title="Excluir validade" onClick={() => setPendingDeleteId(item.noteId)} className="grid h-10 w-10 place-items-center rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/10">
                       <Trash2 className="h-[18px] w-[18px]" aria-hidden="true" />
                     </button>
                   </div>
@@ -287,6 +290,26 @@ function ValidadeProdutos() {
             );
           })}
         </div>}
+        <AlertDialog open={pendingDeleteId !== null} onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir validade?</AlertDialogTitle>
+              <AlertDialogDescription>Essa validade será removida do cadastro. Essa ação não altera o estoque do produto.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  if (pendingDeleteId) actions.deleteManualExpiry(pendingDeleteId);
+                  setPendingDeleteId(null);
+                }}
+              >
+                Excluir validade
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </section>
     </div>
   );
