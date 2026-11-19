@@ -340,14 +340,16 @@ function PDV() {
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
           <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-3 field px-4 py-4 border-2">
-              <span className="font-mono text-[11px] text-primary">/</span>
+            <div
+              className="flex-1 flex items-center gap-3 field px-4 py-4 border-2 cursor-text"
+              onClick={() => search.current?.focus()}
+            >
               <input
                 ref={search}
                 value={q}
                 onChange={(e) => onChangeQ(e.target.value)}
                 onKeyDown={onSearchKey}
-                placeholder="Buscar nome, código ou bipar… (ex: 3*cafe)"
+                placeholder="Pesquisar produtos"
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
               <span className="ml-auto font-mono text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
