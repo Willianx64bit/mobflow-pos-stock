@@ -358,9 +358,9 @@ function PDV() {
             </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
-              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
-              Bipe rápido {quick ? "ligado" : "desligado"}
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
+              Ação rápida {quick && <span className="text-[10px] font-bold tracking-wide">ATIVO</span>}
             </button>
             <div className="ml-auto flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
               <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
