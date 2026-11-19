@@ -125,6 +125,31 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     for (const item of left) if (!map.has(item.id)) map.set(item.id, item);
     return Array.from(map.values());
   };
+  // Three-way merge preserves intentional deletions instead of reintroducing
+  // stale records from the remote snapshot after a version conflict.
+  const mergeByIdWithDeletions = <T extends { id: string }>(baseItems: T[] = [], localItems: T[] = [], remoteItems: T[] = []) => {
+    const baseMap = new Map(baseItems.map((item) => [item.id, item]));
+    const localMap = new Map(localItems.map((item) => [item.id, item]));
+    const remoteMap = new Map(remoteItems.map((item) => [item.id, item]));
+    const ids = new Set([...baseMap.keys(), ...localMap.keys(), ...remoteMap.keys()]);
+    const merged: T[] = [];
+    for (const id of ids) {
+      const baseItem = baseMap.get(id);
+      const localItem = localMap.get(id);
+      const remoteItem = remoteMap.get(id);
+      if (baseItem && !localItem) {
+        if (remoteItem && JSON.stringify(remoteItem) !== JSON.stringify(baseItem)) merged.push(remoteItem);
+        continue;
+      }
+      if (baseItem && !remoteItem) {
+        if (localItem && JSON.stringify(localItem) !== JSON.stringify(baseItem)) merged.push(localItem);
+        continue;
+      }
+      const item = remoteItem ?? localItem;
+      if (item) merged.push(item);
+    }
+    return merged;
+  };
   // Promotions are relational records in Neon. Use a three-way merge so a
   // locally observed deletion is not resurrected by an unchanged stale app_state snapshot.
   const mergePromotions = (baseItems: Promotion[] = [], localItems: Promotion[] = [], remoteItems: Promotion[] = []) => {
@@ -199,7 +224,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []),
     conferences: mergeById(local.conferences, remote.conferences),
     receiving: mergeById(local.receiving, remote.receiving),
-    manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []),
+    manualExpiries: mergeByIdWithDeletions(base.manualExpiries ?? [], local.manualExpiries ?? [], remote.manualExpiries ?? []),
     stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []),
     stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []),
     stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []),
