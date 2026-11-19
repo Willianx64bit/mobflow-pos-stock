@@ -250,9 +250,15 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
         <thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Vai chegar</th><th className="text-right">Recebido</th><th></th></tr></thead>
         <tbody className="divide-y divide-border/50">
           {note.items.map(i => {
-            const product = products.find(p => p.id === i.productId);
+            // Keep every line in the saved invoice actionable even if its product
+            // is temporarily absent from the currently loaded catalog (e.g. stale cache
+            // or an inactive catalog entry). The invoice snapshot has enough data to count it.
+            const product = products.find(p => p.id === i.productId) ?? {
+              id: i.productId, code: "", name: i.name, price: 0, stock: 0,
+              minStock: 0, category: "", unit: i.unit,
+            };
             return <tr key={i.productId}>
-              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => product && editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button><button type="button" onClick={() => product && clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
+              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product.code}</div></button><button type="button" onClick={() => clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
               <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
               <td className="text-right">
                 <div className="font-mono font-semibold">{counts[i.productId] ?? 0} {i.unit === "kg" ? "kg" : "un."}</div>
