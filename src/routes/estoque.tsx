@@ -43,7 +43,7 @@ function Estoque() {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
 
-  const [q, setQ] = useState("");
+  useEffect(() => {\n    void actions.refreshCatalog();\n  }, []);\n\n  const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
