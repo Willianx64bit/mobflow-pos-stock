@@ -1730,8 +1730,10 @@ export const actions = {
     return true;
   },
   async setReceivingDecision(id: string, productKey: string, decision: "aceitar" | "devolver") {
-    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n); set({ receiving: updated });
-    const note = updated.find((n) => n.id === id); if (note) await persistReceivingRecord(note);
+    // Decisions are a local draft until the user explicitly finalizes them.
+    // Do not write the receiving record or emit a Realtime event per button tap.
+    const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, decisions: { ...(n.decisions ?? {}), [productKey]: decision }, decisionCompleted: false } : n);
+    set({ receiving: updated }, { persist: false });
   },
   async completeReceivingDecision(id: string) {
     const note = (state.receiving ?? []).find((n) => n.id === id);
