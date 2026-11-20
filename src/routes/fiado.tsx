@@ -114,7 +114,6 @@ function Fiado() {
                 <div>
                   <div className="label-mono">CONTAS EM ABERTO</div>
                   <h1 className="mt-1 font-display text-3xl tracking-[.1em] text-heading">FIADO</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">{customers.length} cliente(s) · {open.length} compra(s) pendente(s)</p>
                 </div>
                 <div className="text-right"><div className="label-mono">SALDO TOTAL</div><div className="font-display text-3xl text-destructive">R$ {brl(totalOpen)}</div></div>
               </div>
