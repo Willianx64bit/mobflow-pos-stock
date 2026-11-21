@@ -50,10 +50,10 @@ function AnaliseResultados() {
   }), [stockTransfers, dateMode, month, startDate, endDate]);
   const transferTotal = filteredTransfers.reduce((sum, transfer) => sum + (transfer.items ?? []).reduce((itemSum, item) => itemSum + Number(item.totalCost || 0), 0), 0);
   const transferQuantity = filteredTransfers.reduce((sum, transfer) => sum + (transfer.items ?? []).reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0);
-  const discountTotal = filteredSales.reduce((sum, sale) => {
-    const gross = typeof sale.subtotal === "number" ? sale.subtotal : (sale.items ?? []).reduce((itemSum, item) => itemSum + Number(item.price || 0) * Number(item.qty || 0), 0);
-    return sum + Math.max(0, gross - Number(sale.total || 0));
-  }, 0);
+  // Soma somente o desconto explícito gravado no checkout da venda.
+  // Não infere desconto pela diferença entre subtotal e total, evitando contar ajustes
+  // ou valores de operações que não sejam descontos efetivamente aplicados no PDV.
+  const discountTotal = filteredSales.reduce((sum, sale) => sum + Math.max(0, Number(sale.discount || 0)), 0);
   const transferDestinations = Array.from(filteredTransfers.reduce((map, transfer) => {
     const key = transfer.destinationName || "Destino não informado";
     const current = map.get(key) ?? { destination: key, count: 0, total: 0, quantity: 0 };
@@ -230,7 +230,7 @@ function AnaliseResultados() {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><ReceiptText className="h-4 w-4" />Faturamento em vendas</div><div className="mt-2 font-display text-3xl text-primary">{money(revenue)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredSales.length} venda(s) registradas</p></div>
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Wallet className="h-4 w-4" />Lucro bruto registrado</div><div className="mt-2 font-display text-3xl text-primary">{money(profitData.total)}</div><p className="mt-1 text-xs text-muted-foreground">Antes do impacto das baixas e despesas</p></div>
-          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div><p className="mt-1 text-xs text-muted-foreground">Soma dos descontos aplicados nas vendas do período selecionado.</p></div>
+          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div><p className="mt-1 text-xs text-muted-foreground">Soma dos descontos registrados nas vendas do período selecionado.</p></div>
           <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Total de transferências</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(transferTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredTransfers.length} transferência(s) · {transferQuantity} unidade(s)/itens</p><p className="mt-1 text-xs text-muted-foreground">Valor pelo custo registrado; não é venda nem lucro/prejuízo.</p></div>
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><PackageMinus className="h-4 w-4" />Custo das baixas</div><div className="mt-2 font-display text-3xl text-destructive">{money(writeoffTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredWriteoffs.length} operação(ões) de baixa</p></div>
           <div className="glass rounded-xl border-2 border-black p-4 shadow-sm"><div className="flex items-center gap-2 text-sm font-bold text-foreground"><TrendingDown className="h-4 w-4" />Resultado após baixas</div><div className={`mt-2 font-display text-3xl font-extrabold ${resultAfterWriteoffs >= 0 ? "text-primary" : "text-destructive"}`}>{money(resultAfterWriteoffs)}</div><p className="mt-1 text-xs font-bold text-foreground">Lucro bruto menos custo das baixas</p></div>
@@ -305,7 +305,7 @@ function AnaliseResultados() {
             <div className="mt-3 space-y-2 text-sm text-muted-foreground">
               <p>Despesas operacionais: o estado atual do PDV não possui um cadastro estruturado de despesas para somar com segurança.</p>
               <p>Taxas de cartão e Pix: não são descontadas porque não há registro confiável das taxas efetivamente cobradas.</p>
-              <p>Transferências de estoque: aparecem separadas pelo custo registrado dos itens e não são somadas ao faturamento, lucro ou prejuízo.</p><p>Descontos concedidos: calculados pela diferença entre subtotal dos itens e total efetivo da venda, abrangendo todas as formas de pagamento.</p>
+              <p>Transferências de estoque: aparecem separadas pelo custo registrado dos itens e não são somadas ao faturamento, lucro ou prejuízo.</p><p>Descontos concedidos: soma apenas o campo de desconto efetivamente gravado em cada venda pelo PDV; transferências de estoque não entram nesse indicador.</p>
               <p>Por isso, o resultado após baixas continua sendo lucro bruto menos baixas registradas, e não lucro líquido.</p>
             </div>
           </div>
