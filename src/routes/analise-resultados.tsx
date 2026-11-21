@@ -240,6 +240,19 @@ function AnaliseResultados() {
           <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number) => [money(value), "Faturamento"]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="revenue" name="Faturamento" fill="#16a34a" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
         </section>
 
+        <section className="glass space-y-5 p-4 md:p-5">
+          <div>
+            <div className="flex items-center gap-2"><ChartNoAxesCombined className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Produtos mais vendidos</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Ranking por quantidade vendida no período selecionado.</p>
+            {topProductsByQuantity.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Sem vendas para montar o gráfico.</p> : <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={topProductsByQuantity} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} tickFormatter={(value: string) => value.length > 17 ? value.slice(0, 17) + "…" : value} /><Tooltip formatter={(value: number) => [value + " un.", "Quantidade"]} /><Bar dataKey="quantity" name="Quantidade" fill="#16a34a" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></div>}
+          </div>
+          <div className="border-t border-border pt-5">
+            <div className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Desempenho dos produtos</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Produtos ordenados pelo faturamento. O lucro por produto usa o custo salvo no item da venda e distribui descontos proporcionalmente.</p>
+            {productPerformance.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum produto vendido no período.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Produto</th><th className="py-2 px-2 text-right">Qtd.</th><th className="py-2 px-2 text-right">Faturamento</th><th className="py-2 px-2 text-right">Custo</th><th className="py-2 pl-2 text-right">Lucro calculável</th></tr></thead><tbody>{productPerformance.map((item, index) => <tr key={item.name + "-" + index} className="border-b border-border/60 last:border-0"><td className="py-3 pr-3 font-medium text-foreground">{item.name}{item.missingCost > 0 && <div className="text-xs font-normal text-orange-600">Custo ausente em {item.missingCost} item(ns) de venda</div>}</td><td className="px-2 py-3 text-right tabular-nums">{item.quantity}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.revenue)}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.cost)}</td><td className="py-3 pl-2 text-right font-semibold tabular-nums">{item.missingCost > 0 ? "Incompleto" : money(item.profit)}</td></tr>)}</tbody></table></div>}
+          </div>
+        </section>
+
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Total de transferências</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(transferTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredTransfers.length} transferência(s) · {transferQuantity} unidade(s)/itens</p><p className="mt-1 text-xs text-muted-foreground">Valor pelo custo registrado dos produtos; não é venda nem lucro/prejuízo.</p></div>
           <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div><p className="mt-1 text-xs text-muted-foreground">Descontos das vendas no período, em dinheiro, Pix, cartão e fiado.</p></div>
@@ -273,18 +286,7 @@ function AnaliseResultados() {
           </div>
         </section>
 
-        <section className="glass space-y-5 p-4 md:p-5">
-          <div>
-            <div className="flex items-center gap-2"><ChartNoAxesCombined className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Produtos mais vendidos</h2></div>
-            <p className="mb-3 text-sm text-muted-foreground">Ranking por quantidade vendida no período selecionado.</p>
-            {topProductsByQuantity.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Sem vendas para montar o gráfico.</p> : <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={topProductsByQuantity} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} tickFormatter={(value: string) => value.length > 17 ? value.slice(0, 17) + "…" : value} /><Tooltip formatter={(value: number) => [value + " un.", "Quantidade"]} /><Bar dataKey="quantity" name="Quantidade" fill="#16a34a" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></div>}
-          </div>
-          <div className="border-t border-border pt-5">
-            <div className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Desempenho dos produtos</h2></div>
-            <p className="mb-3 text-sm text-muted-foreground">Produtos ordenados pelo faturamento. O lucro por produto usa o custo salvo no item da venda e distribui descontos proporcionalmente.</p>
-            {productPerformance.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum produto vendido no período.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Produto</th><th className="py-2 px-2 text-right">Qtd.</th><th className="py-2 px-2 text-right">Faturamento</th><th className="py-2 px-2 text-right">Custo</th><th className="py-2 pl-2 text-right">Lucro calculável</th></tr></thead><tbody>{productPerformance.map((item, index) => <tr key={item.name + "-" + index} className="border-b border-border/60 last:border-0"><td className="py-3 pr-3 font-medium text-foreground">{item.name}{item.missingCost > 0 && <div className="text-xs font-normal text-orange-600">Custo ausente em {item.missingCost} item(ns) de venda</div>}</td><td className="px-2 py-3 text-right tabular-nums">{item.quantity}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.revenue)}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.cost)}</td><td className="py-3 pl-2 text-right font-semibold tabular-nums">{item.missingCost > 0 ? "Incompleto" : money(item.profit)}</td></tr>)}</tbody></table></div>}
-          </div>
-        </section>
+
 
         <section className="grid gap-4 lg:grid-cols-2">
           <div className="glass p-4 md:p-5">
