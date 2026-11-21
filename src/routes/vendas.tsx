@@ -45,7 +45,6 @@ function Vendas() {
     }, 0);
     return sale.total - costTotal;
   };
-  const totalProfit = filteredSales.reduce((total, sale) => total + saleProfit(sale), 0);
   const productOptions = useMemo(() => Array.from(new Set(sales.flatMap(s => s.items.map(i => i.name))).values()).sort((a, b) => a.localeCompare(b, "pt-BR")), [sales]);
   const filteredSales = useMemo(() => sales.filter((s) => {
     const d = new Date(s.date);
@@ -57,6 +56,7 @@ function Vendas() {
     const matchesPayment = paymentFilter === "todos" || s.payment === paymentFilter;
     return inPeriod && matchesSearch && matchesProduct && matchesPayment;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [sales, dateFilterMode, selectedMonth, rangeStart, rangeEnd, searchText, productFilter, paymentFilter]);
+  const totalProfit = filteredSales.reduce((total, sale) => total + saleProfit(sale), 0);
   const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const periodLabel = dateFilterMode === "month" ? monthLabel : rangeStart.split("-").reverse().join("/") + " a " + rangeEnd.split("-").reverse().join("/");
 
