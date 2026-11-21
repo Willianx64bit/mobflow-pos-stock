@@ -207,17 +207,17 @@ function AnaliseResultados() {
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary"><ChartNoAxesCombined className="h-5 w-5" /></div>
               <div><h1 className="font-display text-2xl text-heading">Analisar resultados da empresa</h1><p className="text-sm text-muted-foreground">Visão geral do desempenho no período selecionado.</p></div>
             </div>
-            <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent"><ArrowLeft className="h-4 w-4" />Voltar para gerência</button>
+            <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="print:hidden inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent"><ArrowLeft className="h-4 w-4" />Voltar para gerência</button>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 print:hidden">
             <button type="button" onClick={exportExcel} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"><FileSpreadsheet className="h-4 w-4" />Exportar Excel</button>
             <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-accent"><FileText className="h-4 w-4" />Salvar relatório em PDF</button>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3 print:mt-2 print:border-0 print:bg-transparent print:px-0 print:py-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="h-4 w-4" />Período: <strong className="capitalize text-foreground">{periodLabel}</strong></div>
-            <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground">{filtersOpen ? "Fechar filtros" : "Alterar período"}</button>
+            <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className="print:hidden rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground">{filtersOpen ? "Fechar filtros" : "Alterar período"}</button>
           </div>
-          {filtersOpen && <div className="mt-3 grid gap-3 rounded-xl border border-border bg-secondary/20 p-3 sm:grid-cols-2 lg:grid-cols-4">
+          {filtersOpen && <div className="print:hidden mt-3 grid gap-3 rounded-xl border border-border bg-secondary/20 p-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-xs font-semibold text-muted-foreground">Tipo de período<select value={dateMode} onChange={(event) => setDateMode(event.target.value as "month" | "range")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground"><option value="month">Mês</option><option value="range">Data personalizada</option></select></label>
             {dateMode === "month" ? <label className="text-xs font-semibold text-muted-foreground">Mês<input type="month" value={month} onChange={(event) => event.target.value && setMonth(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground" /></label> : <>
               <label className="text-xs font-semibold text-muted-foreground">Data inicial<input type="date" value={startDate} max={endDate} onChange={(event) => event.target.value && setStartDate(event.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground" /></label>
@@ -227,7 +227,7 @@ function AnaliseResultados() {
           </div>}
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2 print:break-inside-avoid">
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><ReceiptText className="h-4 w-4" />Faturamento em vendas</div><div className="mt-2 font-display text-3xl text-primary">{money(revenue)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredSales.length} venda(s) registradas</p></div>
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Wallet className="h-4 w-4" />Lucro bruto registrado</div><div className="mt-2 font-display text-3xl text-primary">{money(profitData.total)}</div><p className="mt-1 text-xs text-muted-foreground">Antes do impacto das baixas e despesas</p></div>
           <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div></div>
@@ -242,7 +242,7 @@ function AnaliseResultados() {
           <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number) => [money(value), "Faturamento"]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="revenue" name="Faturamento" fill="#16a34a" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
         </section>
 
-        <section className="glass space-y-5 p-4 md:p-5">
+        <section className="glass space-y-5 p-4 md:p-5 print:break-inside-avoid">
           <div>
             <div className="flex items-center gap-2"><ChartNoAxesCombined className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Produtos mais vendidos</h2></div>
             <p className="mb-3 text-sm text-muted-foreground">Ranking por quantidade vendida no período selecionado.</p>
@@ -257,7 +257,7 @@ function AnaliseResultados() {
 
 
 
-        <section className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+        <section className="grid gap-4 lg:grid-cols-[1.1fr_1fr] print:break-inside-avoid">
           <div className="glass p-4 md:p-5">
             <h2 className="font-display text-lg text-heading">Composição das baixas</h2>
             <p className="mb-3 text-sm text-muted-foreground">Valores pelo custo registrado em cada operação.</p>
