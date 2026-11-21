@@ -96,7 +96,7 @@ function AnaliseResultados() {
     });
     return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
   })();
-  const fiadoPayments = filteredSales.filter((sale) => sale.payment === "Fiado").flatMap((sale) =>
+  const fiadoPayments = sales.filter((sale) => sale.payment === "Fiado").flatMap((sale) =>
     (sale.payments ?? (sale.paid && sale.paidAt ? [{ value: sale.total, date: sale.paidAt }] : []))
       .filter((payment) => isInPeriod(payment.date))
       .map((payment) => ({ ...payment, customer: sale.customer || "Cliente não informado", saleId: sale.id }))
