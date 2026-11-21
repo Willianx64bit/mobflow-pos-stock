@@ -253,13 +253,14 @@ function AnaliseResultados() {
             <p className="mb-3 text-sm text-muted-foreground">Produtos ordenados pelo faturamento. O lucro por produto usa o custo salvo no item da venda e distribui descontos proporcionalmente.</p>
             {productPerformance.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum produto vendido no período.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Produto</th><th className="py-2 px-2 text-right">Qtd.</th><th className="py-2 px-2 text-right">Faturamento</th><th className="py-2 px-2 text-right">Custo</th><th className="py-2 pl-2 text-right">Lucro calculável</th></tr></thead><tbody>{productPerformance.map((item, index) => <tr key={item.name + "-" + index} className="border-b border-border/60 last:border-0"><td className="py-3 pr-3 font-medium text-foreground">{item.name}{item.missingCost > 0 && <div className="text-xs font-normal text-orange-600">Custo ausente em {item.missingCost} item(ns) de venda</div>}</td><td className="px-2 py-3 text-right tabular-nums">{item.quantity}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.revenue)}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.cost)}</td><td className="py-3 pl-2 text-right font-semibold tabular-nums">{item.missingCost > 0 ? "Incompleto" : money(item.profit)}</td></tr>)}</tbody></table></div>}
           </div>
-          <div className="border-t border-border pt-5">
-            <h2 className="font-display text-lg text-heading">Composição das baixas</h2>
-            <p className="mb-3 text-sm text-muted-foreground">Valores pelo custo registrado em cada operação.</p>
-            <div className="divide-y divide-border">
-              {writeoffsByReason.map((item) => <div key={item.reason} className="flex items-center justify-between gap-3 py-3"><div><div className="font-semibold text-foreground">{item.reason}</div><div className="text-xs text-muted-foreground">{item.count} operação(ões)</div></div><div className="font-semibold tabular-nums text-foreground">{money(item.total)}</div></div>)}
-              <div className="flex items-center justify-between gap-3 py-3 font-bold"><span>Total das baixas</span><span>{money(writeoffTotal)}</span></div>
-            </div>
+        </section>
+
+        <section className="glass p-4 md:p-5 print:break-inside-avoid">
+          <h2 className="font-display text-lg text-heading">Composição das baixas</h2>
+          <p className="mb-3 text-sm text-muted-foreground">Valores pelo custo registrado em cada operação.</p>
+          <div className="divide-y divide-border">
+            {writeoffsByReason.map((item) => <div key={item.reason} className="flex items-center justify-between gap-3 py-3"><div><div className="font-semibold text-foreground">{item.reason}</div><div className="text-xs text-muted-foreground">{item.count} operação(ões)</div></div><div className="font-semibold tabular-nums text-foreground">{money(item.total)}</div></div>)}
+            <div className="flex items-center justify-between gap-3 py-3 font-bold"><span>Total das baixas</span><span>{money(writeoffTotal)}</span></div>
           </div>
         </section>
 
