@@ -2,7 +2,9 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
-import { ArrowLeft, CalendarDays, ChartNoAxesCombined, PackageMinus, ReceiptText, TrendingDown, Wallet, Banknote, CreditCard, ShoppingBag, Landmark } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChartNoAxesCombined, PackageMinus, ReceiptText, TrendingDown, Wallet, Banknote, CreditCard, ShoppingBag, Landmark, FileSpreadsheet, FileText } from "lucide-react";
+import * as XLSX from "xlsx";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/analise-resultados")({
   head: () => ({ meta: [{ title: "MobFlow — Analisar resultados da empresa" }] }),
@@ -116,6 +118,56 @@ function AnaliseResultados() {
     ? new Date(month + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
     : startDate.split("-").reverse().join("/") + " a " + endDate.split("-").reverse().join("/");
 
+
+  const trendEnd = dateMode === "month" ? new Date(month + "-01T12:00:00") : new Date(endDate + "T12:00:00");
+  const monthlyTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(trendEnd.getFullYear(), trendEnd.getMonth() - 5 + index, 1, 12);
+    const monthSales = sales.filter((sale) => {
+      const saleDate = new Date(sale.date);
+      return !Number.isNaN(saleDate.getTime()) && saleDate.getFullYear() === date.getFullYear() && saleDate.getMonth() === date.getMonth();
+    });
+    const revenue = monthSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+    return { month: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), revenue };
+  });
+  const topProductsByQuantity = [...productPerformance].sort((a, b) => b.quantity - a.quantity).slice(0, 6);
+  const exportExcel = () => {
+    const workbook = XLSX.utils.book_new();
+    const summary = [
+      ["Relatório de resultados MobFlow"], ["Período", periodLabel],
+      ["Faturamento em vendas", revenue], ["Lucro bruto registrado", profitData.total],
+      ["Custo das baixas", writeoffTotal], ["Resultado após baixas", resultAfterWriteoffs],
+      ["Recebimentos de fiado no período", fiadoReceived], ["Saldo pendente das vendas do período", fiadoOutstanding],
+      ["Reforços de caixa", cashAdditions], ["Sangrias de caixa", cashWithdrawals],
+      ["Diferença acumulada dos caixas fechados", cashDifferenceTotal],
+      ["Observação", "Despesas operacionais e taxas não incluídas por falta de registros estruturados."]
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(summary), "Resumo");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(filteredSales.map((sale) => ({
+      Data: sale.date, Venda: sale.id, Cliente: sale.customer || "", Pagamento: sale.payment || "",
+      Faturamento: Number(sale.total || 0), LucroRegistrado: typeof sale.profit === "number" ? sale.profit : null,
+      Itens: (sale.items ?? []).map((item) => item.name + " x" + item.qty).join("; ")
+    }))), "Vendas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(filteredWriteoffs.flatMap((entry) => (entry.items ?? []).map((item) => ({
+      Data: entry.date, Motivo: entry.reason, Produto: item.name, Quantidade: item.qty,
+      CustoUnitario: item.cost, CustoTotal: item.totalCost
+    })))), "Baixas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(productPerformance.map((item) => ({
+      Produto: item.name, QuantidadeVendida: item.quantity, Faturamento: item.revenue,
+      CustoCalculado: item.cost, LucroCalculavel: item.missingCost ? null : item.profit,
+      ItensSemCusto: item.missingCost
+    }))), "Produtos");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(paymentBreakdown.map((item) => ({
+      FormaPagamento: item.method, Vendas: item.count, Faturamento: item.total
+    }))), "Formas de pagamento");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(fiadoPayments.map((payment) => ({
+      DataRecebimento: payment.date, Cliente: payment.customer, Venda: payment.saleId, ValorRecebido: payment.value
+    }))), "Recebimentos fiado");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(periodCashMovements.map((movement) => ({
+      Data: movement.date, Tipo: movement.type, Valor: movement.amount
+    }))), "Movimentações caixa");
+    XLSX.writeFile(workbook, "mobflow-resultados-" + todayKey + ".xlsx");
+  };
+
   const money = (value: number) => "R$ " + brl(value);
 
   return (
@@ -129,6 +181,10 @@ function AnaliseResultados() {
               <div><h1 className="font-display text-2xl text-heading">Analisar resultados da empresa</h1><p className="text-sm text-muted-foreground">Visão geral do desempenho no período selecionado.</p></div>
             </div>
             <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center gap-2 rounded-xl bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground hover:bg-accent"><ArrowLeft className="h-4 w-4" />Voltar para gerência</button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+            <button type="button" onClick={exportExcel} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"><FileSpreadsheet className="h-4 w-4" />Exportar Excel</button>
+            <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-accent"><FileText className="h-4 w-4" />Salvar relatório em PDF</button>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="h-4 w-4" />Período: <strong className="capitalize text-foreground">{periodLabel}</strong></div>
@@ -195,6 +251,19 @@ function AnaliseResultados() {
               <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">Os recebimentos são filtrados pela data de cada pagamento. Pagamentos de vendas antigas aparecem como recebimentos, mas não são somados novamente ao faturamento.</p>
               {fiadoPayments.length > 0 && <div className="max-h-48 divide-y divide-border overflow-y-auto">{fiadoPayments.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((payment, index) => <div key={payment.saleId + payment.date + index} className="flex items-center justify-between gap-3 py-2 text-sm"><div className="min-w-0"><div className="truncate font-medium text-foreground">{payment.customer}</div><div className="text-xs text-muted-foreground">{new Date(payment.date).toLocaleDateString("pt-BR")}</div></div><strong className="shrink-0 tabular-nums">{money(payment.value)}</strong></div>)}</div>}
             </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="glass p-4 md:p-5">
+            <div className="flex items-center gap-2"><ChartNoAxesCombined className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Produtos mais vendidos</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Ranking por quantidade vendida no período selecionado.</p>
+            {topProductsByQuantity.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Sem vendas para montar o gráfico.</p> : <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={topProductsByQuantity} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} tickFormatter={(value: string) => value.length > 17 ? value.slice(0, 17) + "…" : value} /><Tooltip formatter={(value: number) => [value + " un.", "Quantidade"]} /><Bar dataKey="quantity" name="Quantidade" fill="hsl(var(--primary))" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></div>}
+          </div>
+          <div className="glass p-4 md:p-5">
+            <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Vendas por mês</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Comparativo dos últimos seis meses até o mês do filtro.</p>
+            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number) => [money(value), "Faturamento"]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="revenue" name="Faturamento" fill="hsl(var(--primary))" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
           </div>
         </section>
 
