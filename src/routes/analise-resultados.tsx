@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
-import { ArrowLeft, CalendarDays, ChartNoAxesCombined, PackageMinus, ReceiptText, TrendingDown, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChartNoAxesCombined, PackageMinus, ReceiptText, TrendingDown, Wallet, Banknote, CreditCard, ShoppingBag, Landmark } from "lucide-react";
 
 export const Route = createFileRoute("/analise-resultados")({
   head: () => ({ meta: [{ title: "MobFlow — Analisar resultados da empresa" }] }),
@@ -13,6 +13,8 @@ function AnaliseResultados() {
   const navigate = useNavigate();
   const sales = useStore((s) => s.sales ?? []);
   const writeoffs = useStore((s) => s.stockWriteoffs ?? []);
+  const cashSessions = useStore((s) => s.cashSessions ?? []);
+  const cashMovements = useStore((s) => s.cashMovements ?? []);
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const [dateMode, setDateMode] = useState<"month" | "range">("month");
@@ -59,6 +61,57 @@ function AnaliseResultados() {
     count: filteredWriteoffs.filter((entry) => entry.reason === reason).length,
   }));
   const resultAfterWriteoffs = profitData.total - writeoffTotal;
+  const isInPeriod = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    const key = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+    return dateMode === "month" ? key.slice(0, 7) === month : startDate <= endDate && key >= startDate && key <= endDate;
+  };
+  const paymentBreakdown = (["Dinheiro", "Pix", "Cartão", "Fiado"] as const).map((method) => ({
+    method,
+    total: filteredSales.filter((sale) => sale.payment === method).reduce((sum, sale) => sum + Number(sale.total || 0), 0),
+    count: filteredSales.filter((sale) => sale.payment === method).length,
+  }));
+  const productPerformance = (() => {
+    const map = new Map<string, { name: string; quantity: number; revenue: number; cost: number; profit: number; missingCost: number }>();
+    filteredSales.forEach((sale) => {
+      const grossSubtotal = (sale.items ?? []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+      const netFactor = grossSubtotal > 0 ? Number(sale.total || 0) / grossSubtotal : 1;
+      (sale.items ?? []).forEach((item) => {
+        const key = item.productId || item.name.trim().toLocaleLowerCase("pt-BR");
+        const current = map.get(key) ?? { name: item.name, quantity: 0, revenue: 0, cost: 0, profit: 0, missingCost: 0 };
+        const quantity = Number(item.qty || 0);
+        const revenueValue = Number(item.price || 0) * quantity * netFactor;
+        current.quantity += quantity;
+        current.revenue += revenueValue;
+        if (typeof item.cost === "number" && Number.isFinite(item.cost)) {
+          const costValue = item.cost * quantity;
+          current.cost += costValue;
+          current.profit += revenueValue - costValue;
+        } else {
+          current.missingCost += 1;
+        }
+        map.set(key, current);
+      });
+    });
+    return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  })();
+  const fiadoPayments = filteredSales.filter((sale) => sale.payment === "Fiado").flatMap((sale) =>
+    (sale.payments ?? (sale.paid && sale.paidAt ? [{ value: sale.total, date: sale.paidAt }] : []))
+      .filter((payment) => isInPeriod(payment.date))
+      .map((payment) => ({ ...payment, customer: sale.customer || "Cliente não informado", saleId: sale.id }))
+  );
+  const fiadoReceived = fiadoPayments.reduce((sum, payment) => sum + Number(payment.value || 0), 0);
+  const fiadoOutstanding = filteredSales.filter((sale) => sale.payment === "Fiado").reduce((sum, sale) => {
+    const paid = (sale.payments ?? (sale.paid ? [{ value: sale.total, date: sale.paidAt ?? sale.date }] : [])).reduce((value, payment) => value + Number(payment.value || 0), 0);
+    return sum + Math.max(0, Number(sale.total || 0) - paid);
+  }, 0);
+  const periodCashMovements = cashMovements.filter((movement) => isInPeriod(movement.date));
+  const cashWithdrawals = periodCashMovements.filter((movement) => movement.type === "sangria").reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+  const cashAdditions = periodCashMovements.filter((movement) => movement.type === "reforco").reduce((sum, movement) => sum + Number(movement.amount || 0), 0);
+  const periodCashSessions = cashSessions.filter((session) => isInPeriod(session.openedAt));
+  const cashDifferences = periodCashSessions.filter((session) => session.status === "closed" && typeof session.difference === "number");
+  const cashDifferenceTotal = cashDifferences.reduce((sum, session) => sum + Number(session.difference || 0), 0);
   const periodLabel = dateMode === "month"
     ? new Date(month + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" })
     : startDate.split("-").reverse().join("/") + " a " + endDate.split("-").reverse().join("/");
@@ -121,6 +174,55 @@ function AnaliseResultados() {
             <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
               <div className="text-sm font-semibold text-foreground">Transferências e ajustes</div>
               <p className="mt-1 text-sm text-muted-foreground">Não são tratados como prejuízo ou baixa automática nesta primeira versão.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="glass p-4 md:p-5">
+            <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Vendas por forma de pagamento</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Valor das vendas registradas no período, incluindo fiado ainda não recebido.</p>
+            <div className="divide-y divide-border">
+              {paymentBreakdown.map((item) => <div key={item.method} className="flex items-center justify-between gap-3 py-3"><div><div className="font-semibold text-foreground">{item.method}</div><div className="text-xs text-muted-foreground">{item.count} venda(s)</div></div><div className="font-semibold tabular-nums text-foreground">{money(item.total)}</div></div>)}
+            </div>
+          </div>
+          <div className="glass p-4 md:p-5">
+            <div className="flex items-center gap-2"><Banknote className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Fiado e recebimentos</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Separação entre compras feitas no fiado e dinheiro efetivamente recebido.</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Recebido no período</span><strong className="tabular-nums text-foreground">{money(fiadoReceived)}</strong></div>
+              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Saldo pendente das vendas do período</span><strong className="tabular-nums text-orange-600">{money(fiadoOutstanding)}</strong></div>
+              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">Os recebimentos são filtrados pela data de cada pagamento. Pagamentos de vendas antigas aparecem como recebimentos, mas não são somados novamente ao faturamento.</p>
+              {fiadoPayments.length > 0 && <div className="max-h-48 divide-y divide-border overflow-y-auto">{fiadoPayments.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((payment, index) => <div key={payment.saleId + payment.date + index} className="flex items-center justify-between gap-3 py-2 text-sm"><div className="min-w-0"><div className="truncate font-medium text-foreground">{payment.customer}</div><div className="text-xs text-muted-foreground">{new Date(payment.date).toLocaleDateString("pt-BR")}</div></div><strong className="shrink-0 tabular-nums">{money(payment.value)}</strong></div>)}</div>}
+            </div>
+          </div>
+        </section>
+
+        <section className="glass p-4 md:p-5">
+          <div className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Desempenho dos produtos</h2></div>
+          <p className="mb-3 text-sm text-muted-foreground">Produtos ordenados pelo faturamento. O lucro por produto usa o custo salvo no item da venda e distribui descontos proporcionalmente.</p>
+          {productPerformance.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum produto vendido no período.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Produto</th><th className="py-2 px-2 text-right">Qtd.</th><th className="py-2 px-2 text-right">Faturamento</th><th className="py-2 px-2 text-right">Custo</th><th className="py-2 pl-2 text-right">Lucro calculável</th></tr></thead><tbody>{productPerformance.map((item) => <tr key={item.name} className="border-b border-border/60 last:border-0"><td className="py-3 pr-3 font-medium text-foreground">{item.name}{item.missingCost > 0 && <div className="text-xs font-normal text-orange-600">Custo ausente em {item.missingCost} item(ns) de venda</div>}</td><td className="px-2 py-3 text-right tabular-nums">{item.quantity}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.revenue)}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.cost)}</td><td className="py-3 pl-2 text-right font-semibold tabular-nums">{item.missingCost > 0 ? "Incompleto" : money(item.profit)}</td></tr>)}</tbody></table></div>}
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="glass p-4 md:p-5">
+            <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Movimentações de caixa</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Sangrias e reforços registrados no período.</p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Reforços</span><strong className="text-foreground">{money(cashAdditions)}</strong></div>
+              <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Sangrias</span><strong className="text-destructive">{money(cashWithdrawals)}</strong></div>
+              <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Caixas abertos no período</span><strong className="text-foreground">{periodCashSessions.length}</strong></div>
+              <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Diferença acumulada dos caixas fechados</span><strong className={cashDifferenceTotal < 0 ? "text-destructive" : "text-foreground"}>{money(cashDifferenceTotal)}</strong></div>
+              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">Sangrias e reforços são movimentações de caixa, não despesas operacionais ou vendas. A diferença do caixa é exibida separadamente.</p>
+            </div>
+          </div>
+          <div className="glass p-4 md:p-5">
+            <div className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">O que ainda não entra no resultado</h2></div>
+            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+              <p>Despesas operacionais: o estado atual do PDV não possui um cadastro estruturado de despesas para somar com segurança.</p>
+              <p>Taxas de cartão e Pix: não são descontadas porque não há registro confiável das taxas efetivamente cobradas.</p>
+              <p>Transferências de estoque: não são prejuízo; representam mudança de destino do produto.</p>
+              <p>Por isso, o resultado após baixas continua sendo lucro bruto menos baixas registradas, e não lucro líquido.</p>
             </div>
           </div>
         </section>
