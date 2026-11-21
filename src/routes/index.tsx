@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
+import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List, Menu } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
 import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
@@ -329,7 +329,16 @@ function PDV() {
 
   return (
     <div className="mfb-in min-h-screen p-3 md:p-4 xl:p-5">
-      <AppHeader showCompanyBar />
+      <AppHeader />
+      {(settings.companyName || settings.companyLogo) && (
+        <div className="mb-4 glass px-3 py-3 flex min-w-0 items-center gap-3">
+          <button type="button" onClick={() => window.dispatchEvent(new Event("mobflow-toggle-sidebar"))} aria-label="Abrir menu lateral" title="Abrir menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background/70 text-foreground transition-colors hover:bg-accent">
+            <Menu className="h-5 w-5" />
+          </button>
+          {settings.companyLogo && <img src={settings.companyLogo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" />}
+          {settings.companyName && <div className="min-w-0 truncate font-display text-xl tracking-[.08em] text-heading">{settings.companyName}</div>}
+        </div>
+      )}
       <main className="grid lg:grid-cols-[minmax(0,1fr)_500px] xl:grid-cols-[minmax(0,1fr)_520px] gap-4 items-stretch">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
