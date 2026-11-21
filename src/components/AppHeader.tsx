@@ -43,6 +43,15 @@ export function AppHeader() {
   const [syncMessage, setSyncMessage] = useState("");
   const [syncCooldown, setSyncCooldown] = useState(0);
   const [showCooldownNotice, setShowCooldownNotice] = useState(false);
+  const cooldownNoticeTimeoutRef = useRef<number | null>(null);
+  const showCooldownToast = () => {
+    setShowCooldownNotice(true);
+    if (cooldownNoticeTimeoutRef.current !== null) window.clearTimeout(cooldownNoticeTimeoutRef.current);
+    cooldownNoticeTimeoutRef.current = window.setTimeout(() => {
+      setShowCooldownNotice(false);
+      cooldownNoticeTimeoutRef.current = null;
+    }, 3000);
+  };
   const settings = useStore((s) => s.settings);
   const [companyLogoSrc, setCompanyLogoSrc] = useState("");
 
@@ -68,7 +77,7 @@ export function AppHeader() {
 
   const handleManualSync = async () => {
     if (syncing) return;
-    if (syncCooldown > 0) { setShowCooldownNotice(true); return; }
+    if (syncCooldown > 0) { showCooldownToast(); return; }
     const now = Date.now();
     const key = "mobflow-manual-sync-attempts";
     let attempts: number[] = [];
@@ -78,7 +87,7 @@ export function AppHeader() {
     } catch {}
     if (attempts.length >= 2) {
       setSyncCooldown(Math.max(1, Math.ceil((attempts[0] + 60_000 - now) / 1000)));
-      setShowCooldownNotice(true);
+      showCooldownToast();
       return;
     }
     attempts.push(now);
