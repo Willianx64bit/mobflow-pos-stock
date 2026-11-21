@@ -25,7 +25,7 @@ function Fiado() {
   const [purchaseFilter, setPurchaseFilter] = useState<"todos" | "pendentes" | "quitados">("pendentes");
   const [dateFilterOpen, setDateFilterOpen] = useState(false);
   const [dateFilterMode, setDateFilterMode] = useState<"month" | "custom">("month");
-  const [monthDraft, setMonthDraft] = useState("");
+  const [monthDraft, setMonthDraft] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`; });
   const [startDateDraft, setStartDateDraft] = useState("");
   const [endDateDraft, setEndDateDraft] = useState("");
   const [appliedDateFilter, setAppliedDateFilter] = useState<{ mode: "month" | "custom"; month: string; start: string; end: string } | null>(null);
@@ -171,7 +171,7 @@ function Fiado() {
               {dateFilterOpen && (
                 <div className="mb-4 rounded-xl border border-border bg-background/70 p-3">
                   <div className="mb-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setDateFilterMode("month")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${dateFilterMode === "month" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>Por mês</button>
+                    <button type="button" onClick={() => setDateFilterMode("month")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${dateFilterMode === "month" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>Mês</button>
                     <button type="button" onClick={() => setDateFilterMode("custom")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${dateFilterMode === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>Data personalizada</button>
                   </div>
                   {dateFilterMode === "month" ? (
@@ -189,7 +189,7 @@ function Fiado() {
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
-                    <button type="button" onClick={() => { setMonthDraft(""); setStartDateDraft(""); setEndDateDraft(""); setAppliedDateFilter(null); }} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Limpar</button>
+                    <button type="button" onClick={() => { setMonthDraft(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`; }); setStartDateDraft(""); setEndDateDraft(""); setAppliedDateFilter(null); }} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Limpar</button>
                     <button type="button" onClick={() => { setAppliedDateFilter(dateFilterMode === "month" ? (monthDraft ? { mode: "month", month: monthDraft, start: "", end: "" } : null) : (startDateDraft || endDateDraft ? { mode: "custom", month: "", start: startDateDraft, end: endDateDraft } : null)); setDateFilterOpen(false); }} className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground">Aplicar filtro</button>
                   </div>
                 </div>
