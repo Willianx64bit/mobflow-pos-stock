@@ -273,23 +273,16 @@ function AnaliseResultados() {
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div className="glass p-4 md:p-5">
-            <div className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Vendas por forma de pagamento</h2></div>
-            <p className="mb-3 text-sm text-muted-foreground">Valor das vendas registradas no período, incluindo fiado ainda não recebido.</p>
-            <div className="divide-y divide-border">
-              {paymentBreakdown.map((item) => <div key={item.method} className="flex items-center justify-between gap-3 py-3"><div><div className="font-semibold text-foreground">{item.method}</div><div className="text-xs text-muted-foreground">{item.count} venda(s)</div></div><div className="font-semibold tabular-nums text-foreground">{money(item.total)}</div></div>)}
-            </div>
+        <section className="glass space-y-5 p-4 md:p-5">
+          <div>
+            <div className="flex items-center gap-2"><ChartNoAxesCombined className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Produtos mais vendidos</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Ranking por quantidade vendida no período selecionado.</p>
+            {topProductsByQuantity.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Sem vendas para montar o gráfico.</p> : <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={topProductsByQuantity} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} tickFormatter={(value: string) => value.length > 17 ? value.slice(0, 17) + "…" : value} /><Tooltip formatter={(value: number) => [value + " un.", "Quantidade"]} /><Bar dataKey="quantity" name="Quantidade" fill="#16a34a" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></div>}
           </div>
-          <div className="glass p-4 md:p-5">
-            <div className="flex items-center gap-2"><Banknote className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Fiado e recebimentos</h2></div>
-            <p className="mb-3 text-sm text-muted-foreground">Separação entre compras feitas no fiado e dinheiro efetivamente recebido.</p>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Recebido no período</span><strong className="tabular-nums text-foreground">{money(fiadoReceived)}</strong></div>
-              <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Saldo pendente das vendas do período</span><strong className="tabular-nums text-orange-600">{money(fiadoOutstanding)}</strong></div>
-              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">Os recebimentos são filtrados pela data de cada pagamento. Pagamentos de vendas antigas aparecem como recebimentos, mas não são somados novamente ao faturamento.</p>
-              {fiadoPayments.length > 0 && <div className="max-h-48 divide-y divide-border overflow-y-auto">{fiadoPayments.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((payment, index) => <div key={payment.saleId + payment.date + index} className="flex items-center justify-between gap-3 py-2 text-sm"><div className="min-w-0"><div className="truncate font-medium text-foreground">{payment.customer}</div><div className="text-xs text-muted-foreground">{new Date(payment.date).toLocaleDateString("pt-BR")}</div></div><strong className="shrink-0 tabular-nums">{money(payment.value)}</strong></div>)}</div>}
-            </div>
+          <div className="border-t border-border pt-5">
+            <div className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Desempenho dos produtos</h2></div>
+            <p className="mb-3 text-sm text-muted-foreground">Produtos ordenados pelo faturamento. O lucro por produto usa o custo salvo no item da venda e distribui descontos proporcionalmente.</p>
+            {productPerformance.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">Nenhum produto vendido no período.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-2 pr-3">Produto</th><th className="py-2 px-2 text-right">Qtd.</th><th className="py-2 px-2 text-right">Faturamento</th><th className="py-2 px-2 text-right">Custo</th><th className="py-2 pl-2 text-right">Lucro calculável</th></tr></thead><tbody>{productPerformance.map((item, index) => <tr key={item.name + "-" + index} className="border-b border-border/60 last:border-0"><td className="py-3 pr-3 font-medium text-foreground">{item.name}{item.missingCost > 0 && <div className="text-xs font-normal text-orange-600">Custo ausente em {item.missingCost} item(ns) de venda</div>}</td><td className="px-2 py-3 text-right tabular-nums">{item.quantity}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.revenue)}</td><td className="px-2 py-3 text-right tabular-nums">{money(item.cost)}</td><td className="py-3 pl-2 text-right font-semibold tabular-nums">{item.missingCost > 0 ? "Incompleto" : money(item.profit)}</td></tr>)}</tbody></table></div>}
           </div>
         </section>
 
