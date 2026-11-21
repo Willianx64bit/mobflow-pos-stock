@@ -255,9 +255,7 @@ function AnaliseResultados() {
           </div>
         </section>
 
-        <section className="grid gap-3 sm:grid-cols-2">
-          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Destinos das transferências</div>{transferDestinations.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">Nenhuma transferência no período.</p> : <div className="mt-2 space-y-2">{transferDestinations.slice(0, 4).map((item) => <div key={item.destination} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 truncate text-foreground">{item.destination}</span><strong className="shrink-0 tabular-nums">{money(item.total)}</strong></div>)}</div>}</div>
-        </section>
+
 
         <section className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
           <div className="glass p-4 md:p-5">
