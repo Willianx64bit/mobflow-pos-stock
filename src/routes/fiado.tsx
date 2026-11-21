@@ -121,7 +121,6 @@ function Fiado() {
                   <div className="label-mono">CONTAS EM ABERTO</div>
                   <h1 className="mt-1 font-display text-3xl tracking-[.1em] text-heading">FIADO</h1>
                 </div>
-                <div className="text-right"><div className="label-mono">SALDO TOTAL</div><div className="font-display text-3xl text-destructive">R$ {brl(totalOpen)}</div></div>
               </div>
             </section>
             <section className="space-y-3">
