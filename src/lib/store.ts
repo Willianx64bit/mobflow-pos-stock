@@ -1423,7 +1423,7 @@ export const actions = {
     // hydrateStore refreshes the authoritative state before confirmLastDomainCommand resolves.
     return id;
   },
-  applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
+  async applyStockWriteoff(input: { reason: "Perda" | "Consumo" | "Doação"; donationDestination?: string | undefined; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     const reason = input.reason;
     if (!input.items.length || (reason === "Doação" && !input.donationDestination?.trim())) return false;
     const prepared = input.items.map((item) => {
@@ -1447,21 +1447,28 @@ export const actions = {
       operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined,
       items,
     };
-    const products = state.products.map((p) => {
-      const item = items.find((x) => x.productId === p.id);
-      return item ? { ...p, stock: item.newStock } : p;
-    });
-    const stockMovements = items.map((item) => movementEntry({ id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Baixa", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: `${entry.number} · ${reason}` }));
-    const queued = enqueueDomainCommand("stock", {
-      operationId: entry.id, operationType: "writeoff", reason, costMode: input.costMode, donationDestination: entry.donationDestination,
-      number: entry.number, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
-    });
-    if (!queued || incrementalSyncEnabled()) {
-      set({ products, stockWriteoffs: [entry, ...existing], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
+    try {
+      const result = await callMobFlowApi("/api/mobflow/stock", {
+        method: "POST",
+        body: JSON.stringify({
+          operationId: entry.id, idempotencyKey: crypto.randomUUID(), operationType: "writeoff",
+          reason, costMode: input.costMode, donationDestination: entry.donationDestination,
+          number: entry.number, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+        }),
+      });
+      if (!result.response.ok || result.body.ok !== true) {
+        throw new Error(String(result.body.error ?? "O Neon não confirmou a baixa."));
+      }
+      await hydrateStore();
+      return entry;
+    } catch (error) {
+      // Reconcile before permitting a retry: the server may have committed even
+      // if the response was lost. Never apply the stock deduction a second time.
+      await hydrateStore().catch(() => undefined);
+      if ((state.stockWriteoffs ?? []).some((item) => item.id === entry.id)) return entry;
+      console.error("[MobFlow Writeoff]", error);
+      return false;
     }
-    // With incremental sync disabled, wait for the transactional Neon response and
-    // the subsequent hydration before exposing the new stock balance locally.
-    return entry;
   },
   async applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     if (!input.destinationName.trim() || !input.items.length) return false;
