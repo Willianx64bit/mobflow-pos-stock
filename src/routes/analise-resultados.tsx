@@ -280,7 +280,7 @@ function AnaliseResultados() {
               <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Sangrias</span><strong className="text-destructive">{money(cashWithdrawals)}</strong></div>
               <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Caixas abertos no período</span><strong className="text-foreground">{periodCashSessions.length}</strong></div>
               <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Diferença acumulada dos caixas fechados</span><strong className={cashDifferenceTotal < 0 ? "text-destructive" : "text-foreground"}>{money(cashDifferenceTotal)}</strong></div>
-              <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">Sangrias e reforços são movimentações de caixa, não despesas operacionais ou vendas. A diferença do caixa é exibida separadamente.</p>
+              
             </div>
           </div>
 
