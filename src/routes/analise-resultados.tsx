@@ -25,15 +25,18 @@ function AnaliseResultados() {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia", replace: true });
   }, [navigate]);
 
-  const inPeriod = (value: string) => {
-    const date = new Date(value);
+  const filteredSales = useMemo(() => sales.filter((sale) => {
+    const date = new Date(sale.date);
     if (Number.isNaN(date.getTime())) return false;
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     return dateMode === "month" ? key.slice(0, 7) === month : startDate <= endDate && key >= startDate && key <= endDate;
-  };
-
-  const filteredSales = useMemo(() => sales.filter((sale) => inPeriod(sale.date)), [sales, dateMode, month, startDate, endDate]);
-  const filteredWriteoffs = useMemo(() => writeoffs.filter((item) => inPeriod(item.date)), [writeoffs, dateMode, month, startDate, endDate]);
+  }), [sales, dateMode, month, startDate, endDate]);
+  const filteredWriteoffs = useMemo(() => writeoffs.filter((item) => {
+    const date = new Date(item.date);
+    if (Number.isNaN(date.getTime())) return false;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return dateMode === "month" ? key.slice(0, 7) === month : startDate <= endDate && key >= startDate && key <= endDate;
+  }), [writeoffs, dateMode, month, startDate, endDate]);
   const revenue = filteredSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const profitData = filteredSales.reduce((result, sale) => {
     if (typeof sale.profit === "number" && Number.isFinite(sale.profit)) {
