@@ -142,6 +142,23 @@ function AnaliseResultados() {
 
 
   const trendEnd = dateMode === "month" ? new Date(month + "-01T12:00:00") : new Date(endDate + "T12:00:00");
+  const monthlyWriteoffTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(trendEnd.getFullYear(), trendEnd.getMonth() - 5 + index, 1, 12);
+    const monthEntries = writeoffs.filter((entry) => {
+      const entryDate = new Date(entry.date);
+      return !Number.isNaN(entryDate.getTime()) && entryDate.getFullYear() === date.getFullYear() && entryDate.getMonth() === date.getMonth();
+    });
+    const totalForReason = (reason: "Perda" | "Consumo" | "Doação") =>
+      monthEntries.filter((entry) => entry.reason === reason).reduce(
+        (sum, entry) => sum + (entry.items ?? []).reduce((itemsSum, item) => itemsSum + Number(item.totalCost || 0), 0), 0
+      );
+    return {
+      month: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      perda: totalForReason("Perda"),
+      consumo: totalForReason("Consumo"),
+      doacao: totalForReason("Doação"),
+    };
+  });
   const monthlyTrend = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(trendEnd.getFullYear(), trendEnd.getMonth() - 5 + index, 1, 12);
     const monthSales = sales.filter((sale) => {
@@ -258,6 +275,10 @@ function AnaliseResultados() {
         <section className="glass p-4 md:p-5 print:break-inside-avoid">
           <h2 className="font-display text-lg text-heading">Composição das baixas</h2>
           <p className="mb-3 text-sm text-muted-foreground">Valores pelo custo registrado em cada operação.</p>
+          <div className="mb-4">
+            <p className="mb-3 text-sm text-muted-foreground">Comparativo mensal dos três tipos de baixa nos últimos seis meses, incluindo o mês selecionado e os cinco anteriores.</p>
+            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyWriteoffTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number, name: string) => [money(value), name]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="perda" name="Perda" fill="#ef4444" radius={[4, 4, 0, 0]} /><Bar dataKey="consumo" name="Consumo" fill="#f59e0b" radius={[4, 4, 0, 0]} /><Bar dataKey="doacao" name="Doação" fill="#3b82f6" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
+          </div>
           <div className="divide-y divide-border">
             {writeoffsByReason.map((item) => <div key={item.reason} className="flex items-center justify-between gap-3 py-3"><div><div className="font-semibold text-foreground">{item.reason}</div><div className="text-xs text-muted-foreground">{item.count} operação(ões)</div></div><div className="font-semibold tabular-nums text-foreground">{money(item.total)}</div></div>)}
             <div className="flex items-center justify-between gap-3 py-3 font-bold"><span>Total das baixas</span><span>{money(writeoffTotal)}</span></div>
