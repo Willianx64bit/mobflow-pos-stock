@@ -152,12 +152,27 @@ SELECT
           ORDER BY COALESCE(NULLIF(source.entry->>'id',''),md5(source.entry::text)), source.priority DESC
         ) d
       ), '[]'::jsonb),
-      'stockWriteoffs', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockWriteoffs','[]'::jsonb))>0 THEN s.state->'stockWriteoffs' ELSE COALESCE((
-        SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
-        FROM public.mobflow_sync_events e
-        WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_writeoff'
-          AND e.payload->>'operation'='upsert' AND jsonb_typeof(e.payload->'stockOperation')='object'
-      ), '[]'::jsonb) END,
+      'stockWriteoffs', COALESCE((
+        SELECT jsonb_agg(d.entry ORDER BY d.entry->>'date' DESC)
+        FROM (
+          SELECT DISTINCT ON (COALESCE(NULLIF(source.entry->>'id',''),md5(source.entry::text))) source.entry
+          FROM (
+            SELECT snapshot.entry, 0 AS priority
+            FROM jsonb_array_elements(
+              CASE WHEN jsonb_typeof(COALESCE(s.state->'stockWriteoffs','[]'::jsonb))='array'
+                THEN COALESCE(s.state->'stockWriteoffs','[]'::jsonb) ELSE '[]'::jsonb END
+            ) AS snapshot(entry)
+            UNION ALL
+            SELECT e.payload->'stockOperation' AS entry, 1 AS priority
+            FROM public.mobflow_sync_events e
+            WHERE e.tenant_id=scope.owner_id AND e.entity_type='stock_writeoff'
+              AND e.payload->>'operation'='upsert'
+              AND jsonb_typeof(e.payload->'stockOperation')='object'
+          ) source
+          WHERE jsonb_typeof(source.entry)='object'
+          ORDER BY COALESCE(NULLIF(source.entry->>'id',''),md5(source.entry::text)), source.priority DESC
+        ) d
+      ), '[]'::jsonb),
       'stockTransfers', CASE WHEN jsonb_array_length(COALESCE(s.state->'stockTransfers','[]'::jsonb))>0 THEN s.state->'stockTransfers' ELSE COALESCE((
         SELECT jsonb_agg(e.payload->'stockOperation' ORDER BY e.sequence DESC)
         FROM public.mobflow_sync_events e
