@@ -229,11 +229,6 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
 
   return createPortal(
     <>
-      {!showCompanyBar && (
-        <button type="button" onClick={toggleSidebar} aria-label="Abrir menu lateral" title="Abrir menu" className="fixed left-4 top-4 z-[95] grid h-10 w-10 place-items-center rounded-xl border border-border bg-popover/95 text-foreground shadow-lg backdrop-blur-xl transition-colors hover:bg-accent">
-          <Menu className="h-5 w-5" />
-        </button>
-      )}
       {(pathname === "/" || pathname === "/operacoes" || pdvAuthorized) && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           {pdvAuthorized && (
@@ -340,6 +335,9 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
             </div>
           </div>
         </aside>
+      {!open && (
+        <button type="button" onClick={toggleSidebar} className="fixed left-0 top-1/2 z-50 -translate-y-1/2 h-10 w-5 rounded-r-lg bg-popover/95 ring-1 ring-border text-foreground shadow-sm flex items-center justify-center hover:bg-accent transition-colors" aria-label="Abrir menu lateral" title="Abrir menu"><ChevronRight className="h-4 w-4 text-green-600" /></button>
+      )}
     </>,
     document.body,
   );
