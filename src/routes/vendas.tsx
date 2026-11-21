@@ -18,6 +18,7 @@ export const Route = createFileRoute("/vendas")({
 
 function Vendas() {
   const sales = useStore((s) => s.sales);
+  const products = useStore((s) => s.products);
   const companyName = useStore((s) => s.settings.companyName);
   const savedCompanyName = companyName || (() => { try { const raw = localStorage.getItem("mobflow:v1"); if (!raw) return ""; const parsed = JSON.parse(raw); return parsed?.settings?.companyName || ""; } catch { return ""; } })();
   const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
@@ -35,6 +36,16 @@ function Vendas() {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
   const sum = (arr: typeof sales) => arr.reduce((t, s) => t + s.total, 0);
+  const saleProfit = (sale: (typeof sales)[number]) => {
+    if (typeof sale.profit === "number") return sale.profit;
+    const costTotal = sale.items.reduce((total, item) => {
+      const product = products.find((p) => p.id === item.productId)
+        ?? products.find((p) => p.name.trim().toLocaleLowerCase("pt-BR") === item.name.trim().toLocaleLowerCase("pt-BR"));
+      return total + (item.cost ?? product?.cost ?? 0) * item.qty;
+    }, 0);
+    return sale.total - costTotal;
+  };
+  const totalProfit = filteredSales.reduce((total, sale) => total + saleProfit(sale), 0);
   const productOptions = useMemo(() => Array.from(new Set(sales.flatMap(s => s.items.map(i => i.name))).values()).sort((a, b) => a.localeCompare(b, "pt-BR")), [sales]);
   const filteredSales = useMemo(() => sales.filter((s) => {
     const d = new Date(s.date);
@@ -54,7 +65,7 @@ function Vendas() {
       <AppHeader />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
         <div className="glass p-4"><div className="label-mono">Total de vendas no período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
-        <div className="glass p-4"><div className="label-mono text-sm md:text-base">Vendas</div><div className="font-display text-4xl mt-1 text-heading">{filteredSales.length}</div></div>
+        <div className="glass p-4"><div className="label-mono text-sm md:text-base">Lucro das vendas</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(totalProfit)}</div></div>
         {(["Dinheiro", "Cartão", "Pix", "Fiado"] as const).map((m) => (
           <div key={m} className="glass p-4"><div className="label-mono text-sm md:text-base">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
         ))}
