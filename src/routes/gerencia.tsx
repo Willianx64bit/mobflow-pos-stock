@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { brl, useStore } from "@/lib/store";
 import { mobflowAuthClient } from "@/lib/auth-client";
 import { verifyManagerPassword } from "@/lib/manager-auth";
-import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent, Scale, Workflow } from "lucide-react";
+import { Settings, LockKeyhole, Package, ChartNoAxesCombined, Truck, Percent, Scale, Workflow, ChartPie } from "lucide-react";
 
 const postBetterAuth = async (path: string, body: Record<string, unknown>) => {
   const response = await fetch(path, {
@@ -528,6 +528,18 @@ function Gerencia() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className="group flex min-h-24 w-full items-center justify-center gap-4 rounded-2xl bg-white px-6 py-5 text-center shadow-sm ring-1 ring-border transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:ring-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-28"
+        >
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">
+            <ChartPie className="h-7 w-7" />
+          </span>
+          <span className="text-left">
+            <span className="block text-lg font-extrabold text-heading sm:text-xl">Analisar resultados da empresa</span>
+            <span className="mt-1 block text-sm text-muted-foreground">Indicadores e desempenho da empresa</span>
+          </span>
+        </button>
         <section className="rounded-2xl bg-white p-5 ring-1 ring-border">
           <div className="font-bold text-heading">Estoque baixo</div>
           {low.length === 0 ? <div className="mt-3 text-sm text-muted-foreground">Nenhum produto com estoque baixo.</div> : (
