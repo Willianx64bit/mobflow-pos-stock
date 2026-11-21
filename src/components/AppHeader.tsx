@@ -246,9 +246,9 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
             </>
           )}
           {(pathname === "/" || pathname === "/operacoes") && (
-            <button type="button" onClick={() => { if (pathname === "/") setShowLogin(true); }} className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl hover:bg-accent">
-              <UserRound className="mr-2 inline h-4 w-4 text-green-600" />{pdvAuthorized ? username : "Usuário"}
-            </button>
+            <div className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
+              {pdvAuthorized ? username : "Usuário"}
+            </div>
           )}
           {pdvAuthorized && (pathname === "/" || pathname === "/operacoes") && (
             <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair da conta do usuário" title="Sair da conta">
