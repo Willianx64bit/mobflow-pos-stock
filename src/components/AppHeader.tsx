@@ -246,7 +246,8 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
             </>
           )}
           {(pathname === "/" || pathname === "/operacoes") && (
-            <div className="rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
+            <div className="flex items-center gap-2 rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
+              <UserRound className="h-4 w-4" />
               {pdvAuthorized ? username : "Usuário"}
             </div>
           )}
