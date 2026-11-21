@@ -5,7 +5,7 @@ import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, Menu, ChevronLeft, ChevronDown, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, Menu, ChevronLeft, ChevronRight, ChevronDown, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
@@ -338,7 +338,9 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
             </div>
           </div>
         </aside>
-
+      {!showCompanyBar && !open && (
+        <button type="button" onClick={toggleSidebar} className="fixed left-0 top-1/2 z-50 -translate-y-1/2 h-10 w-5 rounded-r-lg bg-popover/95 ring-1 ring-border text-foreground shadow-sm flex items-center justify-center hover:bg-accent transition-colors" aria-label="Abrir menu lateral" title="Abrir menu"><ChevronRight className="h-4 w-4 text-green-600" /></button>
+      )}
     </>,
     document.body,
   );
