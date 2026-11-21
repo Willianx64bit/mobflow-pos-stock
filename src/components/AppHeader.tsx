@@ -335,9 +335,6 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
             </div>
           </div>
         </aside>
-      {!showCompanyBar && !open && (
-        <button type="button" onClick={toggleSidebar} className="fixed left-0 top-1/2 z-50 -translate-y-1/2 h-10 w-5 rounded-r-lg bg-popover/95 ring-1 ring-border text-foreground shadow-sm flex items-center justify-center hover:bg-accent transition-colors" aria-label="Abrir menu lateral" title="Abrir menu"><ChevronRight className="h-4 w-4 text-green-600" /></button>
-      )}
     </>,
     document.body,
   );
