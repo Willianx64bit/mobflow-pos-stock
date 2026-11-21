@@ -352,9 +352,6 @@ function PDV() {
                 placeholder="Pesquisar produtos"
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
-              <span className="ml-auto font-mono text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
-              </span>
             </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2">
