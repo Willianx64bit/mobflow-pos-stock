@@ -530,6 +530,7 @@ function Gerencia() {
         </div>
         <button
           type="button"
+          onClick={() => navigate({ to: "/analise-resultados" })}
           className="group flex min-h-24 w-full items-center justify-center gap-4 rounded-2xl bg-white px-6 py-5 text-center shadow-sm ring-1 ring-border transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:ring-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:min-h-28"
         >
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-green-600/10 text-green-700 transition-transform duration-200 group-hover:scale-110">
