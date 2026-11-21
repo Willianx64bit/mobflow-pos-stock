@@ -230,8 +230,8 @@ function AnaliseResultados() {
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><ReceiptText className="h-4 w-4" />Faturamento em vendas</div><div className="mt-2 font-display text-3xl text-primary">{money(revenue)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredSales.length} venda(s) registradas</p></div>
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><Wallet className="h-4 w-4" />Lucro bruto registrado</div><div className="mt-2 font-display text-3xl text-primary">{money(profitData.total)}</div><p className="mt-1 text-xs text-muted-foreground">Antes do impacto das baixas e despesas</p></div>
-          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div><p className="mt-1 text-xs text-muted-foreground">Soma dos descontos registrados nas vendas do período selecionado.</p></div>
-          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Total de transferências</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(transferTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredTransfers.length} transferência(s) · {transferQuantity} unidade(s)/itens</p><p className="mt-1 text-xs text-muted-foreground">Valor pelo custo registrado; não é venda nem lucro/prejuízo.</p></div>
+          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div></div>
+          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Total de transferências</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(transferTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredTransfers.length} transferência(s) · {transferQuantity} unidade(s)/itens</p></div>
           <div className="glass p-4"><div className="flex items-center gap-2 text-sm text-muted-foreground"><PackageMinus className="h-4 w-4" />Custo das baixas</div><div className="mt-2 font-display text-3xl text-destructive">{money(writeoffTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredWriteoffs.length} operação(ões) de baixa</p></div>
           <div className="glass rounded-xl border-2 border-black p-4 shadow-sm"><div className="flex items-center gap-2 text-sm font-bold text-foreground"><TrendingDown className="h-4 w-4" />Resultado após baixas</div><div className={`mt-2 font-display text-3xl font-extrabold ${resultAfterWriteoffs >= 0 ? "text-primary" : "text-destructive"}`}>{money(resultAfterWriteoffs)}</div><p className="mt-1 text-xs font-bold text-foreground">Lucro bruto menos custo das baixas</p></div>
         </section>
@@ -268,22 +268,7 @@ function AnaliseResultados() {
               <div className="flex items-center justify-between gap-3 py-3 font-bold"><span>Total das baixas</span><span>{money(writeoffTotal)}</span></div>
             </div>
           </div>
-          <div className="glass p-4 md:p-5">
-            <h2 className="font-display text-lg text-heading">Conferência dos dados</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Os indicadores usam os registros salvos no MobFlow para o período selecionado.</p>
-            <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
-              <div className="text-sm font-semibold text-foreground">{profitData.incomplete === 0 ? "Custos das vendas disponíveis" : "Existem vendas com custo incompleto"}</div>
-              <p className="mt-1 text-sm text-muted-foreground">{profitData.incomplete === 0 ? "O lucro bruto foi calculado com o lucro salvo na venda ou com os custos registrados nos itens." : `${profitData.incomplete} venda(s) sem lucro salvo e sem custo completo nos itens foram excluídas do cálculo do lucro bruto. O faturamento continua incluído.`}</p>
-            </div>
-            <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
-              <div className="text-sm font-semibold text-foreground">Despesas operacionais</div>
-              <p className="mt-1 text-sm text-muted-foreground">Ainda não estão incluídas neste resultado. Vamos auditar e integrar essa parte na próxima etapa, sem estimar valores.</p>
-            </div>
-            <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
-              <div className="text-sm font-semibold text-foreground">Transferências e ajustes</div>
-              <p className="mt-1 text-sm text-muted-foreground">Não são tratados como prejuízo ou baixa automática nesta primeira versão.</p>
-            </div>
-          </div>
+
         </section>
 
 
@@ -300,15 +285,7 @@ function AnaliseResultados() {
               <p className="rounded-lg border border-border bg-secondary/30 p-3 text-xs text-muted-foreground">Sangrias e reforços são movimentações de caixa, não despesas operacionais ou vendas. A diferença do caixa é exibida separadamente.</p>
             </div>
           </div>
-          <div className="glass p-4 md:p-5">
-            <div className="flex items-center gap-2"><ReceiptText className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">O que ainda não entra no resultado</h2></div>
-            <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <p>Despesas operacionais: o estado atual do PDV não possui um cadastro estruturado de despesas para somar com segurança.</p>
-              <p>Taxas de cartão e Pix: não são descontadas porque não há registro confiável das taxas efetivamente cobradas.</p>
-              <p>Transferências de estoque: aparecem separadas pelo custo registrado dos itens e não são somadas ao faturamento, lucro ou prejuízo.</p><p>Descontos concedidos: soma apenas o campo de desconto efetivamente gravado em cada venda pelo PDV; transferências de estoque não entram nesse indicador.</p>
-              <p>Por isso, o resultado após baixas continua sendo lucro bruto menos baixas registradas, e não lucro líquido.</p>
-            </div>
-          </div>
+
         </section>
       </main>
     </div>
