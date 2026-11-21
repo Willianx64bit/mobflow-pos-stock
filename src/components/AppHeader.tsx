@@ -42,6 +42,7 @@ export function AppHeader() {
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [syncCooldown, setSyncCooldown] = useState(0);
+  const [showCooldownNotice, setShowCooldownNotice] = useState(false);
   const settings = useStore((s) => s.settings);
   const [companyLogoSrc, setCompanyLogoSrc] = useState("");
 
@@ -66,7 +67,8 @@ export function AppHeader() {
   }, [settings.companyLogoObjectKey]);
 
   const handleManualSync = async () => {
-    if (syncing || syncCooldown > 0) return;
+    if (syncing) return;
+    if (syncCooldown > 0) { setShowCooldownNotice(true); return; }
     const now = Date.now();
     const key = "mobflow-manual-sync-attempts";
     let attempts: number[] = [];
@@ -76,6 +78,7 @@ export function AppHeader() {
     } catch {}
     if (attempts.length >= 2) {
       setSyncCooldown(Math.max(1, Math.ceil((attempts[0] + 60_000 - now) / 1000)));
+      setShowCooldownNotice(true);
       return;
     }
     attempts.push(now);
@@ -101,6 +104,12 @@ export function AppHeader() {
       setSyncing(false);
     }
   };
+
+  useEffect(() => {
+    if (!showCooldownNotice) return;
+    const timeout = window.setTimeout(() => setShowCooldownNotice(false), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [showCooldownNotice]);
 
   useEffect(() => {
     if (syncCooldown <= 0) return;
@@ -209,7 +218,7 @@ export function AppHeader() {
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           {pdvAuthorized && (
             <>
-            <button type="button" onClick={() => void handleManualSync()} disabled={syncing || syncCooldown > 0} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
+            <button type="button" onClick={() => void handleManualSync()} disabled={syncing} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 text-green-600 ${syncing ? "animate-spin" : ""}`} />
             </button>
             {syncCooldown > 0 ? (
