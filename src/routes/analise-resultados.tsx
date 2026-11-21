@@ -96,7 +96,7 @@ function AnaliseResultados() {
         map.set(key, current);
       });
     });
-    return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+    return [...map.values()].sort((a, b) => b.revenue - a.revenue);
   })();
   const fiadoPayments = sales.filter((sale) => sale.payment === "Fiado").flatMap((sale) =>
     (sale.payments ?? (sale.paid && sale.paidAt ? [{ value: sale.total, date: sale.paidAt }] : []))
