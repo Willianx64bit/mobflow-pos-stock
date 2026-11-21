@@ -168,6 +168,22 @@ function AnaliseResultados() {
     const revenue = monthSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
     return { month: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""), revenue };
   });
+  const monthlyPaymentTrend = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(trendEnd.getFullYear(), trendEnd.getMonth() - 5 + index, 1, 12);
+    const monthSales = sales.filter((sale) => {
+      const saleDate = new Date(sale.date);
+      return !Number.isNaN(saleDate.getTime()) && saleDate.getFullYear() === date.getFullYear() && saleDate.getMonth() === date.getMonth();
+    });
+    const totalForMethod = (method: "Dinheiro" | "Pix" | "Cartão" | "Fiado") =>
+      monthSales.filter((sale) => sale.payment === method).reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+    return {
+      month: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+      dinheiro: totalForMethod("Dinheiro"),
+      pix: totalForMethod("Pix"),
+      cartao: totalForMethod("Cartão"),
+      fiado: totalForMethod("Fiado"),
+    };
+  });
   const topProductsByQuantity = [...productPerformance].sort((a, b) => b.quantity - a.quantity).slice(0, 10);
   const exportExcel = () => {
     const workbook = XLSX.utils.book_new();
@@ -291,6 +307,14 @@ function AnaliseResultados() {
           <div className="glass p-4 md:p-5">
             <div className="flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Movimentações de caixa</h2></div>
             <p className="mb-3 text-sm text-muted-foreground">Sangrias e reforços registrados no período.</p>
+            <div className="mb-4 border-b border-border pb-4">
+              <h3 className="font-semibold text-foreground">Valores por forma de pagamento</h3>
+              <p className="mb-3 text-xs text-muted-foreground">Comparativo dos últimos seis meses até o mês do filtro.</p>
+              <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyPaymentTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number, name: string) => [money(value), name]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="dinheiro" name="Dinheiro" fill="#16a34a" radius={[4, 4, 0, 0]} /><Bar dataKey="pix" name="Pix" fill="#0ea5e9" radius={[4, 4, 0, 0]} /><Bar dataKey="cartao" name="Cartão" fill="#8b5cf6" radius={[4, 4, 0, 0]} /><Bar dataKey="fiado" name="Fiado" fill="#f59e0b" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {paymentBreakdown.map((item) => <div key={item.method} className="rounded-lg bg-secondary/40 p-3"><div className="text-xs text-muted-foreground">{item.method}</div><div className="mt-1 font-semibold tabular-nums text-foreground">{money(item.total)}</div></div>)}
+              </div>
+            </div>
             <div className="space-y-3">
               <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Reforços</span><strong className="text-foreground">{money(cashAdditions)}</strong></div>
               <div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Sangrias</span><strong className="text-destructive">{money(cashWithdrawals)}</strong></div>
