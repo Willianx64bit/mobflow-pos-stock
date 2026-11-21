@@ -241,7 +241,7 @@ a[href*="lovable.dev"]#lovable-badge {
     visibility: visible;
   }
 
-  button, [role="button"], .print\\:hidden {
+  button, [role="button"] {
     display: none !important;
   }
 
