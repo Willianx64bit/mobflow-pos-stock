@@ -329,13 +329,7 @@ function PDV() {
 
   return (
     <div className="mfb-in min-h-screen p-3 md:p-4 xl:p-5">
-      <AppHeader />
-      {(settings.companyName || settings.companyLogo) && (
-        <div className="mb-4 glass px-4 py-3 flex items-center gap-3">
-          {settings.companyLogo && <img src={settings.companyLogo} alt="" className="h-11 w-11 rounded-xl object-contain bg-background ring-1 ring-border" />}
-          {settings.companyName && <div className="font-display text-xl tracking-[.08em] text-heading truncate">{settings.companyName}</div>}
-        </div>
-      )}
+      <AppHeader showCompanyBar />
       <main className="grid lg:grid-cols-[minmax(0,1fr)_500px] xl:grid-cols-[minmax(0,1fr)_520px] gap-4 items-stretch">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
