@@ -15,6 +15,7 @@ function AnaliseResultados() {
   const navigate = useNavigate();
   const sales = useStore((s) => s.sales ?? []);
   const writeoffs = useStore((s) => s.stockWriteoffs ?? []);
+  const stockTransfers = useStore((s) => s.stockTransfers ?? []);
   const cashSessions = useStore((s) => s.cashSessions ?? []);
   const cashMovements = useStore((s) => s.cashMovements ?? []);
   const today = new Date();
@@ -41,6 +42,27 @@ function AnaliseResultados() {
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     return dateMode === "month" ? key.slice(0, 7) === month : startDate <= endDate && key >= startDate && key <= endDate;
   }), [writeoffs, dateMode, month, startDate, endDate]);
+  const filteredTransfers = useMemo(() => stockTransfers.filter((transfer) => {
+    const date = new Date(transfer.date);
+    if (Number.isNaN(date.getTime())) return false;
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    return dateMode === "month" ? key.slice(0, 7) === month : startDate <= endDate && key >= startDate && key <= endDate;
+  }), [stockTransfers, dateMode, month, startDate, endDate]);
+  const transferTotal = filteredTransfers.reduce((sum, transfer) => sum + (transfer.items ?? []).reduce((itemSum, item) => itemSum + Number(item.totalCost || 0), 0), 0);
+  const transferQuantity = filteredTransfers.reduce((sum, transfer) => sum + (transfer.items ?? []).reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0), 0);
+  const discountTotal = filteredSales.reduce((sum, sale) => {
+    const gross = typeof sale.subtotal === "number" ? sale.subtotal : (sale.items ?? []).reduce((itemSum, item) => itemSum + Number(item.price || 0) * Number(item.qty || 0), 0);
+    return sum + Math.max(0, gross - Number(sale.total || 0));
+  }, 0);
+  const transferDestinations = Array.from(filteredTransfers.reduce((map, transfer) => {
+    const key = transfer.destinationName || "Destino não informado";
+    const current = map.get(key) ?? { destination: key, count: 0, total: 0, quantity: 0 };
+    current.count += 1;
+    current.total += (transfer.items ?? []).reduce((itemSum, item) => itemSum + Number(item.totalCost || 0), 0);
+    current.quantity += (transfer.items ?? []).reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0);
+    map.set(key, current);
+    return map;
+  }, new Map<string, { destination: string; count: number; total: number; quantity: number }>()).values()).sort((a, b) => b.total - a.total);
   const revenue = filteredSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const profitData = filteredSales.reduce((result, sale) => {
     if (typeof sale.profit === "number" && Number.isFinite(sale.profit)) {
@@ -136,6 +158,7 @@ function AnaliseResultados() {
       ["Relatório de resultados MobFlow"], ["Período", periodLabel],
       ["Faturamento em vendas", revenue], ["Lucro bruto registrado", profitData.total],
       ["Custo das baixas", writeoffTotal], ["Resultado após baixas", resultAfterWriteoffs],
+      ["Descontos concedidos nas vendas", discountTotal], ["Valor transferido (custo registrado)", transferTotal], ["Quantidade transferida", transferQuantity],
       ["Recebimentos de fiado no período", fiadoReceived], ["Saldo pendente das vendas do período", fiadoOutstanding],
       ["Reforços de caixa", cashAdditions], ["Sangrias de caixa", cashWithdrawals],
       ["Diferença acumulada dos caixas fechados", cashDifferenceTotal],
@@ -147,6 +170,10 @@ function AnaliseResultados() {
       Faturamento: Number(sale.total || 0), LucroRegistrado: typeof sale.profit === "number" ? sale.profit : null,
       Itens: (sale.items ?? []).map((item) => item.name + " x" + item.qty).join("; ")
     }))), "Vendas");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(filteredTransfers.flatMap((transfer) => (transfer.items ?? []).map((item) => ({
+      Data: transfer.date, Numero: transfer.number, Destino: transfer.destinationName, Operador: transfer.operator || "",
+      Produto: item.name, Quantidade: item.quantity, CustoUnitario: item.unitCost, ValorTransferido: item.totalCost
+    })))), "Transferências");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(filteredWriteoffs.flatMap((entry) => (entry.items ?? []).map((item) => ({
       Data: entry.date, Motivo: entry.reason, Produto: item.name, Quantidade: item.qty,
       CustoUnitario: item.cost, CustoTotal: item.totalCost
@@ -207,6 +234,18 @@ function AnaliseResultados() {
           <div className="glass rounded-xl border-2 border-black p-4 shadow-sm"><div className="flex items-center gap-2 text-sm font-bold text-foreground"><TrendingDown className="h-4 w-4" />Resultado após baixas</div><div className={`mt-2 font-display text-3xl font-extrabold ${resultAfterWriteoffs >= 0 ? "text-primary" : "text-destructive"}`}>{money(resultAfterWriteoffs)}</div><p className="mt-1 text-xs font-bold text-foreground">Lucro bruto menos custo das baixas</p></div>
         </section>
 
+        <section className="glass p-4 md:p-5">
+          <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Vendas por mês</h2></div>
+          <p className="mb-3 text-sm text-muted-foreground">Comparativo dos últimos seis meses até o mês do filtro.</p>
+          <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number) => [money(value), "Faturamento"]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="revenue" name="Faturamento" fill="#16a34a" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Total de transferências</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(transferTotal)}</div><p className="mt-1 text-xs text-muted-foreground">{filteredTransfers.length} transferência(s) · {transferQuantity} unidade(s)/itens</p><p className="mt-1 text-xs text-muted-foreground">Valor pelo custo registrado dos produtos; não é venda nem lucro/prejuízo.</p></div>
+          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Descontos concedidos</div><div className="mt-2 font-display text-2xl font-bold text-foreground">{money(discountTotal)}</div><p className="mt-1 text-xs text-muted-foreground">Descontos das vendas no período, em dinheiro, Pix, cartão e fiado.</p></div>
+          <div className="glass p-4"><div className="text-sm font-semibold text-muted-foreground">Destinos das transferências</div>{transferDestinations.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">Nenhuma transferência no período.</p> : <div className="mt-2 space-y-2">{transferDestinations.slice(0, 4).map((item) => <div key={item.destination} className="flex items-center justify-between gap-2 text-sm"><span className="min-w-0 truncate text-foreground">{item.destination}</span><strong className="shrink-0 tabular-nums">{money(item.total)}</strong></div>)}</div>}</div>
+        </section>
+
         <section className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
           <div className="glass p-4 md:p-5">
             <h2 className="font-display text-lg text-heading">Composição das baixas</h2>
@@ -260,11 +299,7 @@ function AnaliseResultados() {
             <p className="mb-3 text-sm text-muted-foreground">Ranking por quantidade vendida no período selecionado.</p>
             {topProductsByQuantity.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Sem vendas para montar o gráfico.</p> : <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={topProductsByQuantity} layout="vertical" margin={{ top: 4, right: 12, left: 8, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} /><XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="name" width={112} tick={{ fontSize: 11 }} tickFormatter={(value: string) => value.length > 17 ? value.slice(0, 17) + "…" : value} /><Tooltip formatter={(value: number) => [value + " un.", "Quantidade"]} /><Bar dataKey="quantity" name="Quantidade" fill="#16a34a" radius={[0, 5, 5, 0]} /></BarChart></ResponsiveContainer></div>}
           </div>
-          <div className="glass p-4 md:p-5">
-            <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /><h2 className="font-display text-lg text-heading">Vendas por mês</h2></div>
-            <p className="mb-3 text-sm text-muted-foreground">Comparativo dos últimos seis meses até o mês do filtro.</p>
-            <div className="h-64 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyTrend} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value: number) => value >= 1000 ? "R$" + (value / 1000).toFixed(1) + "k" : "R$" + value} width={54} /><Tooltip formatter={(value: number) => [money(value), "Faturamento"]} labelFormatter={(label) => "Mês: " + label} /><Bar dataKey="revenue" name="Faturamento" fill="#16a34a" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div>
-          </div>
+
         </section>
 
         <section className="glass p-4 md:p-5">
@@ -290,7 +325,7 @@ function AnaliseResultados() {
             <div className="mt-3 space-y-2 text-sm text-muted-foreground">
               <p>Despesas operacionais: o estado atual do PDV não possui um cadastro estruturado de despesas para somar com segurança.</p>
               <p>Taxas de cartão e Pix: não são descontadas porque não há registro confiável das taxas efetivamente cobradas.</p>
-              <p>Transferências de estoque: não são prejuízo; representam mudança de destino do produto.</p>
+              <p>Transferências de estoque: aparecem separadas pelo custo registrado dos itens e não são somadas ao faturamento, lucro ou prejuízo.</p><p>Descontos concedidos: calculados pela diferença entre subtotal dos itens e total efetivo da venda, abrangendo todas as formas de pagamento.</p>
               <p>Por isso, o resultado após baixas continua sendo lucro bruto menos baixas registradas, e não lucro líquido.</p>
             </div>
           </div>
