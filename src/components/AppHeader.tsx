@@ -205,6 +205,12 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     return next;
   });
 
+  useEffect(() => {
+    const onMenuRequest = () => toggleSidebar();
+    window.addEventListener("mobflow-toggle-sidebar", onMenuRequest);
+    return () => window.removeEventListener("mobflow-toggle-sidebar", onMenuRequest);
+  }, []);
+
   const logoutPdv = async () => {
     sessionStorage.removeItem("mobflow-pdv-authorized");
     sessionStorage.removeItem("mobflow-role");
@@ -223,15 +229,6 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
 
   return createPortal(
     <>
-      {showCompanyBar && (pathname === "/" || pathname === "/operacoes") && (
-        <div className="mb-4 glass px-3 py-3 flex min-w-0 items-center gap-3">
-          <button type="button" onClick={toggleSidebar} aria-label="Abrir menu lateral" title="Abrir menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background/70 text-foreground transition-colors hover:bg-accent">
-            <Menu className="h-5 w-5" />
-          </button>
-          {settings.companyLogo && <img src={settings.companyLogo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" />}
-          {settings.companyName && <div className="min-w-0 truncate font-display text-xl tracking-[.08em] text-heading">{settings.companyName}</div>}
-        </div>
-      )}
       {(pathname === "/" || pathname === "/operacoes" || pdvAuthorized) && (
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           {pdvAuthorized && (
