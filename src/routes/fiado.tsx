@@ -104,7 +104,6 @@ function Fiado() {
   const remaining = (s: Sale) => { const balance = Math.round((s.total - paidTotal(s)) * 100) / 100; return balance <= 0.005 ? 0 : Math.max(0, balance); };
   const visibleCustomers = useMemo(() => customers.filter(([customer, customerSales]) => { const matchesSearch = customer.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()); const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0); const matchesFilter = filter === "todos" || (filter === "pendentes" ? balance > 0 : balance <= 0); return matchesSearch && matchesFilter; }), [customers, search, filter]);
   const open = fiado.filter((s) => remaining(s) > 0);
-  const totalOpen = open.reduce((sum, s) => sum + remaining(s), 0);
   const selectedSales = selectedCustomer ? (customers.find(([name]) => name === selectedCustomer)?.[1] ?? []) : [];
   const selectedBalance = selectedSales.reduce((sum, s) => sum + remaining(s), 0);
   const selectedPaid = selectedBalance <= 0;
