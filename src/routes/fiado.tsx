@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, buildPixPayload, printReceipt, useStore, type Sale } from "@/lib/store";
 
-import { UserRound, ArrowLeft, ReceiptText, LockKeyhole } from "lucide-react";
+import { UserRound, ArrowLeft, ReceiptText, LockKeyhole, SlidersHorizontal, CalendarDays } from "lucide-react";
 
 export const Route = createFileRoute("/fiado")({
   head: () => ({ meta: [{ title: "MobFlow — Fiado" }] }),
@@ -23,6 +23,12 @@ function Fiado() {
   const [pixPayment, setPixPayment] = useState<{ payments: Array<{ saleId: string; amount: number }>; amount: number; payload: string } | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [purchaseFilter, setPurchaseFilter] = useState<"todos" | "pendentes" | "quitados">("pendentes");
+  const [dateFilterOpen, setDateFilterOpen] = useState(false);
+  const [dateFilterMode, setDateFilterMode] = useState<"month" | "custom">("month");
+  const [monthDraft, setMonthDraft] = useState("");
+  const [startDateDraft, setStartDateDraft] = useState("");
+  const [endDateDraft, setEndDateDraft] = useState("");
+  const [appliedDateFilter, setAppliedDateFilter] = useState<{ mode: "month" | "custom"; month: string; start: string; end: string } | null>(null);
   const [authorizing, setAuthorizing] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -148,17 +154,56 @@ function Fiado() {
             <section className="glass p-5">
               <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div><div className="label-mono">HISTÓRICO DE COMPRAS</div><h2 className="mt-1 text-xl font-bold text-heading">Compras e pagamentos</h2></div>
-                <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filtrar compras do cliente">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" aria-expanded={dateFilterOpen} onClick={() => setDateFilterOpen((open) => !open)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${appliedDateFilter ? "border-primary bg-primary/10 text-primary" : "border-border bg-background/70 text-muted-foreground hover:bg-secondary"}`}>
+                    <SlidersHorizontal className="h-4 w-4" />Filtrar data
+                  </button>
+                  <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Filtrar compras do cliente">
                   {(["todos", "pendentes", "quitados"] as const).map((option) => (
                     <button key={option} type="button" role="radio" aria-checked={purchaseFilter === option} onClick={() => setPurchaseFilter(option)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${purchaseFilter === option ? "border-primary bg-primary/10 text-primary" : "border-border bg-background/70 text-muted-foreground hover:bg-secondary"}`}>
                       <span className={`grid h-4 w-4 place-items-center rounded-[5px] border ${purchaseFilter === option ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/50 bg-background"}`}>{purchaseFilter === option ? <span className="text-[10px] leading-none">✓</span> : null}</span>
                       {option === "todos" ? "Todos" : option === "pendentes" ? "Pendente" : "Quitado"}
                     </button>
                   ))}
+                  </div>
                 </div>
               </div>
+              {dateFilterOpen && (
+                <div className="mb-4 rounded-xl border border-border bg-background/70 p-3">
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setDateFilterMode("month")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${dateFilterMode === "month" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>Por mês</button>
+                    <button type="button" onClick={() => setDateFilterMode("custom")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${dateFilterMode === "custom" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"}`}>Data personalizada</button>
+                  </div>
+                  {dateFilterMode === "month" ? (
+                    <label className="block max-w-xs text-xs font-semibold text-muted-foreground">Mês
+                      <input type="month" value={monthDraft} onChange={(event) => setMonthDraft(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground" />
+                    </label>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="text-xs font-semibold text-muted-foreground">Data inicial
+                        <input type="date" value={startDateDraft} max={endDateDraft || undefined} onChange={(event) => setStartDateDraft(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground" />
+                      </label>
+                      <label className="text-xs font-semibold text-muted-foreground">Data final
+                        <input type="date" value={endDateDraft} min={startDateDraft || undefined} onChange={(event) => setEndDateDraft(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground" />
+                      </label>
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    <button type="button" onClick={() => { setMonthDraft(""); setStartDateDraft(""); setEndDateDraft(""); setAppliedDateFilter(null); }} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Limpar</button>
+                    <button type="button" onClick={() => { setAppliedDateFilter(dateFilterMode === "month" ? (monthDraft ? { mode: "month", month: monthDraft, start: "", end: "" } : null) : (startDateDraft || endDateDraft ? { mode: "custom", month: "", start: startDateDraft, end: endDateDraft } : null)); setDateFilterOpen(false); }} className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-primary-foreground">Aplicar filtro</button>
+                  </div>
+                </div>
+              )}
               <div className="space-y-3">
-                {[...selectedSales].filter((sale) => purchaseFilter === "todos" || (purchaseFilter === "pendentes" ? remaining(sale) > 0 : remaining(sale) <= 0)).sort((a,b) => +new Date(b.date)-+new Date(a.date)).map((s) => {
+                {[...selectedSales].filter((sale) => {
+                  const matchesPurchase = purchaseFilter === "todos" || (purchaseFilter === "pendentes" ? remaining(sale) > 0 : remaining(sale) <= 0);
+                  if (!matchesPurchase || !appliedDateFilter) return matchesPurchase;
+                  const date = new Date(sale.date);
+                  if (Number.isNaN(date.getTime())) return false;
+                  if (appliedDateFilter.mode === "month") return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` === appliedDateFilter.month;
+                  const saleDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                  return (!appliedDateFilter.start || saleDay >= appliedDateFilter.start) && (!appliedDateFilter.end || saleDay <= appliedDateFilter.end);
+                }).sort((a,b) => +new Date(b.date)-+new Date(a.date)).map((s) => {
                   const paidAmount=paidTotal(s), due=remaining(s), draft=paymentValue;
                   return <article key={s.id} className="rounded-xl border-2 border-black bg-background/50 p-4 shadow-sm">
                     <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3"><div><div className={`font-semibold ${due > 0 ? "text-amber-500" : "text-green-600"}`}>{new Date(s.date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</div></div><div className="text-right"><div className="text-sm text-green-600">Pago: R$ {brl(paidAmount)}</div><div className={`font-semibold ${due > 0 ? "text-orange-600" : "text-green-600"}`}>Pendente: R$ {brl(due)}</div></div></div>
