@@ -232,6 +232,32 @@ function AnaliseResultados() {
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
+      <style>{`
+        @media print {
+          .mfb-in {
+            background: #ffffff !important;
+            color: #1f2937 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .mfb-in * {
+            color: #1f2937 !important;
+            text-shadow: none !important;
+          }
+          .mfb-in .glass {
+            background: #ffffff !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+          }
+          .mfb-in [class*="bg-secondary"] {
+            background: #f3f4f6 !important;
+          }
+          .mfb-in .text-primary,
+          .mfb-in .text-destructive {
+            color: #1f2937 !important;
+          }
+        }
+      `}</style>
       <AppHeader />
       <main className="mx-auto max-w-7xl space-y-4">
         <section className="glass p-4 md:p-6">
