@@ -41,6 +41,7 @@ export function AppHeader() {
   const [permissions, setPermissions] = useState<string[]>(["PDV"]);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
+  const [syncCooldown, setSyncCooldown] = useState(0);
   const settings = useStore((s) => s.settings);
   const [companyLogoSrc, setCompanyLogoSrc] = useState("");
 
@@ -65,7 +66,21 @@ export function AppHeader() {
   }, [settings.companyLogoObjectKey]);
 
   const handleManualSync = async () => {
-    if (syncing) return;
+    if (syncing || syncCooldown > 0) return;
+    const now = Date.now();
+    const key = "mobflow-manual-sync-attempts";
+    let attempts: number[] = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "[]");
+      if (Array.isArray(saved)) attempts = saved.filter((value): value is number => Number.isFinite(value) && now - value < 60_000 && value <= now);
+    } catch {}
+    if (attempts.length >= 2) {
+      setSyncCooldown(Math.max(1, Math.ceil((attempts[0] + 60_000 - now) / 1000)));
+      return;
+    }
+    attempts.push(now);
+    try { localStorage.setItem(key, JSON.stringify(attempts)); } catch {}
+
     setSyncing(true);
     setSyncMessage("");
     try {
@@ -86,6 +101,14 @@ export function AppHeader() {
       setSyncing(false);
     }
   };
+
+  useEffect(() => {
+    if (syncCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setSyncCooldown((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [syncCooldown > 0]);
 
   useEffect(() => {
     setOpen(() => {
@@ -186,10 +209,12 @@ export function AppHeader() {
         <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
           {pdvAuthorized && (
             <>
-            <button type="button" onClick={() => void handleManualSync()} disabled={syncing} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
+            <button type="button" onClick={() => void handleManualSync()} disabled={syncing || syncCooldown > 0} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
               <RefreshCw className={`h-4 w-4 text-green-600 ${syncing ? "animate-spin" : ""}`} />
             </button>
-            {(syncing || syncMessage) && (
+            {syncCooldown > 0 ? (
+              <div role="status" aria-live="polite" className="absolute right-0 top-12 rounded-lg bg-popover px-2 py-1 text-xs font-medium tabular-nums text-foreground shadow-xl ring-1 ring-border">{`${String(Math.floor(syncCooldown / 60)).padStart(2, "0")}:${String(syncCooldown % 60).padStart(2, "0")}`}</div>
+            ) : (syncing || syncMessage) && (
               <div role="status" aria-live="polite" className="absolute right-0 top-12 max-w-[min(85vw,20rem)] rounded-xl bg-popover px-3 py-2 text-xs font-medium text-foreground shadow-xl ring-1 ring-border">
                 {syncing ? "Sincronizando dados..." : syncMessage}
               </div>
