@@ -24,6 +24,9 @@ function Conferencia() {
   const note = notes.find(n => n.id === open);
 
   useEffect(() => { if (search.nota) setOpen(search.nota); }, [search.nota]);
+  useEffect(() => {
+    void actions.refreshCatalog();
+  }, []);
   const historyStatus = (n: ReceivingNote) => {
     const decisions = n.decisions ?? {};
     const needsAction = !!n.stockReleased && Object.values(decisions).includes("devolver") && !n.actionCompleted;
@@ -102,6 +105,7 @@ function Conferencia() {
 function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; products: Product[]; onBack: () => void }) {
   const conference = useStore(s => s.conferences.find(c => c.receivingId === note.id));
   const [confirmAction, setConfirmAction] = useState(false);
+  const [finishingAction, setFinishingAction] = useState(false);
   const needsAction = !!note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") && !note.actionCompleted;
   const receivedFor = (productId: string, fallback = 0) => {
     const line = note.items.find(i => i.productId === productId);
@@ -113,10 +117,10 @@ function ConferenceMirror({ note, products, onBack }: { note: ReceivingNote; pro
     <div className="flex flex-wrap items-center gap-3 mb-4"><button onClick={onBack} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm text-secondary-foreground">← Voltar para Conferências</button><div className="flex-1"><div className="font-display text-2xl tracking-[.12em] text-heading">NF {note.number}</div><div className="font-mono text-sm text-muted-foreground">{note.supplier} · Visualização da conferência</div></div><span className="rounded-md bg-secondary px-2 py-1 text-sm font-semibold text-secondary-foreground">{note.status === "analisando" ? "Analisando" : note.actionCompleted ? "Finalizado" : note.stockReleased && Object.values(note.decisions ?? {}).includes("devolver") ? "Ação necessária" : note.stockReleased ? "Liberado" : note.status}</span></div>
     {needsAction && <div className="mb-4"><button onClick={() => setConfirmAction(true)} className="w-full rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold">Ação realizada · Finalizar</button></div>}
     <div className="overflow-x-auto"><table className="w-full text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Esperado</th><th className="text-right">Recebido</th><th className="text-right">Decisão</th></tr></thead><tbody className="divide-y divide-border/50">
-      {note.items.map(i => <tr key={i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === i.productId)?.code}</div></td><td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
-      {(note.extras ?? []).map(i => <tr key={"extra-" + i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name} <span className="text-[10px] text-amber-700">Extra</span></div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === i.productId)?.code || "Sem código"}</div></td><td className="text-right font-mono">0 {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId, i.received)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
+      {note.items.map(i => <tr key={i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{i.code || i.barcodes?.[0] || products.find(p => p.id === i.productId)?.code || products.find(p => p.id === i.productId)?.barcodes?.[0] || ""}</div></td><td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
+      {(note.extras ?? []).map(i => <tr key={"extra-" + i.productId}><td className="py-3"><div className="font-medium text-foreground">{i.name} <span className="text-[10px] text-amber-700">Extra</span></div><div className="font-mono text-[10px] text-muted-foreground">{i.code || i.barcodes?.[0] || products.find(p => p.id === i.productId)?.code || products.find(p => p.id === i.productId)?.barcodes?.[0] || "Sem código"}</div></td><td className="text-right font-mono">0 {i.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{receivedFor(i.productId, i.received)} {i.unit === "kg" ? "kg" : "un."}</td><td className={"text-right font-semibold " + (note.decisions?.[i.productId] === "aceitar" ? "text-emerald-700" : note.decisions?.[i.productId] === "devolver" ? "text-amber-700" : "text-muted-foreground")}>{decisionLabel(i.productId)}</td></tr>)}
     </tbody></table></div>
-    {confirmAction && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="confirm-return-title" className="w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-xl"><h2 id="confirm-return-title" className="mb-2 text-lg font-bold text-foreground">Confirmar finalização</h2><p className="mb-5 text-sm text-muted-foreground">Confirma que a ação de devolução dos produtos foi realizada?</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setConfirmAction(false)} className="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground">Cancelar</button><button type="button" onClick={() => { const completed = actions.finishReceivingAction(note.id); setConfirmAction(false); if (completed) onBack(); }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">Confirmar</button></div></div></div>}
+    {confirmAction && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"><div role="dialog" aria-modal="true" aria-labelledby="confirm-return-title" className="w-full max-w-sm rounded-2xl border border-border bg-background p-5 shadow-xl"><h2 id="confirm-return-title" className="mb-2 text-lg font-bold text-foreground">Confirmar finalização</h2><p className="mb-5 text-sm text-muted-foreground">Confirma que a ação de devolução dos produtos foi realizada?</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setConfirmAction(false)} className="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground">Cancelar</button><button type="button" disabled={finishingAction} onClick={async () => { if (finishingAction) return; setFinishingAction(true); try { const completed = await actions.finishReceivingAction(note.id); if (completed) { setConfirmAction(false); onBack(); } else { alert("Não foi possível registrar a conclusão. Tente novamente."); } } catch (error) { alert(error instanceof Error ? error.message : "Não foi possível registrar a conclusão."); } finally { setFinishingAction(false); } }} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60">{finishingAction ? "Finalizando..." : "Confirmar"}</button></div></div></div>}
   </section>;
 }
 
@@ -214,17 +218,18 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
     if (reopenCamera) setCameraOpen(true);
   };
 
-  const finish = () => {
+  const finish = async () => {
     if (finishing) return;
     setFinishing(true);
-    window.setTimeout(() => {
-      const saved = actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
-      setFinishing(false);
+    try {
+      const saved = await actions.saveReceivingConference(note.id, counts, expiries, extraCounts, extraExpiries);
       setConfirmFinish(false);
       if (saved) onBack();
-      else setConfirmFinish(false);
-      if (!saved) setFinishError(true);
-    }, 2200);
+      else setFinishError(true);
+    } catch (error) {
+      setFinishError(true);
+      alert(error instanceof Error ? error.message : "Não foi possível salvar a conferência.");
+    } finally { setFinishing(false); }
   };
 
   return <section className="glass p-4">
@@ -248,9 +253,15 @@ function Session({ noteId, onBack }: { noteId: string; onBack: () => void }) {
         <thead><tr className="label-mono text-left"><th className="py-2">Produto</th><th className="text-right">Vai chegar</th><th className="text-right">Recebido</th><th></th></tr></thead>
         <tbody className="divide-y divide-border/50">
           {note.items.map(i => {
-            const product = products.find(p => p.id === i.productId);
+            // Keep every line in the saved invoice actionable even if its product
+            // is temporarily absent from the currently loaded catalog (e.g. stale cache
+            // or an inactive catalog entry). The invoice snapshot has enough data to count it.
+            const product = products.find(p => p.id === i.productId) ?? {
+              id: i.productId, code: "", name: i.name, price: 0, stock: 0,
+              minStock: 0, category: "", unit: i.unit,
+            };
             return <tr key={i.productId}>
-              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => product && editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => product && openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{product?.code}</div></button><button type="button" onClick={() => product && clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
+              <td className="py-3"><div className="flex items-start gap-2"><button type="button" onClick={() => editProductQty(product)} title="Editar quantidade coletada" className="mt-0.5 rounded-md p-1.5 text-primary hover:bg-accent"><Pencil className="h-4 w-4" /></button><div><button type="button" onClick={() => openProduct(product)} className="text-left"><div className="text-foreground font-medium">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{i.code || i.barcodes?.[0] || product.code || product.barcodes?.[0] || ""}</div></button><button type="button" onClick={() => clearProductCollection(product)} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-destructive hover:underline"><Trash2 className="h-3 w-3" /> Apagar coleta</button></div></div></td>
               <td className="text-right font-mono">{i.expected} {i.unit === "kg" ? "kg" : "un."}</td>
               <td className="text-right">
                 <div className="font-mono font-semibold">{counts[i.productId] ?? 0} {i.unit === "kg" ? "kg" : "un."}</div>

@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
-import { productHasBarcode, actions, useStore, type Product } from "@/lib/store";
+import { productHasBarcode, actions, confirmLastDomainCommand, hydrateStore, useStore, type Product } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, PackagePlus, Search, Scale, Trash2, X, Pencil, Save, Download, Filter, Loader2, History } from "lucide-react";
 
 type DraftItem = { productId: string; mode: "somar" | "definir"; quantity: string };
@@ -107,7 +107,7 @@ function BalancoEstoque() {
       if (!draft.quantity.trim()) { setError("Informe a quantidade ou o novo saldo de todos os produtos."); return; }
       const value = Number(draft.quantity.trim().replace(",", "."));
       const product = products.find((p) => p.id === draft.productId);
-      if (!product || !Number.isFinite(value) || value < 0) { setError("Confira as quantidades informadas."); return; }
+      if (!product || !Number.isFinite(value) || value < 0 || (value === 0 && draft.mode === "somar")) { setError(draft.mode === "somar" && value === 0 ? "Para somar ao estoque, informe uma quantidade maior que zero." : "Confira as quantidades informadas."); return; }
       if (product.unit !== "kg" && !Number.isInteger(value)) { setError(`A quantidade de "${product.name}" precisa ser um número inteiro.`); return; }
       payload.push({ productId: draft.productId, mode: draft.mode, quantity: value });
     }
@@ -115,9 +115,17 @@ function BalancoEstoque() {
     setError("");
     await new Promise((resolve) => window.setTimeout(resolve, 2000));
     const result = actions.applyStockAdjustmentBatch({ reason: reason.trim(), items: payload });
+    if (!result) { setSaving(false); setError("Não foi possível registrar o balanço. Confira os produtos e tente novamente."); return; }
+    try {
+      await confirmLastDomainCommand();
+    } catch (confirmationError) {
+      await hydrateStore().catch(() => undefined);
+      setSaving(false);
+      setError(confirmationError instanceof Error ? confirmationError.message : "O Neon não confirmou o ajuste de estoque.");
+      return;
+    }
     setSaving(false);
-    if (!result) { setError("Não foi possível registrar o balanço. Confira os produtos e tente novamente."); return; }
-    setMessage(`Balanço registrado com sucesso: ${drafts.length} produto(s) ajustado(s).`);
+    setMessage(`Ajuste de estoque confirmado pelo servidor: ${drafts.length} produto(s) ajustado(s).`);
     setDrafts([]);
     setReason("");
     setQuery("");
@@ -208,7 +216,7 @@ function BalancoEstoque() {
                 <p className="text-sm md:text-base text-muted-foreground">Operação: {operation === "somar" ? "Somar ao saldo atual" : "Definir novo saldo total"}</p>
               </div>
           <div className="mt-6">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><p className="text-sm md:text-base font-semibold text-heading">Inserir rápido</p></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`} /></button></div><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><div><p className="text-sm md:text-base font-semibold text-heading">Planilha de importação</p><p className="text-xs md:text-sm text-muted-foreground">Modelo vazio com as colunas CÓDIGO e QUANTIDADE.</p></div><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm md:text-base font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm md:text-base font-semibold text-heading">Adicionar produto</label>
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div><div className="flex items-center gap-2"><p className="text-sm md:text-base font-semibold text-heading">Ação rápida</p>{quickInsert && <span className="text-[10px] font-bold tracking-wide text-emerald-600 dark:text-emerald-400">ATIVO</span>}</div></div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { const enabling = !quickInsert; setQuickInsert(enabling); if (enabling) { setOperation("somar"); setDrafts((old) => old.map((d) => ({ ...d, mode: "somar" }))); } setQuery(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${quickInsert ? "bg-emerald-600" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`} /></button></div><div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><div><p className="text-sm md:text-base font-semibold text-heading">Planilha de importação</p><p className="text-xs md:text-sm text-muted-foreground">Modelo vazio com as colunas CÓDIGO e QUANTIDADE.</p></div><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm md:text-base font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div><label htmlFor="stock-product-search" className="mb-2 block text-sm md:text-base font-semibold text-heading">Adicionar produto</label>
             <div className="relative flex gap-2">
               <div className="relative min-w-0 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

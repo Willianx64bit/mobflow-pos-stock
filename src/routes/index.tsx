@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, LockKeyhole, ReceiptText } from "lucide-react";
+import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -21,6 +21,7 @@ const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix", "Fiado"];
 
 function PDV() {
   const products = useStore((s) => s.products);
+  const sellableProducts = useMemo(() => products.filter((product) => Number.isFinite(product.price) && product.price > 0.01), [products]);
   useEffect(() => {
     let permissions: string[] = [];
     try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]").map((p: string) => p === "Conferência" ? "Operações" : p); } catch {}
@@ -61,6 +62,7 @@ function PDV() {
   const [discountType, setDiscountType] = useState<"R$" | "%">("R$");
   const [discountInput, setDiscountInput] = useState("");
   const [quick, setQuick] = useState(false);
+  const [productView, setProductView] = useState<"cards" | "list">("cards");
   const [flash, setFlash] = useState("");
   const [done, setDone] = useState<Sale | null>(null);
   const [doneProgress, setDoneProgress] = useState(100);
@@ -93,11 +95,17 @@ function PDV() {
 
   useEffect(() => {
     setQuick(localStorage.getItem("mobflow:quick") === "1");
+    setProductView(localStorage.getItem("mobflow:product-view") === "list" ? "list" : "cards");
     setPdvAuthorized(sessionStorage.getItem("mobflow-pdv-authorized") === "1");
     return () => { if (scanTimer.current) clearTimeout(scanTimer.current); };
   }, []);
 
   const toggleQuick = () => setQuick((v) => { localStorage.setItem("mobflow:quick", v ? "0" : "1"); return !v; });
+  const toggleProductView = () => setProductView((v) => {
+    const next = v === "cards" ? "list" : "cards";
+    localStorage.setItem("mobflow:product-view", next);
+    return next;
+  });
 
   const parseWeight = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -127,6 +135,7 @@ function PDV() {
   }, []);
 
   const requestAdd = (p: Product) => {
+    if (!Number.isFinite(p.price) || p.price <= 0.01) { setFlash("Produto indisponível no caixa: cadastre um preço acima de R$ 0,01."); return; }
     if (!pdvAuthorized) { setFlash("PDV bloqueado"); return; }
     if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
     actions.addToCart(p.id, 1);
@@ -148,7 +157,7 @@ function PDV() {
     if (!normalized) return false;
     if (lastScanRef.current?.code === normalized && now - lastScanRef.current.at < 500) return true;
     lastScanRef.current = { code: normalized, at: now };
-    const p = products.find((x) => productHasBarcode(x, normalized));
+    const p = sellableProducts.find((x) => productHasBarcode(x, normalized));
     if (p) { requestAdd(p); return true; }
     setFlash(`código não cadastrado: ${normalized}`);
     return false;
@@ -160,13 +169,13 @@ function PDV() {
     const value = v.trim();
     // Aceita quantidade antes do código: 3* + bipe, ou 3*CODIGODEBARRAS.
     const multiplied = value.match(/^(\d+)\*(\d{6,})$/);
-    const barcode = multiplied ? multiplied[2] : value;
+    const barcode = multiplied?.[2] ?? value;
     if (!/^\d{6,}$/.test(barcode)) return;
     scanTimer.current = setTimeout(() => {
-      const p = products.find((item) => productHasBarcode(item, barcode));
+      const p = sellableProducts.find((item) => productHasBarcode(item, barcode));
       if (!p) return;
       if (multiplied) {
-        const qty = Number(multiplied[1]);
+        const qty = Number(multiplied[1] ?? "");
         if (qty > 0 && Number.isSafeInteger(qty) && p.unit === "un" && pdvAuthorized) {
           actions.addToCart(p.id, qty);
           setFlash("+" + qty + " " + p.name);
@@ -182,9 +191,9 @@ function PDV() {
 
   const results = useMemo(() => {
     const n = norm(q.trim());
-    if (!n) return products;
-    return products.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
-  }, [q, products]);
+    if (!n) return sellableProducts;
+    return sellableProducts.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
+  }, [q, sellableProducts]);
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
   const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
@@ -195,7 +204,10 @@ function PDV() {
   const recv = Number(received.replace(",", ".")) || 0;
 
   const finish = () => {
-    if (!lines.length || isFinalizing || isConfirmingPix) return;
+    if (isFinalizing || isConfirmingPix) return;
+    const unavailable = cart.filter((item) => { const product = products.find((entry) => entry.id === item.productId); return !product || !Number.isFinite(product.price) || product.price <= 0.01; });
+    if (unavailable.length) { unavailable.forEach((item) => actions.removeFromCart(item.productId)); setFlash("Produtos sem preço acima de R$ 0,01 foram retirados do carrinho. Cadastre o preço para vender."); return; }
+    if (!lines.length) return;
     const operator = sessionStorage.getItem("mobflow-username")?.trim() || "";
     const hasOpenCash = !!operator && cashSessions.some((session) => session.status === "open" && session.openedBy === operator);
     if (!hasOpenCash) { setFlash("Abra o caixa antes de finalizar a venda. Você pode continuar pesquisando e adicionando produtos."); return; }
@@ -205,36 +217,36 @@ function PDV() {
       const key = settings.pixKey?.trim();
       if (!key) { setFlash("Cadastre a chave Pix em Gerência → Configurações"); return; }
       const payload = buildPixPayload(key, total, settings.companyName || "MOBFLOW");
-      setIsFinalizing(true);
-      window.setTimeout(() => {
-        setPixPayload(payload);
-        setIsFinalizing(false);
-      }, 2000);
+      setPixPayload(payload);
       return;
     }
     setIsFinalizing(true);
-    window.setTimeout(() => {
-      try { completeSale(); }
-      finally { setIsFinalizing(false); }
-    }, 2000);
+    void completeSale().finally(() => setIsFinalizing(false));
   };
 
-  const completeSale = () => {
-    const s = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
-    if (s) { setDone(s); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash(""); }
+  const completeSale = async (): Promise<boolean> => {
+    try {
+      const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
+      if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return false; }
+      await confirmLastDomainCommand();
+      setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+      return true;
+    } catch (error) {
+      await hydrateStore().catch(() => undefined);
+      setFlash(error instanceof Error ? error.message : "A venda não foi confirmada pelo servidor. Tente sincronizar novamente.");
+      return false;
+    }
   };
 
-  const confirmPixPayment = () => {
+  const confirmPixPayment = async () => {
     if (isConfirmingPix || isFinalizing) return;
     setIsConfirmingPix(true);
-    window.setTimeout(() => {
-      try {
-        setPixPayload("");
-        completeSale();
-      } finally {
-        setIsConfirmingPix(false);
-      }
-    }, 2000);
+    try {
+      const confirmed = await completeSale();
+      if (confirmed) setPixPayload("");
+    } finally {
+      setIsConfirmingPix(false);
+    }
   };
 
   useEffect(() => {
@@ -279,13 +291,13 @@ function PDV() {
       }
       const value = q.trim();
       const multipliedScan = quick ? value.match(/^(\d+)\*(\d{6,})$/) : null;
-      const scanCode = multipliedScan ? multipliedScan[2] : value;
-      if (/^\d{6,}$/.test(scanCode) && products.some((p) => productHasBarcode(p, scanCode))) {
+      const scanCode = multipliedScan?.[2] ?? value;
+      if (/^\d{6,}$/.test(scanCode) && sellableProducts.some((p) => productHasBarcode(p, scanCode))) {
         e.preventDefault();
         if (quick) {
           if (multipliedScan) {
-            const p = products.find((item) => productHasBarcode(item, scanCode));
-            const qty = Number(multipliedScan[1]);
+            const p = sellableProducts.find((item) => productHasBarcode(item, scanCode));
+            const qty = Number(multipliedScan[1] ?? "");
             if (p && qty > 0 && Number.isSafeInteger(qty) && p.unit === "un") {
               actions.addToCart(p.id, qty);
               setFlash("+" + qty + " " + p.name);
@@ -308,7 +320,7 @@ function PDV() {
       e.preventDefault();
       const m = q.match(/^(\d+)\*(.*)$/);
       const term = (m ? m[2] : q) ?? "";
-      const exact = products.find((p) => productHasBarcode(p, term.trim()));
+      const exact = sellableProducts.find((p) => productHasBarcode(p, term.trim()));
       const target = exact ?? results[sel];
       if (target) { if (m && target.unit === "un") { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
@@ -328,53 +340,61 @@ function PDV() {
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
           <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-3 field px-4 py-4 border-2">
-              <span className="font-mono text-[11px] text-primary">/</span>
+            <div
+              className="flex-1 flex items-center gap-3 field px-4 py-4 border-2 cursor-text"
+              onClick={() => search.current?.focus()}
+            >
               <input
                 ref={search}
                 value={q}
                 onChange={(e) => onChangeQ(e.target.value)}
                 onKeyDown={onSearchKey}
-                placeholder="Buscar nome, código ou bipar… (ex: 3*cafe)"
+                placeholder="Pesquisar produtos"
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
-              <span className="ml-auto font-mono text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-                {results.length} produtos · <kbd className="text-subtle">↵</kbd> adiciona
-              </span>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-primary/15 ring-primary/50 text-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>
-              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-primary" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
-              Bipe rápido {quick ? "ligado" : "desligado"}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
+              Ação rápida {quick && <span className="text-[10px] font-bold tracking-wide">ATIVO</span>}
             </button>
-            {flash && <span className={`font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
+            <div className="ml-auto flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+              <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
+                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <LayoutGrid className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => productView !== "list" && toggleProductView()} aria-label="Visualizar em lista" aria-pressed={productView === "list"} title="Lista"
+                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <List className="h-4 w-4" />
+              </button>
+            </div>
+            {flash && <span className={`w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
+          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-col"} gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1`}>
             {results.map((p, i) => {
-              const out = p.stock <= 0;
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`text-left rounded-xl bg-muted ring-1 p-2 flex flex-col transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"} ${out ? "opacity-50" : ""}`}
+                  className={`${productView === "cards" ? "text-left rounded-xl p-2 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
-                  <div className="aspect-[5/3] rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground">
+                  <div className={`${productView === "cards" ? "w-full aspect-[5/3]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
-                  <div className="mt-2 text-base md:text-lg font-semibold text-foreground line-clamp-2 min-h-[3rem] leading-snug">{p.name}</div>
-                  <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
-                  <div className="mt-auto pt-2 text-center">
+                  <div className={`${productView === "cards" ? "mt-2" : "min-w-0 flex-1"} text-base md:text-lg font-semibold text-foreground ${productView === "cards" ? "line-clamp-2 min-h-[3rem]" : "line-clamp-2"} leading-snug`}>{p.name}</div>
+                  <div className={`${productView === "cards" ? "mt-1" : "min-w-0 w-24 hidden sm:block"} truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground`}>{p.barcodes?.[0] || p.code}</div>
+                  <div className={`${productView === "cards" ? "mt-auto pt-2 text-center" : "shrink-0 text-right"}`}>
                     {effectivePrice(p) < p.price ? (
-                      <div className="flex flex-col items-center gap-1">
+                      <div className={`flex ${productView === "cards" ? "flex-col items-center" : "flex-col items-end"} gap-1`}>
                         <span className="text-xs md:text-sm text-muted-foreground line-through">R$ {brl(p.price)}{p.unit === "kg" ? "/kg" : ""}</span>
                         <span className="text-lg md:text-xl font-bold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className="text-2xl md:text-3xl font-extrabold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
+                      <div className={`font-extrabold leading-tight text-heading ${productView === "cards" ? "text-2xl md:text-3xl" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
-                    <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= p.minStock ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= 0 ? "text-destructive" : p.stock <= p.minStock ? "text-amber-500" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
                     </div>
                   </div>

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, printFiadoBalance, printReceipt, useStore, type Sale } from "@/lib/store";
+import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/fiado/$customer")({
   head: () => ({ meta: [{ title: "MobFlow — Detalhes do cliente" }] }),
@@ -19,6 +19,8 @@ function FiadoCliente() {
   const navigate = useNavigate();
   const sales = useStore((s) => s.sales);
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
   const customer = decodeURIComponent(encodedCustomer || "");
   const customerSales = useMemo(
     () => sales.filter((s) => s.payment === "Fiado" && (s.customer || "Cliente não informado").trim() === customer.trim()).sort((a, b) => +new Date(b.date) - +new Date(a.date)),
@@ -28,6 +30,16 @@ function FiadoCliente() {
   const remaining = (s: Sale) => Math.max(0, s.total - paidTotal(s));
   const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0);
   const paid = balance <= 0;
+  const registerFiadoPayment = async (saleId: string, amount: number) => {
+    if (paymentSaving || !Number.isFinite(amount) || amount <= 0) return;
+    setPaymentSaving(true); setPaymentError("");
+    try {
+      await actions.addFiadoPayment(saleId, amount, "cash");
+      setPaymentDrafts((previous) => ({ ...previous, [saleId]: "" }));
+    } catch (error) {
+      setPaymentError(error instanceof Error ? error.message : "O recebimento não foi confirmado pelo Neon.");
+    } finally { setPaymentSaving(false); }
+  };
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -47,7 +59,6 @@ function FiadoCliente() {
             <div className="text-right">
               <div className="label-mono">SALDO RESTANTE</div>
               <div className={`font-display text-4xl ${paid ? "text-green-600" : "text-destructive"}`}>R$ {brl(balance)}</div>
-              <button onClick={() => printFiadoBalance(customer, customerSales)} className="mt-2 rounded-lg bg-secondary px-3 py-2 text-xs font-semibold hover:bg-accent">🖨 Imprimir saldo</button>
             </div>
           </div>
         </section>
@@ -114,24 +125,14 @@ function FiadoCliente() {
                             className="w-40 rounded-xl border-2 border-border bg-background px-4 py-3 text-lg font-bold text-center outline-none focus:border-primary"
                           />
                           <button
-                            onClick={() => {
-                              const value = Number(draft.replace(/\./g, "").replace(",", "."));
-                              if (Number.isFinite(value) && value > 0) {
-                                actions.addFiadoPayment(s.id, value);
-                                setPaymentDrafts((prev) => ({ ...prev, [s.id]: "" }));
-                              }
-                            }}
-                            className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90"
-                          >Adicionar pagamento</button>
-                          <button
-                            onClick={() => {
-                              actions.addFiadoPayment(s.id, due);
-                              setPaymentDrafts((prev) => ({ ...prev, [s.id]: "" }));
-                            }}
-                            className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600"
-                          >Quitar tudo</button>
+                            disabled={paymentSaving}
+                            onClick={() => { const value = Number(draft.replace(/\./g, "").replace(",", ".")); void registerFiadoPayment(s.id, value); }}
+                            className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                          >{paymentSaving ? "Confirmando..." : "Adicionar pagamento"}</button>
+                          <button disabled={paymentSaving} onClick={() => void registerFiadoPayment(s.id, due)} className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600 disabled:opacity-50">Quitar tudo</button>
                         </div>
                       </div>
+                      {paymentError && <p className="mt-3 text-sm font-medium text-destructive">{paymentError}</p>}
                     </div>
                   )}
 

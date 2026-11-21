@@ -1,0 +1,38 @@
+name: Refresh migration dependency lockfile
+
+on:
+  push:
+    branches: [migration/neon-preparation]
+    paths:
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/refresh-migration-lockfile.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: migration/neon-preparation
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Resolve dependencies and refresh bun.lock
+        run: bun install
+      - name: Commit lockfile when changed
+        run: |
+          if ! git diff --quiet -- bun.lock; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bun.lock
+            git commit -m "chore(deps): refresh migration preview lockfile"
+            git push origin HEAD:migration/neon-preparation
+          fi
+      - name: Run migration API tests
+        run: bun run test -- src/test/mobflow-products-api.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-sync-events-api.test.ts
+      - name: Build migration Preview
+        run: bun run build

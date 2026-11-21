@@ -1,20 +1,16 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { actions } from "@/lib/store";
+import { actions, useStore, type Product } from "@/lib/store";
 
-type Row = { code: string; name: string; qty: number; price?: number | undefined };
+type Row = { code: string; name: string; qty: 0 };
 
 export function downloadTemplate() {
-  const ws = XLSX.utils.aoa_to_sheet([
-    ["Código", "Descrição", "Quantidade", "Preço (opcional)"],
-  ]);
-  ws["!cols"] = [{ wch: 18 }, { wch: 32 }, { wch: 12 }, { wch: 16 }];
-  // Keep the code column as text so codes are not interpreted as formulas or decimals.
-  ws["!ref"] = "A1:D1000";
+  const ws = XLSX.utils.aoa_to_sheet([["Código de barras", "Descrição"]]);
+  ws["!cols"] = [{ wch: 22 }, { wch: 42 }];
+  ws["!ref"] = "A1:B1000";
   for (let row = 2; row <= 1000; row++) {
     ws[`A${row}`] = { t: "s", v: "", z: "@" };
-    ws[`C${row}`] = { t: "n", z: "0.###" };
-    ws[`D${row}`] = { t: "n", z: "0.00" };
+    ws[`B${row}`] = { t: "s", v: "" };
   }
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Produtos");
@@ -22,39 +18,135 @@ export function downloadTemplate() {
 }
 
 const key = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-const toNum = (v: unknown) => typeof v === "number" ? v : Number(String(v ?? "").replace(/\./g, "").replace(",", ".")) ;
+const headerValue = (row: Record<string, unknown>, aliases: string[]) => {
+  const found = Object.entries(row).find(([name]) => aliases.includes(key(name)));
+  return found?.[1] ?? "";
+};
+const barcodeText = (value: unknown) => {
+  if (typeof value === "number") return Number.isSafeInteger(value) && value >= 0 ? String(value) : "";
+  const text = String(value ?? "").trim().replace(/[.,]0+$/, "");
+  return text.replace(/\D/g, "");
+};
+const worksheetRows = (sheet: XLSX.WorkSheet) => {
+  if (!sheet["!ref"]) return [];
+  const range = XLSX.utils.decode_range(sheet["!ref"]);
+  const headers = Array.from({ length: range.e.c - range.s.c + 1 }, (_, offset) => {
+    const cell = sheet[XLSX.utils.encode_cell({ r: range.s.r, c: range.s.c + offset })];
+    return String(cell?.v ?? "").trim();
+  });
+  const rows: Record<string, unknown>[] = [];
+  for (let rowIndex = range.s.r + 1; rowIndex <= range.e.r; rowIndex++) {
+    const row: Record<string, unknown> = {};
+    headers.forEach((header, offset) => {
+      if (!header) return;
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: range.s.c + offset })];
+      let value: unknown = cell?.v ?? "";
+      if (typeof value === "number" && /^(c[oó]digo|ean|gtin|barcode)/i.test(key(header)) && typeof cell?.z === "string" && /^0+$/.test(cell.z)) {
+        value = XLSX.SSF.format(cell.z, value);
+      }
+      row[header] = value;
+    });
+    rows.push(row);
+  }
+  return rows;
+};
+
+export function parseImportRows(data: Record<string, unknown>[]) {
+  const rows: Row[] = [];
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  data.forEach((raw, index) => {
+    const code = barcodeText(headerValue(raw, ["código de barras", "codigo de barras", "código", "codigo", "cod", "ean", "gtin", "barcode"]));
+    const name = String(headerValue(raw, ["descrição", "descricao", "nome", "produto"]) ?? "").trim();
+    if (!code && !name) return;
+    if (!code) { errors.push(`Linha ${index + 2}: código de barras ausente ou inválido.`); return; }
+    if (!name) { errors.push(`Linha ${index + 2}: descrição ausente.`); return; }
+    if (seen.has(code)) { errors.push(`Linha ${index + 2}: código ${code} repetido na planilha.`); return; }
+    seen.add(code);
+    rows.push({ code, name, qty: 0 });
+  });
+  return { rows, errors };
+}
 
 export function ImportProducts({ onClose }: { onClose: () => void }) {
+  const products = useStore((s) => s.products);
   const [rows, setRows] = useState<Row[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
-  const [mode, setMode] = useState<"replace" | "add">("add");
   const [done, setDone] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const read = async (file: File) => {
     setDone("");
-    const wb = XLSX.read(await file.arrayBuffer());
-    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0] ?? ""]!, { defval: "" });
-    const out: Row[] = [], errs: string[] = [];
-    data.forEach((raw, i) => {
-      const r: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(raw)) r[key(k)] = v;
-      const code = String(r["codigo"] ?? r["cod"] ?? "").trim();
-      const name = String(r["descricao"] ?? r["nome"] ?? r["produto"] ?? "").trim();
-      const q = toNum(r["quantidade"] ?? r["qtd"]);
-      const pk = Object.keys(r).find((k) => k.startsWith("preco"));
-      const pr = pk && String(r[pk]).trim() !== "" ? toNum(r[pk]) : undefined;
-      if (!code && !name) return undefined;
-      if (!code) return errs.push(`Linha ${i + 2}: sem código`);
-      if (Number.isNaN(q)) return errs.push(`Linha ${i + 2}: quantidade inválida`);
-      out.push({ code, name, qty: q, price: pr !== undefined && !Number.isNaN(pr) ? pr : undefined }); return undefined;
-    });
-    setRows(out); setErrors(errs);
+    setErrors([]);
+    setRows([]);
+    try {
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellText: true, cellNF: true });
+      const sheet = wb.Sheets[wb.SheetNames[0] ?? ""];
+      if (!sheet) throw new Error("A planilha não contém uma aba para importar.");
+      // Read raw cell values so numeric barcodes never gain decimal separators;
+      // custom zero masks are reapplied below to preserve leading zeroes.
+      const data = worksheetRows(sheet);
+      const parsed = parseImportRows(data);
+      setRows(parsed.rows);
+      setErrors(parsed.errors);
+      if (!parsed.rows.length && !parsed.errors.length) setErrors(["A planilha está vazia ou não contém as colunas Código de barras e Descrição."]);
+    } catch (error) {
+      setErrors([error instanceof Error ? error.message : "Não foi possível ler a planilha. Use o modelo disponibilizado nesta tela."]);
+    }
   };
 
-  const confirm = () => {
-    const r = actions.importProducts(rows, mode);
-    setDone(`${r.created} produtos novos e ${r.updated} atualizados.`);
-    setRows([]);
+  const confirm = async () => {
+    if (!rows.length || busy) return;
+    setBusy(true);
+    setDone("");
+    const failures: string[] = [];
+    let created = 0, updated = 0;
+    const neonCatalog = import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon";
+    try {
+      if (!neonCatalog) {
+        const result = actions.importProducts(rows, "add");
+        created = result.created;
+        updated = result.updated;
+      } else {
+        for (const [index, row] of rows.entries()) {
+          try {
+            const existing = products.find((product) => product.code === row.code || (product.barcodes ?? []).includes(row.code));
+            const id = existing?.id ?? crypto.randomUUID();
+            const body = existing
+              ? {
+                  id, expectedVersion: existing.version, code: existing.code, name: row.name,
+                  ref: existing.ref ?? null, category: existing.category || "Geral", unit: existing.unit,
+                  price: existing.price, cost: existing.cost ?? 0, minStock: existing.minStock ?? 0,
+                  barcodes: Array.from(new Set([...(existing.barcodes ?? []), ...(existing.code === row.code ? [] : [row.code])])),
+                }
+              : {
+                  id, code: row.code, name: row.name, ref: null, category: "Geral", unit: "un",
+                  price: 0, cost: 0, stock: 0, minStock: 0, barcodes: [],
+                };
+            const response = await fetch("/api/mobflow/products", {
+              method: existing ? "PATCH" : "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.ok !== true || !result?.product) {
+              throw new Error(result?.error || "O servidor não confirmou o produto.");
+            }
+            actions.applyCatalogProduct(result.product as Product);
+            if (existing) updated++; else created++;
+          } catch (error) {
+            failures.push(`Linha ${index + 2} (${row.code}): ${error instanceof Error ? error.message : "falha ao gravar"}`);
+          }
+        }
+      }
+      setDone(`${created} produto(s) novo(s) e ${updated} atualizado(s). Os produtos novos entraram com estoque zero.`);
+      setRows([]);
+      if (failures.length) setErrors((current) => [...current, ...failures]);
+    } catch (error) {
+      setErrors((current) => [...current, error instanceof Error ? error.message : "Não foi possível concluir a importação."]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -62,32 +154,26 @@ export function ImportProducts({ onClose }: { onClose: () => void }) {
       <div onClick={(e) => e.stopPropagation()} className="mfb-in w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl bg-popover ring-1 ring-border p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-2xl tracking-[.12em] text-heading">IMPORTAR PLANILHA</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+          <button onClick={onClose} disabled={busy} className="text-muted-foreground hover:text-foreground">✕</button>
         </div>
-        <p className="text-sm text-secondary-foreground">A planilha precisa das colunas <b>Código</b>, <b>Descrição</b> e <b>Quantidade</b>. Preço é opcional.</p>
-        <button onClick={downloadTemplate} className="w-full rounded-xl bg-secondary ring-1 ring-border py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">⬇ Baixar planilha modelo</button>
+        <p className="text-sm text-secondary-foreground">Use somente as colunas <b>Código de barras</b> e <b>Descrição</b>. O código é lido como texto e todo produto novo entra com estoque zero. O preço pode ser cadastrado depois.</p>
+        <button onClick={downloadTemplate} disabled={busy} className="w-full rounded-xl bg-secondary ring-1 ring-border py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">⬇ Baixar planilha modelo</button>
         <label className="block cursor-pointer rounded-xl border border-dashed border-border px-3 py-4 text-center text-sm text-secondary-foreground hover:bg-accent">
           Escolher planilha (.xlsx, .xls, .csv)
-          <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) read(f); e.target.value = ""; }} />
+          <input type="file" accept=".xlsx,.xls,.csv" disabled={busy} className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void read(file); e.target.value = ""; }} />
         </label>
-        <div className="flex gap-2 text-[12px]">
-          {([["replace", "Substituir estoque"], ["add", "Somar ao estoque"]] as const).map(([m, l]) => (
-            <button key={m} onClick={() => setMode(m)} className={`flex-1 rounded-lg px-3 py-2 font-semibold ring-1 ${mode === m ? "bg-primary text-primary-foreground ring-primary" : "bg-secondary ring-border text-secondary-foreground"}`}>{l}</button>
-          ))}
-        </div>
-        {errors.length > 0 && <div className="rounded-lg bg-destructive/10 p-3 font-mono text-[11px] text-destructive">{errors.slice(0, 8).map((e) => <div key={e}>{e}</div>)}</div>}
+        {errors.length > 0 && <div className="rounded-lg bg-destructive/10 p-3 font-mono text-[11px] text-destructive">{errors.slice(0, 10).map((error, index) => <div key={index}>{error}</div>)}</div>}
         {rows.length > 0 && (
           <>
             <div className="max-h-56 overflow-y-auto rounded-lg ring-1 ring-border divide-y divide-border/50 text-[12px]">
-              {rows.map((r, i) => (
-                <div key={i} className="grid grid-cols-[110px_1fr_60px] gap-2 px-2 py-1.5">
-                  <span className="font-mono text-muted-foreground truncate">{r.code}</span>
-                  <span className="text-foreground truncate">{r.name}</span>
-                  <span className="font-mono text-right text-foreground">{r.qty}</span>
+              {rows.map((row, index) => (
+                <div key={index} className="grid grid-cols-[130px_1fr] gap-2 px-2 py-2">
+                  <span className="font-mono text-muted-foreground truncate">{row.code}</span>
+                  <span className="text-foreground truncate">{row.name}</span>
                 </div>
               ))}
             </div>
-            <button onClick={confirm} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 hover:bg-primary/85">Importar {rows.length} produtos</button>
+            <button onClick={() => void confirm()} disabled={busy} className="w-full rounded-xl bg-primary text-primary-foreground font-bold py-3 hover:bg-primary/85 disabled:opacity-60">{busy ? "Importando produtos..." : `Importar ${rows.length} produtos`}</button>
           </>
         )}
         {done && <p className="rounded-lg bg-secondary p-3 text-sm text-foreground">✓ {done}</p>}

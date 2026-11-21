@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { actions, type Product } from "@/lib/store";
+import { compressImageTo200KB } from "@/lib/imageCompression";
 
 type Props = { product?: Product | null; onClose: () => void };
 
@@ -11,8 +12,11 @@ export function ProductForm({ product, onClose }: Props) {
     unit: product?.unit ?? "un", photo: product?.photo ?? "",
   });
   const [barcodes, setBarcodes] = useState<string[]>(product?.barcodes ?? []);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const first = useRef<HTMLInputElement>(null);
   const codeInput = useRef<HTMLInputElement>(null);
+  const pendingProductId = useRef<string | null>(null);
   useEffect(() => {
     (product ? first.current : codeInput.current)?.focus();
   }, []);
@@ -34,15 +38,53 @@ export function ProductForm({ product, onClose }: Props) {
   };
   const weight=(s:string)=>{const v=s.trim().toLowerCase().replace(",",".");if(/^\d+(?:\.\d+)?\s*g$/.test(v))return Number(v.replace(/g$/,"").trim())/1000;if(/^\d+(?:\.\d+)?\s*kg$/.test(v))return Number(v.replace(/kg$/,"").trim());if(/^\d+(?:\.\d+)?$/.test(v))return Number(v);return null;};
 
-  const submit=(e:React.FormEvent)=>{e.preventDefault();if(!f.name.trim())return;const stock=f.unit==="kg"?weight(f.stock):num(f.stock),minStock=f.unit==="kg"?weight(f.minStock):num(f.minStock);if(f.unit==="kg"&&(stock===null||minStock===null||stock<0||minStock<0))return;
-    actions.saveProduct({id:product?.id,name:f.name.trim(),barcodes:Array.from(new Set(barcodes.map(code=>code.trim()).filter(code=>code && code!==f.code.trim()))),ref:f.ref.trim()||undefined,code:f.code.trim()||String(Date.now()).slice(-10),category:f.category.trim()||"Geral",price:num(f.price),cost:f.cost.trim()?num(f.cost):undefined,stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,photo:f.photo||undefined});onClose();};
+  const submit=async(e:React.FormEvent)=>{e.preventDefault();if(!f.name.trim()||photoBusy)return;const stock=f.unit==="kg"?weight(f.stock):num(f.stock),minStock=f.unit==="kg"?weight(f.minStock):num(f.minStock);if(f.unit==="kg"&&(stock===null||minStock===null||stock<0||minStock<0))return;
+    setPhotoBusy(true);
+    try {
+      const id=product?.id??(pendingProductId.current??(pendingProductId.current=crypto.randomUUID()));
+      let savedVersion=product?.version;
+      let serverProduct: Product | null = null;
+      const code=f.code.trim()||String(Date.now()).slice(-10);
+      const cleanBarcodes=Array.from(new Set(barcodes.map(value=>value.trim()).filter(value=>value&&value!==code)));
+      const neonCatalog=import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon";if(!neonCatalog)throw new Error("O catálogo Neon não está habilitado neste Preview. O cadastro local foi bloqueado para evitar uma confirmação falsa.");
+      if(neonCatalog){
+        if(!product?.id&&(stock??0)!==0)throw new Error("No catálogo Neon, cadastre primeiro com estoque zero. Depois registre o saldo pela operação de estoque, que mantém o histórico auditável.");
+        if(product?.id&&!Number.isSafeInteger(product.version))throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
+        if(product?.id&&(stock??0)!==product.stock)throw new Error("A alteração de estoque deve ser feita pela tela de movimentação de estoque, para manter o histórico auditável.");
+        const payload={id,code,name:f.name.trim(),ref:f.ref.trim()||null,category:f.category.trim()||"Geral",unit:f.unit,price:num(f.price),cost:f.cost.trim()?num(f.cost):0,minStock:minStock??0,barcodes:cleanBarcodes};
+        const response=await fetch("/api/mobflow/products",{method:product?.id?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product?.id?{...payload,expectedVersion:product.version}:{...payload,stock:0})});
+        const saved=await response.json().catch(()=>null);if(!response.ok||saved?.ok!==true||!saved?.product||typeof saved.product.id!=="string"||saved.product.id!==id)throw new Error(saved?.error||"O Neon não confirmou um ID válido para este produto. O formulário foi mantido aberto.");
+        const confirmedVersion=Number(saved.product.version);if(!Number.isSafeInteger(confirmedVersion)||confirmedVersion<1)throw new Error("O Neon não confirmou a versão do produto. Atualize e tente novamente.");
+        serverProduct=saved.product as Product;
+        savedVersion=confirmedVersion;
+      }
+      let photoUrl=f.photo||undefined;
+      let photoObjectKey=product?.photoObjectKey;
+      if(photoFile){
+        const form=new FormData();form.append("file",photoFile);
+        const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(id),{method:"POST",body:form});
+        const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível enviar a foto.");
+        photoUrl=result.photoUrl;photoObjectKey=result.photoObjectKey;if(neonCatalog&&serverProduct&&Number.isSafeInteger(Number(result.version))){savedVersion=Number(result.version);serverProduct={...serverProduct,version:savedVersion,photoObjectKey};}
+      } else if(product?.id&&!f.photo&&product.photo){
+        const response=await fetch("/api/mobflow/product-photo?productId="+encodeURIComponent(product.id),{method:"DELETE"});
+        const result=await response.json().catch(()=>null);if(!response.ok||!result?.ok)throw new Error(result?.error||"Não foi possível remover a foto.");
+        photoUrl=undefined;photoObjectKey=undefined;if(neonCatalog&&serverProduct&&Number.isSafeInteger(Number(result.version))){savedVersion=Number(result.version);serverProduct={...serverProduct,version:savedVersion,photoObjectKey:undefined};}
+      }
+      if(neonCatalog){
+        if(!serverProduct)throw new Error("O Neon não devolveu o produto confirmado. O formulário foi mantido aberto.");
+        actions.applyCatalogProduct({...product,...serverProduct,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})} as Product);
+      } else {
+        actions.saveProduct({id,...(savedVersion!==undefined?{version:savedVersion}:{}),name:f.name.trim(),barcodes:cleanBarcodes,...(f.ref.trim()?{ref:f.ref.trim()}:{}),code,category:f.category.trim()||"Geral",price:num(f.price),...(f.cost.trim()?{cost:num(f.cost)}:{}),stock:f.unit==="kg"?stock!:Math.round(stock??0),minStock:f.unit==="kg"?minStock!:Math.round(minStock??0),unit:f.unit,...(photoUrl?{photo:photoUrl}:{}),...(photoObjectKey?{photoObjectKey}:{})});
+      }
+      onClose();
+    } catch(error){alert(error instanceof Error?error.message:"Falha ao salvar foto do produto.");} finally {setPhotoBusy(false);} };
 
-  const choosePhoto=(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;if(file.size>5*1024*1024){alert("A foto deve ter no máximo 5 MB.");return;}const reader=new FileReader();reader.onload=()=>setF(v=>({...v,photo:String(reader.result)}));reader.readAsDataURL(file);};
+  const choosePhoto=async(e:React.ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;try{const compressed=await compressImageTo200KB(file);setPhotoFile(compressed);setF(v=>({...v,photo:URL.createObjectURL(compressed)}));}catch(error){alert(error instanceof Error?error.message:"Não foi possível compactar a foto.");}finally{e.target.value="";}};
   const input=(key:keyof typeof f,label:string,opts:{mono?:boolean;ref?:boolean;mode?:"decimal"|"numeric"}={})=><label className="flex flex-col gap-1.5"><span className="label-mono">{label}</span><input ref={opts.ref?first:undefined} inputMode={opts.mode} value={f[key]} onChange={e=>setF({...f,[key]:opts.mode==="decimal"?cleanNumber(e.target.value):e.target.value})} className={`field text-sm text-foreground ${opts.mono?"font-mono":""}`}/></label>;
 
   return <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={onClose}><form onSubmit={submit} onClick={e=>e.stopPropagation()} className="mfb-in w-full max-w-md max-h-[92vh] overflow-y-auto rounded-2xl bg-popover ring-1 ring-border p-5 space-y-4">
     <div className="flex items-center justify-between gap-3"><button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent"><span aria-hidden="true">←</span> Voltar</button><h2 className="font-display text-xl tracking-[.08em] text-heading text-right">{product?"EDITAR PRODUTO":"NOVO PRODUTO"}</h2></div>
-    <div className="flex items-center gap-4"><div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-secondary ring-1 ring-border grid place-items-center">{f.photo?<img src={f.photo} alt="Foto do produto" className="h-full w-full object-cover"/>:<span className="text-2xl text-muted-foreground">📷</span>}</div><label className="flex-1 cursor-pointer"><span className="label-mono">Foto do produto</span><div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher foto <span className="text-xs text-muted-foreground">(até 5 MB)</span></div><input type="file" accept="image/*" onChange={choosePhoto} className="hidden"/></label>{f.photo&&<button type="button" onClick={()=>setF(v=>({...v,photo:""}))} className="self-end rounded-lg px-2 py-2 text-xs text-destructive hover:bg-destructive/10">Remover</button>}</div>
+    <div className="flex items-center gap-4"><div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-secondary ring-1 ring-border grid place-items-center">{f.photo?<img src={f.photo} alt="Foto do produto" className="h-full w-full object-cover"/>:<span className="text-2xl text-muted-foreground">📷</span>}</div><label className="flex-1 cursor-pointer"><span className="label-mono">Foto do produto</span><div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher foto <span className="text-xs text-muted-foreground">(compactada até 200 KB)</span></div><input type="file" accept="image/*" onChange={choosePhoto} className="hidden"/></label>{f.photo&&<button type="button" onClick={()=>{setPhotoFile(null);setF(v=>({...v,photo:""}));}} className="self-end rounded-lg px-2 py-2 text-xs text-destructive hover:bg-destructive/10">Remover</button>}</div>
     {input("name","Nome",{ref:true})}
     <div className="grid grid-cols-2 gap-3"><div className="flex flex-col gap-1.5"><div className="flex items-center justify-between gap-2"><span className="label-mono">Código de barras</span><button type="button" onClick={()=>setBarcodes(v=>[...v,""])} aria-label="Adicionar outro código de barras" title="Adicionar outro código" className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-lg font-bold text-primary-foreground hover:bg-primary/85">+</button></div><input ref={codeInput} inputMode="numeric" value={f.code} onChange={e=>setF({...f,code:e.target.value.replace(/\D/g,"")})} onKeyDown={e=>{if(e.key==="Enter" && f.code.trim()){e.preventDefault();e.currentTarget.form?.requestSubmit();}}} className="field text-sm text-foreground font-mono"/>{barcodes.map((barcode,index)=><div key={index} className="flex items-center gap-2"><input inputMode="numeric" value={barcode} onChange={e=>setBarcodes(v=>v.map((code,i)=>i===index?e.target.value.replace(/\D/g,""):code))} placeholder={`Código alternativo ${index+1}`} className="field min-w-0 flex-1 text-sm text-foreground font-mono"/><button type="button" onClick={()=>setBarcodes(v=>v.filter((_,i)=>i!==index))} aria-label={`Remover código alternativo ${index+1}`} title="Remover código" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-destructive hover:bg-destructive/10">×</button></div>)}</div>{input("ref","REF (opcional)",{mono:true})}</div>
     {input("category","Categoria")}
@@ -50,6 +92,6 @@ export function ProductForm({ product, onClose }: Props) {
     <div className="grid grid-cols-2 gap-3">{input("price",f.unit==="kg"?"Preço por kg R$":"Preço R$",{mono:true,mode:"decimal"})}{input("cost",f.unit==="kg"?"Custo por kg R$":"Custo R$ (opcional)",{mono:true,mode:"decimal"})}</div>
     <div className="grid grid-cols-2 gap-3">{input("stock",f.unit==="kg"?"Estoque (kg ou g)":"Estoque",{mono:true,mode:"decimal"})}{input("minStock",f.unit==="kg"?"Mínimo (kg ou g)":"Mínimo",{mono:true,mode:"decimal"})}</div>
     {f.unit==="kg"&&<p className="font-mono text-[10px] text-primary">Produto por peso: 2 = 2 kg, 500g = 0,5 kg. O preço é por kg.</p>}
-    <div className="flex gap-2 pt-1">{product&&<button type="button" onClick={()=>{if(confirm("Excluir este produto?")){actions.deleteProduct(product.id);onClose();}}} className="rounded-xl px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/40 hover:bg-destructive/10">Excluir</button>}<button type="submit" className="flex-1 rounded-xl bg-primary text-primary-foreground font-bold py-3 hover:bg-primary/85">Salvar <kbd className="font-mono text-[11px] opacity-70">↵</kbd></button></div>
+    <div className="flex gap-2 pt-1">{product&&<button type="button" disabled={photoBusy} onClick={async()=>{if(!confirm("Excluir este produto? O estoque precisa estar em zero ou negativo."))return;setPhotoBusy(true);try{if(import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"]==="neon"){const response=await fetch("/api/mobflow/products",{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:product.id})});const result=await response.json().catch(()=>null);if(!response.ok||result?.ok!==true)throw new Error(result?.error||"O Neon não confirmou a exclusão.");}actions.deleteProduct(product.id);onClose();}catch(error){alert(error instanceof Error?error.message:"Falha ao excluir produto.");}finally{setPhotoBusy(false);}}} className="rounded-xl px-4 py-3 text-sm font-semibold text-destructive ring-1 ring-destructive/40 hover:bg-destructive/10 disabled:opacity-50">Excluir</button>}<button type="submit" className="flex-1 rounded-xl bg-primary text-primary-foreground font-bold py-3 hover:bg-primary/85">{photoBusy?"Enviando foto...":"Salvar"} <kbd className="font-mono text-[11px] opacity-70">↵</kbd></button></div>
   </form></div>;
 }
