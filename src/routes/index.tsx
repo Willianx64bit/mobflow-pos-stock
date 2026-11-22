@@ -383,8 +383,15 @@ function PDV() {
                   <div className={`${productView === "cards" ? "w-full aspect-[5/3]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
-                  <div className={`${productView === "cards" ? "mt-2" : "min-w-0 flex-1"} text-base md:text-lg font-semibold text-foreground ${productView === "cards" ? "line-clamp-2 min-h-[3rem]" : "line-clamp-2"} leading-snug`}>{p.name}</div>
-                  <div className={`${productView === "cards" ? "mt-1" : "min-w-0 w-24 hidden sm:block"} truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground`}>{p.barcodes?.[0] || p.code}</div>
+                  {productView === "cards" ? <>
+                    <div className="mt-2 text-base md:text-lg font-semibold text-foreground line-clamp-2 min-h-[3rem] leading-snug">{p.name}</div>
+                    <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
+                  </> : (
+                    <div className="min-w-0 flex-1 flex flex-col justify-center">
+                      <div className="text-sm md:text-base font-semibold text-foreground line-clamp-1 leading-tight">{p.name}</div>
+                      <div className="mt-1 truncate font-mono text-[11px] md:text-xs font-medium text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
+                    </div>
+                  )}
                   <div className={`${productView === "cards" ? "mt-auto pt-2 text-center" : "shrink-0 text-right"}`}>
                     {effectivePrice(p) < p.price ? (
                       <div className={`flex ${productView === "cards" ? "flex-col items-center" : "flex-col items-end"} gap-1`}>
