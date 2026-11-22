@@ -337,7 +337,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
               </div>
             </nav>
             <div className="p-2 border-t border-border space-y-2">
-              <div className="mb-1 rounded-xl border border-border bg-secondary/70 px-3 py-3 text-center text-muted-foreground shadow-sm">
+              <div className="mb-3 rounded-xl border border-border bg-secondary/70 px-3 py-3 text-center text-muted-foreground shadow-sm">
                 <div className="font-mono text-[13px] font-medium tracking-wide">{currentDate}</div>
                 <div className="mt-1 font-mono text-[17px] font-semibold tabular-nums tracking-wide text-foreground">{time}</div>
               </div>
