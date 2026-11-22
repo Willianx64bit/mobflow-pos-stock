@@ -336,10 +336,10 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
                 </div>)}
               </div>
             </nav>
-            <div className="p-2 border-t border-border space-y-1">
-              <div className="px-3 py-2 text-center text-muted-foreground">
-                <div className="font-mono text-[11px]">{currentDate}</div>
-                <div className="mt-0.5 font-mono text-[11px] tabular-nums">{time}</div>
+            <div className="p-2 border-t border-border space-y-2">
+              <div className="mb-1 rounded-xl border border-border bg-secondary/70 px-3 py-3 text-center text-muted-foreground shadow-sm">
+                <div className="font-mono text-[13px] font-medium tracking-wide">{currentDate}</div>
+                <div className="mt-1 font-mono text-[17px] font-semibold tabular-nums tracking-wide text-foreground">{time}</div>
               </div>
               <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">{darkMode ? <Sun className="inline h-4 w-4 text-green-600" /> : <Moon className="inline h-4 w-4 text-green-600" />}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span></button>
               <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left"><ChevronLeft className="mr-2 inline h-4 w-4 text-green-600" />Fechar menu</button>
