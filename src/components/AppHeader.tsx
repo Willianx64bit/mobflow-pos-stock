@@ -27,6 +27,7 @@ const permissionByPath: Record<(typeof tabs)[number]["to"], string> = {
 
 export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean }) {
   const navigate = useNavigate();
+  const [currentDate, setCurrentDate] = useState("");
   const [time, setTime] = useState("");
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -166,8 +167,14 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
   }, [darkMode, mounted]);
 
   useEffect(() => {
-    const tick = () => setTime(new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }));
+    const tick = () => {
+      const now = new Date();
+      setCurrentDate(now.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }));
+      setTime(now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }));
+    };
     tick();
+    const timer = window.setInterval(tick, 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -330,7 +337,10 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
               </div>
             </nav>
             <div className="p-2 border-t border-border space-y-1">
-              <div className="px-3 py-2 font-mono text-[11px] text-muted-foreground text-center">{time}</div>
+              <div className="px-3 py-2 text-center text-muted-foreground">
+                <div className="font-mono text-[11px]">{currentDate}</div>
+                <div className="mt-0.5 font-mono text-[11px] tabular-nums">{time}</div>
+              </div>
               <button type="button" onClick={() => setDarkMode((value) => !value)} className="w-full rounded-xl px-3 py-2.5 text-sm bg-secondary ring-1 ring-border text-secondary-foreground transition-colors hover:bg-accent">{darkMode ? <Sun className="inline h-4 w-4 text-green-600" /> : <Moon className="inline h-4 w-4 text-green-600" />}<span className="ml-2">{darkMode ? "Tema branco" : "Tema escuro"}</span></button>
               <button type="button" onClick={toggleSidebar} className="w-full rounded-xl px-3 py-2.5 text-sm text-secondary-foreground hover:bg-accent hover:text-foreground transition-colors text-left"><ChevronLeft className="mr-2 inline h-4 w-4 text-green-600" />Fechar menu</button>
             </div>
