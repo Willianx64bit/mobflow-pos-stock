@@ -20,7 +20,7 @@ function HistoricoVendas() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [productFilter, setProductFilter] = useState("");
-  const [dateMode, setDateMode] = useState<"month" | "range">("month");
+  const [dateMode, setDateMode] = useState<"month" | "range">("range");
   const [month, setMonth] = useState(todayKey.slice(0, 7));
   const [startDate, setStartDate] = useState(todayKey);
   const [endDate, setEndDate] = useState(todayKey);
