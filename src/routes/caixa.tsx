@@ -11,7 +11,7 @@ export const Route = createFileRoute("/caixa")({
 
 type Mode = "abrir" | "fechar" | "movimentacao" | "historico";
 const money = (value: string) => Number(value.replace(/\./g, "").replace(",", "."));
-const fmtDate = (value: string) => new Date(value).toLocaleString("pt-BR");
+const fmtDate = (value: string, withSeconds = false) => new Date(value).toLocaleString("pt-BR", withSeconds ? { dateStyle: "short", timeStyle: "medium" } : { dateStyle: "short", timeStyle: "short" });
 
 function CashPage() {
   const navigate = useNavigate();
@@ -149,8 +149,8 @@ function CashPage() {
            </button>
            {expanded && <div className="border-t border-border bg-muted/20 p-3">
              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-               <div><p className="text-xs text-muted-foreground">Data inicial</p><p className="font-medium">{fmtDate(s.openedAt)}</p></div>
-               <div><p className="text-xs text-muted-foreground">Data final</p><p className="font-medium">{fmtDate(s.closedAt || s.openedAt)}</p></div>
+               <div><p className="text-xs text-muted-foreground">Data inicial</p><p className="font-medium">{fmtDate(s.openedAt, true)}</p></div>
+               <div><p className="text-xs text-muted-foreground">Data final</p><p className="font-medium">{fmtDate(s.closedAt || s.openedAt, true)}</p></div>
                <div><p className="text-xs text-muted-foreground">Operador</p><p className="font-medium">{(s.closedBy || s.openedBy).toLocaleUpperCase("pt-BR")}</p></div>
                <div><p className="text-xs text-muted-foreground">Saldo inicial</p><p className="font-medium">R$ {brl(s.openingAmount)}</p></div>
                <div><p className="text-xs text-muted-foreground">Vendas em dinheiro</p><p className="font-medium">R$ {brl(sessionCashSales)}</p></div>
@@ -160,7 +160,7 @@ function CashPage() {
              </div>
              {s.note && <div className="mt-3 border-t border-border pt-3"><p className="text-xs text-muted-foreground">Observação</p><p className="text-sm">{s.note}</p></div>}
              <div className="mt-4 border-t border-border pt-3"><h3 className="mb-2 text-sm font-bold">Movimentações</h3>
-               {sessionMovements.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma sangria ou reforço registrado.</p> : <div className="space-y-3">{sessionMovements.map((m) => <div key={m.id} className="border-b border-border/70 pb-2 last:border-0"><p className={m.type === "sangria" ? "font-semibold text-red-600" : "font-semibold text-green-700"}>{m.type === "sangria" ? "Sangria" : "Reforço"}</p><p className="text-sm">{m.type === "sangria" ? "−" : "+"} R$ {brl(m.amount)} / {m.reason}</p><p className="text-xs text-muted-foreground">{fmtDate(m.date)} · {m.operator.toLocaleUpperCase("pt-BR")}</p></div>)}</div>}
+               {sessionMovements.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma sangria ou reforço registrado.</p> : <div className="space-y-3">{sessionMovements.map((m) => <div key={m.id} className="border-b border-border/70 pb-2 last:border-0"><p className={m.type === "sangria" ? "font-semibold text-red-600" : "font-semibold text-green-700"}>{m.type === "sangria" ? "Sangria" : "Reforço"}</p><p className="text-sm">{m.type === "sangria" ? "−" : "+"} R$ {brl(m.amount)} / {m.reason}</p><p className="text-xs text-muted-foreground">{fmtDate(m.date, true)} · {m.operator.toLocaleUpperCase("pt-BR")}</p></div>)}</div>}
              </div>
            </div>}
          </div>;
