@@ -16,8 +16,10 @@ function Conferencia() {
   const search = useSearch({ from: "/conferencia" }) as { nota?: string };
   const [open, setOpen] = useState<string | null>(search.nota ?? null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [historyFrom, setHistoryFrom] = useState("");
-  const [historyTo, setHistoryTo] = useState("");
+  const [historyMonth, setHistoryMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; });
+  const [dateMode, setDateMode] = useState<"month"|"custom">("month");
+  const [historyFrom, setHistoryFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; });
+  const [historyTo, setHistoryTo] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(new Date(d.getFullYear(),d.getMonth()+1,0).getDate()).padStart(2,"0")}`; });
   const [historyCompletion, setHistoryCompletion] = useState("Todos");
   const pending = notes.filter(n => n.status === "pendente");
   const history = notes.filter(n => n.status !== "pendente");
@@ -37,10 +39,11 @@ function Conferencia() {
     const finished = !!n.actionCompleted || released;
     return needsAction ? "Ação necessária" : finished ? (hasDivergence ? "Finalizado com divergência" : "Finalizado") : n.status === "analisando" ? "Analisando" : "Pendente";
   };
+  const monthStart = `${historyMonth}-01`; const [monthYear,monthNumber] = historyMonth.split("-").map(Number); const monthEnd = historyMonth ? `${historyMonth}-${String(new Date(monthYear,monthNumber,0).getDate()).padStart(2,"0")}` : ""; const dateFrom = dateMode === "month" ? monthStart : historyFrom; const dateTo = dateMode === "month" ? monthEnd : historyTo;
   const filteredHistory = history.filter(n => {
     const rawDate = String(n.date ?? "").slice(0, 10);
-    const matchesFrom = !historyFrom || (!!rawDate && rawDate >= historyFrom);
-    const matchesTo = !historyTo || (!!rawDate && rawDate <= historyTo);
+    const matchesFrom = !dateFrom || (!!rawDate && rawDate >= dateFrom);
+    const matchesTo = !dateTo || (!!rawDate && rawDate <= dateTo);
     const status = historyStatus(n);
     const matchesCompletion = historyCompletion === "Todos" ||
       (historyCompletion === "Finalizados" && (status === "Finalizado" || status === "Finalizado com divergência")) ||
@@ -79,10 +82,10 @@ function Conferencia() {
         <button type="button" onClick={() => setFiltersOpen(v => !v)} aria-expanded={filtersOpen} className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent"><Filter className="h-4 w-4"/>{filtersOpen ? "Fechar" : "Filtrar"}</button>
       </div>
       {filtersOpen && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div><label className="mb-1 block text-sm font-semibold">Data inicial</label><input type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} className="field w-full"/></div>
-        <div><label className="mb-1 block text-sm font-semibold">Data final</label><input type="date" value={historyTo} onChange={e => setHistoryTo(e.target.value)} className="field w-full"/></div>
+        <div><label className="mb-1 block text-sm font-semibold">Período</label><select value={dateMode} onChange={e => setDateMode(e.target.value as "month"|"custom")} className="field w-full"><option value="month">Mês</option><option value="custom">Data personalizada</option></select></div>
+        {dateMode === "month" ? <div><label className="mb-1 block text-sm font-semibold">Mês</label><input type="month" value={historyMonth} onChange={e => setHistoryMonth(e.target.value)} className="field w-full"/></div> : <><div><label className="mb-1 block text-sm font-semibold">Data inicial</label><input type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} className="field w-full"/></div><div><label className="mb-1 block text-sm font-semibold">Data final</label><input type="date" min={historyFrom || undefined} value={historyTo} onChange={e => setHistoryTo(e.target.value)} className="field w-full"/></div></>}
         <div><label className="mb-1 block text-sm font-semibold">Conclusão</label><select value={historyCompletion} onChange={e => setHistoryCompletion(e.target.value)} className="field w-full"><option>Todos</option><option>Finalizados</option><option>Finalizado</option><option>Finalizado com divergência</option><option>Ação necessária</option><option>Analisando</option><option>Pendente</option></select></div>
-        <div className="sm:col-span-2 lg:col-span-3 flex justify-end"><button type="button" onClick={() => {setHistoryFrom("");setHistoryTo("");setHistoryCompletion("Todos");}} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Limpar filtros</button></div>
+        <div className="sm:col-span-2 lg:col-span-3 flex justify-end"><button type="button" onClick={() => {const d=new Date();const month=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;setHistoryMonth(month);setDateMode("month");setHistoryFrom(`${month}-01`);setHistoryTo(`${month}-${String(new Date(d.getFullYear(),d.getMonth()+1,0).getDate()).padStart(2,"0")}`);setHistoryCompletion("Todos");}} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Limpar filtros</button></div>
       </div>}
       {!filteredHistory.length && <p className="py-8 text-center font-mono text-sm text-muted-foreground">{history.length ? "Nenhuma conferência encontrada com esses filtros." : "nenhuma conferência finalizada"}</p>}
       <div className="divide-y divide-border/50">{filteredHistory.map(n => {
