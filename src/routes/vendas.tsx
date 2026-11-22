@@ -21,7 +21,7 @@ function Vendas() {
   const products = useStore((s) => s.products);
   const companyName = useStore((s) => s.settings.companyName);
   const savedCompanyName = companyName || (() => { try { const raw = localStorage.getItem("mobflow:v1"); if (!raw) return ""; const parsed = JSON.parse(raw); return parsed?.settings?.companyName || ""; } catch { return ""; } })();
-  const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
+  const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("range");
   const todayKey = new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0") + "-" + String(new Date().getDate()).padStart(2, "0");
   const [selectedMonth, setSelectedMonth] = useState(todayKey.slice(0, 7));
   const [rangeStart, setRangeStart] = useState(todayKey);
@@ -99,7 +99,7 @@ function Vendas() {
               <input type="date" aria-label="Data final" value={rangeEnd} min={rangeStart} onChange={e => e.target.value && setRangeEnd(e.target.value)} className="mt-1 block w-full cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
             </label>
           </>}
-          <div className="flex items-end"><button type="button" onClick={() => { setSearchText(""); setProductFilter(""); setPaymentFilter("todos"); setDateFilterMode("month"); setSelectedMonth(todayKey.slice(0, 7)); setRangeStart(todayKey); setRangeEnd(todayKey); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-accent">Limpar filtros</button></div>
+          <div className="flex items-end"><button type="button" onClick={() => { setSearchText(""); setProductFilter(""); setPaymentFilter("todos"); setDateFilterMode("range"); setSelectedMonth(todayKey.slice(0, 7)); setRangeStart(todayKey); setRangeEnd(todayKey); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-accent">Limpar filtros</button></div>
         </div>}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">Período: <strong className="capitalize text-foreground">{periodLabel}</strong></span>
