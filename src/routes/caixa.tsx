@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, confirmLastDomainCommand, hydrateStore, useStore } from "@/lib/store";
-import { Banknote, ArrowDownToLine, ArrowUpFromLine, Clock3, CircleAlert, CheckCircle2 } from "lucide-react";
+import { Banknote, ArrowDownToLine, ArrowUpFromLine, Clock3, CircleAlert, CheckCircle2, Filter } from "lucide-react";
 
 export const Route = createFileRoute("/caixa")({
   head: () => ({ meta: [{ title: "MobFlow — Abertura e fechamento de caixa" }] }),
@@ -25,6 +25,7 @@ function CashPage() {
   const [historyEnd, setHistoryEnd] = useState(todayKey);
   const [historyMonth, setHistoryMonth] = useState(() => todayKey().slice(0, 7));
   const [historyDifference, setHistoryDifference] = useState<"todos" | "negative" | "positive">("todos");
+  const [showHistoryFilters, setShowHistoryFilters] = useState(false);
   const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [opening, setOpening] = useState("150,00");
   const [counted, setCounted] = useState("");
@@ -128,6 +129,11 @@ function CashPage() {
     {mode === "historico" && active && activeMovements.length > 0 && <section className="mt-5 rounded-2xl border border-border bg-card p-5"><h2 className="mb-3 font-bold">Movimentações desta sessão</h2><div className="space-y-2">{activeMovements.map((m) => <div key={m.id} className="flex items-center justify-between gap-3 border-b border-border pb-2 text-sm"><div><p className="font-medium">{m.type === "sangria" ? "Sangria" : "Reforço"} · {m.reason}</p><p className="text-xs text-muted-foreground">{fmtDate(m.date)} · {m.operator}</p></div><strong>R$ {brl(m.amount)}</strong></div>)}</div></section>}
      {mode === "historico" && <section className="mt-5 rounded-2xl border border-border bg-card p-5">
        <h2 className="mb-3 flex items-center gap-2 font-bold"><Clock3 className="h-4 w-4" />Histórico de caixa</h2>
+       <div className="mb-4">
+         <button type="button" onClick={() => setShowHistoryFilters((open) => !open)} aria-expanded={showHistoryFilters} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent">
+           <Filter className="h-4 w-4" />Filtros<span className="text-xs text-muted-foreground">{showHistoryFilters ? "−" : "+"}</span>
+         </button>
+         {showHistoryFilters && (
        <div className="mb-4 grid gap-3 sm:grid-cols-2">
          <label className="text-sm font-medium">Período<select value={historyDateMode} onChange={(e) => setHistoryDateMode(e.target.value as "range" | "month")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="range">Data personalizada</option><option value="month">Mês</option></select></label>
          {historyDateMode === "month" ? <label className="text-sm font-medium">Mês<input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" /></label> : <div className="grid grid-cols-2 gap-2">
@@ -135,6 +141,8 @@ function CashPage() {
            <label className="text-sm font-medium">Data final<input type="date" value={historyEnd} min={historyStart || undefined} onChange={(e) => setHistoryEnd(e.target.value)} className="mt-1 block w-full min-w-0 rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" /></label>
          </div>}
          <label className="text-sm font-medium">Diferença do caixa<select value={historyDifference} onChange={(e) => setHistoryDifference(e.target.value as "todos" | "negative" | "positive")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="todos">Todas</option><option value="negative">Diferença negativa</option><option value="positive">Diferença positiva</option></select></label>
+       </div>
+         )}
        </div>
        {myClosed.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Nenhum fechamento encontrado para os filtros selecionados.</p> : <div className="space-y-3">{myClosed.map((s) => {
          const sessionMovements = movements.filter((m) => m.sessionId === s.id).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
