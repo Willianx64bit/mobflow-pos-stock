@@ -140,7 +140,6 @@ function CashPage() {
          const sessionMovements = movements.filter((m) => m.sessionId === s.id).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
          const withdrawalsTotal = sessionMovements.filter((m) => m.type === "sangria").reduce((sum, m) => sum + m.amount, 0);
          const additionsTotal = sessionMovements.filter((m) => m.type === "reforco").reduce((sum, m) => sum + m.amount, 0);
-         const sessionCashSales = sales.filter((sale) => sale.cashSessionId === s.id).reduce((sum, sale) => sum + (sale.payment === "Dinheiro" && sale.paid !== false ? sale.total : sale.payment === "Fiado" ? (sale.payments ?? []).filter((payment) => payment.method === "cash").reduce((paid, payment) => paid + payment.value, 0) : 0), 0);
          const expanded = expandedSessionId === s.id;
          return <div key={s.id} className="overflow-hidden rounded-xl border border-border">
            <button type="button" onClick={() => setExpandedSessionId(expanded ? null : s.id)} aria-expanded={expanded} className="flex w-full flex-wrap items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-accent/50">
@@ -153,7 +152,6 @@ function CashPage() {
                <div><p className="text-xs text-muted-foreground">Data final</p><p className="font-medium">{fmtDate(s.closedAt || s.openedAt, true)}</p></div>
                <div><p className="text-xs text-muted-foreground">Operador</p><p className="font-medium">{(s.closedBy || s.openedBy).toLocaleUpperCase("pt-BR")}</p></div>
                <div><p className="text-xs text-muted-foreground">Saldo inicial</p><p className="font-medium">R$ {brl(s.openingAmount)}</p></div>
-               <div><p className="text-xs text-muted-foreground">Vendas em dinheiro</p><p className="font-medium">R$ {brl(sessionCashSales)}</p></div>
                <div><p className="text-xs text-muted-foreground">Sangria / reforço</p><p className="font-medium"><span className="text-red-600">− R$ {brl(withdrawalsTotal)}</span> / <span className="text-green-700">+ R$ {brl(additionsTotal)}</span></p></div>
                <div><p className="text-xs text-muted-foreground">Saldo final contado</p><p className="font-medium">R$ {brl(s.countedCash ?? 0)}</p></div>
                <div><p className="text-xs text-muted-foreground">Diferença</p><p className={(s.difference ?? 0) === 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>R$ {brl(s.difference ?? 0)}</p></div>
