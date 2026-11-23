@@ -1545,6 +1545,28 @@ export const actions = {
       operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined,
       items,
     };
+    if (isDesktopOffline()) {
+      const idempotencyKey = crypto.randomUUID();
+      const queued = enqueueDomainCommand("stock", {
+        operationId: entry.id, idempotencyKey, operationType: "writeoff",
+        reason, costMode: input.costMode, donationDestination: entry.donationDestination,
+        number: entry.number, items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      });
+      if (!queued) return false;
+      const products = state.products.map((product) => {
+        const item = items.find((candidate) => candidate.productId === product.id);
+        return item ? { ...product, stock: item.newStock } : product;
+      });
+      const movements = items.map((item) => movementEntry({
+        id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Baixa",
+        productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit,
+        quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock,
+        stockAfter: item.newStock, delta: item.newStock - item.previousStock,
+        details: `${entry.number} · ${entry.reason}`,
+      }));
+      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false });
+      return entry;
+    }
     try {
       const result = await callMobFlowApi("/api/mobflow/stock", {
         method: "POST",
@@ -1590,6 +1612,33 @@ export const actions = {
       destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined,
       costMode: input.costMode, operator: currentOperator(), items,
     };
+    if (isDesktopOffline()) {
+      const idempotencyKey = crypto.randomUUID();
+      const queued = enqueueDomainCommand("stock", {
+        operationId: entry.id, idempotencyKey, operationType: "transfer",
+        reason: entry.reason, number: entry.number, costMode: input.costMode,
+        destinationName: entry.destinationName, destinationDocument: entry.destinationDocument,
+        destinationPhone: entry.destinationPhone, destinationStreet: entry.destinationStreet,
+        destinationNumber: entry.destinationNumber, destinationCep: entry.destinationCep,
+        destinationNeighborhood: entry.destinationNeighborhood, destinationCity: entry.destinationCity,
+        destinationState: entry.destinationState,
+        items: items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+      });
+      if (!queued) return false;
+      const products = state.products.map((product) => {
+        const item = items.find((candidate) => candidate.productId === product.id);
+        return item ? { ...product, stock: item.newStock } : product;
+      });
+      const movements = items.map((item) => movementEntry({
+        id: `${entry.id}:${item.productId}`, operationId: entry.id, date: entry.date, type: "Transferência",
+        productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit,
+        quantity: item.quantity, totalValue: item.totalCost, stockBefore: item.previousStock,
+        stockAfter: item.newStock, delta: item.newStock - item.previousStock,
+        details: `${entry.number} · Destino: ${entry.destinationName}`,
+      }));
+      set({ products, stockTransfers: [entry, ...(state.stockTransfers ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false });
+      return entry;
+    }
     try {
       const result = await callMobFlowApi("/api/mobflow/stock", {
         method: "POST",
