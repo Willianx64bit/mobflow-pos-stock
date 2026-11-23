@@ -982,6 +982,7 @@ export async function hydrateStore() {
     } catch (error) {
       console.error("[MobFlow Hydration] Could not load the authoritative Neon state:", error);
       cloudReady = false;
+      if (isDesktopRuntime()) sessionStorage.setItem("mobflow-desktop-offline", "1");
       // Notify the UI so it does not silently keep presenting an empty/stale view.
       listeners.forEach((listener) => listener());
     }
