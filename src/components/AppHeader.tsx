@@ -324,7 +324,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
                   </button>
                   <button type="button" onClick={() => setShowLogoutConfirm(true)} className="flex min-w-0 items-center justify-center gap-2 rounded-xl bg-red-500 px-2 py-3 text-sm font-semibold text-white ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair do usuário" title="Sair do usuário">
                     <LogOut className="h-4 w-4 shrink-0" />
-                    <span className="truncate">Sair do usuário</span>
+                    <span className="truncate">Sair</span>
                   </button>
                 </div>
               )}
