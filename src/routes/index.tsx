@@ -573,7 +573,8 @@ function PDV() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setDone(null)}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-6 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto h-14 w-14 rounded-full bg-primary/15 ring-1 ring-primary/50 grid place-items-center text-primary text-2xl">✓</div>
-            <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">VENDA CONCLUÍDA</h2>
+            <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">{done.syncStatus === "pending" ? "VENDA SALVA OFFLINE" : "VENDA CONCLUÍDA"}</h2>
+            {done.syncStatus === "pending" && <p className="mt-2 text-xs text-amber-600">Salva neste computador. Aguardando conexão e confirmação do servidor.</p>}
             <p className="font-mono text-[12px] text-muted-foreground">{done.payment} · {done.items.length} itens{done.customer ? ` · ${done.customer}` : ""}</p>
             <p className="mt-3 font-display text-5xl text-primary">R$ {brl(done.total)}</p>
             {done.received && done.received > done.total && (
