@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { mobflowAuthClient } from "@/lib/auth-client";
-import { hydrateStore } from "@/lib/store";
+import { hydrateStore, hydrateStoreOffline, resumeOnlineSync } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
 declare global {
@@ -198,10 +198,47 @@ function RootComponent() {
 
   useEffect(() => {
     const onAuthChanged = () => { setAuthenticated(false); setUserLoginRequired(false); };
-    const onUserLogout = () => { setUserLoginRequired(true); void window.mobflowDesktop?.clearCachedAuthorizedSession?.(); };
+    const onUserLogout = () => { setUserLoginRequired(true); sessionStorage.removeItem("mobflow-desktop-offline"); void window.mobflowDesktop?.clearCachedAuthorizedSession?.(); };
+    const onOffline = () => {
+      if (window.mobflowDesktop && localStorage.getItem("mobflow:owner")) {
+        sessionStorage.setItem("mobflow-desktop-offline", "1");
+      }
+    };
+    const onOnline = async () => {
+      if (!window.mobflowDesktop || sessionStorage.getItem("mobflow-desktop-offline") !== "1") return;
+      try {
+        const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+        if (response.status === 401 || response.status === 403) {
+          await window.mobflowDesktop.clearCachedAuthorizedSession?.();
+          sessionStorage.removeItem("mobflow-desktop-offline");
+          localStorage.removeItem("mobflow-authenticated");
+          setAuthenticated(false);
+          setUserLoginRequired(false);
+          return;
+        }
+        if (!response.ok) return;
+        const synchronized = await resumeOnlineSync();
+        if (synchronized) sessionStorage.removeItem("mobflow-desktop-offline");
+      } catch {
+        // A rede persistente ainda não voltou; mantém o estado local e tenta novamente no próximo evento online.
+      }
+    };
     window.addEventListener("mobflow-auth-changed", onAuthChanged);
     window.addEventListener("mobflow-user-logout", onUserLogout);
-    return () => { window.removeEventListener("mobflow-auth-changed", onAuthChanged); window.removeEventListener("mobflow-user-logout", onUserLogout); };
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("mobflow-auth-changed", onAuthChanged);
+      window.removeEventListener("mobflow-user-logout", onUserLogout);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!window.mobflowDesktop || !("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" })
+      .catch((error) => console.warn("MobFlow Desktop: cache do aplicativo indisponível:", error));
   }, []);
 
   useEffect(() => {
@@ -209,19 +246,36 @@ function RootComponent() {
     const bootstrap = async () => {
       try {
         let profile: { accountId: string; role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
+        let restoredOffline = false;
 
-        const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
-        if (response.ok) {
-          const body = await response.json();
-          if (body?.ok && body.user && typeof body.accountId === "string") profile = { ...body.user, accountId: body.accountId, active: true };
+        try {
+          const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+          if (response.ok) {
+            const body = await response.json();
+            if (body?.ok && body.user && typeof body.accountId === "string") profile = { ...body.user, accountId: body.accountId, active: true };
+          } else if (response.status === 401 || response.status === 403) {
+            await window.mobflowDesktop?.clearCachedAuthorizedSession?.();
+          } else if (response.status >= 500 && navigator.onLine === false) {
+            throw new Error("Servidor indisponível sem conexão");
+          }
+        } catch {
+          const cached = await window.mobflowDesktop?.getCachedAuthorizedSession?.();
+          const cachedPermissions = Array.isArray(cached?.permissions) ? cached.permissions : [];
+          if (cached && cached.role === "pdv" && cachedPermissions.includes("PDV") &&
+              typeof cached.accountId === "string" && typeof cached.username === "string") {
+            profile = { accountId: cached.accountId, role: cached.role, username: cached.username, permissions: cachedPermissions, active: true };
+            restoredOffline = true;
+          }
         }
 
-        if (!profile || profile.active === false || profile.role === "admin") {
-          await mobflowAuthClient.signOut().catch(() => undefined);
+        if (!profile || profile.active === false || profile.role === "admin" ||
+            (restoredOffline && profile.role !== "pdv")) {
+          if (!restoredOffline) await mobflowAuthClient.signOut().catch(() => undefined);
           localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
           sessionStorage.removeItem("mobflow-username");
           sessionStorage.removeItem("mobflow-pdv-authorized");
+          sessionStorage.removeItem("mobflow-desktop-offline");
           if (active) {
             setAuthenticated(false);
             setCheckingSession(false);
@@ -236,28 +290,36 @@ function RootComponent() {
         sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
         // Cache only the minimum authorization context, encrypted by Electron's OS-backed safeStorage.
         // No password, Better Auth cookie, bearer token or session secret is persisted.
-        void window.mobflowDesktop?.cacheAuthorizedSession?.({
-          accountId: profile.accountId,
-          role: profile.role,
-          username: profile.username,
-          permissions: normalizedPermissions,
-        } )?.catch((error) => console.warn("MobFlow Desktop: não foi possível salvar a sessão offline:", error));
+        if (!restoredOffline) {
+          void window.mobflowDesktop?.cacheAuthorizedSession?.({
+            accountId: profile.accountId,
+            role: profile.role,
+            username: profile.username,
+            permissions: normalizedPermissions,
+          })?.catch((error) => console.warn("MobFlow Desktop: não foi possível salvar a sessão offline:", error));
+        }
 
         if (profile.role === "pdv") {
           sessionStorage.setItem("mobflow-pdv-authorized", "1");
         }
 
         localStorage.setItem("mobflow-authenticated", "1");
-        try {
-          await hydrateStore();
-        } catch (error) {
-          console.error("MobFlow: falha ao carregar os dados da conta", error);
+        if (restoredOffline) {
+          sessionStorage.setItem("mobflow-desktop-offline", "1");
+          await hydrateStoreOffline(profile.accountId);
+        } else {
+          sessionStorage.removeItem("mobflow-desktop-offline");
+          try {
+            await hydrateStore();
+          } catch (error) {
+            console.error("MobFlow: falha ao carregar os dados da conta", error);
+          }
         }
 
         if (active) {
           const firstSetupPending = sessionStorage.getItem("mobflow-first-manager-setup") === "1";
           setAuthenticated(true);
-          setUserLoginRequired(profile.role === "manager" && !firstSetupPending);
+          setUserLoginRequired(!restoredOffline && profile.role === "manager" && !firstSetupPending);
           setCheckingSession(false);
           if (firstSetupPending && profile.role === "manager") {
             void router.navigate({ to: "/gerencia" });
