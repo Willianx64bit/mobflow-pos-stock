@@ -36,7 +36,7 @@ describe("Neon Fiado receivable payments", () => {
       }] };
       if (sql.includes("COALESCE(SUM(amount),0)")) return { rows: [{ paid: "0" }] };
       if (sql.includes("SELECT product_id,product_name_snapshot")) return { rows: [{ product_id: "p1", product_name_snapshot: "Arroz", unit_price: "50", unit_cost: "20", quantity: "1", unit: "un" }] };
-      if (sql.includes("SELECT amount::text,payment_method,occurred_at FROM public.receivable_payments")) return { rows: [{ amount: "20", payment_method: "cash", occurred_at: "2026-11-10T10:05:00.000Z" }] };
+      if (sql.includes("SELECT amount::text,payment_method,occurred_at,idempotency_key FROM public.receivable_payments")) return { rows: [{ amount: "20", payment_method: "cash", occurred_at: "2026-11-10T10:05:00.000Z", idempotency_key: KEY }] };
       return { rows: [] };
     });
     beginAuthenticatedTransaction.mockResolvedValue({
@@ -80,7 +80,7 @@ describe("Neon Fiado receivable payments", () => {
       }] };
       if (sql.includes("COALESCE(SUM(amount),0)")) return { rows: [{ paid: "20" }] };
       if (sql.includes("SELECT product_id,product_name_snapshot")) return { rows: [{ product_id: "p1", product_name_snapshot: "Arroz", unit_price: "50", unit_cost: "20", quantity: "1", unit: "un" }] };
-      if (sql.includes("SELECT amount::text,payment_method,occurred_at FROM public.receivable_payments")) return { rows: [{ amount: "20", payment_method: "cash", occurred_at: "2026-11-10T10:05:00.000Z" }, { amount: "30", payment_method: "pix", occurred_at: "2026-11-10T10:10:00.000Z" }] };
+      if (sql.includes("SELECT amount::text,payment_method,occurred_at FROM public.receivable_payments")) return { rows: [{ amount: "20", payment_method: "cash", occurred_at: "2026-11-10T10:05:00.000Z" }, { amount: "30", payment_method: "pix", occurred_at: "2026-11-10T10:10:00.000Z", idempotency_key: "8c47eaac-2abf-4cd6-b614-24e27077bdf6" }] };
       return { rows: [] };
     });
     const response = await handleMobFlowReceivable(request({ ...body(), amount: 30, paymentMethod: "pix" }));
