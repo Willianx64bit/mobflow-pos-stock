@@ -25,7 +25,8 @@ describe("offline fiado authorization", () => {
     expect(isValidOfflineFiadoSession(session, "tenant-2", "operador", NOW)).toBe(false);
     expect(isValidOfflineFiadoSession(session, "tenant-1", "outro", NOW)).toBe(false);
     expect(isValidOfflineFiadoSession({ ...session, role: "manager" }, "tenant-1", "operador", NOW)).toBe(false);
-    expect(isValidOfflineFiadoSession({ ...session, permissions: ["Conferência"] }, "tenant-1", "operador", NOW)).toBe(false);
+    expect(isValidOfflineFiadoSession({ ...session, permissions: ["PDV"] }, "tenant-1", "operador", NOW)).toBe(false);
+    expect(isValidOfflineFiadoSession({ ...session, permissions: ["Fiado"] }, "tenant-1", "operador", NOW)).toBe(false);
   });
 
   it("rejects expired, future-dated and missing sessions", () => {
