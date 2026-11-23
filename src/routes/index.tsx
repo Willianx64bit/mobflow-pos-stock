@@ -373,8 +373,8 @@ function PDV() {
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
                   className={`${productView === "cards" ? "text-left rounded-xl p-1.5 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
-                  <div className={`${productView === "cards" ? "h-[104px] w-[104px] mx-auto shrink-0" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
-                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
+                  <div className={`${productView === "cards" ? "w-full aspect-[16/10] shrink-0" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
+                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-contain" /> : null}
                   </div>
                   {productView === "cards" ? <>
                     <div className="mt-1 text-xs md:text-sm font-semibold text-foreground line-clamp-1 leading-tight">{p.name}</div>
