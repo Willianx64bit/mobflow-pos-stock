@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, buildPixPayload, printReceipt, useStore, type Sale } from "@/lib/store";
+import { isValidOfflineFiadoSession } from "@/lib/offline-fiado-auth";
 
 import { UserRound, ArrowLeft, ReceiptText, LockKeyhole, SlidersHorizontal, CalendarDays } from "lucide-react";
 
@@ -65,15 +66,7 @@ function Fiado() {
         const cached = await desktop.getCachedAuthorizedSession?.();
         const expectedAccount = localStorage.getItem("mobflow:owner");
         const expectedUsername = sessionStorage.getItem("mobflow-username")?.trim();
-        const valid = !!cached &&
-          cached.role === "pdv" &&
-          Array.isArray(cached.permissions) &&
-          cached.permissions.includes("PDV") &&
-          cached.accountId === expectedAccount &&
-          cached.username === expectedUsername &&
-          Number.isFinite(cached.savedAt) &&
-          Date.now() - cached.savedAt <= 7 * 24 * 60 * 60 * 1000 &&
-          cached.savedAt <= Date.now() + 60_000;
+        const valid = isValidOfflineFiadoSession(cached, expectedAccount, expectedUsername);
         if (!valid) {
           setOfflineAuthorizationBlocked(true);
           setPasswordError("Não há uma sessão PDV válida neste computador. Conecte-se à internet e entre novamente para autorizar recebimentos offline.");
