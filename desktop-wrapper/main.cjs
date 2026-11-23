@@ -1,10 +1,62 @@
-const { app, BrowserWindow, shell, dialog, session, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, dialog, session, ipcMain, safeStorage } = require("electron");
 const path = require("node:path");
+const fs = require("node:fs/promises");
 
 const APP_URL = "https://mobflow-pdv-gestao.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
 let mainWindow = null;
 let showingOfflineFallback = false;
+
+const OFFLINE_SESSION_FILE = "mobflow-authorized-session.bin";
+const OFFLINE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const ALLOWED_OFFLINE_ROLES = new Set(["manager", "pdv"]);
+
+function isTrustedAppSender(event) {
+  try {
+    return new URL(event.senderFrame?.url || "").origin === APP_ORIGIN;
+  } catch {
+    return false;
+  }
+}
+
+function offlineSessionPath() {
+  return path.join(app.getPath("userData"), OFFLINE_SESSION_FILE);
+}
+
+function validateOfflineSession(value) {
+  if (!value || typeof value !== "object") return null;
+  const { accountId, role, username, permissions } = value;
+  if (typeof accountId !== "string" || !accountId.trim() || accountId.length > 128) return null;
+  if (!ALLOWED_OFFLINE_ROLES.has(role)) return null;
+  if (typeof username !== "string" || !username.trim() || username.length > 120) return null;
+  if (!Array.isArray(permissions) || permissions.length > 64 ||
+      permissions.some((item) => typeof item !== "string" || item.length > 80)) return null;
+  return {
+    accountId: accountId.trim(),
+    role,
+    username: username.trim(),
+    permissions: [...new Set(permissions)]
+  };
+}
+
+async function readAuthorizedSession() {
+  if (!safeStorage.isEncryptionAvailable()) return null;
+  try {
+    const encrypted = await fs.readFile(offlineSessionPath());
+    const decoded = safeStorage.decryptString(encrypted);
+    const record = JSON.parse(decoded);
+    const sessionData = validateOfflineSession(record?.session);
+    if (!sessionData || !Number.isFinite(record?.savedAt) ||
+        Date.now() - record.savedAt > OFFLINE_SESSION_TTL_MS ||
+        record.savedAt > Date.now() + 60_000) {
+      await fs.rm(offlineSessionPath(), { force: true }).catch(() => {});
+      return null;
+    }
+    return { ...sessionData, savedAt: record.savedAt };
+  } catch {
+    return null;
+  }
+}
 
 function isInternalWindowUrl(rawUrl) {
   if (rawUrl === "about:blank" || rawUrl.startsWith("data:")) return true;
@@ -138,6 +190,34 @@ function createWindow() {
   loadMobFlow(win);
   return win;
 }
+
+ipcMain.handle("mobflow:cache-authorized-session", async (event, value) => {
+  if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return false;
+  const sessionData = validateOfflineSession(value);
+  if (!sessionData) return false;
+  try {
+    await fs.mkdir(app.getPath("userData"), { recursive: true });
+    const encrypted = safeStorage.encryptString(JSON.stringify({
+      session: sessionData,
+      savedAt: Date.now()
+    }));
+    await fs.writeFile(offlineSessionPath(), encrypted, { mode: 0o600 });
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("mobflow:get-cached-authorized-session", async (event) => {
+  if (!isTrustedAppSender(event)) return null;
+  return readAuthorizedSession();
+});
+
+ipcMain.handle("mobflow:clear-cached-authorized-session", async (event) => {
+  if (!isTrustedAppSender(event)) return false;
+  await fs.rm(offlineSessionPath(), { force: true }).catch(() => {});
+  return true;
+});
 
 ipcMain.on("mobflow:retry-connection", () => {
   if (mainWindow && !mainWindow.isDestroyed()) loadMobFlow(mainWindow);
