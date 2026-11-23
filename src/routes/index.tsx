@@ -330,9 +330,9 @@ function PDV() {
   return (
     <div className="mfb-in min-h-screen p-3 md:p-4 xl:p-5">
       <AppHeader />
-       <main className="grid lg:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_560px] gap-3 items-stretch">
+       <main className="grid lg:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_560px] gap-3 items-stretch lg:min-h-[calc(100vh-110px)]">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
-        <section className="glass p-4 min-w-0">
+        <section className="glass p-4 min-w-0 flex flex-col min-h-0 lg:min-h-[calc(100vh-110px)]">
           <div className="flex items-center gap-1.5">
             <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`w-[58px] h-9 shrink-0 rounded-lg px-1 py-1 text-[11px] font-semibold leading-tight ring-1 flex flex-col items-center justify-center gap-0.5 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
               <span className="text-center">Ação<br />Rápida</span>
@@ -340,7 +340,7 @@ function PDV() {
               {quick && <span className="text-[8px] font-bold tracking-wide">ATIVO</span>}
             </button>
             <div
-              className="h-[25px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
+              className="h-[30px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
               onClick={() => search.current?.focus()}
             >
               <input
@@ -352,20 +352,20 @@ function PDV() {
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
             </div>
-            <div className="h-[25px] shrink-0 flex items-center rounded-md bg-secondary p-0.5 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+            <div className="h-[30px] shrink-0 flex items-center rounded-md bg-secondary p-0.5 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
               <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
-                className={`grid h-[21px] w-[25px] place-items-center rounded-sm transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                className={`grid h-[26px] w-[27px] place-items-center rounded-sm transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
                 <LayoutGrid className="h-3.5 w-3.5" />
               </button>
               <button type="button" onClick={() => productView !== "list" && toggleProductView()} aria-label="Visualizar em lista" aria-pressed={productView === "list"} title="Lista"
-                className={`grid h-[21px] w-[25px] place-items-center rounded-sm transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                className={`grid h-[26px] w-[27px] place-items-center rounded-sm transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
                 <List className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
           {flash && <div className={`mt-2 w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</div>}
 
-          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-col"} gap-2 mt-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1`}>
+          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3 content-start" : "flex flex-col"} gap-2 mt-2 flex-1 min-h-0 overflow-y-auto pr-1`}>
             {results.map((p, i) => {
               return (
                 <button
@@ -405,7 +405,7 @@ function PDV() {
           
         </section>
 
-        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:h-[calc(100vh-100px)] lg:max-h-none">
+        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:h-[calc(100vh-110px)] lg:min-h-0 lg:max-h-none">
           <div className="relative flex items-center justify-center pb-3 border-b border-border">
             <span className="font-display text-[18px] font-bold tracking-normal text-heading text-center">CHECKOUT</span>
             <span className="absolute right-0 font-mono text-[13px] text-muted-foreground">{count} itens</span>
