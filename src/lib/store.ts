@@ -506,7 +506,12 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
       lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
         writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
         if (typeof navigator !== "undefined" && navigator.onLine && cloudReady && cloudAccountId === tenantId) {
-          const result = await syncNow();
+          let result = await syncNow();
+          // If another command entered the queue during the current flush, drain
+          // another ordered batch before reporting success to the caller.
+          for (let pass = 0; pass < 9 && result.failed === 0 && result.sent > 0 && result.pending > 0; pass += 1) {
+            result = await syncNow();
+          }
           if (result.failed > 0 || result.pending > 0) {
             throw new Error("A operação foi salva na fila local, mas ainda aguarda confirmação do Neon.");
           }
