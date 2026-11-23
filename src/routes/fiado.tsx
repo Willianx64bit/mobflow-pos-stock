@@ -33,6 +33,7 @@ function Fiado() {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [offlineAuthorizationBlocked, setOfflineAuthorizationBlocked] = useState(false);
   const [pendingChange, setPendingChange] = useState<(() => void | Promise<void>) | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [confirmDialogMessage, setConfirmDialogMessage] = useState("");
@@ -51,8 +52,48 @@ function Fiado() {
     if (change) confirmFiadoChange(change);
   };
 
-  const confirmFiadoChange = (change: () => void | Promise<void>) => {
+  const confirmFiadoChange = async (change: () => void | Promise<void>) => {
     if (authorizing) return;
+    const desktop = typeof window !== "undefined"
+      ? (window as Window & { mobflowDesktop?: { getCachedAuthorizedSession?: () => Promise<{ accountId: string; role: string; username: string; permissions: string[]; savedAt: number } | null> } }).mobflowDesktop
+      : undefined;
+    if (desktop && typeof navigator !== "undefined" && !navigator.onLine) {
+      setAuthorizing(true);
+      setPasswordError("");
+      setOfflineAuthorizationBlocked(false);
+      try {
+        const cached = await desktop.getCachedAuthorizedSession?.();
+        const expectedAccount = localStorage.getItem("mobflow:owner");
+        const expectedUsername = sessionStorage.getItem("mobflow-username")?.trim();
+        const valid = !!cached &&
+          cached.role === "pdv" &&
+          Array.isArray(cached.permissions) &&
+          cached.permissions.includes("PDV") &&
+          cached.accountId === expectedAccount &&
+          cached.username === expectedUsername &&
+          Number.isFinite(cached.savedAt) &&
+          Date.now() - cached.savedAt <= 7 * 24 * 60 * 60 * 1000 &&
+          cached.savedAt <= Date.now() + 60_000;
+        if (!valid) {
+          setOfflineAuthorizationBlocked(true);
+          setPasswordError("Não há uma sessão PDV válida neste computador. Conecte-se à internet e entre novamente para autorizar recebimentos offline.");
+          setPasswordModalOpen(true);
+          return;
+        }
+        await change();
+        setPendingChange(null);
+        setPasswordInput("");
+        return;
+      } catch (error) {
+        setOfflineAuthorizationBlocked(true);
+        setPasswordError(error instanceof Error ? error.message : "Não foi possível validar a sessão offline. Conecte-se à internet.");
+        setPasswordModalOpen(true);
+        return;
+      } finally {
+        setAuthorizing(false);
+      }
+    }
+    setOfflineAuthorizationBlocked(false);
     setPendingChange(() => change);
     setPasswordInput("");
     setPasswordError("");
@@ -292,13 +333,13 @@ function Fiado() {
         <div className="fixed inset-0 z-[60] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
           <form onSubmit={(e) => { e.preventDefault(); void submitFiadoPassword(); }} className="w-full max-w-md glass p-6 shadow-2xl">
             <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-primary/10"><LockKeyhole className="h-5 w-5 text-primary" /></div>
-            <h2 className="text-xl font-bold text-heading">Confirmar senha do usuário</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Para confirmar esta alteração no fiado, digite novamente a senha do usuário do PDV.</p>
-            <input type="password" value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setPasswordError(""); }} placeholder="Senha do usuário" autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />
+            <h2 className="text-xl font-bold text-heading">{offlineAuthorizationBlocked ? "Sessão offline não autorizada" : "Confirmar senha do usuário"}</h2>
+            <p className="mt-2 text-sm text-muted-foreground">{offlineAuthorizationBlocked ? "Por segurança, o recebimento não foi registrado. A sessão PDV salva precisa estar válida e pertencer a este operador e empresa." : "Para confirmar esta alteração no fiado, digite novamente a senha do usuário do PDV."}</p>
+            {!offlineAuthorizationBlocked && <input type="password" value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setPasswordError(""); }} placeholder="Senha do usuário" autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />}
             {passwordError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{passwordError}</p>}
             <div className="mt-5 flex gap-2">
-              <button type="button" onClick={() => { setPasswordModalOpen(false); setPasswordInput(""); setPasswordError(""); setPendingChange(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
-              <button type="submit" disabled={authorizing} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{authorizing ? "Validando..." : "Confirmar"}</button>
+              <button type="button" onClick={() => { setPasswordModalOpen(false); setPasswordInput(""); setPasswordError(""); setPendingChange(null); setOfflineAuthorizationBlocked(false); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">{offlineAuthorizationBlocked ? "Fechar" : "Cancelar"}</button>
+              {!offlineAuthorizationBlocked && <button type="submit" disabled={authorizing} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{authorizing ? "Validando..." : "Confirmar"}</button>}
             </div>
           </form>
         </div>
