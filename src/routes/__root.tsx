@@ -255,8 +255,8 @@ function RootComponent() {
             if (body?.ok && body.user && typeof body.accountId === "string") profile = { ...body.user, accountId: body.accountId, active: true };
           } else if (response.status === 401 || response.status === 403) {
             await window.mobflowDesktop?.clearCachedAuthorizedSession?.();
-          } else if (response.status >= 500 && navigator.onLine === false) {
-            throw new Error("Servidor indisponível sem conexão");
+          } else if (response.status >= 500) {
+            throw new Error("Servidor indisponível; tentando recuperar a sessão local");
           }
         } catch {
           const cached = await window.mobflowDesktop?.getCachedAuthorizedSession?.();
