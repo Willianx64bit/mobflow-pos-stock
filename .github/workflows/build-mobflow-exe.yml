@@ -1,0 +1,71 @@
+name: Build MobFlow Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - packaging/windows-exe-neon
+    paths:
+      - "desktop-wrapper/**"
+      - "public/mobflow-icon.svg"
+      - ".github/workflows/build-mobflow-exe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-wrapper
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop-wrapper/package.json
+
+      - name: Instalar dependências
+        run: npm install
+
+      - name: Gerar instalador Windows
+        run: npm run dist
+
+      - name: Verificar instalador
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "dist/*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Instalador EXE não encontrado." }
+          Write-Host "Instalador gerado: $($installer.Name)"
+          if ($installer.Length -lt 10MB) { throw "Instalador inesperadamente pequeno." }
+
+      - name: Testar instalação e inicialização
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "dist/*.exe" | Select-Object -First 1
+          Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+          $app = Join-Path $env:LOCALAPPDATA "Programs/MobFlow/MobFlow.exe"
+          if (-not (Test-Path $app)) {
+            $app = Get-ChildItem "$env:LOCALAPPDATA/Programs" -Filter "MobFlow.exe" -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $app -or -not (Test-Path $app)) { throw "MobFlow.exe não foi encontrado após a instalação." }
+          $process = Start-Process -FilePath $app -PassThru
+          Start-Sleep -Seconds 15
+          $process.Refresh()
+          if ($process.HasExited) { throw "MobFlow encerrou inesperadamente. ExitCode: $($process.ExitCode)" }
+          Stop-Process -Id $process.Id -Force
+          Write-Host "Smoke test aprovado: instalação e inicialização."
+
+      - name: Publicar instalador como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobflow-windows-exe
+          path: desktop-wrapper/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
