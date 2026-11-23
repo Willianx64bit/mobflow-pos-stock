@@ -358,6 +358,17 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           : (validation.profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
         const normalizedPermissions = Array.from(new Set(savedPermissions.map((p: string) => p === "Conferência" ? "Operações" : p)));
         sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
+        // Cache the actual PDV operator identity after its own Better Auth sign-in.
+        // The company manager session is not sufficient to restore an operator offline.
+        if (mode === "pdv" && validation.profile.role === "pdv" && typeof validation.profile.account_id === "string") {
+          const cached = await window.mobflowDesktop?.cacheAuthorizedSession?.({
+            accountId: validation.profile.account_id,
+            role: validation.profile.role,
+            username: validation.profile.username,
+            permissions: normalizedPermissions,
+          }).catch(() => false);
+          if (cached === false) console.warn("MobFlow Desktop: a sessão do operador não pôde ser armazenada para uso offline.");
+        }
         const firstManagerLogin = mode === "empresa" && validation.firstManagerLogin === true;
         if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
         onLogin({ firstManagerLogin });
