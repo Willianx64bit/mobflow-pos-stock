@@ -340,7 +340,7 @@ function PDV() {
               {quick && <span className="text-[8px] font-bold tracking-wide">ATIVO</span>}
             </button>
             <div
-              className="h-[30px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
+              className="h-[38px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
               onClick={() => search.current?.focus()}
             >
               <input
@@ -352,13 +352,13 @@ function PDV() {
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
             </div>
-            <div className="h-[30px] shrink-0 flex items-center rounded-md bg-secondary p-0.5 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+            <div className="h-[38px] shrink-0 flex items-center rounded-md bg-secondary p-0.5 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
               <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
-                className={`grid h-[26px] w-[27px] place-items-center rounded-sm transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                className={`grid h-[34px] w-[30px] place-items-center rounded-sm transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
                 <LayoutGrid className="h-3.5 w-3.5" />
               </button>
               <button type="button" onClick={() => productView !== "list" && toggleProductView()} aria-label="Visualizar em lista" aria-pressed={productView === "list"} title="Lista"
-                className={`grid h-[26px] w-[27px] place-items-center rounded-sm transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                className={`grid h-[34px] w-[30px] place-items-center rounded-sm transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
                 <List className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -405,15 +405,15 @@ function PDV() {
           
         </section>
 
-        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:h-[calc(100vh-110px)] lg:min-h-0 lg:max-h-none">
+        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:mt-3 lg:h-[calc(100vh-125px)] lg:min-h-0 lg:max-h-none">
           <div className="relative flex items-center justify-center pb-3 border-b border-border">
             <span className="font-display text-[18px] font-bold tracking-normal text-heading text-center">CHECKOUT</span>
             <span className="absolute right-0 font-mono text-[13px] text-muted-foreground">{count} itens</span>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
+          <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-0">
 
             {lines.map(({ p, qty }) => (
-              <div key={p.id} className="py-4 flex items-center gap-3">
+              <div key={p.id} className="py-3 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-base xl:text-lg font-semibold text-foreground truncate">{p.name}</div>
                   <div className="mt-0.5 font-mono text-sm xl:text-base font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
