@@ -51,6 +51,12 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(command.attempts).toBe(0);
   });
 
+  it("routes receivable payments through the dedicated idempotent endpoint", () => {
+    const command = createSyncCommand({ tenantId: TENANT, domain: "receivables", id: ID, idempotencyKey: ID, payload: { saleId: "sale-1", amount: 12.5, paymentMethod: "pix" } });
+    expect(command.endpoint).toBe("/api/mobflow/receivables");
+    expect(command.payload).toMatchObject({ saleId: "sale-1", amount: 12.5, paymentMethod: "pix", idempotencyKey: ID });
+  });
+
   it("keeps dependent commands in a deterministic creation order", () => {
     const first = createSyncCommand({ tenantId: TENANT, domain: "cash", id: ID, idempotencyKey: ID, payload: { action: "open", sessionId: "cash-1" } });
     const secondId = "b6c47ea1-2abf-4cd6-b614-24e27077bdf6";
