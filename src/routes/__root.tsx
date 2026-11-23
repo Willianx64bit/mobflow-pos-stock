@@ -18,6 +18,17 @@ import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
+declare global {
+  interface Window {
+    mobflowDesktop?: {
+      retryConnection: () => void;
+      cacheAuthorizedSession?: (session: { accountId: string; role: string; username: string; permissions: string[] }) => Promise<boolean>;
+      getCachedAuthorizedSession?: () => Promise<{ accountId: string; role: string; username: string; permissions: string[]; savedAt: number } | null>;
+      clearCachedAuthorizedSession?: () => Promise<boolean>;
+    };
+  }
+}
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -197,12 +208,12 @@ function RootComponent() {
     let active = true;
     const bootstrap = async () => {
       try {
-        let profile: { role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
+        let profile: { accountId: string; role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
 
         const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
         if (response.ok) {
           const body = await response.json();
-          if (body?.ok && body.user) profile = { ...body.user, active: true };
+          if (body?.ok && body.user && typeof body.accountId === "string") profile = { ...body.user, accountId: body.accountId, active: true };
         }
 
         if (!profile || profile.active === false || profile.role === "admin") {
@@ -223,6 +234,14 @@ function RootComponent() {
         const savedPermissions = Array.isArray(profile.permissions) ? profile.permissions : (profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
         const normalizedPermissions = Array.from(new Set(savedPermissions.map((permission: string) => permission === "Conferência" ? "Operações" : permission)));
         sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
+        // Cache only the minimum authorization context, encrypted by Electron's OS-backed safeStorage.
+        // No password, Better Auth cookie, bearer token or session secret is persisted.
+        void window.mobflowDesktop?.cacheAuthorizedSession?.({
+          accountId: profile.accountId,
+          role: profile.role,
+          username: profile.username,
+          permissions: normalizedPermissions,
+        }).catch((error) => console.warn("MobFlow Desktop: não foi possível salvar a sessão offline:", error));
 
         if (profile.role === "pdv") {
           sessionStorage.setItem("mobflow-pdv-authorized", "1");
