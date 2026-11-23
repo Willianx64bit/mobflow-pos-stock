@@ -33,6 +33,7 @@ const DB_VERSION = 1;
 const COMMANDS = "commands";
 const META = "meta";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+let lastCommandTimestamp = 0;
 
 function requestValue<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -94,10 +95,14 @@ export function createSyncCommand(input: {
   if (!input.tenantId.trim() || !UUID_RE.test(id) || !UUID_RE.test(idempotencyKey)) {
     throw new Error("Identificadores inválidos para a fila incremental.");
   }
+  const requestedTimestamp = input.createdAt ? Date.parse(input.createdAt) : Date.now();
+  if (!Number.isFinite(requestedTimestamp)) throw new Error("Data de criação inválida para a fila incremental.");
+  const orderedTimestamp = input.createdAt ? requestedTimestamp : Math.max(requestedTimestamp, lastCommandTimestamp + 1);
+  lastCommandTimestamp = Math.max(lastCommandTimestamp, orderedTimestamp);
   return {
     id, tenantId: input.tenantId, domain: input.domain, endpoint, idempotencyKey,
     payload: { ...input.payload, idempotencyKey },
-    createdAt: input.createdAt ?? new Date().toISOString(),
+    createdAt: new Date(orderedTimestamp).toISOString(),
     attempts: 0, status: "pending",
   };
 }
