@@ -1305,7 +1305,7 @@ export const actions = {
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = total - costTotal;
     const seller = operator;
-    const sale: Sale = { id: crypto.randomUUID(), date: new Date().toISOString() , cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined, ...(isDesktopOffline() ? { syncStatus: "pending" as const } : {}) };
+    const sale: Sale = { id: crypto.randomUUID(), date: new Date().toISOString() , cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined, ...(isDesktopRuntime() ? { syncStatus: "pending" as const } : {}) };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.round((p.stock - c.qty) * 1000) / 1000 } : p;
@@ -1326,8 +1326,8 @@ export const actions = {
       items: checkoutCart.map((item) => ({ productId: item.productId, quantity: item.qty })),
     });
 
-    if (isDesktopOffline() && !queued) return null;
-    if (queued && lastDomainCommandPromise && isDesktopOffline()) {
+    if (isDesktopRuntime() && !queued) return null;
+    if (queued && lastDomainCommandPromise && isDesktopRuntime()) {
       // Persist the provisional sale and its stock delta locally; the pending label
       // remains until Neon confirms the same idempotent command after reconnection.
       set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: false });
@@ -1540,8 +1540,8 @@ export const actions = {
       operationId: id, operationType: "adjustment", reason,
       items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
     });
-    if (isDesktopOffline() && !queued) return false;
-    if (!queued || incrementalSyncEnabled() || isDesktopOffline()) {
+    if (isDesktopRuntime() && !queued) return false;
+    if (!queued || incrementalSyncEnabled() || isDesktopRuntime()) {
       set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
     }
     // With incremental sync disabled, enqueueDomainCommand commits through Neon and
@@ -1572,7 +1572,7 @@ export const actions = {
       operator: typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined,
       items,
     };
-    if (isDesktopOffline()) {
+    if (isDesktopRuntime()) {
       const idempotencyKey = crypto.randomUUID();
       const queued = enqueueDomainCommand("stock", {
         operationId: entry.id, idempotencyKey, operationType: "writeoff",
@@ -1639,7 +1639,7 @@ export const actions = {
       destinationCity: input.destinationCity?.trim() || undefined, destinationState: input.destinationState?.trim() || undefined,
       costMode: input.costMode, operator: currentOperator(), items,
     };
-    if (isDesktopOffline()) {
+    if (isDesktopRuntime()) {
       const idempotencyKey = crypto.randomUUID();
       const queued = enqueueDomainCommand("stock", {
         operationId: entry.id, idempotencyKey, operationType: "transfer",
