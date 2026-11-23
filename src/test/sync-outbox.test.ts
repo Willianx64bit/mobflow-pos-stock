@@ -51,6 +51,13 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(command.attempts).toBe(0);
   });
 
+  it("keeps dependent commands in a deterministic creation order", () => {
+    const first = createSyncCommand({ tenantId: TENANT, domain: "cash", id: ID, idempotencyKey: ID, payload: { action: "open", sessionId: "cash-1" } });
+    const secondId = "b6c47ea1-2abf-4cd6-b614-24e27077bdf6";
+    const second = createSyncCommand({ tenantId: TENANT, domain: "sales", id: secondId, idempotencyKey: secondId, payload: { saleId: "sale-1" } });
+    expect(Date.parse(second.createdAt)).toBeGreaterThan(Date.parse(first.createdAt));
+  });
+
   it("rejects malformed tenant and idempotency identifiers before queueing", () => {
     expect(() => createSyncCommand({ tenantId: "", domain: "cash", id: ID, idempotencyKey: ID, payload: {} })).toThrow();
     expect(() => createSyncCommand({ tenantId: TENANT, domain: "stock", id: ID, idempotencyKey: "not-a-uuid", payload: {} })).toThrow();
