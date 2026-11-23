@@ -14,7 +14,7 @@ export type PromotionEvent = { event_id: string; sequence: string; entity_id: st
 export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; companyLogoObjectKey?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
-export type FiadoPayment = { value: number; date: string; method?: "cash" | "card" | "pix" };
+export type FiadoPayment = { value: number; date: string; method?: "cash" | "card" | "pix"; idempotencyKey?: string; syncStatus?: "pending" | "synced" };
 export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; sellerUsername?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean; syncStatus?: "pending" | "synced" };
 export type ReceivingItem = { productId: string; name: string; code?: string | undefined; barcodes?: string[] | undefined; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
@@ -488,7 +488,7 @@ async function restoreOutboxBackup(tenantId: string) {
   writeOutboxBackup(remaining);
 }
 
-function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
+function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables", payload: Record<string, unknown>): boolean {
   if (typeof window === "undefined") return false;
 
   // All desktop transactions enter the durable outbox first, even while online.
@@ -532,7 +532,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
       ? String(payload["idempotencyKey"])
       : crypto.randomUUID();
     const body = { ...payload, idempotencyKey };
-    const endpoint = domain === "cash" ? "/api/mobflow/cash" : domain === "sales" ? "/api/mobflow/sales" : "/api/mobflow/stock";
+    const endpoint = domain === "cash" ? "/api/mobflow/cash" : domain === "sales" ? "/api/mobflow/sales" : domain === "stock" ? "/api/mobflow/stock" : "/api/mobflow/receivables";
     lastDomainCommandPromise = (async () => {
       const result = await callMobFlowApi(endpoint, { method: "POST", body: JSON.stringify(body) });
       if (!result.response.ok || result.body.ok !== true) {
@@ -1391,6 +1391,15 @@ export const actions = {
     if (amount <= 0) return false;
     const paidBefore = (sale.payments ?? []).reduce((sum, payment) => sum + payment.value, 0);
     const idempotencyKey = crypto.randomUUID();
+    if (isDesktopRuntime()) {
+      const queued = enqueueDomainCommand("receivables", { saleId: id, amount, paymentMethod: method, idempotencyKey });
+      if (!queued) throw new Error("Não foi possível guardar o recebimento na fila local. Nenhuma alteração foi aplicada.");
+      const date = new Date().toISOString();
+      const payments = [...(sale.payments ?? []), { value: amount, date, method, idempotencyKey, syncStatus: "pending" as const }];
+      const paidAfter = payments.reduce((sum, payment) => sum + payment.value, 0);
+      set({ sales: state.sales.map((item) => item.id === id ? { ...item, payments, paid: paidAfter >= item.total - 0.005, paidAt: paidAfter >= item.total - 0.005 ? date : undefined } : item) });
+      return true;
+    }
     try {
       const result = await callMobFlowApi("/api/mobflow/receivables", {
         method: "POST",
