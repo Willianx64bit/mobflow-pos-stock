@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { isOfflineMode, productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -225,14 +225,26 @@ function PDV() {
   };
 
   const completeSale = async (): Promise<boolean> => {
+    let queuedSale: Sale | null = null;
     try {
       const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
       if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return false; }
+      queuedSale = sale;
       await confirmLastDomainCommand();
-      setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+      const confirmedSale = sale.syncStatus === "pending" && !isOfflineMode()
+        ? { ...sale, syncStatus: "synced" as const }
+        : sale;
+      setDone(confirmedSale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
       return true;
     } catch (error) {
       await hydrateStore().catch(() => undefined);
+      if (queuedSale && queuedSale.syncStatus === "pending") {
+        // The durable command remains queued with its original saleId/idempotencyKey.
+        // Show it as pending instead of inviting a second checkout with a new ID.
+        setDone(queuedSale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$");
+        setFlash("Venda salva neste computador. A confirmação do Neon está pendente.");
+        return true;
+      }
       setFlash(error instanceof Error ? error.message : "A venda não foi confirmada pelo servidor. Tente sincronizar novamente.");
       return false;
     }
