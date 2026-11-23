@@ -71,6 +71,19 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(result).toMatchObject({ sent: 1, failed: 0, pending: 0 });
   });
 
+  it("does not acknowledge an HTTP success without an explicit ok confirmation", async () => {
+    const command = createSyncCommand({ tenantId: TENANT, domain: "cash", id: ID, idempotencyKey: ID, payload: { action: "open", sessionId: "cash-1" } });
+    const outbox = outboxMock({
+      listPending: vi.fn().mockResolvedValue([command]),
+      pendingCount: vi.fn().mockResolvedValue(1),
+    });
+    const transport = vi.fn().mockResolvedValue(response({ message: "response without transaction confirmation" }, 200));
+    const result = await flushSyncOutbox(outbox, TENANT, transport);
+    expect(outbox.acknowledge).not.toHaveBeenCalled();
+    expect(outbox.markFailed).toHaveBeenCalledWith(ID, "Falha HTTP 200");
+    expect(result).toMatchObject({ sent: 0, failed: 1, pending: 1 });
+  });
+
   it("retains a command after network or retryable server failure", async () => {
     const command = createSyncCommand({ tenantId: TENANT, domain: "stock", id: ID, idempotencyKey: ID, payload: { operationId: "op-1" } });
     const outbox = outboxMock({
