@@ -334,10 +334,8 @@ function PDV() {
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0 flex flex-col min-h-0 lg:h-full lg:min-h-0">
           <div className="flex items-center gap-1.5">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`w-[58px] h-9 shrink-0 rounded-lg px-1 py-1 text-[11px] font-semibold leading-tight ring-1 flex flex-col items-center justify-center gap-0.5 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
-              <span className="text-center">Ação<br />Rápida</span>
-              <span className={`h-3 w-6 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-2 w-2 rounded-full bg-background transition-all ${quick ? "left-3.5" : "left-0.5"}`} /></span>
-              {quick && <span className="text-[8px] font-bold tracking-wide">ATIVO</span>}
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} aria-label="Ação rápida" title="Ação rápida" className={`w-[58px] h-9 shrink-0 rounded-lg px-1 py-1 text-[11px] font-semibold leading-tight ring-1 flex items-center justify-center text-center ${quick ? "bg-emerald-600 ring-emerald-600 text-white" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              Ação<br />Rápida
             </button>
             <div
               className="h-[45px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
@@ -413,14 +411,14 @@ function PDV() {
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-0">
 
             {lines.map(({ p, qty }) => (
-              <div key={p.id} className="py-3 flex items-center gap-3">
+              <div key={p.id} className="py-2 flex items-center gap-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="text-base xl:text-lg font-semibold text-foreground truncate">{p.name}</div>
                   <div className="mt-0.5 font-mono text-sm xl:text-base font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
                   <div className="font-mono text-[13px] xl:text-sm text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
-                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">−</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-8 w-8 rounded-md grid place-items-center text-base font-bold text-foreground hover:bg-accent">−</button>
                   <input
                     value={qtyDrafts[p.id] ?? (p.unit === "kg" ? brl(qty) : String(qty))}
                     disabled={!pdvAuthorized} onChange={(e) => setQtyDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/[^0-9,.]/g, "") }))}
@@ -445,7 +443,7 @@ function PDV() {
                     className="w-20 bg-transparent text-center font-mono text-lg font-bold text-foreground outline-none"
                   />
                   <span className="font-mono text-sm font-semibold text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
-                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">+</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-8 w-8 rounded-md grid place-items-center text-base font-bold text-foreground hover:bg-accent">+</button>
                 </div>
                 <button disabled={!pdvAuthorized} onClick={() => actions.removeFromCart(p.id)} className="text-muted-foreground hover:text-destructive text-sm" aria-label="Remover">×</button>
               </div>
