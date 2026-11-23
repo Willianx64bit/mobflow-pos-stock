@@ -65,6 +65,8 @@ const tenantStateKey = (tenantId: string) => `${KEY}:${tenantId}`;
 let activeStateKey = KEY;
 const OWNER_KEY = "mobflow:owner";
 const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
+const OFFLINE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const offlineCacheTimestampKey = (tenantId: string) => `mobflow:last-sync:${tenantId}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const currentOperator = () => typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined;
 const movementEntry = (input: Omit<StockMovement, "id" | "operator"> & { id?: string; operator?: string }): StockMovement => ({ ...input, id: input.id ?? uid(), operator: input.operator ?? currentOperator() });
@@ -684,7 +686,10 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     lastCloudUpdatedAt = remoteUpdatedAt;
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    try {
+      localStorage.setItem(activeStateKey, JSON.stringify(state));
+      localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
+    } catch {}
     listeners.forEach((listener) => listener());
   } catch {
     // A próxima reconexão, foco da janela ou retorno da conexão recupera a sincronização.
@@ -815,6 +820,10 @@ export async function hydrateStoreOffline(accountId: string) {
   }
   const raw = localStorage.getItem(tenantStateKey(accountId));
   if (!raw) throw new Error("Esta empresa ainda não possui dados salvos para uso offline.");
+  const lastSync = Date.parse(localStorage.getItem(offlineCacheTimestampKey(accountId)) ?? "");
+  if (!Number.isFinite(lastSync) || lastSync > Date.now() + 60_000 || Date.now() - lastSync > OFFLINE_CACHE_TTL_MS) {
+    throw new Error("A cópia local está desatualizada há mais de 7 dias. Conecte-se para atualizar os dados antes de usar o PDV offline.");
+  }
   let cached: unknown;
   try { cached = JSON.parse(raw); } catch { throw new Error("A cópia local da empresa está inválida."); }
   if (!cached || typeof cached !== "object" || !Array.isArray((cached as State).products) ||
@@ -936,6 +945,7 @@ export async function hydrateStore() {
       normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
+        localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
         localStorage.setItem(activeStateKey, JSON.stringify(state));
       } catch {}
       listeners.forEach((listener) => listener());
