@@ -17,4 +17,3 @@ fs.mkdirSync(resources, { recursive: true });
 await sharp(source).resize(256, 256).png().toFile(png);
 fs.writeFileSync(ico, await pngToIco(png));
 console.log("Ícone oficial do MobFlow preparado para Windows.");
-}
