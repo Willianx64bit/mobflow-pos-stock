@@ -1,9 +1,9 @@
-export type SyncDomain = "sales" | "cash" | "stock";
+export type SyncDomain = "sales" | "cash" | "stock" | "receivables";
 export type SyncCommand = {
   id: string;
   tenantId: string;
   domain: SyncDomain;
-  endpoint: "/api/mobflow/sales" | "/api/mobflow/cash" | "/api/mobflow/stock";
+  endpoint: "/api/mobflow/sales" | "/api/mobflow/cash" | "/api/mobflow/stock" | "/api/mobflow/receivables";
   idempotencyKey: string;
   payload: Record<string, unknown>;
   createdAt: string;
@@ -89,7 +89,7 @@ export function createSyncCommand(input: {
   idempotencyKey?: string;
   createdAt?: string;
 }): SyncCommand {
-  const endpoint = input.domain === "sales" ? "/api/mobflow/sales" : input.domain === "cash" ? "/api/mobflow/cash" : "/api/mobflow/stock";
+  const endpoint = input.domain === "sales" ? "/api/mobflow/sales" : input.domain === "cash" ? "/api/mobflow/cash" : input.domain === "stock" ? "/api/mobflow/stock" : "/api/mobflow/receivables";
   const id = input.id ?? makeUuid();
   const idempotencyKey = input.idempotencyKey ?? makeUuid();
   if (!input.tenantId.trim() || !UUID_RE.test(id) || !UUID_RE.test(idempotencyKey)) {
@@ -117,7 +117,7 @@ export class SyncOutbox {
   }
 
   async enqueue(command: SyncCommand): Promise<SyncCommand> {
-    const expectedEndpoint = command.domain === "sales" ? "/api/mobflow/sales" : command.domain === "cash" ? "/api/mobflow/cash" : command.domain === "stock" ? "/api/mobflow/stock" : null;
+    const expectedEndpoint = command.domain === "sales" ? "/api/mobflow/sales" : command.domain === "cash" ? "/api/mobflow/cash" : command.domain === "stock" ? "/api/mobflow/stock" : command.domain === "receivables" ? "/api/mobflow/receivables" : null;
     if (!UUID_RE.test(command.id) || !UUID_RE.test(command.idempotencyKey) ||
       !command.tenantId.trim() || command.endpoint !== expectedEndpoint ||
       command.payload?.["idempotencyKey"] !== command.idempotencyKey) {
