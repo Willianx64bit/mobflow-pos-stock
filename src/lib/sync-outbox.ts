@@ -268,7 +268,7 @@ export async function flushSyncOutbox(
         body: JSON.stringify(command.payload),
       });
       const body = await response.json().catch(() => ({})) as { ok?: boolean; error?: string; code?: string };
-      if (response.ok && body.ok !== false) {
+      if (response.ok && body.ok === true) {
         await outbox.acknowledge(command.id);
         sent++;
       } else if (isRetryable(response.status)) {
