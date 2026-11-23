@@ -330,23 +330,17 @@ function PDV() {
   return (
     <div className="mfb-in min-h-screen p-3 md:p-4 xl:p-5">
       <AppHeader />
-      {(settings.companyName || settings.companyLogo) && (
-        <div className="mb-4 glass px-3 py-3 flex min-w-0 items-center gap-3">
-          {settings.companyLogo && <img src={settings.companyLogo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" />}
-          {settings.companyName && <div className="min-w-0 truncate font-display text-xl tracking-[.08em] text-heading">{settings.companyName}</div>}
-        </div>
-      )}
-      <main className="grid lg:grid-cols-[minmax(0,1fr)_500px] xl:grid-cols-[minmax(0,1fr)_520px] gap-4 items-stretch">
+       <main className="grid lg:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_560px] gap-3 items-stretch">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
-          <div className="flex items-stretch gap-2">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`w-[68px] shrink-0 rounded-lg px-1.5 py-2 text-xs font-semibold leading-tight ring-1 flex flex-col items-center justify-center gap-1 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
+          <div className="flex items-center gap-1.5">
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`w-[58px] h-9 shrink-0 rounded-lg px-1 py-1 text-[11px] font-semibold leading-tight ring-1 flex flex-col items-center justify-center gap-0.5 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
               <span className="text-center">Ação<br />Rápida</span>
-              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
-              {quick && <span className="text-[9px] font-bold tracking-wide">ATIVO</span>}
+              <span className={`h-3 w-6 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-2 w-2 rounded-full bg-background transition-all ${quick ? "left-3.5" : "left-0.5"}`} /></span>
+              {quick && <span className="text-[8px] font-bold tracking-wide">ATIVO</span>}
             </button>
             <div
-              className="min-w-0 flex-1 flex items-center gap-3 field px-3 py-3 border-2 cursor-text"
+              className="h-[25px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
               onClick={() => search.current?.focus()}
             >
               <input
@@ -358,14 +352,14 @@ function PDV() {
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
             </div>
-            <div className="shrink-0 flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+            <div className="h-[25px] shrink-0 flex items-center rounded-md bg-secondary p-0.5 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
               <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
-                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
-                <LayoutGrid className="h-4 w-4" />
+                className={`grid h-[21px] w-[25px] place-items-center rounded-sm transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <LayoutGrid className="h-3.5 w-3.5" />
               </button>
               <button type="button" onClick={() => productView !== "list" && toggleProductView()} aria-label="Visualizar em lista" aria-pressed={productView === "list"} title="Lista"
-                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
-                <List className="h-4 w-4" />
+                className={`grid h-[21px] w-[25px] place-items-center rounded-sm transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <List className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
