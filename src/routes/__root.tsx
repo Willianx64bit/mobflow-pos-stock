@@ -223,15 +223,22 @@ function RootComponent() {
         // A rede persistente ainda não voltou; mantém o estado local e tenta novamente no próximo evento online.
       }
     };
+    const onFocus = () => {
+      if (window.mobflowDesktop && sessionStorage.getItem("mobflow-desktop-offline") === "1" && navigator.onLine) {
+        void onOnline();
+      }
+    };
     window.addEventListener("mobflow-auth-changed", onAuthChanged);
     window.addEventListener("mobflow-user-logout", onUserLogout);
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
+    window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("mobflow-auth-changed", onAuthChanged);
       window.removeEventListener("mobflow-user-logout", onUserLogout);
       window.removeEventListener("offline", onOffline);
       window.removeEventListener("online", onOnline);
+      window.removeEventListener("focus", onFocus);
     };
   }, []);
 
