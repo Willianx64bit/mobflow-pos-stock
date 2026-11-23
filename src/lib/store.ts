@@ -126,7 +126,10 @@ function isDesktopRuntime() {
 }
 
 function isDesktopOffline() {
-  return isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine === false;
+  return isDesktopRuntime() && (
+    (typeof navigator !== "undefined" && navigator.onLine === false) ||
+    (typeof sessionStorage !== "undefined" && sessionStorage.getItem("mobflow-desktop-offline") === "1")
+  );
 }
 
 export function isOfflineMode() {
@@ -1118,6 +1121,9 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       syncOutbox.pendingCount(tenantId),
       syncOutbox.getCursor(tenantId),
     ]);
+    if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine && failed === 0 && pending === 0) {
+      sessionStorage.removeItem("mobflow-desktop-offline");
+    }
     return { sent, failed, pending, applied: 0, cursor, hasMore: false };
   }
 
@@ -1151,7 +1157,11 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
         set({ cashSessions: [...canonical, ...retained] }, { persist: false });
       }
     }
-    return { ...result, failed: await syncOutbox.failedCount(tenantId) };
+    const failed = await syncOutbox.failedCount(tenantId);
+    if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine && failed === 0 && result.pending === 0) {
+      sessionStorage.removeItem("mobflow-desktop-offline");
+    }
+    return { ...result, failed };
   } catch (error) {
     if (error instanceof UnsupportedSyncEventError) {
       // Do not silently download the full company state during automatic sync.
