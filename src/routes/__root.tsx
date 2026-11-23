@@ -198,7 +198,7 @@ function RootComponent() {
 
   useEffect(() => {
     const onAuthChanged = () => { setAuthenticated(false); setUserLoginRequired(false); };
-    const onUserLogout = () => setUserLoginRequired(true);
+    const onUserLogout = () => { setUserLoginRequired(true); void window.mobflowDesktop?.clearCachedAuthorizedSession?.(); };
     window.addEventListener("mobflow-auth-changed", onAuthChanged);
     window.addEventListener("mobflow-user-logout", onUserLogout);
     return () => { window.removeEventListener("mobflow-auth-changed", onAuthChanged); window.removeEventListener("mobflow-user-logout", onUserLogout); };
@@ -241,7 +241,7 @@ function RootComponent() {
           role: profile.role,
           username: profile.username,
           permissions: normalizedPermissions,
-        }).catch((error) => console.warn("MobFlow Desktop: não foi possível salvar a sessão offline:", error));
+        } )?.catch((error) => console.warn("MobFlow Desktop: não foi possível salvar a sessão offline:", error));
 
         if (profile.role === "pdv") {
           sessionStorage.setItem("mobflow-pdv-authorized", "1");
