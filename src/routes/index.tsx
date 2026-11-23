@@ -373,11 +373,11 @@ function PDV() {
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
                   className={`${productView === "cards" ? "text-left rounded-xl p-2 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
-                  <div className={`${productView === "cards" ? "w-full aspect-[16/7]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
+                  <div className={`${productView === "cards" ? "w-full aspect-square" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
                   {productView === "cards" ? <>
-                    <div className="mt-2 text-base md:text-lg font-semibold text-foreground line-clamp-2 min-h-[3rem] leading-snug">{p.name}</div>
+                    <div className="mt-3 text-sm md:text-base font-semibold text-foreground line-clamp-2 min-h-[2.5rem] leading-tight">{p.name}</div>
                     <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
                   </> : (
                     <div className="min-w-0 flex-1 flex flex-col justify-center">
