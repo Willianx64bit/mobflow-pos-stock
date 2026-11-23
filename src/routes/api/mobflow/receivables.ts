@@ -88,7 +88,7 @@ export async function handleMobFlowReceivable(request: Request) {
     );
 
     const itemsResult = await client.query("SELECT product_id,product_name_snapshot,unit_price::text,unit_cost::text,quantity::text,unit FROM public.sale_items WHERE tenant_id=$1 AND sale_id=$2 ORDER BY line_key", [identity.accountId, saleId]);
-    const paymentsResult = await client.query("SELECT amount::text,payment_method,occurred_at FROM public.receivable_payments WHERE tenant_id=$1 AND sale_id=$2 ORDER BY occurred_at,id", [identity.accountId, saleId]);
+    const paymentsResult = await client.query("SELECT amount::text,payment_method,occurred_at,idempotency_key FROM public.receivable_payments WHERE tenant_id=$1 AND sale_id=$2 ORDER BY occurred_at,id", [identity.accountId, saleId]);
     const saleProjection = {
       id: saleId, date: sale.occurred_at, cashSessionId: sale.cash_session_id,
       items: itemsResult.rows.map((item: any) => ({ productId: item.product_id, name: item.product_name_snapshot, price: Number(item.unit_price), cost: Number(item.unit_cost), qty: Number(item.quantity), unit: item.unit })),
@@ -98,7 +98,7 @@ export async function handleMobFlowReceivable(request: Request) {
       cpf: sale.customer_document_snapshot ?? undefined, seller: sale.seller_snapshot,
       paid: isPaid, paidAt: isPaid ? now : undefined, profit,
       hiddenFromFiado: sale.hidden_from_fiado,
-      payments: paymentsResult.rows.map((item: any) => ({ value: Number(item.amount), date: item.occurred_at, method: item.payment_method })),
+      payments: paymentsResult.rows.map((item: any) => ({ value: Number(item.amount), date: item.occurred_at, method: item.payment_method, idempotencyKey: item.idempotency_key, syncStatus: "synced" })),
     };
     await client.query(
       "SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'sales','automatic','sale',$3,$4::jsonb)",
