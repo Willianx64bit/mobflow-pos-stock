@@ -7,6 +7,8 @@ on:
       - packaging/windows-exe-neon
     paths:
       - "desktop-wrapper/**"
+      - "src/routes/__root.tsx"
+      - "src/lib/store.ts"
       - "public/mobflow-icon.svg"
       - ".github/workflows/build-mobflow-exe.yml"
 
