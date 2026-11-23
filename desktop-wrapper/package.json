@@ -5,6 +5,7 @@
   "description": "MobFlow PDV Windows desktop application",
   "main": "main.cjs",
   "scripts": {
+    "test": "node --test test/*.test.cjs",
     "prepare-icon": "node scripts/prepare-icon.mjs",
     "dist": "npm run prepare-icon && electron-builder --win nsis --x64"
   },
