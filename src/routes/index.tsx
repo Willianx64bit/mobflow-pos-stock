@@ -412,9 +412,9 @@ function PDV() {
         </section>
 
         <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:h-[calc(100vh-100px)] lg:max-h-none">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <span className="font-display text-[32px] xl:text-[36px] tracking-[.12em] text-heading">CHECKOUT</span>
-            <span className="font-mono text-[13px] text-muted-foreground">{count} itens</span>
+          <div className="relative flex items-center justify-center pb-3 border-b border-border">
+            <span className="font-display text-[18px] font-bold tracking-normal text-heading text-center">CHECKOUT</span>
+            <span className="absolute right-0 font-mono text-[13px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
 
@@ -511,7 +511,7 @@ function PDV() {
             </div>
             <div className="flex justify-between items-baseline">
               <span className="label-mono text-[14px]">{discount > 0 ? "Total com desconto" : "Total"}</span>
-              <span className="font-display text-[44px] xl:text-[50px] leading-none text-heading">R$ {brl(total)}</span>
+              <span className="font-display text-[18px] font-bold leading-none text-heading">R$ {brl(total)}</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
               {PAYMENTS.map((m) => {
