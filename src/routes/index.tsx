@@ -371,14 +371,14 @@ function PDV() {
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`${productView === "cards" ? "text-left rounded-xl p-2 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
+                  className={`${productView === "cards" ? "text-left rounded-xl p-1.5 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
-                  <div className={`${productView === "cards" ? "w-full aspect-square" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
+                  <div className={`${productView === "cards" ? "h-[104px] w-[104px] mx-auto shrink-0" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
                   {productView === "cards" ? <>
-                    <div className="mt-3 text-sm md:text-base font-semibold text-foreground line-clamp-2 min-h-[2.5rem] leading-tight">{p.name}</div>
-                    <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
+                    <div className="mt-1 text-xs md:text-sm font-semibold text-foreground line-clamp-1 leading-tight">{p.name}</div>
+                    <div className="mt-0.5 truncate font-mono text-[10px] md:text-xs font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
                   </> : (
                     <div className="min-w-0 flex-1 flex flex-col justify-center">
                       <div className="text-sm md:text-base font-semibold text-foreground line-clamp-1 leading-tight">{p.name}</div>
@@ -392,7 +392,7 @@ function PDV() {
                         <span className="text-lg md:text-xl font-bold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className={`font-bold leading-tight text-heading ${productView === "cards" ? "text-2xl md:text-[1.65rem]" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
+                      <div className={`font-bold leading-tight text-heading ${productView === "cards" ? "text-xl" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
                     <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= 0 ? "text-destructive" : p.stock <= p.minStock ? "text-amber-500" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
