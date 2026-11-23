@@ -489,9 +489,9 @@ async function restoreOutboxBackup(tenantId: string) {
 function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
   if (typeof window === "undefined") return false;
 
-  // The desktop may queue only the transactional commands already supported by
-  // Neon. Keep a localStorage backup until IndexedDB confirms the durable write.
-  if (isDesktopOffline()) {
+  // All desktop transactions enter the durable outbox first, even while online.
+  // This closes the gap where the network drops but Windows still reports "online".
+  if (isDesktopRuntime()) {
     const tenantId = localStorage.getItem(OWNER_KEY);
     if (!tenantId) return false;
     try {
@@ -501,8 +501,14 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Recor
       const command = createSyncCommand({ tenantId, domain, payload: { ...payload, idempotencyKey }, idempotencyKey });
       const backup = readOutboxBackup().filter((item) => item.id !== command.id);
       if (!writeOutboxBackup([...backup, command])) return false;
-      lastDomainCommandPromise = syncOutbox.enqueue(command).then(() => {
+      lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
         writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
+        if (typeof navigator !== "undefined" && navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+          const result = await syncNow();
+          if (result.failed > 0 || result.pending > 0) {
+            throw new Error("A operação foi salva na fila local, mas ainda aguarda confirmação do Neon.");
+          }
+        }
       });
       void lastDomainCommandPromise.catch((error) => console.error("[MobFlow Offline] Não foi possível persistir a operação na fila:", error));
       return true;
