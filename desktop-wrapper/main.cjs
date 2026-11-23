@@ -1,8 +1,10 @@
-const { app, BrowserWindow, shell, dialog, session } = require("electron");
+const { app, BrowserWindow, shell, dialog, session, ipcMain } = require("electron");
 const path = require("node:path");
 
 const APP_URL = "https://mobflow-pdv-gestao.vercel.app/";
 const APP_ORIGIN = new URL(APP_URL).origin;
+let mainWindow = null;
+let showingOfflineFallback = false;
 
 function isInternalWindowUrl(rawUrl) {
   if (rawUrl === "about:blank" || rawUrl.startsWith("data:")) return true;
@@ -27,7 +29,6 @@ function openExternal(rawUrl) {
 
 function handleWindowOpen(webContents) {
   webContents.setWindowOpenHandler(({ url }) => {
-    // Keep receipt, PDF preview, print and app-generated blob windows inside Electron.
     if (isInternalWindowUrl(url)) return { action: "allow" };
     openExternal(url);
     return { action: "deny" };
@@ -40,10 +41,21 @@ function handleWindowOpen(webContents) {
   });
 }
 
+function showOfflineFallback(win) {
+  if (win.isDestroyed() || showingOfflineFallback) return;
+  showingOfflineFallback = true;
+  win.loadFile(path.join(__dirname, "offline.html")).catch(() => {});
+}
+
+function loadMobFlow(win) {
+  if (win.isDestroyed()) return;
+  showingOfflineFallback = false;
+  win.loadURL(APP_URL).catch(() => showOfflineFallback(win));
+}
+
 function configurePermissions() {
   const ses = session.defaultSession;
 
-  // Camera access is restricted to the official MobFlow PDV origin.
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     let origin = "";
     try {
@@ -63,7 +75,6 @@ function configurePermissions() {
     return origin === APP_ORIGIN && (permission === "camera" || permission === "media");
   });
 
-  // Use a native Windows save dialog for downloads (exports, reports and files).
   ses.on("will-download", async (event, item, webContents) => {
     let sourceOrigin = "";
     try {
@@ -100,21 +111,37 @@ function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#f5f7f8",
     webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
     }
   });
 
+  mainWindow = win;
   handleWindowOpen(win.webContents);
+
+  win.webContents.on("did-fail-load", (_event, errorCode, _description, _validatedURL, isMainFrame) => {
+    if (isMainFrame && errorCode !== -3) showOfflineFallback(win);
+  });
+
   win.webContents.on("did-create-window", (childWindow) => {
     childWindow.setMenuBarVisibility(false);
     handleWindowOpen(childWindow.webContents);
   });
 
-  win.loadURL(APP_URL);
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+    showingOfflineFallback = false;
+  });
+
+  loadMobFlow(win);
   return win;
 }
+
+ipcMain.on("mobflow:retry-connection", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) loadMobFlow(mainWindow);
+});
 
 app.whenReady().then(() => {
   app.setAppUserModelId("com.mobflow.desktop");
