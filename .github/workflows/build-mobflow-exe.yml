@@ -20,7 +20,6 @@ on:
       - "src/test/offline-fiado-auth.test.ts"
       - "src/test/sync-outbox.test.ts"
       - "src/test/mobflow-receivables-command.test.ts"
-      - "src/test/offline-fiado-auth.test.ts"
       - "public/mobflow-desktop-sw.js"
       - "public/mobflow-icon.svg"
       - ".github/workflows/build-mobflow-exe.yml"
