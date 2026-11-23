@@ -896,6 +896,15 @@ export async function hydrateStore() {
       const localContacts = [...(state.contacts ?? [])];
       const localProducts = [...(state.products ?? [])];
       const localCart = [...(state.cart ?? [])];
+      // Keep locally queued immutable transaction records visible until the
+      // server acknowledges them. The outbox is flushed after this snapshot load.
+      const localSales = [...(state.sales ?? [])];
+      const localCashSessions = [...(state.cashSessions ?? [])];
+      const localCashMovements = [...(state.cashMovements ?? [])];
+      const localStockMovements = [...(state.stockMovements ?? [])];
+      const localStockAdjustments = [...(state.stockAdjustments ?? [])];
+      const localStockWriteoffs = [...(state.stockWriteoffs ?? [])];
+      const localStockTransfers = [...(state.stockTransfers ?? [])];
       const sameOwner = true;
 
       const stateResult = await callMobFlowApi("/api/mobflow/state");
@@ -917,7 +926,25 @@ export async function hydrateStore() {
         const mergedContacts = sameOwner
           ? [...remoteContacts, ...localContacts.filter(local => !remoteContacts.some(remoteContact => remoteContact.id === local.id))]
           : remoteContacts;
-        state = { ...emptyState(), ...remote, contacts: mergedContacts };
+        const mergeLocalRecords = <T extends { id: string }>(localItems: T[], remoteItems: unknown): T[] => {
+          const merged = new Map(localItems.map((item) => [item.id, item]));
+          if (Array.isArray(remoteItems)) {
+            for (const item of remoteItems as T[]) merged.set(item.id, item);
+          }
+          return Array.from(merged.values());
+        };
+        state = {
+          ...emptyState(),
+          ...remote,
+          contacts: mergedContacts,
+          sales: mergeLocalRecords(localSales, remote.sales),
+          cashSessions: mergeLocalRecords(localCashSessions, remote.cashSessions),
+          cashMovements: mergeLocalRecords(localCashMovements, remote.cashMovements),
+          stockMovements: mergeLocalRecords(localStockMovements, remote.stockMovements),
+          stockAdjustments: mergeLocalRecords(localStockAdjustments, remote.stockAdjustments),
+          stockWriteoffs: mergeLocalRecords(localStockWriteoffs, remote.stockWriteoffs),
+          stockTransfers: mergeLocalRecords(localStockTransfers, remote.stockTransfers),
+        };
         state.settings = { ...emptyState().settings, ...(remote.settings ?? {}) };
         // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
         // unreachable. A successful Neon response still replaces it with the
