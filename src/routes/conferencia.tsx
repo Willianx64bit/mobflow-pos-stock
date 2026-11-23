@@ -37,7 +37,7 @@ function Conferencia() {
     const hasQuantityDifference = n.items.some(item => Number(item.received ?? 0) !== Number(item.expected)) || (n.extras ?? []).some(item => Number(item.received ?? 0) > 0);
     const hasDivergence = hasQuantityDifference || Object.values(decisions).includes("devolver") || n.status === "rejeitado";
     const finished = !!n.actionCompleted || released;
-    return needsAction ? "Ação necessária" : finished ? (hasDivergence ? "Finalizado com divergência" : "Finalizado") : n.status === "analisando" ? "Analisando" : "Pendente";
+    return n.status === "rejeitado" ? "Recusado" : needsAction ? "Ação necessária" : finished ? (hasDivergence ? "Finalizado com divergência" : "Finalizado") : n.status === "analisando" ? "Analisando" : "Pendente";
   };
   const monthStart = `${historyMonth}-01`; const [monthYear,monthNumber] = historyMonth.split("-").map(Number); const monthEnd = historyMonth ? `${historyMonth}-${String(new Date(monthYear,monthNumber,0).getDate()).padStart(2,"0")}` : ""; const dateFrom = dateMode === "month" ? monthStart : historyFrom; const dateTo = dateMode === "month" ? monthEnd : historyTo;
   const filteredHistory = history.filter(n => {
@@ -84,20 +84,20 @@ function Conferencia() {
       {filtersOpen && <div className="mb-4 grid gap-3 rounded-xl border border-border bg-background p-4 sm:grid-cols-2 lg:grid-cols-3">
         <div><label className="mb-1 block text-sm font-semibold">Período</label><select value={dateMode} onChange={e => setDateMode(e.target.value as "month"|"custom")} className="field w-full"><option value="month">Mês</option><option value="custom">Data personalizada</option></select></div>
         {dateMode === "month" ? <div><label className="mb-1 block text-sm font-semibold">Mês</label><input type="month" value={historyMonth} onChange={e => setHistoryMonth(e.target.value)} className="field w-full"/></div> : <><div><label className="mb-1 block text-sm font-semibold">Data inicial</label><input type="date" value={historyFrom} onChange={e => setHistoryFrom(e.target.value)} className="field w-full"/></div><div><label className="mb-1 block text-sm font-semibold">Data final</label><input type="date" min={historyFrom || undefined} value={historyTo} onChange={e => setHistoryTo(e.target.value)} className="field w-full"/></div></>}
-        <div><label className="mb-1 block text-sm font-semibold">Conclusão</label><select value={historyCompletion} onChange={e => setHistoryCompletion(e.target.value)} className="field w-full"><option>Todos</option><option>Finalizados</option><option>Finalizado</option><option>Finalizado com divergência</option><option>Ação necessária</option><option>Analisando</option><option>Pendente</option></select></div>
+        <div><label className="mb-1 block text-sm font-semibold">Conclusão</label><select value={historyCompletion} onChange={e => setHistoryCompletion(e.target.value)} className="field w-full"><option>Todos</option><option>Finalizados</option><option>Finalizado</option><option>Finalizado com divergência</option><option>Recusado</option><option>Ação necessária</option><option>Analisando</option><option>Pendente</option></select></div>
         <div className="sm:col-span-2 lg:col-span-3 flex justify-end"><button type="button" onClick={() => {const d=new Date();const month=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;setHistoryMonth(month);setDateMode("month");setHistoryFrom(`${month}-01`);setHistoryTo(`${month}-${String(new Date(d.getFullYear(),d.getMonth()+1,0).getDate()).padStart(2,"0")}`);setHistoryCompletion("Todos");}} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground">Limpar filtros</button></div>
       </div>}
       {!filteredHistory.length && <p className="py-8 text-center font-mono text-sm text-muted-foreground">{history.length ? "Nenhuma conferência encontrada com esses filtros." : "nenhuma conferência finalizada"}</p>}
       <div className="divide-y divide-border/50">{filteredHistory.map(n => {
         const allLines = [...n.items, ...(n.extras ?? [])];
         const label = historyStatus(n);
-        const completedStyle = label === "Finalizado" ? "bg-emerald-500/15 text-emerald-700" : label === "Finalizado com divergência" || label === "Ação necessária" ? "bg-amber-500/15 text-amber-800" : "bg-secondary text-secondary-foreground";
+        const completedStyle = label === "Finalizado" ? "bg-emerald-500/15 text-emerald-300" : label === "Finalizado com divergência" ? "bg-yellow-400/15 text-yellow-300" : label === "Recusado" ? "bg-orange-500/15 text-orange-300" : label === "Ação necessária" ? "bg-amber-500/15 text-amber-300" : "bg-secondary text-secondary-foreground";
         return <div key={n.id} className="w-full py-4 px-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="font-semibold text-foreground">NF {n.number}</div>
-            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold ${completedStyle}`}>{label === "Finalizado" ? <CheckCircle2 className="h-4 w-4"/> : label === "Finalizado com divergência" || label === "Ação necessária" ? <AlertTriangle className="h-4 w-4"/> : <Clock3 className="h-4 w-4"/>}{label}</span>
-          </div>
+          <div className="font-semibold text-foreground">NF {n.number}</div>
           <div className="mt-1 font-mono text-sm text-muted-foreground">{n.supplier} · {allLines.length} produtos</div>
+          <div className="mt-2">
+            <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-semibold ${completedStyle}`}>{label === "Finalizado" ? <CheckCircle2 className="h-4 w-4"/> : label === "Finalizado com divergência" || label === "Ação necessária" || label === "Recusado" ? <AlertTriangle className="h-4 w-4"/> : <Clock3 className="h-4 w-4"/>}{label}</span>
+          </div>
           <button onClick={() => setOpen(n.id)} className="mt-2 rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Ver detalhes</button>
         </div>;
       })}</div>
