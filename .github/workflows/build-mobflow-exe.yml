@@ -10,6 +10,7 @@ on:
       - "src/routes/__root.tsx"
       - "src/routes/index.tsx"
       - "src/components/LoginScreen.tsx"
+      - "src/components/AppHeader.tsx"
       - "src/lib/store.ts"
       - "src/lib/sync-outbox.ts"
       - "src/test/sync-outbox.test.ts"
