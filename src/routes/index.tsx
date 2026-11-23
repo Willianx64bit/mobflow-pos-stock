@@ -351,9 +351,14 @@ function PDV() {
       <main className="grid lg:grid-cols-[minmax(0,1fr)_500px] xl:grid-cols-[minmax(0,1fr)_520px] gap-4 items-stretch">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
         <section className="glass p-4 min-w-0">
-          <div className="flex gap-2">
+          <div className="flex items-stretch gap-2">
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`w-[76px] shrink-0 rounded-lg px-2 py-2 text-xs font-semibold leading-tight ring-1 flex flex-col items-center justify-center gap-1 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              <span className="text-center">Ação<br />Rápida</span>
+              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
+              {quick && <span className="text-[9px] font-bold tracking-wide">ATIVO</span>}
+            </button>
             <div
-              className="flex-1 flex items-center gap-3 field px-4 py-4 border-2 cursor-text"
+              className="min-w-0 flex-1 flex items-center gap-3 field px-4 py-3 border-2 cursor-text"
               onClick={() => search.current?.focus()}
             >
               <input
@@ -366,12 +371,8 @@ function PDV() {
               />
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
-              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
-              Ação rápida {quick && <span className="text-[10px] font-bold tracking-wide">ATIVO</span>}
-            </button>
-            <div className="ml-auto flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <div className="flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
               <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
                 className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
                 <LayoutGrid className="h-4 w-4" />
@@ -384,7 +385,7 @@ function PDV() {
             {flash && <span className={`w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
 
-          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-col"} gap-2 mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1`}>
+          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-col"} gap-2 mt-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1`}>
             {results.map((p, i) => {
               return (
                 <button
@@ -392,7 +393,7 @@ function PDV() {
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
                   className={`${productView === "cards" ? "text-left rounded-xl p-2 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
                 >
-                  <div className={`${productView === "cards" ? "w-full aspect-[5/3]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
+                  <div className={`${productView === "cards" ? "w-full aspect-[16/7]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
                     {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
                   </div>
                   {productView === "cards" ? <>
@@ -411,7 +412,7 @@ function PDV() {
                         <span className="text-lg md:text-xl font-bold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className={`font-extrabold leading-tight text-heading ${productView === "cards" ? "text-2xl md:text-3xl" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
+                      <div className={`font-bold leading-tight text-heading ${productView === "cards" ? "text-2xl md:text-[1.65rem]" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
                     <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= 0 ? "text-destructive" : p.stock <= p.minStock ? "text-amber-500" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
