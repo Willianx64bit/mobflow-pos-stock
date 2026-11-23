@@ -35,6 +35,9 @@ jobs:
       - name: Instalar dependências
         run: npm install
 
+      - name: Testar validação da sessão offline
+        run: npm test
+
       - name: Gerar instalador Windows
         run: npm run dist
 
