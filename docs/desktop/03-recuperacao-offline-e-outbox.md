@@ -18,6 +18,7 @@
 - Abertura e fechamento de caixa.
 - Sangria e reforço.
 - Ajuste/balanço de estoque.
+- Recebimento posterior de fiado (pagamento parcial ou quitação de uma venda).
 - Baixa de estoque.
 - Transferência de estoque.
 
@@ -35,7 +36,7 @@ As operações locais aparecem como pendentes até que o Neon confirme a mesma c
 
 - É necessário entrar online pelo menos uma vez neste computador e carregar o catálogo/dados da empresa.
 - O modo offline restaurado é exclusivo do perfil PDV autorizado. Acesso de gerência não é restaurado sem servidor.
-- Cadastro/edição/importação de catálogo, pagamentos posteriores de fiado, recebimento/conferência e outras rotinas que ainda usam endpoints não transacionais não fazem parte da fila offline desta etapa. Devem ser feitas online.
+- Cadastro/edição/importação de catálogo, recebimento/conferência e outras rotinas que ainda usam endpoints não transacionais não fazem parte da fila offline desta etapa. Pagamentos posteriores de fiado agora usam a mesma outbox transacional, com chave de idempotência estável e replay seguro no endpoint `/api/mobflow/receivables`.
 - O estoque de outros dispositivos não é conhecido enquanto este computador está desconectado. Ao reconectar, o Neon valida novamente as permissões e aplica os comandos em ordem; falhas de negócio permanecem pendentes/falhas em vez de serem descartadas.
 - A fila e o snapshot do aplicativo ficam no perfil local do Windows (IndexedDB/localStorage); o contexto de autorização, por sua vez, é criptografado com Electron safeStorage. Proteja o acesso à conta do Windows.
 - O build e os testes automatizados não substituem o ensaio final em um Windows real: primeiro login online, reinício sem internet, venda/caixa/estoque offline, queda durante envio, reconexão, sessão expirada e troca de empresa.
