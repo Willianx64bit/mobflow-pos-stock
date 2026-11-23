@@ -17,10 +17,25 @@
   "build": {
     "appId": "com.mobflow.desktop",
     "productName": "MobFlow",
-    "directories": { "output": "dist" },
-    "files": ["main.cjs", "package.json"],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "offline.html",
+      "offline.js",
+      "package.json"
+    ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "resources/icon.ico"
     },
     "nsis": {
