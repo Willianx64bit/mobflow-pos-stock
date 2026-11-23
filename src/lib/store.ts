@@ -153,6 +153,24 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   };
   // Three-way merge preserves intentional deletions instead of reintroducing
   // stale records from the remote snapshot after a version conflict.
+
+  const mergeSalesById = (localItems: Sale[] = [], remoteItems: Sale[] = []) => {
+    return mergeById(localItems, remoteItems).map((sale) => {
+      const localSale = localItems.find((item) => item.id === sale.id);
+      const remoteSale = remoteItems.find((item) => item.id === sale.id);
+      if (!localSale || !remoteSale) return sale;
+      const remotePayments = remoteSale.payments ?? [];
+      const paymentsByKey = new Map(remotePayments.filter((payment) => payment.idempotencyKey).map((payment) => [payment.idempotencyKey!, { ...payment, syncStatus: "synced" as const }]));
+      const unkeyedPayments = remotePayments.filter((payment) => !payment.idempotencyKey);
+      for (const payment of localSale.payments ?? []) {
+        if (!payment.idempotencyKey) continue;
+        if (!paymentsByKey.has(payment.idempotencyKey) && payment.syncStatus === "pending") paymentsByKey.set(payment.idempotencyKey, payment);
+      }
+      const payments = [...unkeyedPayments, ...paymentsByKey.values()];
+      const paidTotal = payments.reduce((sum, payment) => sum + payment.value, 0);
+      return { ...remoteSale, payments, paid: paidTotal >= remoteSale.total - 0.005, paidAt: paidTotal >= remoteSale.total - 0.005 ? (remoteSale.paidAt ?? localSale.paidAt) : undefined };
+    });
+  };
   const mergeByIdWithDeletions = <T extends { id: string }>(baseItems: T[] = [], localItems: T[] = [], remoteItems: T[] = []) => {
     const baseMap = new Map(baseItems.map((item) => [item.id, item]));
     const localMap = new Map(localItems.map((item) => [item.id, item]));
@@ -209,7 +227,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     }
     return merged;
   };
-  if (!base) return { ...remote, ...local, products: local.products, sales: mergeById(local.sales, remote.sales), stockMovements: mergeById(local.stockMovements ?? [], remote.stockMovements ?? []), conferences: mergeById(local.conferences ?? [], remote.conferences ?? []), receiving: mergeById(local.receiving ?? [], remote.receiving ?? []), manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []), stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []), stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []), stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []), promotions: mergePromotions([], local.promotions ?? [], remote.promotions ?? []), cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []), cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []), suppliers: remote.suppliers ?? local.suppliers };
+  if (!base) return { ...remote, ...local, products: local.products, sales: mergeSalesById(local.sales, remote.sales), stockMovements: mergeById(local.stockMovements ?? [], remote.stockMovements ?? []), conferences: mergeById(local.conferences ?? [], remote.conferences ?? []), receiving: mergeById(local.receiving ?? [], remote.receiving ?? []), manualExpiries: mergeById(local.manualExpiries ?? [], remote.manualExpiries ?? []), stockAdjustments: mergeById(local.stockAdjustments ?? [], remote.stockAdjustments ?? []), stockWriteoffs: mergeById(local.stockWriteoffs ?? [], remote.stockWriteoffs ?? []), stockTransfers: mergeById(local.stockTransfers ?? [], remote.stockTransfers ?? []), promotions: mergePromotions([], local.promotions ?? [], remote.promotions ?? []), cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []), cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []), suppliers: remote.suppliers ?? local.suppliers };
   const stockMovements = mergeById(local.stockMovements ?? [], remote.stockMovements ?? []);
   const baseMovementIds = new Set((base.stockMovements ?? []).map((movement) => movement.id));
   const newMovementDeltas = new Map<string, number>();
@@ -245,7 +263,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     ...remote,
     products,
     stockMovements,
-    sales: mergeById(local.sales, remote.sales),
+    sales: mergeSalesById(local.sales, remote.sales),
     cashSessions: mergeById(local.cashSessions ?? [], remote.cashSessions ?? []),
     cashMovements: mergeById(local.cashMovements ?? [], remote.cashMovements ?? []),
     conferences: mergeById(local.conferences, remote.conferences),
