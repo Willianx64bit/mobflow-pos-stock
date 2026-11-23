@@ -109,7 +109,9 @@ export async function logout() {
   sessionStorage.removeItem("mobflow-username");
   sessionStorage.removeItem("mobflow-management");
   sessionStorage.removeItem("mobflow-pdv-authorized");
+  sessionStorage.removeItem("mobflow-desktop-offline");
   await mobflowAuthClient.signOut().catch(() => undefined);
+  await window.mobflowDesktop?.clearCachedAuthorizedSession?.().catch(() => false);
 }
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
