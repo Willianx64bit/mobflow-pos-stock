@@ -406,7 +406,7 @@ function PDV() {
         <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:h-full lg:min-h-0 lg:mt-0 lg:max-h-none">
           <div className="relative flex items-center justify-center pb-3 border-b border-border">
             <span className="font-display text-[18px] font-bold tracking-normal text-heading text-center">CHECKOUT</span>
-            <span className="absolute right-0 top-2 font-mono text-[13px] text-muted-foreground">{count} itens</span>
+            <span className="absolute right-0 top-5 font-mono text-[13px] text-muted-foreground">{count} itens</span>
           </div>
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-0">
 
