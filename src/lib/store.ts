@@ -15,7 +15,7 @@ export type CartItem = { productId: string; qty: number };
 export type Payment = "Dinheiro" | "Cartão" | "Pix" | "Fiado";
 export type AppSettings = { companyName: string; companyCnpj?: string | undefined; companyPhone?: string | undefined; companyStreet?: string | undefined; companyNumber?: string | undefined; companyCep?: string | undefined; companyComplement?: string | undefined; companyNeighborhood?: string | undefined; companyCity?: string | undefined; companyState?: string | undefined; companyLogo?: string | undefined; companyLogoObjectKey?: string | undefined; pixKey?: string | undefined; pixKeyType?: "telefone" | "cpf" | "cnpj" | "email" | "aleatoria" | undefined };
 export type FiadoPayment = { value: number; date: string; method?: "cash" | "card" | "pix" };
-export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; sellerUsername?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean };
+export type Sale = { id: string; date: string; cashSessionId?: string; items: { productId?: string; name: string; price: number; cost?: number | undefined; qty: number; unit?: "un" | "kg" | undefined }[]; total: number; profit?: number; subtotal?: number; discount?: number; discountType?: "R$" | "%"; payment: Payment; received?: number | undefined; customer?: string | undefined; cpf?: string | undefined; seller?: string | undefined; sellerUsername?: string | undefined; paid?: boolean; paidAt?: string | undefined; payments?: FiadoPayment[] | undefined; hiddenFromFiado?: boolean; syncStatus?: "pending" | "synced" };
 export type ReceivingItem = { productId: string; name: string; code?: string | undefined; barcodes?: string[] | undefined; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
@@ -1194,6 +1194,7 @@ export const actions = {
     if ((state.cashSessions ?? []).some((session) => session.status === "open" && isCashSessionForOperator(session, operator))) return false;
     const session: CashSession = { id: crypto.randomUUID(), openedAt: new Date().toISOString(), openedBy: operator, operatorUsername: operator, openingAmount: Math.round(openingAmount * 100) / 100, status: "open", note: note.trim() || undefined };
     const queued = enqueueDomainCommand("cash", { action: "open", sessionId: session.id, openingAmount: session.openingAmount, note: session.note ?? "", idempotencyKey: crypto.randomUUID() });
+    if (isDesktopOffline() && !queued) return false;
     set({ cashSessions: [session, ...(state.cashSessions ?? [])] }, { persist: !queued });
     return session.id;
   },
@@ -1203,6 +1204,7 @@ export const actions = {
     if (!session || !Number.isFinite(amount) || amount <= 0 || !reason.trim()) return false;
     const movement: CashMovement = { id: crypto.randomUUID(), sessionId: session.id, type, amount: Math.round(amount * 100) / 100, reason: reason.trim(), operator, date: new Date().toISOString() };
     const queued = enqueueDomainCommand("cash", { action: "movement", sessionId: session.id, amount: movement.amount, movementType: type === "reforco" ? "addition" : "withdrawal", reason: movement.reason, idempotencyKey: movement.id });
+    if (isDesktopOffline() && !queued) return false;
     set({ cashMovements: [movement, ...(state.cashMovements ?? [])] }, { persist: !queued });
     return movement.id;
   },
@@ -1218,6 +1220,7 @@ export const actions = {
     const expectedCash = Math.round((session.openingAmount + cashSales - withdrawals + additions) * 100) / 100;
     const counted = Math.round(countedCash * 100) / 100;
     const queued = enqueueDomainCommand("cash", { action: "close", sessionId: session.id, countedAmount: counted, note: note.trim(), idempotencyKey: crypto.randomUUID() });
+    if (isDesktopOffline() && !queued) return false;
     set({ cashSessions: (state.cashSessions ?? []).map((item) => item.id === session.id ? { ...item, status: "closed", closedAt: new Date().toISOString(), closedBy: operator, countedCash: counted, expectedCash, difference: Math.round((counted - expectedCash) * 100) / 100, note: [item.note, note.trim()].filter(Boolean).join(" · ") || undefined } : item) }, { persist: !queued });
     return { expectedCash, countedCash: counted, difference: Math.round((counted - expectedCash) * 100) / 100 };
   },
@@ -1275,7 +1278,7 @@ export const actions = {
     const costTotal = items.reduce((sum, i) => sum + (i.cost ?? 0) * i.qty, 0);
     const profit = total - costTotal;
     const seller = operator;
-    const sale: Sale = { id: crypto.randomUUID(), date: new Date().toISOString() , cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined };
+    const sale: Sale = { id: crypto.randomUUID(), date: new Date().toISOString() , cashSessionId: activeCash.id, items, total, profit, subtotal, discount: discountValue, discountType, payment, received, customer: customer || undefined, cpf: cpf || undefined, seller, paid: payment !== "Fiado", paidAt: payment === "Fiado" ? undefined : new Date().toISOString(), payments: payment === "Fiado" ? [] : undefined, ...(isDesktopOffline() ? { syncStatus: "pending" as const } : {}) };
     const products = state.products.map((p) => {
       const c = state.cart.find((x) => x.productId === p.id);
       return c ? { ...p, stock: Math.round((p.stock - c.qty) * 1000) / 1000 } : p;
@@ -1296,7 +1299,12 @@ export const actions = {
       items: checkoutCart.map((item) => ({ productId: item.productId, quantity: item.qty })),
     });
 
-    if (queued && lastDomainCommandPromise) {
+    if (isDesktopOffline() && !queued) return null;
+    if (queued && lastDomainCommandPromise && isDesktopOffline()) {
+      // Persist the provisional sale and its stock delta locally; the pending label
+      // remains until Neon confirms the same idempotent command after reconnection.
+      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: false });
+    } else if (queued && lastDomainCommandPromise) {
       // Keep the checkout visible until Neon confirms the transaction. The
       // command promise already hydrates the authoritative sale and stock;
       // only then clear the exact cart that was checked out. If the operator
@@ -1505,7 +1513,8 @@ export const actions = {
       operationId: id, operationType: "adjustment", reason,
       items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
     });
-    if (!queued || incrementalSyncEnabled()) {
+    if (isDesktopOffline() && !queued) return false;
+    if (!queued || incrementalSyncEnabled() || isDesktopOffline()) {
       set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued });
     }
     // With incremental sync disabled, enqueueDomainCommand commits through Neon and
