@@ -1110,6 +1110,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
     }
     if (!tenantId) return { sent: 0, failed: 0, pending: 0, applied: 0, cursor: "0", hasMore: false };
     await restoreOutboxBackup(tenantId);
+    if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
     let sent = 0;
     if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine && cloudReady && cloudAccountId === tenantId) {
       const pushed = await flushSyncOutbox(syncOutbox, tenantId);
