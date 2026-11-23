@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
-import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
+import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
 export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
@@ -117,6 +117,20 @@ let lastDomainCommandPromise: Promise<void> | null = null;
 const incrementalSyncEnabled = () =>
   import.meta.env["VITE_MOBFLOW_INCREMENTAL_SYNC"] === "true" &&
   import.meta.env["VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY"] === "true";
+
+function isDesktopRuntime() {
+  return typeof window !== "undefined" &&
+    typeof (window as Window & { mobflowDesktop?: unknown }).mobflowDesktop !== "undefined";
+}
+
+function isDesktopOffline() {
+  return isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+export function isOfflineMode() {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem("mobflow-desktop-offline") === "1" || isDesktopOffline();
+}
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 const isCashSessionForOperator = (session: CashSession, username: string) => {
@@ -469,9 +483,32 @@ async function restoreOutboxBackup(tenantId: string) {
 
 function enqueueDomainCommand(domain: "sales" | "cash" | "stock", payload: Record<string, unknown>): boolean {
   if (typeof window === "undefined") return false;
-  // Until incremental events are approved, critical operations go straight to
-  // their transactional Neon endpoints. They are never treated as completed
-  // merely because they were placed in the local outbox.
+
+  // The desktop may queue only the transactional commands already supported by
+  // Neon. Keep a localStorage backup until IndexedDB confirms the durable write.
+  if (isDesktopOffline()) {
+    const tenantId = localStorage.getItem(OWNER_KEY);
+    if (!tenantId) return false;
+    try {
+      const idempotencyKey = typeof payload["idempotencyKey"] === "string"
+        ? String(payload["idempotencyKey"])
+        : crypto.randomUUID();
+      const command = createSyncCommand({ tenantId, domain, payload: { ...payload, idempotencyKey }, idempotencyKey });
+      const backup = readOutboxBackup().filter((item) => item.id !== command.id);
+      if (!writeOutboxBackup([...backup, command])) return false;
+      lastDomainCommandPromise = syncOutbox.enqueue(command).then(() => {
+        writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
+      });
+      void lastDomainCommandPromise.catch((error) => console.error("[MobFlow Offline] Não foi possível persistir a operação na fila:", error));
+      return true;
+    } catch (error) {
+      console.error("[MobFlow Offline] Operação não entrou na fila:", error);
+      return false;
+    }
+  }
+
+  // Until incremental events are approved, online critical operations go straight
+  // to their transactional Neon endpoints.
   if (!incrementalSyncEnabled()) {
     const idempotencyKey = typeof payload["idempotencyKey"] === "string"
       ? String(payload["idempotencyKey"])
@@ -772,6 +809,52 @@ function startRealtime(accountId: string) {
 }
 
 
+export async function hydrateStoreOffline(accountId: string) {
+  if (!isDesktopRuntime() || !accountId || localStorage.getItem(OWNER_KEY) !== accountId) {
+    throw new Error("Não existe uma cópia local autorizada para esta empresa neste computador.");
+  }
+  const raw = localStorage.getItem(tenantStateKey(accountId));
+  if (!raw) throw new Error("Esta empresa ainda não possui dados salvos para uso offline.");
+  let cached: unknown;
+  try { cached = JSON.parse(raw); } catch { throw new Error("A cópia local da empresa está inválida."); }
+  if (!cached || typeof cached !== "object" || !Array.isArray((cached as State).products) ||
+      !(cached as State).products.length || !Array.isArray((cached as State).sales)) {
+    throw new Error("A cópia local ainda não contém o catálogo necessário para abrir o PDV offline.");
+  }
+
+  stopRealtimeSubscription?.();
+  stopRealtimeSubscription = null;
+  realtimeOwnerId = null;
+  cloudReady = false;
+  cloudAccountId = null;
+  activeStateKey = tenantStateKey(accountId);
+  loaded = true;
+  state = { ...emptyState(), ...(cached as State) };
+  state.products = state.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit) }));
+  normalizeState();
+  listeners.forEach((listener) => listener());
+  return {
+    products: state.products.length,
+    sales: state.sales.length,
+    pending: await syncOutbox.pendingCount(accountId),
+    failed: await syncOutbox.failedCount(accountId),
+  };
+}
+
+export async function resumeOnlineSync() {
+  if (!isDesktopRuntime() || typeof navigator === "undefined" || !navigator.onLine) return false;
+  await hydrateStore();
+  if (!cloudReady || !cloudAccountId) return false;
+  try {
+    await restoreOutboxBackup(cloudAccountId);
+    const result = await syncNow();
+    return result.pending === 0 && result.failed === 0;
+  } catch (error) {
+    console.warn("[MobFlow Desktop] A reconexão ainda não concluiu a sincronização:", error);
+    return false;
+  }
+}
+
 export async function hydrateStore() {
   if (hydrating) return hydrating;
   hydrating = (async () => {
@@ -1014,12 +1097,18 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
     }
     if (!tenantId) return { sent: 0, failed: 0, pending: 0, applied: 0, cursor: "0", hasMore: false };
     await restoreOutboxBackup(tenantId);
+    let sent = 0;
+    if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+      const pushed = await flushSyncOutbox(syncOutbox, tenantId);
+      sent = pushed.sent;
+      if (sent > 0) await refreshFromCloud(tenantId, true);
+    }
     const [failed, pending, cursor] = await Promise.all([
       syncOutbox.failedCount(tenantId),
       syncOutbox.pendingCount(tenantId),
       syncOutbox.getCursor(tenantId),
     ]);
-    return { sent: 0, failed, pending, applied: 0, cursor, hasMore: false };
+    return { sent, failed, pending, applied: 0, cursor, hasMore: false };
   }
 
   // O botão manual também pode ser acionado antes da hidratação inicial do app.
