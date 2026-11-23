@@ -7,7 +7,20 @@ self.addEventListener("install", (event) => {
     try {
       const response = await fetch(APP_SHELL_URL, { credentials: "same-origin", cache: "reload" });
       if (response.ok && (response.headers.get("content-type") || "").includes("text/html")) {
-        await cache.put(APP_SHELL_URL, response);
+        await cache.put(APP_SHELL_URL, response.clone());
+        const html = await response.text();
+        const assetPaths = [...html.matchAll(/(?:src|href)=["']([^"']+)["']/g)]
+          .map((match) => match[1])
+          .filter((value) => typeof value === "string" && value.startsWith("/") &&
+            !value.startsWith("/api/") && /\.(?:m?js|css|woff2?|ttf|svg)(?:\?|$)/i.test(value));
+        await Promise.all([...new Set(assetPaths)].map(async (assetPath) => {
+          try {
+            const assetUrl = new URL(assetPath, self.location.origin);
+            if (assetUrl.origin !== self.location.origin) return;
+            const assetResponse = await fetch(assetUrl.href, { credentials: "same-origin" });
+            if (assetResponse.ok && assetResponse.type === "basic") await cache.put(assetUrl.href, assetResponse);
+          } catch {}
+        }));
       }
     } catch {}
     await self.skipWaiting();
