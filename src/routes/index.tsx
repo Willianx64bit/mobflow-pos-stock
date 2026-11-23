@@ -411,11 +411,11 @@ function PDV() {
           <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-0">
 
             {lines.map(({ p, qty }) => (
-              <div key={p.id} className="py-2 flex items-center gap-2.5">
+              <div key={p.id} className="py-1.5 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-base xl:text-lg font-semibold text-foreground truncate">{p.name}</div>
-                  <div className="mt-0.5 font-mono text-sm xl:text-base font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
-                  <div className="font-mono text-[13px] xl:text-sm text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
+                  <div className="text-sm xl:text-base font-semibold text-foreground truncate">{p.name}</div>
+                  <div className="mt-0.5 font-mono text-xs xl:text-sm font-medium text-muted-foreground/75">{p.barcodes?.[0] || p.code}</div>
+                  <div className="font-mono text-xs xl:text-[13px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
                   <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-8 w-8 rounded-md grid place-items-center text-base font-bold text-foreground hover:bg-accent">−</button>
