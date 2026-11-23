@@ -34,7 +34,21 @@ jobs:
           cache: npm
           cache-dependency-path: desktop-wrapper/package.json
 
-      - name: Instalar dependências
+      - name: Instalar dependências do aplicativo MobFlow
+        working-directory: ${{ github.workspace }}
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Gerar build do aplicativo MobFlow
+        working-directory: ${{ github.workspace }}
+        run: npm run build
+
+      - name: Validar TypeScript e testes do aplicativo
+        working-directory: ${{ github.workspace }}
+        run: |
+          npx tsc --noEmit
+          npm test
+
+      - name: Instalar dependências do empacotador Windows
         run: npm install
 
       - name: Testar validação da sessão offline
