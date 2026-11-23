@@ -60,7 +60,7 @@ function configurePermissions() {
     try {
       origin = new URL(requestingOrigin || webContents?.getURL() || "").origin;
     } catch {}
-    return origin === APP_ORIGIN && permission === "camera";
+    return origin === APP_ORIGIN && (permission === "camera" || permission === "media");
   });
 
   // Use a native Windows save dialog for downloads (exports, reports and files).
