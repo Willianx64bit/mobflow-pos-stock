@@ -224,7 +224,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     sessionStorage.removeItem("mobflow-username");
     sessionStorage.removeItem("mobflow-permissions");
     localStorage.removeItem("mobflow-authenticated");
-    await mobflowAuthClient.signOut();
+    await mobflowAuthClient.signOut().catch(() => undefined);
     setPdvAuthorized(false);
     setUsername("Usuário");
     setShowLogoutConfirm(false);
