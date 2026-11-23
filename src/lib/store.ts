@@ -134,7 +134,9 @@ function isDesktopOffline() {
 
 export function isOfflineMode() {
   if (typeof window === "undefined") return false;
-  return sessionStorage.getItem("mobflow-desktop-offline") === "1" || isDesktopOffline();
+  return sessionStorage.getItem("mobflow-desktop-offline") === "1" ||
+    isDesktopOffline() ||
+    (isDesktopRuntime() && !cloudReady);
 }
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
