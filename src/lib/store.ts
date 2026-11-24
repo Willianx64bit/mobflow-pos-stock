@@ -885,6 +885,24 @@ export async function hydrateStoreOffline(accountId: string) {
   };
 }
 
+/** Confirma que o EXE terminou de gravar um snapshot utilizável e vinculado à empresa autenticada. */
+export async function verifyDesktopOfflinePreparation(accountId: string) {
+  if (!isDesktopRuntime() || !accountId || localStorage.getItem(OWNER_KEY) !== accountId) {
+    throw new Error("Não foi possível validar a empresa autorizada para o modo offline.");
+  }
+  const raw = localStorage.getItem(tenantStateKey(accountId));
+  if (!raw) throw new Error("Os dados da empresa ainda não foram armazenados neste computador.");
+  let snapshot: unknown;
+  try { snapshot = JSON.parse(raw); } catch { throw new Error("O arquivo local da empresa está inválido. Tente preparar novamente."); }
+  if (!snapshot || typeof snapshot !== "object") throw new Error("A preparação local não foi concluída.");
+  const cached = snapshot as Partial<State>;
+  if (!Array.isArray(cached.products) || !Array.isArray(cached.sales) || !Array.isArray(cached.cashSessions) || !Array.isArray(cached.stockMovements) || !cached.settings || typeof cached.settings !== "object") {
+    throw new Error("Ainda faltam dados essenciais para liberar o PDV e as Operações offline.");
+  }
+  const syncedAt = Date.parse(localStorage.getItem(offlineCacheTimestampKey(accountId)) ?? "");
+  if (!Number.isFinite(syncedAt) || syncedAt > Date.now() + 60_000) throw new Error("Não foi possível confirmar a data de preparação dos dados locais.");
+  return { products: cached.products.length, syncedAt };
+}
 export async function resumeOnlineSync() {
   if (!isDesktopRuntime() || typeof navigator === "undefined" || !navigator.onLine) return false;
   await hydrateStore();
