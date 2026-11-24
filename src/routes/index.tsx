@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { isOfflineMode, productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -225,26 +225,14 @@ function PDV() {
   };
 
   const completeSale = async (): Promise<boolean> => {
-    let queuedSale: Sale | null = null;
     try {
       const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
       if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return false; }
-      queuedSale = sale;
       await confirmLastDomainCommand();
-      const confirmedSale = sale.syncStatus === "pending" && !isOfflineMode()
-        ? { ...sale, syncStatus: "synced" as const }
-        : sale;
-      setDone(confirmedSale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+      setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
       return true;
     } catch (error) {
       await hydrateStore().catch(() => undefined);
-      if (queuedSale && queuedSale.syncStatus === "pending") {
-        // The durable command remains queued with its original saleId/idempotencyKey.
-        // Show it as pending instead of inviting a second checkout with a new ID.
-        setDone(queuedSale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$");
-        setFlash("Venda salva neste computador. A confirmação do Neon está pendente.");
-        return true;
-      }
       setFlash(error instanceof Error ? error.message : "A venda não foi confirmada pelo servidor. Tente sincronizar novamente.");
       return false;
     }
@@ -342,23 +330,15 @@ function PDV() {
   return (
     <div className="mfb-in min-h-screen p-3 md:p-4 xl:p-5">
       <AppHeader />
-      {(settings.companyName || settings.companyLogo) && (
-        <div className="mb-4 glass px-3 py-3 flex min-w-0 items-center gap-3">
-          {settings.companyLogo && <img src={settings.companyLogo} alt="" className="h-11 w-11 shrink-0 rounded-xl object-contain bg-background ring-1 ring-border" />}
-          {settings.companyName && <div className="min-w-0 truncate font-display text-xl tracking-[.08em] text-heading">{settings.companyName}</div>}
-        </div>
-      )}
-      <main className="grid lg:grid-cols-[minmax(0,1fr)_500px] xl:grid-cols-[minmax(0,1fr)_520px] gap-4 items-stretch">
+       <main className="grid lg:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_560px] gap-3 items-stretch lg:h-[calc(100vh-55px)] lg:min-h-0">
         {!pdvAuthorized && <div className="lg:col-span-2 flex items-center justify-center gap-2 rounded-xl bg-amber-500/10 px-4 py-3 text-center text-sm font-semibold text-amber-700 ring-1 ring-amber-500/25"><LockKeyhole className="h-4 w-4" />PDV bloqueado</div>}
-        <section className="glass p-4 min-w-0">
-          <div className="flex items-stretch gap-2">
-            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} className={`w-[76px] shrink-0 rounded-lg px-2 py-2 text-xs font-semibold leading-tight ring-1 flex flex-col items-center justify-center gap-1 ${quick ? "bg-emerald-600/10 ring-emerald-600/40 text-emerald-700 dark:text-emerald-400" : "bg-secondary ring-border text-secondary-foreground"}`}>
-              <span className="text-center">Ação<br />Rápida</span>
-              <span className={`h-4 w-8 rounded-full relative ${quick ? "bg-emerald-600" : "bg-muted"}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-all ${quick ? "left-4.5" : "left-0.5"}`} /></span>
-              {quick && <span className="text-[9px] font-bold tracking-wide">ATIVO</span>}
+        <section className="glass p-4 min-w-0 flex flex-col min-h-0 lg:h-full lg:min-h-0">
+          <div className="flex items-center gap-1.5">
+            <button disabled={!pdvAuthorized} onClick={toggleQuick} aria-pressed={quick} aria-label="Ação rápida" title="Ação rápida" className={`w-[58px] h-9 shrink-0 rounded-lg px-1 py-1 text-[11px] font-semibold leading-tight ring-1 flex items-center justify-center text-center ${quick ? "bg-emerald-600 ring-emerald-600 text-white" : "bg-secondary ring-border text-secondary-foreground"}`}>
+              Ação<br />Rápida
             </button>
             <div
-              className="min-w-0 flex-1 flex items-center gap-3 field px-4 py-3 border-2 cursor-text"
+              className="h-[45px] min-w-0 flex-1 flex items-center gap-2 field px-2 py-0 border-2 cursor-text"
               onClick={() => search.current?.focus()}
             >
               <input
@@ -370,35 +350,33 @@ function PDV() {
                 className="flex-1 min-w-0 bg-transparent outline-none text-base md:text-lg text-foreground placeholder:text-muted-foreground"
               />
             </div>
-          </div>
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <div className="flex items-center rounded-lg bg-secondary p-1 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
+            <div className="h-[45px] shrink-0 flex items-center rounded-md bg-secondary p-0.5 ring-1 ring-border" role="group" aria-label="Organização dos produtos">
               <button type="button" onClick={() => productView !== "cards" && toggleProductView()} aria-label="Visualizar em cards" aria-pressed={productView === "cards"} title="Cards"
-                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
-                <LayoutGrid className="h-4 w-4" />
+                className={`grid h-[41px] w-[30px] place-items-center rounded-sm transition-colors ${productView === "cards" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <LayoutGrid className="h-3.5 w-3.5" />
               </button>
               <button type="button" onClick={() => productView !== "list" && toggleProductView()} aria-label="Visualizar em lista" aria-pressed={productView === "list"} title="Lista"
-                className={`grid h-9 w-9 place-items-center rounded-md transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
-                <List className="h-4 w-4" />
+                className={`grid h-[34px] w-[30px] place-items-center rounded-sm transition-colors ${productView === "list" ? "bg-primary text-primary-foreground shadow-sm" : "text-secondary-foreground hover:bg-accent"}`}>
+                <List className="h-3.5 w-3.5" />
               </button>
             </div>
-            {flash && <span className={`w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</span>}
           </div>
+          {flash && <div className={`mt-2 w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</div>}
 
-          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3" : "flex flex-col"} gap-2 mt-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1`}>
+          <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3 content-start" : "flex flex-col"} gap-2 mt-2 flex-1 min-h-0 overflow-y-auto pr-1`}>
             {results.map((p, i) => {
               return (
                 <button
                   key={p.id}
                   onClick={() => { requestAdd(p); search.current?.focus(); }}
-                  className={`${productView === "cards" ? "text-left rounded-xl p-2 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-shadow duration-150 hover:ring-primary/50 ${i === sel && q ? "ring-primary" : "ring-border"}`}
+                  className={`${productView === "cards" ? "text-left rounded-xl p-1.5 flex-col" : "text-left rounded-lg px-3 py-2 flex-row items-center gap-3"} bg-muted ring-1 flex transition-all duration-150 ${i === sel && q ? "ring-primary" : "ring-border"} hover:!ring-2 hover:!ring-[#16a34a] dark:hover:!ring-2 dark:hover:!ring-[#16a34a]`}
                 >
-                  <div className={`${productView === "cards" ? "w-full aspect-[16/7]" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
-                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-cover" /> : null}
+                  <div className={`${productView === "cards" ? "w-full aspect-[16/10] shrink-0" : "h-14 w-14 shrink-0"} rounded-lg bg-surface ring-1 ring-border/50 overflow-hidden grid place-items-center text-xs uppercase tracking-[.12em] text-muted-foreground`}>
+                    {p.photo ? <img src={p.photo} alt="" className="h-full w-full object-contain" /> : null}
                   </div>
                   {productView === "cards" ? <>
-                    <div className="mt-2 text-base md:text-lg font-semibold text-foreground line-clamp-2 min-h-[3rem] leading-snug">{p.name}</div>
-                    <div className="mt-1 truncate font-mono text-xs md:text-sm font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
+                    <div className="mt-1 text-xs md:text-sm font-semibold text-foreground line-clamp-1 leading-tight">{p.name}</div>
+                    <div className="mt-0.5 truncate font-mono text-[10px] md:text-xs font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
                   </> : (
                     <div className="min-w-0 flex-1 flex flex-col justify-center">
                       <div className="text-sm md:text-base font-semibold text-foreground line-clamp-1 leading-tight">{p.name}</div>
@@ -412,7 +390,7 @@ function PDV() {
                         <span className="text-lg md:text-xl font-bold leading-tight text-heading">R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</span>
                       </div>
                     ) : (
-                      <div className={`font-bold leading-tight text-heading ${productView === "cards" ? "text-2xl md:text-[1.65rem]" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
+                      <div className={`font-bold leading-tight text-heading ${productView === "cards" ? "text-xl" : "text-lg md:text-xl"}`}>R$ {brl(effectivePrice(p))}{p.unit === "kg" ? " kg" : ""}</div>
                     )}
                     <div className={`mt-1 font-mono text-xs md:text-sm font-medium ${p.stock <= 0 ? "text-destructive" : p.stock <= p.minStock ? "text-amber-500" : "text-muted-foreground"}`}>
                       {p.unit === "kg" ? `${brl(p.stock)}kg` : `${p.stock}un`}
@@ -425,22 +403,22 @@ function PDV() {
           
         </section>
 
-        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:sticky lg:top-3 lg:h-[calc(100vh-100px)] lg:max-h-none">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <span className="font-display text-[32px] xl:text-[36px] tracking-[.12em] text-heading">CHECKOUT</span>
-            <span className="font-mono text-[13px] text-muted-foreground">{count} itens</span>
+        <aside className="glass p-5 xl:p-6 flex flex-col min-h-[calc(100vh-120px)] lg:h-full lg:min-h-0 lg:mt-0 lg:max-h-none">
+          <div className="relative flex items-center justify-center pb-3 border-b border-border">
+            <span className="font-display text-[18px] font-bold tracking-normal text-heading text-center">CHECKOUT</span>
+            <span className="absolute right-0 top-5 font-mono text-[13px] text-muted-foreground">{count} itens</span>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-32">
+          <div className="flex-1 overflow-y-auto divide-y divide-border/50 min-h-0">
 
             {lines.map(({ p, qty }) => (
-              <div key={p.id} className="py-4 flex items-center gap-3">
+              <div key={p.id} className="py-1.5 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="text-base xl:text-lg font-semibold text-foreground truncate">{p.name}</div>
-                  <div className="mt-0.5 font-mono text-sm xl:text-base font-semibold text-muted-foreground">{p.barcodes?.[0] || p.code}</div>
-                  <div className="font-mono text-[13px] xl:text-sm text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
+                  <div className="text-sm xl:text-base font-semibold text-foreground truncate">{p.name}</div>
+                  <div className="mt-0.5 font-mono text-xs xl:text-sm font-medium text-muted-foreground/75">{p.barcodes?.[0] || p.code}</div>
+                  <div className="font-mono text-xs xl:text-[13px] text-muted-foreground">{p.unit === "kg" ? `${brl(effectivePrice(p))}/kg × ${brl(qty)}kg` : `${brl(effectivePrice(p))} × ${qty}`} = <span className="text-subtle">{brl(effectivePrice(p) * qty)}</span></div>
                 </div>
                 <div className="flex items-center gap-1.5 rounded-lg bg-secondary ring-1 ring-border px-1.5 py-1">
-                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">−</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? -0.1 : -1)} className="h-8 w-8 rounded-md grid place-items-center text-base font-bold text-foreground hover:bg-accent">−</button>
                   <input
                     value={qtyDrafts[p.id] ?? (p.unit === "kg" ? brl(qty) : String(qty))}
                     disabled={!pdvAuthorized} onChange={(e) => setQtyDrafts((d) => ({ ...d, [p.id]: e.target.value.replace(/[^0-9,.]/g, "") }))}
@@ -465,7 +443,7 @@ function PDV() {
                     className="w-20 bg-transparent text-center font-mono text-lg font-bold text-foreground outline-none"
                   />
                   <span className="font-mono text-sm font-semibold text-muted-foreground">{p.unit === "kg" ? "kg" : "un"}</span>
-                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-9 w-9 rounded-md grid place-items-center text-lg font-bold text-foreground hover:bg-accent">+</button>
+                  <button type="button" disabled={!pdvAuthorized} onClick={() => actions.addToCart(p.id, p.unit === "kg" ? 0.1 : 1)} className="h-8 w-8 rounded-md grid place-items-center text-base font-bold text-foreground hover:bg-accent">+</button>
                 </div>
                 <button disabled={!pdvAuthorized} onClick={() => actions.removeFromCart(p.id)} className="text-muted-foreground hover:text-destructive text-sm" aria-label="Remover">×</button>
               </div>
@@ -525,7 +503,7 @@ function PDV() {
             </div>
             <div className="flex justify-between items-baseline">
               <span className="label-mono text-[14px]">{discount > 0 ? "Total com desconto" : "Total"}</span>
-              <span className="font-display text-[44px] xl:text-[50px] leading-none text-heading">R$ {brl(total)}</span>
+              <span className="font-display text-[18px] font-bold leading-none text-heading">R$ {brl(total)}</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
               {PAYMENTS.map((m) => {
@@ -586,8 +564,7 @@ function PDV() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setDone(null)}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-6 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto h-14 w-14 rounded-full bg-primary/15 ring-1 ring-primary/50 grid place-items-center text-primary text-2xl">✓</div>
-            <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">{done.syncStatus === "pending" ? "VENDA SALVA OFFLINE" : "VENDA CONCLUÍDA"}</h2>
-            {done.syncStatus === "pending" && <p className="mt-2 text-xs text-amber-600">Salva neste computador. Aguardando conexão e confirmação do servidor.</p>}
+            <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">VENDA CONCLUÍDA</h2>
             <p className="font-mono text-[12px] text-muted-foreground">{done.payment} · {done.items.length} itens{done.customer ? ` · ${done.customer}` : ""}</p>
             <p className="mt-3 font-display text-5xl text-primary">R$ {brl(done.total)}</p>
             {done.received && done.received > done.total && (
