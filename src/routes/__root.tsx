@@ -154,6 +154,17 @@ function RouteLoadingBar() {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const prepareDesktopOfflineRoutes = async () => {
+    if (!window.mobflowDesktop) return;
+    // Load the actual route modules while online. The desktop service worker
+    // caches these JS chunks so PDV and every Operações screen can open offline.
+    const offlineRoutes = [
+      "/", "/operacoes", "/conferencia", "/baixa-produtos",
+      "/transferencias", "/balanco-estoque", "/fornecedores-clientes",
+      "/movimentacoes-estoque",
+    ] as const;
+    await Promise.all(offlineRoutes.map((to) => router.preloadRoute({ to })));
+  };
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const previousPath = useRef(pathname);
   const loadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -333,6 +344,8 @@ function RootComponent() {
             if (window.mobflowDesktop) {
               setPreparationMessage("Validando os dados armazenados neste computador...");
               await verifyDesktopOfflinePreparation(profile.accountId);
+              setPreparationMessage("Baixando as telas do PDV e de Operações...");
+              await prepareDesktopOfflineRoutes();
             }
           } catch (error) {
             console.error("MobFlow: falha ao carregar os dados da conta", error);
@@ -397,6 +410,8 @@ function RootComponent() {
             const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
             if (!cached?.accountId) throw new Error("Não foi possível confirmar a autorização offline deste operador.");
             await verifyDesktopOfflinePreparation(cached.accountId);
+            setPreparationMessage("Baixando as telas do PDV e de Operações...");
+            await prepareDesktopOfflineRoutes();
           }
           setAuthenticated(true);
           if (options?.firstManagerLogin) {
@@ -426,6 +441,8 @@ function RootComponent() {
         const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
         if (!cached?.accountId) throw new Error("Não foi possível confirmar a autorização offline deste operador.");
         await verifyDesktopOfflinePreparation(cached.accountId);
+        setPreparationMessage("Baixando as telas do PDV e de Operações...");
+        await prepareDesktopOfflineRoutes();
         setUserLoginRequired(false);
       } catch (error) {
         console.error("MobFlow Desktop: preparação offline não concluída:", error);
