@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { BarcodeFormat, EncodeHintType, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
@@ -2165,6 +2166,23 @@ export function printReceipt(s: Sale, companyName = "") {
 <script>window.onload=()=>window.print();</script>
 </body></html>`);
   w.document.close();
+}
+
+/** Creates the Pix QR image locally with ZXing. No network or third-party QR service is used. */
+export function buildPixQrDataUrl(payload: string): string {
+  if (!payload.trim()) return "";
+  const hints = new Map<EncodeHintType, unknown>([[EncodeHintType.MARGIN, 4]]);
+  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 320, 320, hints);
+  const width = matrix.getWidth();
+  const height = matrix.getHeight();
+  let path = "";
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (matrix.get(x, y)) path += `M${x} ${y}h1v1h-1z`;
+    }
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 export function buildPixPayload(key: string, amount: number, merchantName = "MOBFLOW", city = "SAO PAULO") {
