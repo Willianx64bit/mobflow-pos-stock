@@ -320,6 +320,9 @@ function RootComponent() {
             await hydrateStore();
           } catch (error) {
             console.error("MobFlow: falha ao carregar os dados da conta", error);
+            // On desktop, never unlock a blank checkout after both Neon and the
+            // authorized local snapshot failed to load.
+            if (window.mobflowDesktop) throw error;
           }
         }
 
