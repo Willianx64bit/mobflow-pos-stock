@@ -2063,7 +2063,7 @@ export async function saveCurrentPageAsPdf(filename: string) {
   const desktop = (window as Window & { mobflowDesktop?: { savePdf?: (name: string) => Promise<boolean> } }).mobflowDesktop;
   if (typeof desktop?.savePdf === "function") {
     const saved = await desktop.savePdf(filename);
-    if (!saved) throw new Error("O PDF não foi salvo. Verifique o local escolhido e tente novamente.");
+    if (!saved) return;
     return;
   }
   // No navegador, mantém o fluxo nativo de impressão/Salvar como PDF.
