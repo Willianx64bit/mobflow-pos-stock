@@ -1,9 +1,11 @@
+import "fake-indexeddb/auto";
 import { describe, expect, it, vi } from "vitest";
 import {
   createSyncCommand,
   flushSyncOutbox,
   isValidSyncCursor,
   pullSyncEvents,
+  SyncOutbox,
   type SyncCommand,
   type SyncEvent,
   type SyncOutbox,
@@ -223,6 +225,54 @@ describe("MobFlow durable incremental outbox contract", () => {
     await expect(pullSyncEvents(outbox, TENANT, apply, transport)).rejects.toThrow("fora de ordem");
     expect(apply).not.toHaveBeenCalled();
     expect(outbox.setCursor).not.toHaveBeenCalled();
+  });
+
+
+  it("persists a sale offline across an app restart and syncs it exactly once after reconnection", async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("mobflow-incremental-sync");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("Database de teste bloqueado."));
+    });
+
+    const firstAppInstance = new SyncOutbox();
+    const command = createSyncCommand({
+      tenantId: TENANT,
+      domain: "sales",
+      id: ID,
+      idempotencyKey: ID,
+      payload: { saleId: "offline-sale-1", total: 42.5, payment: "Pix", paymentStatus: "pending_validation" },
+    });
+    await firstAppInstance.enqueue(command);
+
+    const offlineTransport = vi.fn().mockRejectedValue(new TypeError("Failed to fetch: simulated offline"));
+    const offlineResult = await flushSyncOutbox(firstAppInstance, TENANT, offlineTransport);
+    expect(offlineResult).toMatchObject({ sent: 0, failed: 0, pending: 1 });
+    expect(await firstAppInstance.pendingCount(TENANT)).toBe(1);
+
+    // A new SyncOutbox instance represents closing and reopening the desktop app.
+    const reopenedApp = new SyncOutbox();
+    const restored = await reopenedApp.listPending(TENANT);
+    expect(restored).toHaveLength(1);
+    expect(restored[0]).toMatchObject({
+      id: ID,
+      idempotencyKey: ID,
+      domain: "sales",
+      payload: { saleId: "offline-sale-1", total: 42.5, paymentStatus: "pending_validation" },
+      status: "pending",
+      attempts: 1,
+    });
+
+    const onlineTransport = vi.fn().mockResolvedValue(response({ ok: true, replayed: false }));
+    const synced = await flushSyncOutbox(reopenedApp, TENANT, onlineTransport);
+    expect(synced).toMatchObject({ sent: 1, failed: 0, pending: 0 });
+    expect(onlineTransport).toHaveBeenCalledTimes(1);
+    expect(onlineTransport).toHaveBeenCalledWith("/api/mobflow/sales", expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"idempotencyKey":"a6c47ea1-2abf-4cd6-b614-24e27077bdf6"'),
+    }));
+    expect(await reopenedApp.pendingCount(TENANT)).toBe(0);
   });
 
   it("does not advance the cursor if applying an event page fails", async () => {
