@@ -1,11 +1,11 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { actions, useStore, syncNow, syncNewContacts } from "@/lib/store";
+import { actions, useStore, syncNow, syncNewContacts, isOfflineMode } from "@/lib/store";
 import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, Menu, ChevronLeft, ChevronRight, ChevronDown, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, Menu, ChevronLeft, ChevronRight, ChevronDown, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw, WifiOff } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
@@ -41,6 +41,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
   const [username, setUsername] = useState("Usuário");
   const [permissions, setPermissions] = useState<string[]>(["PDV"]);
   const [syncing, setSyncing] = useState(false);
+  const [desktopOffline, setDesktopOffline] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const [syncCooldown, setSyncCooldown] = useState(0);
   const [showCooldownNotice, setShowCooldownNotice] = useState(false);
@@ -55,6 +56,20 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
   };
   const settings = useStore((s) => s.settings);
   const [companyLogoSrc, setCompanyLogoSrc] = useState("");
+
+  useEffect(() => {
+    const refreshOfflineState = () => setDesktopOffline(isOfflineMode());
+    const markOffline = () => setDesktopOffline(true);
+    refreshOfflineState();
+    window.addEventListener("offline", markOffline);
+    window.addEventListener("online", refreshOfflineState);
+    window.addEventListener("mobflow-offline-state-changed", refreshOfflineState);
+    return () => {
+      window.removeEventListener("offline", markOffline);
+      window.removeEventListener("online", refreshOfflineState);
+      window.removeEventListener("mobflow-offline-state-changed", refreshOfflineState);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -238,6 +253,11 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     <>
       {(pathname === "/" || pathname === "/operacoes") && (
         <div className="fixed right-4 top-4 z-[90] flex items-center">
+          {desktopOffline && (
+            <div role="status" aria-live="polite" className="mr-2 inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-2.5 py-2 text-[10px] font-extrabold tracking-wide text-amber-900 ring-1 ring-amber-300 shadow-sm">
+              <WifiOff className="h-3.5 w-3.5" /> OFFLINE
+            </div>
+          )}
           <div className="mr-6 flex max-w-[min(48vw,14rem)] items-center gap-2 truncate rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
             <UserRound className="h-4 w-4 shrink-0 text-green-600" />
             <span className="truncate">{pdvAuthorized ? username : "Usuário"}</span>
