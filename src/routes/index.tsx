@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -229,7 +229,9 @@ function PDV() {
     try {
       const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
       if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return false; }
-      await confirmLastDomainCommand();
+      // No Desktop offline, checkout já persistiu a venda na outbox local.
+      // Não aguarde a confirmação do Neon enquanto não houver conexão.
+      if (!isOfflineMode()) await confirmLastDomainCommand();
       setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
       return true;
     } catch (error) {
@@ -561,7 +563,7 @@ function PDV() {
               )}
             </div>
             <p className="mt-3 font-mono text-[10px] text-muted-foreground break-all">Chave: {settings.pixKey}</p>
-            <p className="mt-2 text-xs text-muted-foreground">Depois que o cliente pagar, confirme manualmente para registrar a venda.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{isOfflineMode() ? "Após conferir o recebimento no celular, confirme para salvar a venda neste computador. Ela será enviada ao Neon quando a conexão voltar." : "Depois que o cliente pagar, confirme manualmente para registrar a venda."}</p>
             <div className="mt-4 flex gap-2">
               <button disabled={isConfirmingPix} onClick={() => setPixPayload("")} className="flex-1 rounded-xl bg-secondary ring-1 ring-border py-3 font-semibold text-secondary-foreground disabled:opacity-50">Cancelar</button>
               <button disabled={isConfirmingPix} onClick={confirmPixPayment} className="flex-1 rounded-xl bg-primary py-3 font-bold text-primary-foreground flex items-center justify-center gap-1 disabled:cursor-wait disabled:opacity-80">
@@ -576,7 +578,7 @@ function PDV() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/70 backdrop-blur-sm p-4" onClick={() => setDone(null)}>
           <div className="mfb-in w-full max-w-sm rounded-2xl bg-popover ring-1 ring-primary/40 p-6 text-center" onClick={(e) => e.stopPropagation()}>
             <div className="mx-auto h-14 w-14 rounded-full bg-primary/15 ring-1 ring-primary/50 grid place-items-center text-primary text-2xl">✓</div>
-            <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">VENDA CONCLUÍDA</h2>
+            <h2 className="mt-3 font-display text-3xl tracking-[.12em] text-heading">{done.syncStatus === "pending" ? "VENDA SALVA OFFLINE" : "VENDA CONCLUÍDA"}</h2>
             <p className="font-mono text-[12px] text-muted-foreground">{done.payment} · {done.items.length} itens{done.customer ? ` · ${done.customer}` : ""}</p>
             <p className="mt-3 font-display text-5xl text-primary">R$ {brl(done.total)}</p>
             {done.received && done.received > done.total && (
