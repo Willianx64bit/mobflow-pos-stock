@@ -344,8 +344,10 @@ function RootComponent() {
             if (window.mobflowDesktop) {
               setPreparationMessage("Validando os dados armazenados neste computador...");
               await verifyDesktopOfflinePreparation(profile.accountId);
-              setPreparationMessage("Baixando as telas do PDV e de Operações...");
-              await prepareDesktopOfflineRoutes();
+              if (profile.role === "pdv") {
+                setPreparationMessage("Baixando as telas do PDV e de Operações...");
+                await prepareDesktopOfflineRoutes();
+              }
             }
           } catch (error) {
             console.error("MobFlow: falha ao carregar os dados da conta", error);
@@ -410,8 +412,10 @@ function RootComponent() {
             const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
             if (!cached?.accountId) throw new Error("Não foi possível confirmar a autorização offline deste operador.");
             await verifyDesktopOfflinePreparation(cached.accountId);
-            setPreparationMessage("Baixando as telas do PDV e de Operações...");
-            await prepareDesktopOfflineRoutes();
+            if (role === "pdv") {
+              setPreparationMessage("Baixando as telas do PDV e de Operações...");
+              await prepareDesktopOfflineRoutes();
+            }
           }
           setAuthenticated(true);
           if (options?.firstManagerLogin) {
