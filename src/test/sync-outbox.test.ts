@@ -8,7 +8,6 @@ import {
   SyncOutbox,
   type SyncCommand,
   type SyncEvent,
-  type SyncOutbox,
 } from "@/lib/sync-outbox";
 
 const TENANT = "9c47eaac-2abf-4cd6-b614-24e27077bdf6";
