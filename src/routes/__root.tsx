@@ -252,7 +252,10 @@ function RootComponent() {
         if (window.mobflowDesktop && "serviceWorker" in navigator) {
           try {
             await navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" });
-            await navigator.serviceWorker.ready;
+            await Promise.race([
+              navigator.serviceWorker.ready,
+              new Promise<void>((resolve) => window.setTimeout(resolve, 8000)),
+            ]);
           } catch (cacheError) {
             console.warn("MobFlow Desktop: não foi possível preparar o cache offline:", cacheError);
           }
