@@ -1051,7 +1051,7 @@ export async function hydrateStore() {
           }
         }
         // Do not let the shell show an empty PDV as if it were ready for sales.
-        throw new Error("Não foi possível restaurar a sessão e os dados locais do PDV. Conecte-se à internet e tente novamente.", { cause: error });
+        throw new Error("Não foi possível restaurar a sessão e os dados locais do PDV. Conecte-se à internet e tente novamente.");
       }
       // Notify the UI so it does not silently keep presenting an empty/stale view.
       listeners.forEach((listener) => listener());
