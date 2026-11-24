@@ -276,7 +276,7 @@ function RootComponent() {
         } catch {
           const cached = await window.mobflowDesktop?.getCachedAuthorizedSession?.();
           const cachedPermissions = Array.isArray(cached?.permissions) ? cached.permissions : [];
-          if (cached && cached.role === "pdv" && cachedPermissions.includes("PDV") &&
+          if (cached && cached.role === "pdv" && (cachedPermissions.includes("PDV") || cachedPermissions.includes("Operações")) &&
               typeof cached.accountId === "string" && typeof cached.username === "string") {
             profile = { accountId: cached.accountId, role: cached.role, username: cached.username, permissions: cachedPermissions, active: true };
             restoredOffline = true;
