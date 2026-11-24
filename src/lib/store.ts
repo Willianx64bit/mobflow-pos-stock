@@ -1032,7 +1032,27 @@ export async function hydrateStore() {
     } catch (error) {
       console.error("[MobFlow Hydration] Could not load the authoritative Neon state:", error);
       cloudReady = false;
-      if (isDesktopRuntime()) sessionStorage.setItem("mobflow-desktop-offline", "1");
+      if (isDesktopRuntime()) {
+        sessionStorage.setItem("mobflow-desktop-offline", "1");
+        // A session-context request can succeed while the snapshot request fails.
+        // In either case, recover only the same tenant from the encrypted desktop
+        // authorization record and the tenant-scoped local snapshot.
+        const cachedSession = await (window as Window & {
+          mobflowDesktop?: {
+            getCachedAuthorizedSession?: () => Promise<{ accountId: string } | null>;
+          };
+        }).mobflowDesktop?.getCachedAuthorizedSession?.().catch(() => null);
+        if (cachedSession?.accountId) {
+          try {
+            await hydrateStoreOffline(cachedSession.accountId);
+            return;
+          } catch (offlineError) {
+            console.error("[MobFlow Desktop] Local snapshot recovery failed:", offlineError);
+          }
+        }
+        // Do not let the shell show an empty PDV as if it were ready for sales.
+        throw new Error("Não foi possível restaurar a sessão e os dados locais do PDV. Conecte-se à internet e tente novamente.", { cause: error });
+      }
       // Notify the UI so it does not silently keep presenting an empty/stale view.
       listeners.forEach((listener) => listener());
     }
