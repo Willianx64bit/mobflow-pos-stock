@@ -175,8 +175,8 @@ function createWindow() {
 ipcMain.handle("mobflow:save-pdf", async (event, requestedName) => {
   if (!isTrustedAppSender(event)) return false;
   const safeName = String(requestedName || "documento")
-    .replace(/\\.pdf$/i, "")
-    .replace(/[<>:"/\\\\|?*\\x00-\\x1F]/g, "-")
+    .replace(/\.pdf$/i, "")
+    .replace(/[<>:"\/\\|?*\x00-\x1F]/g, "-")
     .replace(/[. ]+$/g, "")
     .slice(0, 100) || "documento";
   const ownerWindow = BrowserWindow.fromWebContents(event.sender);
