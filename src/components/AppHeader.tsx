@@ -224,7 +224,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     sessionStorage.removeItem("mobflow-username");
     sessionStorage.removeItem("mobflow-permissions");
     localStorage.removeItem("mobflow-authenticated");
-    await mobflowAuthClient.signOut().catch(() => undefined);
+    await mobflowAuthClient.signOut();
     setPdvAuthorized(false);
     setUsername("Usuário");
     setShowLogoutConfirm(false);
@@ -236,33 +236,12 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
 
   return createPortal(
     <>
-      {(pathname === "/" || pathname === "/operacoes" || pdvAuthorized) && (
-        <div className="fixed right-4 top-4 z-[90] flex items-center gap-2">
-          {pdvAuthorized && (
-            <>
-            <button type="button" onClick={() => void handleManualSync()} disabled={syncing} aria-label="Sincronizar dados" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar dados")} className="grid h-11 w-11 place-items-center rounded-xl bg-popover/95 text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl transition-colors hover:bg-accent disabled:opacity-60">
-              <RefreshCw className={`h-4 w-4 text-green-600 ${syncing ? "animate-spin" : ""}`} />
-            </button>
-            {syncCooldown > 0 ? (
-              <div role="status" aria-live="polite" className="absolute right-0 top-12 rounded-lg bg-popover px-2 py-1 text-xs font-medium tabular-nums text-foreground shadow-xl ring-1 ring-border">{`${String(Math.floor(syncCooldown / 60)).padStart(2, "0")}:${String(syncCooldown % 60).padStart(2, "0")}`}</div>
-            ) : (syncing || syncMessage) && (
-              <div role="status" aria-live="polite" className="absolute right-0 top-12 max-w-[min(85vw,20rem)] rounded-xl bg-popover px-3 py-2 text-xs font-medium text-foreground shadow-xl ring-1 ring-border">
-                {syncing ? "Sincronizando dados..." : syncMessage}
-              </div>
-            )}
-            </>
-          )}
-          {(pathname === "/" || pathname === "/operacoes") && (
-            <div className="flex items-center gap-2 rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
-              <UserRound className="h-4 w-4" />
-              {pdvAuthorized ? username : "Usuário"}
-            </div>
-          )}
-          {pdvAuthorized && (pathname === "/" || pathname === "/operacoes") && (
-            <button type="button" onClick={() => setShowLogoutConfirm(true)} className="grid h-11 w-11 place-items-center rounded-xl bg-red-500 text-white shadow-lg ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair da conta do usuário" title="Sair da conta">
-              <LogOut className="h-4 w-4" />
-            </button>
-          )}
+      {(pathname === "/" || pathname === "/operacoes") && (
+        <div className="fixed right-4 top-4 z-[90] flex items-center">
+          <div className="mr-6 flex max-w-[min(48vw,14rem)] items-center gap-2 truncate rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
+            <UserRound className="h-4 w-4 shrink-0 text-green-600" />
+            <span className="truncate">{pdvAuthorized ? username : "Usuário"}</span>
+          </div>
         </div>
       )}
 
@@ -337,6 +316,25 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
               </div>
             </nav>
             <div className="p-2 border-t border-border space-y-2">
+              {pdvAuthorized && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => void handleManualSync()} disabled={syncing} className="flex min-w-0 items-center justify-center gap-2 rounded-xl bg-secondary px-2 py-3 text-sm font-semibold text-secondary-foreground ring-1 ring-border transition-colors hover:bg-accent disabled:opacity-60" aria-label="Sincronizar" title={syncMessage || (syncing ? "Sincronizando..." : "Sincronizar")}>
+                    <RefreshCw className={`h-4 w-4 shrink-0 text-green-600 ${syncing ? "animate-spin" : ""}`} />
+                    <span className="truncate">Sincronizar</span>
+                  </button>
+                  <button type="button" onClick={() => setShowLogoutConfirm(true)} className="flex min-w-0 items-center justify-center gap-2 rounded-xl bg-red-500 px-2 py-3 text-sm font-semibold text-white ring-1 ring-red-600/50 transition-colors hover:bg-red-600" aria-label="Sair do usuário" title="Sair do usuário">
+                    <LogOut className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Sair</span>
+                  </button>
+                </div>
+              )}
+              {syncCooldown > 0 ? (
+                <div role="status" aria-live="polite" className="rounded-lg bg-popover px-2 py-1 text-center text-xs font-medium tabular-nums text-foreground ring-1 ring-border">{`${String(Math.floor(syncCooldown / 60)).padStart(2, "0")}:${String(syncCooldown % 60).padStart(2, "0")}`}</div>
+              ) : (syncing || syncMessage || showCooldownNotice) && (
+                <div role="status" aria-live="polite" className="rounded-lg bg-popover px-2 py-1 text-center text-xs font-medium text-foreground ring-1 ring-border">
+                  {syncing ? "Sincronizando dados..." : syncMessage || "Aguarde para sincronizar novamente"}
+                </div>
+              )}
               <div className="mb-3 rounded-xl border border-border bg-secondary/70 px-3 py-3 text-center text-muted-foreground shadow-sm">
                 <div className="font-mono text-[13px] font-medium tracking-wide">{currentDate}</div>
                 <div className="mt-1 font-mono text-[17px] font-semibold tabular-nums tracking-wide text-foreground">{time}</div>
