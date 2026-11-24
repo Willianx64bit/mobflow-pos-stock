@@ -154,8 +154,30 @@ function createWindow() {
   mainWindow = win;
   handleWindowOpen(win.webContents);
 
+  let appShellLoaded = false;
+  let retryingOfflineNavigation = false;
+
+  win.webContents.on("did-finish-load", () => {
+    try {
+      if (new URL(win.webContents.getURL()).origin === APP_ORIGIN) {
+        appShellLoaded = true;
+        retryingOfflineNavigation = false;
+      }
+    } catch {}
+  });
+
   win.webContents.on("did-fail-load", (_event, errorCode, _description, _validatedURL, isMainFrame) => {
-    if (isMainFrame && errorCode !== -3) showOfflineFallback(win);
+    if (!isMainFrame || errorCode === -3) return;
+
+    // If this installation already opened MobFlow, do not immediately replace
+    // the application with offline.html on a failed reload/navigation. Retry the
+    // app origin once so its installed service worker can serve the cached shell.
+    if (appShellLoaded && !retryingOfflineNavigation) {
+      retryingOfflineNavigation = true;
+      win.webContents.loadURL(APP_URL).catch(() => showOfflineFallback(win));
+      return;
+    }
+    showOfflineFallback(win);
   });
 
   win.webContents.on("did-create-window", (childWindow) => {
