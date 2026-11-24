@@ -56,3 +56,15 @@ test("rejects missing timestamps and timestamps too far in the future", () => {
     savedAt: now + 60_000
   }, now), true);
 });
+
+
+test("accepts a previously authorized PDV session with Operações-only permission", () => {
+  const operationsOnly = {
+    accountId: "tenant-operations",
+    role: "pdv",
+    username: "Operador",
+    permissions: ["Operações"]
+  };
+  assert.deepEqual(validateOfflineSession(operationsOnly), operationsOnly);
+  assert.equal(isValidOfflineSessionRecord({ session: operationsOnly, savedAt: now }, now), true);
+});
