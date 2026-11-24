@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { mobflowAuthClient } from "@/lib/auth-client";
-import { hydrateStore, hydrateStoreOffline, resumeOnlineSync } from "@/lib/store";
+import { hydrateStore, hydrateStoreOffline, resumeOnlineSync, verifyDesktopOfflinePreparation } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
 declare global {
@@ -193,6 +193,7 @@ function RootComponent() {
     if (loadingTimer.current) clearTimeout(loadingTimer.current);
   }, []);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [preparationMessage, setPreparationMessage] = useState("Validando acesso da empresa...");
   const [authenticated, setAuthenticated] = useState(false);
   const [userLoginRequired, setUserLoginRequired] = useState(false);
 
@@ -245,6 +246,7 @@ function RootComponent() {
   useEffect(() => {
     let active = true;
     const bootstrap = async () => {
+      setPreparationMessage(window.mobflowDesktop ? "Preparando o aplicativo para uso offline..." : "Carregando...");
       try {
         // Wait for the desktop shell worker to finish its install/precache before
         // presenting the authenticated PDV. Otherwise an immediate network loss
@@ -320,12 +322,18 @@ function RootComponent() {
 
         localStorage.setItem("mobflow-authenticated", "1");
         if (restoredOffline) {
+          setPreparationMessage("Restaurando os dados locais da empresa...");
           sessionStorage.setItem("mobflow-desktop-offline", "1");
           await hydrateStoreOffline(profile.accountId);
         } else {
           sessionStorage.removeItem("mobflow-desktop-offline");
           try {
+            if (window.mobflowDesktop) setPreparationMessage("Baixando produtos, estoque, caixa e configurações...");
             await hydrateStore();
+            if (window.mobflowDesktop) {
+              setPreparationMessage("Validando os dados armazenados neste computador...");
+              await verifyDesktopOfflinePreparation(profile.accountId);
+            }
           } catch (error) {
             console.error("MobFlow: falha ao carregar os dados da conta", error);
             // On desktop, never unlock a blank checkout after both Neon and the
@@ -361,7 +369,7 @@ function RootComponent() {
 
   if (checkingSession) {
     const savedDarkTheme = typeof window !== "undefined" && localStorage.getItem("mobflow-theme") === "dark";
-    return <div className={`${savedDarkTheme ? "dark " : ""}min-h-screen bg-background grid place-items-center`}><div className="font-mono text-sm text-muted-foreground">Carregando...</div></div>;
+    return <div className={`${savedDarkTheme ? "dark " : ""}min-h-screen bg-background grid place-items-center px-6`}><div className="w-full max-w-sm text-center"><img src="/mobflow-logo.svg" alt="MobFlow" className="mx-auto mb-8 h-auto w-44 object-contain" /><div className="mx-auto mb-4 h-1.5 w-full overflow-hidden rounded-full bg-secondary"><div className="h-full w-2/3 animate-pulse rounded-full bg-primary" /></div><p className="font-mono text-sm text-muted-foreground">{preparationMessage}</p><p className="mt-2 text-xs text-muted-foreground">Não feche o aplicativo durante a preparação.</p></div></div>;
   }
 
   // Páginas públicas precisam funcionar sem sessão para divulgação e recuperação de acesso.
@@ -379,7 +387,17 @@ function RootComponent() {
         mode="empresa"
         onLogin={async (options) => {
           const role = sessionStorage.getItem("mobflow-role");
+          if (window.mobflowDesktop) {
+            setPreparationMessage("Baixando os dados necessários para PDV e Operações...");
+            setCheckingSession(true);
+          }
           await hydrateStore();
+          if (window.mobflowDesktop && role === "pdv") {
+            setPreparationMessage("Conferindo se os dados da empresa foram salvos corretamente...");
+            const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
+            if (!cached?.accountId) throw new Error("Não foi possível confirmar a autorização offline deste operador.");
+            await verifyDesktopOfflinePreparation(cached.accountId);
+          }
           setAuthenticated(true);
           if (options?.firstManagerLogin) {
             setUserLoginRequired(false);
