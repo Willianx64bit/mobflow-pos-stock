@@ -2168,9 +2168,9 @@ export function printReceipt(s: Sale, companyName = "") {
   w.document.close();
 }
 
-/** Creates the Pix QR image locally with ZXing. No network or third-party QR service is used. */
-export function buildPixQrDataUrl(payload: string): string {
-  if (!payload.trim()) return "";
+/** Builds a Pix QR matrix locally with ZXing; the UI renders it as inline SVG. */
+export function buildPixQrMatrix(payload: string): { width: number; height: number; path: string } {
+  if (!payload.trim()) return { width: 0, height: 0, path: "" };
   const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 320, 320);
   const width = matrix.getWidth();
   const height = matrix.getHeight();
@@ -2180,8 +2180,7 @@ export function buildPixQrDataUrl(payload: string): string {
       if (matrix.get(x, y)) path += `M${x} ${y}h1v1h-1z`;
     }
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${path}" fill="#000"/></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  return { width, height, path };
 }
 
 export function buildPixPayload(key: string, amount: number, merchantName = "MOBFLOW", city = "SAO PAULO") {
