@@ -2058,6 +2058,18 @@ export const formatCpf = (v: string) => {
   return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 };
 
+export async function saveCurrentPageAsPdf(filename: string) {
+  if (typeof window === "undefined") return;
+  const desktop = (window as Window & { mobflowDesktop?: { savePdf?: (name: string) => Promise<boolean> } }).mobflowDesktop;
+  if (typeof desktop?.savePdf === "function") {
+    const saved = await desktop.savePdf(filename);
+    if (!saved) throw new Error("O PDF não foi salvo. Verifique o local escolhido e tente novamente.");
+    return;
+  }
+  // No navegador, mantém o fluxo nativo de impressão/Salvar como PDF.
+  window.print();
+}
+
 export function printReceipt(s: Sale, companyName = "") {
   const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] ?? char));
   let receiptCompanyName = companyName.trim() || state.settings?.companyName?.trim() || "";
