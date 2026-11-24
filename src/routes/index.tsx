@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrDataUrl, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -84,7 +84,7 @@ function PDV() {
 
   const [isConfirmingPix, setIsConfirmingPix] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
-  const pixQrDataUrl = useMemo(() => pixPayload ? buildPixQrDataUrl(pixPayload) : "", [pixPayload]);
+  const pixQrMatrix = useMemo(() => { try { return pixPayload ? buildPixQrMatrix(pixPayload) : null; } catch (error) { console.error("[MobFlow Pix] Falha ao gerar QR Code local:", error); return null; } }, [pixPayload]);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
@@ -543,13 +543,22 @@ function PDV() {
             <h2 className="mt-2 font-display text-3xl tracking-[.08em] text-heading">ESCANEIE PARA PAGAR</h2>
             <p className="mt-2 font-display text-4xl text-primary">R$ {brl(total)}</p>
             <div className="mx-auto mt-5 rounded-2xl bg-white p-4 w-fit ring-1 ring-border">
-              <img
-                src={pixQrDataUrl}
-                alt="QR Code Pix"
-                className="h-64 w-64"
-                width={256}
-                height={256}
-              />
+              {pixQrMatrix?.path ? (
+                <svg
+                  role="img"
+                  aria-label="QR Code Pix"
+                  viewBox={`0 0 ${pixQrMatrix.width} ${pixQrMatrix.height}`}
+                  className="h-64 w-64"
+                  shapeRendering="crispEdges"
+                >
+                  <rect width="100%" height="100%" fill="#fff" />
+                  <path d={pixQrMatrix.path} fill="#000" />
+                </svg>
+              ) : (
+                <div className="grid h-64 w-64 place-items-center text-center text-sm text-red-600">
+                  Não foi possível gerar o QR Code. Confira a chave Pix cadastrada.
+                </div>
+              )}
             </div>
             <p className="mt-3 font-mono text-[10px] text-muted-foreground break-all">Chave: {settings.pixKey}</p>
             <p className="mt-2 text-xs text-muted-foreground">Depois que o cliente pagar, confirme manualmente para registrar a venda.</p>
