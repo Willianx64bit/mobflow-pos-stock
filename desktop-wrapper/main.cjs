@@ -172,6 +172,36 @@ function createWindow() {
   return win;
 }
 
+ipcMain.handle("mobflow:save-pdf", async (event, requestedName) => {
+  if (!isTrustedAppSender(event)) return false;
+  const safeName = String(requestedName || "documento")
+    .replace(/\\.pdf$/i, "")
+    .replace(/[<>:"/\\\\|?*\\x00-\\x1F]/g, "-")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 100) || "documento";
+  const ownerWindow = BrowserWindow.fromWebContents(event.sender);
+  const result = await dialog.showSaveDialog(ownerWindow, {
+    title: "Salvar documento em PDF",
+    defaultPath: path.join(app.getPath("downloads"), safeName + ".pdf"),
+    buttonLabel: "Salvar",
+    filters: [{ name: "Documento PDF", extensions: ["pdf"] }]
+  });
+  if (result.canceled || !result.filePath) return false;
+  try {
+    const pdf = await event.sender.printToPDF({
+      printBackground: true,
+      pageSize: "A4",
+      preferCSSPageSize: true,
+      margins: { top: 0.25, bottom: 0.25, left: 0.25, right: 0.25 }
+    });
+    await fs.writeFile(result.filePath, pdf);
+    return true;
+  } catch (error) {
+    dialog.showErrorBox("Falha ao gerar PDF", error instanceof Error ? error.message : "Não foi possível gerar o arquivo.");
+    return false;
+  }
+});
+
 ipcMain.handle("mobflow:cache-authorized-session", async (event, value) => {
   if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return false;
   const sessionData = validateOfflineSession(value);
