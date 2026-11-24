@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { BarcodeFormat, EncodeHintType, QRCodeWriter } from "@zxing/library";
+import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
@@ -2171,8 +2171,7 @@ export function printReceipt(s: Sale, companyName = "") {
 /** Creates the Pix QR image locally with ZXing. No network or third-party QR service is used. */
 export function buildPixQrDataUrl(payload: string): string {
   if (!payload.trim()) return "";
-  const hints = new Map<EncodeHintType, unknown>([[EncodeHintType.MARGIN, 4]]);
-  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 320, 320, hints);
+  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 320, 320);
   const width = matrix.getWidth();
   const height = matrix.getHeight();
   let path = "";
