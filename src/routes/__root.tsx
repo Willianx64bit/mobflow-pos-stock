@@ -416,7 +416,24 @@ function RootComponent() {
   }
 
   if (userLoginRequired) {
-    return <LoginScreen mode="pdv" onLogin={() => setUserLoginRequired(false)} />;
+    return <LoginScreen mode="pdv" onLogin={async () => {
+      if (!window.mobflowDesktop) { setUserLoginRequired(false); return; }
+      setPreparationMessage("Baixando os dados necessários para PDV e Operações...");
+      setCheckingSession(true);
+      try {
+        await hydrateStore();
+        setPreparationMessage("Validando a cópia local desta empresa...");
+        const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
+        if (!cached?.accountId) throw new Error("Não foi possível confirmar a autorização offline deste operador.");
+        await verifyDesktopOfflinePreparation(cached.accountId);
+        setUserLoginRequired(false);
+      } catch (error) {
+        console.error("MobFlow Desktop: preparação offline não concluída:", error);
+        setPreparationMessage(error instanceof Error ? error.message : "Não foi possível preparar os dados offline.");
+      } finally {
+        setCheckingSession(false);
+      }
+    }} />;
   }
 
   return (
