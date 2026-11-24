@@ -251,17 +251,19 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
 
   return createPortal(
     <>
-      {(pathname === "/" || pathname === "/operacoes") && (
+      {["/", "/operacoes", "/conferencia", "/baixa-produtos", "/transferencias", "/balanco-estoque", "/fornecedores-clientes", "/movimentacoes-estoque"].includes(pathname) && (
         <div className="fixed right-4 top-4 z-[90] flex items-center">
           {desktopOffline && (
             <div role="status" aria-live="polite" className="mr-2 inline-flex items-center gap-1.5 rounded-xl bg-amber-100 px-2.5 py-2 text-[10px] font-extrabold tracking-wide text-amber-900 ring-1 ring-amber-300 shadow-sm">
               <WifiOff className="h-3.5 w-3.5" /> OFFLINE
             </div>
           )}
-          <div className="mr-6 flex max-w-[min(48vw,14rem)] items-center gap-2 truncate rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
-            <UserRound className="h-4 w-4 shrink-0 text-green-600" />
-            <span className="truncate">{pdvAuthorized ? username : "Usuário"}</span>
-          </div>
+          {(pathname === "/" || pathname === "/operacoes") && (
+            <div className="mr-6 flex max-w-[min(48vw,14rem)] items-center gap-2 truncate rounded-xl bg-popover/95 px-4 py-2.5 text-sm font-semibold text-foreground shadow-lg ring-1 ring-border backdrop-blur-xl">
+              <UserRound className="h-4 w-4 shrink-0 text-green-600" />
+              <span className="truncate">{pdvAuthorized ? username : "Usuário"}</span>
+            </div>
+          )}
         </div>
       )}
 
