@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrDataUrl, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -84,6 +84,7 @@ function PDV() {
 
   const [isConfirmingPix, setIsConfirmingPix] = useState(false);
   const [pixPayload, setPixPayload] = useState("");
+  const pixQrDataUrl = useMemo(() => pixPayload ? buildPixQrDataUrl(pixPayload) : "", [pixPayload]);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [pendingWeight, setPendingWeight] = useState<Product | null>(null);
   const [weightInput, setWeightInput] = useState("");
@@ -543,9 +544,11 @@ function PDV() {
             <p className="mt-2 font-display text-4xl text-primary">R$ {brl(total)}</p>
             <div className="mx-auto mt-5 rounded-2xl bg-white p-4 w-fit ring-1 ring-border">
               <img
-                src={`https://quickchart.io/qr?size=280&text=${encodeURIComponent(pixPayload)}`}
+                src={pixQrDataUrl}
                 alt="QR Code Pix"
                 className="h-64 w-64"
+                width={256}
+                height={256}
               />
             </div>
             <p className="mt-3 font-mono text-[10px] text-muted-foreground break-all">Chave: {settings.pixKey}</p>
