@@ -103,6 +103,7 @@
     "vite": "8.1.5",
     "vitest": "^4.1.10",
     "@types/pg": "^8.15.5",
-    "@types/nodemailer": "^7.0.4"
+    "@types/nodemailer": "^7.0.4",
+    "fake-indexeddb": "^6.2.4"
   }
 }
