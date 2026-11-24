@@ -896,11 +896,25 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
   try { snapshot = JSON.parse(raw); } catch { throw new Error("O arquivo local da empresa está inválido. Tente preparar novamente."); }
   if (!snapshot || typeof snapshot !== "object") throw new Error("A preparação local não foi concluída.");
   const cached = snapshot as Partial<State>;
-  if (!Array.isArray(cached.products) || !Array.isArray(cached.sales) || !Array.isArray(cached.cashSessions) || !Array.isArray(cached.stockMovements) || !cached.settings || typeof cached.settings !== "object") {
-    throw new Error("Ainda faltam dados essenciais para liberar o PDV e as Operações offline.");
+  if (!Array.isArray(cached.products) || cached.products.length === 0 ||
+      !Array.isArray(cached.sales) || !Array.isArray(cached.cashSessions) ||
+      !Array.isArray(cached.cashMovements) || !Array.isArray(cached.stockMovements) ||
+      !Array.isArray(cached.stockAdjustments) || !Array.isArray(cached.stockWriteoffs) ||
+      !Array.isArray(cached.stockTransfers) || !cached.settings ||
+      typeof cached.settings !== "object" || typeof cached.settings.companyName !== "string" ||
+      !cached.settings.companyName.trim()) {
+    throw new Error("Ainda faltam dados essenciais da empresa, do catálogo, do caixa ou das Operações para liberar o modo offline.");
   }
+  const hasInvalidProduct = cached.products.some((product) =>
+    !product || typeof product.id !== "string" || !product.id ||
+    typeof product.name !== "string" || !product.name.trim() ||
+    !Number.isFinite(Number(product.price)) || !Number.isFinite(Number(product.stock))
+  );
+  if (hasInvalidProduct) throw new Error("O catálogo local contém produtos incompletos. Conecte-se e tente preparar novamente.");
   const syncedAt = Date.parse(localStorage.getItem(offlineCacheTimestampKey(accountId)) ?? "");
-  if (!Number.isFinite(syncedAt) || syncedAt > Date.now() + 60_000) throw new Error("Não foi possível confirmar a data de preparação dos dados locais.");
+  if (!Number.isFinite(syncedAt) || syncedAt > Date.now() + 60_000 || Date.now() - syncedAt > OFFLINE_CACHE_TTL_MS) {
+    throw new Error("Não foi possível confirmar uma preparação local recente. Conecte-se e tente novamente.");
+  }
   return { products: cached.products.length, syncedAt };
 }
 export async function resumeOnlineSync() {
@@ -1018,27 +1032,38 @@ export async function hydrateStore() {
         }
       } catch (error) {
         console.warn("[MobFlow Cash] Could not reconcile the current operator session:", error);
+        if (isDesktopRuntime()) {
+          throw new Error("Não foi possível baixar os dados do caixa deste operador. Verifique a conexão e tente novamente.");
+        }
       }
 
-      // Publish the authoritative Neon snapshot before loading secondary private data.
-      // A contacts/settings failure must never hide persisted sales, cash sessions or stock.
+      // Store the snapshot first, but mark it as prepared only after private company
+      // settings and contacts have also been downloaded successfully.
       normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
-        localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
         localStorage.setItem(activeStateKey, JSON.stringify(state));
-      } catch {}
+      } catch (error) {
+        if (isDesktopRuntime()) throw new Error("Não foi possível armazenar os dados da empresa neste computador.");
+      }
       listeners.forEach((listener) => listener());
 
       try {
         const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
         state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
         normalizeState();
-        try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+        try {
+          localStorage.setItem(activeStateKey, JSON.stringify(state));
+          localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
+        } catch (error) {
+          if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
+        }
         listeners.forEach((listener) => listener());
       } catch (error) {
-        // Private settings/contacts are secondary; core relational data is already loaded.
         console.error("[MobFlow Hydration] Private company data could not be loaded:", error);
+        if (isDesktopRuntime()) {
+          throw new Error("Não foi possível baixar as configurações e os dados privados da empresa. A preparação offline não foi concluída.");
+        }
       }
 
       cloudAccountId = accountId;
