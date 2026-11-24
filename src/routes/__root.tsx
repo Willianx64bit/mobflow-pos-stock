@@ -218,7 +218,7 @@ function RootComponent() {
         }
         if (!response.ok) return;
         const synchronized = await resumeOnlineSync();
-        if (synchronized) sessionStorage.removeItem("mobflow-desktop-offline");
+        if (synchronized) { sessionStorage.removeItem("mobflow-desktop-offline"); window.dispatchEvent(new Event("mobflow-offline-state-changed")); }
       } catch {
         // A rede persistente ainda não voltou; mantém o estado local e tenta novamente no próximo evento online.
       }
