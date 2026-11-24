@@ -243,15 +243,20 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    if (!window.mobflowDesktop || !("serviceWorker" in navigator)) return;
-    void navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" })
-      .catch((error) => console.warn("MobFlow Desktop: cache do aplicativo indisponível:", error));
-  }, []);
-
-  useEffect(() => {
     let active = true;
     const bootstrap = async () => {
       try {
+        // Wait for the desktop shell worker to finish its install/precache before
+        // presenting the authenticated PDV. Otherwise an immediate network loss
+        // can leave Electron with no cached HTML or JS chunks to restore.
+        if (window.mobflowDesktop && "serviceWorker" in navigator) {
+          try {
+            await navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" });
+            await navigator.serviceWorker.ready;
+          } catch (cacheError) {
+            console.warn("MobFlow Desktop: não foi possível preparar o cache offline:", cacheError);
+          }
+        }
         let profile: { accountId: string; role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
         let restoredOffline = false;
 
