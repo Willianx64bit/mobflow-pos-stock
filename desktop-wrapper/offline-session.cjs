@@ -9,11 +9,16 @@ function validateOfflineSession(value) {
   if (typeof username !== "string" || !username.trim() || username.length > 120) return null;
   if (!Array.isArray(permissions) || permissions.length > 64 ||
       permissions.some((item) => typeof item !== "string" || !item.trim() || item.length > 80)) return null;
+  // Offline mode is intentionally restricted to checkout and Operations.
+  // A PDV identity must never carry cached Gerência/Admin/other online-only access.
+  const offlinePermissions = [...new Set(permissions.map((item) => item.trim())
+    .filter((item) => item === "PDV" || item === "Operações"))];
+  if (offlinePermissions.length === 0) return null;
   return {
     accountId: accountId.trim(),
     role,
     username: username.trim(),
-    permissions: [...new Set(permissions.map((item) => item.trim()))]
+    permissions: offlinePermissions
   };
 }
 
