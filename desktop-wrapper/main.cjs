@@ -7,6 +7,7 @@ const { createLocalRuntimeServer } = require("./local-runtime.cjs");
 let mainWindow = null;
 let showingOfflineFallback = false;
 let localRuntime = null;
+let localPublicDir = null;
 let localUrl = null;
 let localOrigin = null;
 
@@ -22,6 +23,28 @@ function isTrustedAppSender(event) {
 
 function offlineSessionPath() {
   return path.join(app.getPath("userData"), OFFLINE_SESSION_FILE);
+}
+
+async function verifyPackagedWebRuntime() {
+  if (!localPublicDir) return false;
+  try {
+    const shell = await fs.stat(path.join(localPublicDir, "_shell.html"));
+    if (!shell.isFile() || shell.size < 500) return false;
+    let scriptCount = 0;
+    const pending = [localPublicDir];
+    while (pending.length) {
+      const current = pending.pop();
+      const entries = await fs.readdir(current, { withFileTypes: true });
+      for (const entry of entries) {
+        const absolute = path.join(current, entry.name);
+        if (entry.isDirectory()) pending.push(absolute);
+        else if (/\.(?:m?js)$/i.test(entry.name)) scriptCount++;
+      }
+    }
+    return scriptCount >= 2;
+  } catch {
+    return false;
+  }
 }
 
 async function readAuthorizedSession() {
@@ -196,6 +219,11 @@ function createWindow() {
   return win;
 }
 
+ipcMain.handle("mobflow:verify-local-runtime", async (event) => {
+  if (!isTrustedAppSender(event)) return false;
+  return verifyPackagedWebRuntime();
+});
+
 ipcMain.handle("mobflow:save-pdf", async (event, requestedName) => {
   if (!isTrustedAppSender(event)) return false;
   const safeName = String(requestedName || "documento")
@@ -263,6 +291,7 @@ app.whenReady().then(async () => {
   const publicDir = app.isPackaged
     ? path.join(process.resourcesPath, "mobflow-web")
     : path.resolve(__dirname, "../.output/public");
+  localPublicDir = publicDir;
   const runtimeFetch = process.env.MOBFLOW_TEST_OFFLINE === "1"
     ? async () => { throw new TypeError("Failed to fetch: simulated offline startup"); }
     : fetch;
