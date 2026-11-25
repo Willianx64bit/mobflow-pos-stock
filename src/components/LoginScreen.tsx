@@ -297,6 +297,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (lockoutRemaining > 0) return;
+    // A manual login is now in progress; saved credentials must not launch a
+    // second automatic submission after logout or after a failed attempt.
+    autoLoginAttempted.current = true;
+    sessionStorage.removeItem("mobflow-suppress-saved-login");
     setLoading(true);
     setError("");
     localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
@@ -445,8 +449,9 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   // submit the stored credentials automatically for both company and PDV access.
   // The password itself is only read from Electron safeStorage.
   useEffect(() => {
-    if (!window.mobflowDesktop || !rememberLogin || !username.trim() || !password ||
-        loading || captchaRequired || lockoutRemaining > 0 || autoLoginAttempted.current) return;
+    if (!window.mobflowDesktop || sessionStorage.getItem("mobflow-suppress-saved-login") === "1" ||
+        !rememberLogin || !username.trim() || !password || loading || captchaRequired ||
+        lockoutRemaining > 0 || autoLoginAttempted.current) return;
     const document = (mode === "pdv"
       ? localStorage.getItem("mobflow-company-cnpj") || ""
       : cnpj).replace(/\D/g, "");
