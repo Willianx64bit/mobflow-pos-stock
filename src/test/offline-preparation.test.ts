@@ -162,7 +162,7 @@ describe("verifyDesktopOfflinePreparation", () => {
     const snapshot = validSnapshot();
     snapshot.products = [];
     saveSnapshot(snapshot);
-    await expect(hydrateStoreOffline(accountId)).rejects.toThrow("catálogo necessário");
+    await expect(hydrateStoreOffline(accountId)).rejects.toThrow("dados essenciais");
   });
 
   it("rejects malformed local JSON and non-desktop execution", async () => {
