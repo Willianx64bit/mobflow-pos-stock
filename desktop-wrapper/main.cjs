@@ -2,7 +2,7 @@ const { app, BrowserWindow, shell, dialog, session, ipcMain, safeStorage } = req
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { validateOfflineSession, isValidOfflineSessionRecord } = require("./offline-session.cjs");
-const { APP_URL, APP_ORIGIN } = require("./app-config.cjs");
+const { APP_ORIGIN } = require("./app-config.cjs");
 const { createLocalRuntimeServer } = require("./local-runtime.cjs");
 let mainWindow = null;
 let showingOfflineFallback = false;
@@ -176,7 +176,7 @@ function createWindow() {
     // app origin once so its installed service worker can serve the cached shell.
     if (appShellLoaded && !retryingOfflineNavigation) {
       retryingOfflineNavigation = true;
-      win.webContents.loadURL(APP_URL).catch(() => showOfflineFallback(win));
+      win.webContents.loadURL(localUrl).catch(() => showOfflineFallback(win));
       return;
     }
     showOfflineFallback(win);
