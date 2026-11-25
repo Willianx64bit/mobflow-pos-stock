@@ -905,8 +905,9 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
       !Array.isArray(cached.stockAdjustments) || !Array.isArray(cached.stockWriteoffs) ||
       !Array.isArray(cached.stockTransfers) || !cached.settings ||
       typeof cached.settings !== "object" || typeof cached.settings.companyName !== "string" ||
-      !cached.settings.companyName.trim()) {
-    throw new Error("Ainda faltam dados essenciais da empresa, do catálogo, do caixa ou das Operações para liberar o modo offline.");
+      !cached.settings.companyName.trim() || typeof cached.settings.pixKey !== "string" ||
+      !cached.settings.pixKey.trim()) {
+    throw new Error("Ainda faltam dados essenciais da empresa, do catálogo, do caixa, da chave Pix ou das Operações para liberar o modo offline.");
   }
   const hasInvalidProduct = cached.products.some((product) =>
     !product || typeof product.id !== "string" || !product.id ||
