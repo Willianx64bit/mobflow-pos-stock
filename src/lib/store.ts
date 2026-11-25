@@ -1337,6 +1337,9 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       throw new Error("A sessão online da empresa ainda não foi restabelecida. Os comandos continuam guardados localmente.");
     }
     await restoreOutboxBackup(tenantId);
+    // Finish any command-triggered flush before resetting failed entries; otherwise
+    // the manual retry could join an older flush that never saw the reset statuses.
+    if (options.retryFailed && outboxFlushInFlight) await outboxFlushInFlight.catch(() => undefined);
     if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
     let sent = 0;
     let lastError: string | undefined;
@@ -1374,6 +1377,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
   }
   if (persistWorker) await persistQueue;
   await restoreOutboxBackup(tenantId);
+  if (options.retryFailed && outboxFlushInFlight) await outboxFlushInFlight.catch(() => undefined);
   if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
   try {
     const result = await runIncrementalSync({
