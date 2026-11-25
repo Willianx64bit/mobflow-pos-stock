@@ -1,11 +1,11 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { actions, useStore, syncNow, syncNewContacts, isOfflineMode } from "@/lib/store";
+import { actions, useStore, syncNow, syncNewContacts, isOfflineMode, clearLocalPendingOperations } from "@/lib/store";
 import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, Menu, ChevronLeft, ChevronRight, ChevronDown, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw, WifiOff } from "lucide-react";
+import { ShoppingCart, ClipboardCheck, CalendarDays, CreditCard, LockKeyhole, UserRound, LogOut, Sun, Moon, Menu, ChevronLeft, ChevronRight, ChevronDown, DoorOpen, DoorClosed, ArrowLeftRight, History, ReceiptText, RefreshCw, WifiOff, Trash2 } from "lucide-react";
 
 const tabs = [
   { to: "/", label: "PDV", icon: "pdv" },
@@ -90,6 +90,22 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     void loadCompanyLogo();
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [settings.companyLogoObjectKey]);
+
+  const handleClearLocalQueue = async () => {
+    if (syncing) return;
+    const confirmed = window.confirm("ATENÇÃO: isso apaga permanentemente todas as operações ainda não confirmadas pelo Neon desta empresa neste computador. Vendas, recebimentos e movimentações pendentes serão descartados e não poderão ser recuperados. Deseja continuar?");
+    if (!confirmed) return;
+    setSyncing(true);
+    setSyncMessage("");
+    try {
+      const cleared = await clearLocalPendingOperations();
+      setSyncMessage(`Fila local limpa: ${cleared.pending} pendente(s) e ${cleared.failed} com erro removida(s). Nenhum dado do Neon foi apagado.`);
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Não foi possível limpar a fila local.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleManualSync = async () => {
     if (syncing) return;
@@ -354,6 +370,12 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
                     <LogOut className="h-4 w-4 shrink-0" />
                     <span className="truncate">Sair</span>
                   </button>
+                  {"mobflowDesktop" in window && (
+                    <button type="button" onClick={() => void handleClearLocalQueue()} disabled={syncing} className="col-span-2 flex min-w-0 items-center justify-center gap-2 rounded-xl bg-red-50 px-2 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 transition-colors hover:bg-red-100 disabled:opacity-60" title="Apagar somente as operações locais ainda não confirmadas pelo Neon">
+                      <Trash2 className="h-4 w-4 shrink-0" />
+                      <span>Limpar fila local desta empresa</span>
+                    </button>
+                  )}
                 </div>
               )}
               {syncCooldown > 0 ? (
