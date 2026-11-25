@@ -59,8 +59,9 @@ test("serves the same local shell after a complete runtime server shutdown and r
     await first.close();
 
     const second = createLocalRuntimeServer({ publicDir: root, remoteOrigin: "https://mobflow-pdv-gestao.vercel.app" });
-    const secondAddress = await second.listen();
+    const secondAddress = await second.listen(firstAddress.port);
     try {
+      assert.equal(secondAddress.origin, firstAddress.origin);
       const secondResponse = await fetch(secondAddress.url);
       assert.equal(secondResponse.status, 200);
       assert.match(await secondResponse.text(), /RESTARTED LOCAL SHELL/);
