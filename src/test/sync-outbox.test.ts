@@ -303,6 +303,42 @@ describe("MobFlow durable incremental outbox contract", () => {
     reopenedApp.close();
   });
 
+  it("restores sale, cash and stock commands after restart and syncs each idempotently", async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("mobflow-incremental-sync");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("Database de teste bloqueado."));
+    });
+    const firstInstance = new SyncOutbox();
+    const specs = [
+      { domain: "sales" as const, id: "b6c47ea1-2abf-4cd6-b614-24e27077bdf1", key: "b6c47ea1-2abf-4cd6-b614-24e27077bdf2", payload: { saleId: "sale-restart-2", total: 15 } },
+      { domain: "cash" as const, id: "c6c47ea1-2abf-4cd6-b614-24e27077bdf1", key: "c6c47ea1-2abf-4cd6-b614-24e27077bdf2", payload: { movementId: "cash-restart-2", amount: 20 } },
+      { domain: "stock" as const, id: "d6c47ea1-2abf-4cd6-b614-24e27077bdf1", key: "d6c47ea1-2abf-4cd6-b614-24e27077bdf2", payload: { operationId: "stock-restart-2", quantity: 3 } },
+    ];
+    for (const spec of specs) {
+      await firstInstance.enqueue(createSyncCommand({ tenantId: TENANT, ...spec }));
+    }
+    firstInstance.close();
+
+    const offlineTransport = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+    const offline = new SyncOutbox();
+    expect(await flushSyncOutbox(offline, TENANT, offlineTransport)).toMatchObject({ sent: 0, pending: 3 });
+    offline.close();
+
+    const reopened = new SyncOutbox();
+    expect(await reopened.listPending(TENANT)).toHaveLength(3);
+    const onlineTransport = vi.fn().mockResolvedValue(response({ ok: true, replayed: false }));
+    expect(await flushSyncOutbox(reopened, TENANT, onlineTransport)).toMatchObject({ sent: 3, failed: 0, pending: 0 });
+    expect(onlineTransport).toHaveBeenCalledTimes(3);
+    expect(onlineTransport.mock.calls.map((call) => call[0]).sort()).toEqual([
+      "/api/mobflow/cash", "/api/mobflow/sales", "/api/mobflow/stock",
+    ]);
+    expect(await flushSyncOutbox(reopened, TENANT, onlineTransport)).toMatchObject({ sent: 0, pending: 0 });
+    expect(onlineTransport).toHaveBeenCalledTimes(3);
+    reopened.close();
+  });
+
   it("does not advance the cursor if applying an event page fails", async () => {
     const event: SyncEvent = {
       event_id: "event-2", sequence: "5", category: "sales", delivery_mode: "automatic",
