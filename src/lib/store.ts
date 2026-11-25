@@ -105,7 +105,7 @@ let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let stopRealtimeSubscription: (() => void) | null = null;
 let syncFallbackInFlight = false;
-let syncInFlight: Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; reconciliationRequired?: boolean }> | null = null;
+let syncInFlight: Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; reconciliationRequired?: boolean; lastError?: string }> | null = null;
 let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
@@ -1339,9 +1339,11 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
     await restoreOutboxBackup(tenantId);
     if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
     let sent = 0;
+    let lastError: string | undefined;
     if (isDesktopRuntime() && cloudReady && cloudAccountId === tenantId) {
       const pushed = await flushDesktopOutbox(tenantId);
       sent = pushed.sent;
+      lastError = pushed.lastError;
       if (sent > 0) await refreshFromCloud(tenantId, true);
     }
     const [failed, pending, cursor] = await Promise.all([
@@ -1358,7 +1360,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
         window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       }
     }
-    return { sent, failed, pending, applied: 0, cursor, hasMore: false };
+    return { sent, failed, pending, applied: 0, cursor, hasMore: false, ...(lastError ? { lastError } : {}) };
   }
 
   // O botão manual também pode ser acionado antes da hidratação inicial do app.
