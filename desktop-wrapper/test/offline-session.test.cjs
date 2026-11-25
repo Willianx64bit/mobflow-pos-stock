@@ -82,7 +82,7 @@ test("survives JSON serialization as a restart-safe, least-privilege session", (
     accountId: "tenant-123",
     role: "pdv",
     username: "William",
-    permissions: ["PDV"]
+    permissions: ["PDV", "Fiado"]
   });
 });
 
