@@ -352,7 +352,7 @@ export async function runIncrementalSync(input: {
   tenantId: string;
   applyEvents: (events: SyncEvent[]) => Promise<void> | void;
   transport?: SyncTransport;
-}): Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean }> {
+}): Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; lastError?: string }> {
   const pushed = await flushSyncOutbox(input.outbox, input.tenantId, input.transport);
   const pulled = await pullSyncEvents(input.outbox, input.tenantId, input.applyEvents, input.transport);
   return { ...pushed, ...pulled };
