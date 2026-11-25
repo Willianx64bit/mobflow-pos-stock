@@ -124,10 +124,10 @@ jobs:
             }
             if (-not (Test-Path $readyFile)) { throw "O runtime local não iniciou em 30 segundos sem internet." }
             $runtime = Get-Content $readyFile -Raw | ConvertFrom-Json
-            $home = Invoke-WebRequest -Uri $runtime.url -TimeoutSec 10
-            if ($home.StatusCode -ne 200 -or $home.Content.Length -lt 500) { throw "O shell local não foi servido corretamente." }
+            $homeResponse = Invoke-WebRequest -Uri $runtime.url -TimeoutSec 10
+            if ($homeResponse.StatusCode -ne 200 -or $homeResponse.Content.Length -lt 500) { throw "O shell local não foi servido corretamente." }
             $deepRoute = Invoke-WebRequest -Uri ($runtime.url + "operacoes/baixa-produtos") -TimeoutSec 10
-            if ($deepRoute.StatusCode -ne 200 -or $deepRoute.Content -ne $home.Content) { throw "A rota profunda não retornou o shell local." }
+            if ($deepRoute.StatusCode -ne 200 -or $deepRoute.Content -ne $homeResponse.Content) { throw "A rota profunda não retornou o shell local." }
             $process.Refresh()
             if ($process.HasExited) { throw "MobFlow encerrou inesperadamente durante o primeiro início offline." }
             $firstPort = ([uri]$runtime.url).Port
