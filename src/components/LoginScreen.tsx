@@ -704,13 +704,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
               setRememberLogin(checked);
               localStorage.setItem(REMEMBER_KEY, checked ? "1" : "0");
               if (!checked) {
-                const savedName = username.trim();
-                const savedRole = mode === "pdv" ? "pdv" as const : "manager" as const;
+                const companyUsername = localStorage.getItem("mobflow-saved-company-username") || (mode === "empresa" ? username.trim() : "");
+                const operatorUsername = localStorage.getItem("mobflow-saved-operator-username") || (mode === "pdv" ? username.trim() : "");
                 const savedCnpj = (mode === "pdv" ? localStorage.getItem("mobflow-company-cnpj") || "" : cnpj).replace(/\D/g, "");
                 localStorage.removeItem("mobflow-saved-company-username");
                 localStorage.removeItem("mobflow-saved-operator-username");
-                if (window.mobflowDesktop?.clearLoginSecret && savedCnpj.length === 14 && savedName) {
-                  void window.mobflowDesktop.clearLoginSecret({ cnpj: savedCnpj, role: savedRole, username: savedName });
+                if (window.mobflowDesktop?.clearLoginSecret && savedCnpj.length === 14) {
+                  void Promise.all([
+                    companyUsername ? window.mobflowDesktop.clearLoginSecret({ cnpj: savedCnpj, role: "manager", username: companyUsername }) : Promise.resolve(false),
+                    operatorUsername ? window.mobflowDesktop.clearLoginSecret({ cnpj: savedCnpj, role: "pdv", username: operatorUsername }) : Promise.resolve(false),
+                  ]);
                 }
                 setPassword("");
               }
