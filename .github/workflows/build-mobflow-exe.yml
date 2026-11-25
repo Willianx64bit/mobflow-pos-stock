@@ -62,6 +62,8 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           MOBFLOW_DESKTOP_BUILD: "1"
+          # Public Realtime endpoint configured for the isolated Neon Preview branch.
+          VITE_NEON_REALTIME_URL: "https://ep-tiny-band-bd5bkjdc.rt.c-8.us-east-2.aws.neon.tech/"
         run: npm run build
 
       - name: Verificar shell local do MobFlow
