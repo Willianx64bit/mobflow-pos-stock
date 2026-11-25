@@ -263,11 +263,17 @@ app.whenReady().then(async () => {
   const publicDir = app.isPackaged
     ? path.join(process.resourcesPath, "mobflow-web")
     : path.resolve(__dirname, "../.output/public");
-  localRuntime = createLocalRuntimeServer({ publicDir, remoteOrigin: APP_ORIGIN });
+  const runtimeFetch = process.env.MOBFLOW_TEST_OFFLINE === "1"
+    ? async () => { throw new TypeError("Failed to fetch: simulated offline startup"); }
+    : fetch;
+  localRuntime = createLocalRuntimeServer({ publicDir, remoteOrigin: APP_ORIGIN, fetchImpl: runtimeFetch });
   try {
     const address = await localRuntime.listen();
     localUrl = address.url;
     localOrigin = address.origin;
+    if (process.env.MOBFLOW_TEST_READY_FILE) {
+      await fs.writeFile(process.env.MOBFLOW_TEST_READY_FILE, JSON.stringify({ url: localUrl }), { mode: 0o600 });
+    }
   } catch (error) {
     dialog.showErrorBox("MobFlow não iniciou", error instanceof Error ? error.message : "Não foi possível iniciar o aplicativo local.");
     app.quit();
