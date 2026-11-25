@@ -48,6 +48,15 @@
       "createStartMenuShortcut": true,
       "shortcutName": "MobFlow"
     },
-    "artifactName": "MobFlow-Setup-1.1.0-x64.exe"
+    "artifactName": "MobFlow-Setup-1.1.0-x64.exe",
+    "extraResources": [
+      {
+        "from": "../.output/public",
+        "to": "mobflow-web",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   }
 }
