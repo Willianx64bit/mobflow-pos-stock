@@ -2245,7 +2245,7 @@ export function printReceipt(s: Sale, companyName = "") {
 /** Builds a Pix QR matrix locally with ZXing; the UI renders it as inline SVG. */
 export function buildPixQrMatrix(payload: string): { width: number; height: number; path: string } {
   if (!payload.trim()) return { width: 0, height: 0, path: "" };
-  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 320, 320);
+  const matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 320, 320, new Map());
   const width = matrix.getWidth();
   const height = matrix.getHeight();
   let path = "";
