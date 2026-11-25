@@ -272,13 +272,12 @@ function RootComponent() {
         let restoredOffline = false;
 
         if (window.mobflowDesktop) {
-          // Never reuse the Electron session cookie as an implicit desktop login.
-          // Probe connectivity without credentials; online users must authenticate
-          // explicitly in the company/operator forms. Only a network failure may
-          // restore the previously authorized, encrypted PDV session.
+          // Electron uses its own persistent session partition, isolated from Chrome/Edge.
+          // Reuse only cookies created inside this desktop app; never import browser cookies.
+          // If the remote API is unreachable, fall back to the separately encrypted PDV grant.
           try {
             const connectivity = await fetch("/api/mobflow/session-context", {
-              credentials: "omit",
+              credentials: "same-origin",
               cache: "no-store",
               headers: { "x-mobflow-desktop-connectivity-check": "1" },
             });
