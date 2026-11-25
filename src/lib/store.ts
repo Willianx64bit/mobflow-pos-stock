@@ -2156,12 +2156,15 @@ export const formatCpf = (v: string) => {
 export async function saveCurrentPageAsPdf(filename: string) {
   if (typeof window === "undefined") return;
   const desktop = (window as Window & { mobflowDesktop?: { savePdf?: (name: string) => Promise<boolean> } }).mobflowDesktop;
-  if (typeof desktop?.savePdf === "function") {
+  if (desktop) {
+    if (typeof desktop.savePdf !== "function") {
+      throw new Error("O módulo de salvamento PDF do MobFlow Desktop não foi carregado. Feche e abra novamente o EXE; se persistir, reinstale a versão mais recente.");
+    }
     const saved = await desktop.savePdf(filename);
     if (!saved) return;
     return;
   }
-  // No navegador, mantém o fluxo nativo de impressão/Salvar como PDF.
+  // O navegador mantém o fluxo nativo de impressão/Salvar como PDF.
   window.print();
 }
 
