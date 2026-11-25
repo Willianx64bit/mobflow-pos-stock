@@ -111,6 +111,24 @@ test("proxies authenticated API cookies, methods, request bodies and Set-Cookie 
   }
 });
 
+test("marks upstream network failure so the renderer can restore its encrypted offline session", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "mobflow-local-offline-"));
+  await fs.writeFile(path.join(root, "_shell.html"), "<html>offline shell</html>");
+  try {
+    await withServer({
+      publicDir: root,
+      remoteOrigin: "https://mobflow-pdv-gestao.vercel.app",
+      fetchImpl: async () => { throw new TypeError("Failed to fetch"); },
+    }, async ({ url }) => {
+      const response = await fetch(new URL("/api/mobflow/session-context", url));
+      assert.equal(response.status, 502);
+      assert.equal(response.headers.get("x-mobflow-local-proxy-error"), "1");
+    });
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("does not allow an HTTP or untrusted upstream origin", () => {
   assert.throws(() => createLocalRuntimeServer({ publicDir: "/tmp", remoteOrigin: "http://example.com" }), /HTTPS/);
 });
