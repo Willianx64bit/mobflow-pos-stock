@@ -1,3 +1,4 @@
+// Desktop validation uses the isolated Preview deployment. Preview Feedback/Toolbar is disabled in Vercel project settings.
 const DEFAULT_APP_URL = "https://mobflow-pos-stock-git-packaging-windows-exe-neon-willianx64bit.vercel.app/";
 
 function resolveAppUrl(value = process.env.MOBFLOW_APP_URL || DEFAULT_APP_URL) {
