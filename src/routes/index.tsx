@@ -229,10 +229,11 @@ function PDV() {
     try {
       const sale = actions.checkout(payment, payment === "Dinheiro" ? recv || total : undefined, customer.trim(), cpf, discountNumber, discountType);
       if (!sale) { setFlash("Não foi possível preparar a venda. Confira o caixa e os produtos."); return false; }
-      // No Desktop offline, checkout já persistiu a venda na outbox local.
-      // Não aguarde a confirmação do Neon enquanto não houver conexão.
-      if (!isOfflineMode()) await confirmLastDomainCommand();
-      setDone(sale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
+      // Wait for the authenticated transaction probe to decide online vs offline.
+      // This prevents a stale offline marker from skipping confirmation while online.
+      await confirmLastDomainCommand();
+      const finalizedSale = useStore.getState().sales.find((item) => item.id === sale.id) ?? sale;
+      setDone(finalizedSale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
       return true;
     } catch (error) {
       await hydrateStore().catch(() => undefined);
