@@ -211,6 +211,17 @@ export class SyncOutbox {
     return records.filter((item) => item.tenantId === tenantId && item.status === "failed").length;
   }
 
+  async clearCommands(tenantId: string): Promise<void> {
+    const db = await this.db();
+    const transaction = db.transaction(COMMANDS, "readwrite");
+    const store = transaction.objectStore(COMMANDS);
+    const records = await requestValue(store.getAll()) as SyncCommand[];
+    for (const command of records) {
+      if (command.tenantId === tenantId) store.delete(command.id);
+    }
+    await transactionDone(transaction);
+  }
+
   async clearTenant(tenantId: string): Promise<void> {
     const db = await this.db();
     const transaction = db.transaction([COMMANDS, META], "readwrite");
