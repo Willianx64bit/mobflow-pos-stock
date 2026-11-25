@@ -5,5 +5,6 @@ contextBridge.exposeInMainWorld("mobflowDesktop", Object.freeze({
   savePdf: (filename) => ipcRenderer.invoke("mobflow:save-pdf", filename),
   cacheAuthorizedSession: (session) => ipcRenderer.invoke("mobflow:cache-authorized-session", session),
   getCachedAuthorizedSession: () => ipcRenderer.invoke("mobflow:get-cached-authorized-session"),
-  clearCachedAuthorizedSession: () => ipcRenderer.invoke("mobflow:clear-cached-authorized-session")
+  clearCachedAuthorizedSession: () => ipcRenderer.invoke("mobflow:clear-cached-authorized-session"),
+  verifyLocalRuntime: () => ipcRenderer.invoke("mobflow:verify-local-runtime")
 }));
