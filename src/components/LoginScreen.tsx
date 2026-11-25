@@ -119,6 +119,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const savedUsernameKey = mode === "pdv" ? "mobflow-saved-operator-username" : "mobflow-saved-company-username";
   const [username, setUsername] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1" ? localStorage.getItem(savedUsernameKey) || "" : "");
   const [password, setPassword] = useState("");
+  const [savedPasswordReady, setSavedPasswordReady] = useState(false);
+  const [credentialsMode, setCredentialsMode] = useState(mode);
   // Reuse the company identifier on this device; never persist the password.
   const [cnpj, setCnpj] = useState(() => localStorage.getItem("mobflow-company-cnpj") || "");
   const [error, setError] = useState("");
@@ -178,6 +180,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setUsername(shouldRemember ? localStorage.getItem(key) || "" : "");
     setCnpj(localStorage.getItem("mobflow-company-cnpj") || "");
     setPassword("");
+    setSavedPasswordReady(false);
+    setCredentialsMode(mode);
     setError("");
     setCaptchaRequired(false);
     setCaptchaToken("");
@@ -201,7 +205,10 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         role: mode === "pdv" ? "pdv" : "manager",
         username: username.trim(),
       }).catch(() => null);
-      if (!cancelled && saved?.password) setPassword(saved.password);
+      if (!cancelled && saved?.password) {
+        setPassword(saved.password);
+        setSavedPasswordReady(true);
+      }
     };
     void restore();
     return () => { cancelled = true; };
@@ -445,15 +452,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   // submit the stored credentials automatically for both company and PDV access.
   // The password itself is only read from Electron safeStorage.
   useEffect(() => {
-    if (!window.mobflowDesktop || !rememberLogin || !username.trim() || !password ||
-        loading || captchaRequired || lockoutRemaining > 0 || autoLoginAttempted.current) return;
+    if (!window.mobflowDesktop || credentialsMode !== mode || !rememberLogin || !savedPasswordReady ||
+        !username.trim() || !password || loading || captchaRequired || lockoutRemaining > 0 ||
+        autoLoginAttempted.current) return;
     const document = (mode === "pdv"
       ? localStorage.getItem("mobflow-company-cnpj") || ""
       : cnpj).replace(/\D/g, "");
     if (document.length !== 14) return;
     autoLoginAttempted.current = true;
     void submit({ preventDefault: () => undefined } as unknown as FormEvent);
-  }, [mode, rememberLogin, username, password, cnpj, loading, captchaRequired, lockoutRemaining]);
+  }, [mode, credentialsMode, rememberLogin, savedPasswordReady, username, password, cnpj, loading, captchaRequired, lockoutRemaining]);
 
   const submitSignup = async (e: FormEvent) => {
     e.preventDefault();
@@ -693,7 +701,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
 
           <div>
             <label className="label-mono block mb-1.5 !text-slate-600">Senha</label>
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" />
+            <input value={password} onChange={(e) => { setPassword(e.target.value); setSavedPasswordReady(false); }} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" />
           </div>
 
           {captchaRequired && (

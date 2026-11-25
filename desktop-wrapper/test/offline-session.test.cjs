@@ -100,9 +100,9 @@ test("rejects an expired session after seven days and a timestamp beyond clock t
 test("keeps only the explicit offline permissions for a mixed-permission operator", () => {
   const session = validateOfflineSession({
     ...validSession,
-    permissions: ["Gerência", "PDV", "Estoque", "Operações", "Relatórios", "PDV"]
+    permissions: ["Gerência", "PDV", "Estoque", "Operações", "Fiado", "Relatórios", "PDV"]
   });
-  assert.deepEqual(session.permissions, ["PDV", "Operações"]);
+  assert.deepEqual(session.permissions, ["PDV", "Operações", "Fiado"]);
   assert.equal(session.permissions.includes("Gerência"), false);
   assert.equal(session.permissions.includes("Relatórios"), false);
   assert.equal(session.permissions.includes("Fiado"), true);
