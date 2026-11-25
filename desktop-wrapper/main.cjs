@@ -23,6 +23,7 @@ if (!hasSingleInstanceLock) {
 }
 
 const OFFLINE_SESSION_FILE = "mobflow-authorized-session.bin";
+const DESKTOP_SESSION_PARTITION = "persist:mobflow-desktop";
 
 function isTrustedAppSender(event) {
   try {
@@ -123,7 +124,7 @@ function loadMobFlow(win) {
 }
 
 function configurePermissions() {
-  const ses = session.defaultSession;
+  const ses = session.fromPartition(DESKTOP_SESSION_PARTITION);
 
   ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
     let origin = "";
@@ -183,7 +184,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true
+      sandbox: true,
+      partition: DESKTOP_SESSION_PARTITION
     }
   });
 
