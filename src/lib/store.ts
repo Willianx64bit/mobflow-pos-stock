@@ -903,7 +903,10 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
       !Array.isArray(cached.sales) || !Array.isArray(cached.cashSessions) ||
       !Array.isArray(cached.cashMovements) || !Array.isArray(cached.stockMovements) ||
       !Array.isArray(cached.stockAdjustments) || !Array.isArray(cached.stockWriteoffs) ||
-      !Array.isArray(cached.stockTransfers) || !cached.settings ||
+      !Array.isArray(cached.stockTransfers) || !Array.isArray(cached.contacts) ||
+      !Array.isArray(cached.conferences) || !Array.isArray(cached.receiving) ||
+      !Array.isArray(cached.manualExpiries) || !Array.isArray(cached.promotions) ||
+      !Array.isArray(cached.suppliers) || !cached.settings ||
       typeof cached.settings !== "object" || typeof cached.settings.companyName !== "string" ||
       !cached.settings.companyName.trim() || typeof cached.settings.pixKey !== "string" ||
       !cached.settings.pixKey.trim()) {
