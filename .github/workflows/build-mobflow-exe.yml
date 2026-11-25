@@ -129,10 +129,31 @@ jobs:
             $deepRoute = Invoke-WebRequest -Uri ($runtime.url + "operacoes/baixa-produtos") -TimeoutSec 10
             if ($deepRoute.StatusCode -ne 200 -or $deepRoute.Content -ne $home.Content) { throw "A rota profunda não retornou o shell local." }
             $process.Refresh()
-            if ($process.HasExited) { throw "MobFlow encerrou inesperadamente durante o teste offline." }
-            Write-Host "Aprovado: instalador contém runtime e shell; Electron iniciou e serviu a interface local sem rede."
+            if ($process.HasExited) { throw "MobFlow encerrou inesperadamente durante o primeiro início offline." }
+            $firstPort = ([uri]$runtime.url).Port
+            Stop-Process -Id $process.Id -Force
+            $process.WaitForExit()
+            Remove-Item $readyFile -Force -ErrorAction SilentlyContinue
+
+            # Reopen a completely new Electron process while the API proxy remains offline.
+            $process2 = Start-Process -FilePath $app -PassThru
+            $deadline = (Get-Date).AddSeconds(30)
+            while (-not (Test-Path $readyFile) -and (Get-Date) -lt $deadline) {
+              $process2.Refresh()
+              if ($process2.HasExited) { throw "MobFlow encerrou durante a reabertura offline." }
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not (Test-Path $readyFile)) { throw "O runtime local não reiniciou em 30 segundos." }
+            $runtime2 = Get-Content $readyFile -Raw | ConvertFrom-Json
+            if (([uri]$runtime2.url).Port -ne $firstPort) { throw "A porta local mudou após reiniciar; os dados locais não seriam persistentes." }
+            $reopened = Invoke-WebRequest -Uri $runtime2.url -TimeoutSec 10
+            if ($reopened.StatusCode -ne 200 -or $reopened.Content.Length -lt 500) { throw "O shell local não foi servido após a reabertura." }
+            $process2.Refresh()
+            if ($process2.HasExited) { throw "MobFlow encerrou inesperadamente após a reabertura offline." }
+            Write-Host "Aprovado: dois processos Electron iniciaram em sequência sem internet e mantiveram a mesma origem local."
           } finally {
             if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($process2 -and -not $process2.HasExited) { Stop-Process -Id $process2.Id -Force }
             Remove-Item $readyFile -Force -ErrorAction SilentlyContinue
             Remove-Item Env:MOBFLOW_TEST_OFFLINE -ErrorAction SilentlyContinue
             Remove-Item Env:MOBFLOW_TEST_READY_FILE -ErrorAction SilentlyContinue
