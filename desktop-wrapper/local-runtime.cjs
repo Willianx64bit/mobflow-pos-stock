@@ -116,7 +116,11 @@ function createLocalRuntimeServer({ publicDir, remoteOrigin, fetchImpl = fetch, 
     } catch (error) {
       logger.error("[MobFlow local runtime]", error);
       if (!response.headersSent) {
-        response.writeHead(502, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+        response.writeHead(502, {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+          "x-mobflow-local-proxy-error": "1",
+        });
       }
       response.end(JSON.stringify({ ok: false, error: "Não foi possível acessar o serviço do MobFlow." }));
     }
