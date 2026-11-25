@@ -89,7 +89,7 @@ jobs:
           Write-Host "Instalador gerado: $($installer.Name)"
           if ($installer.Length -lt 10MB) { throw "Instalador inesperadamente pequeno." }
 
-      - name: Testar instalação e inicialização
+      - name: Testar instalação e inicialização local sem internet
         shell: pwsh
         run: |
           $installer = Get-ChildItem "dist/*.exe" | Select-Object -First 1
@@ -100,12 +100,39 @@ jobs:
               Select-Object -First 1 -ExpandProperty FullName
           }
           if (-not $app -or -not (Test-Path $app)) { throw "MobFlow.exe não foi encontrado após a instalação." }
+          $resources = Join-Path (Split-Path $app) "resources"
+          $shell = Join-Path $resources "mobflow-web/_shell.html"
+          $runtimeModule = Join-Path $resources "app/local-runtime.cjs"
+          if (-not (Test-Path $shell)) { throw "O instalador não contém o shell local do MobFlow." }
+          if (-not (Test-Path $runtimeModule)) { throw "O instalador não contém o servidor local do Electron." }
+
+          $readyFile = Join-Path $env:TEMP "mobflow-local-runtime-ready-$PID.json"
+          Remove-Item $readyFile -Force -ErrorAction SilentlyContinue
+          $env:MOBFLOW_TEST_OFFLINE = "1"
+          $env:MOBFLOW_TEST_READY_FILE = $readyFile
           $process = Start-Process -FilePath $app -PassThru
-          Start-Sleep -Seconds 15
-          $process.Refresh()
-          if ($process.HasExited) { throw "MobFlow encerrou inesperadamente. ExitCode: $($process.ExitCode)" }
-          Stop-Process -Id $process.Id -Force
-          Write-Host "Smoke test aprovado: instalação e inicialização."
+          try {
+            $deadline = (Get-Date).AddSeconds(30)
+            while (-not (Test-Path $readyFile) -and (Get-Date) -lt $deadline) {
+              $process.Refresh()
+              if ($process.HasExited) { throw "MobFlow encerrou durante a inicialização offline. ExitCode: $($process.ExitCode)" }
+              Start-Sleep -Milliseconds 500
+            }
+            if (-not (Test-Path $readyFile)) { throw "O runtime local não iniciou em 30 segundos sem internet." }
+            $runtime = Get-Content $readyFile -Raw | ConvertFrom-Json
+            $home = Invoke-WebRequest -Uri $runtime.url -TimeoutSec 10
+            if ($home.StatusCode -ne 200 -or $home.Content.Length -lt 500) { throw "O shell local não foi servido corretamente." }
+            $deepRoute = Invoke-WebRequest -Uri ($runtime.url + "operacoes/baixa-produtos") -TimeoutSec 10
+            if ($deepRoute.StatusCode -ne 200 -or $deepRoute.Content -ne $home.Content) { throw "A rota profunda não retornou o shell local." }
+            $process.Refresh()
+            if ($process.HasExited) { throw "MobFlow encerrou inesperadamente durante o teste offline." }
+            Write-Host "Aprovado: instalador contém runtime e shell; Electron iniciou e serviu a interface local sem rede."
+          } finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            Remove-Item $readyFile -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:MOBFLOW_TEST_OFFLINE -ErrorAction SilentlyContinue
+            Remove-Item Env:MOBFLOW_TEST_READY_FILE -ErrorAction SilentlyContinue
+          }
 
       - name: Publicar instalador como artefato
         uses: actions/upload-artifact@v4
