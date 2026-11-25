@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -232,7 +232,7 @@ function PDV() {
       // Wait for the authenticated transaction probe to decide online vs offline.
       // This prevents a stale offline marker from skipping confirmation while online.
       await confirmLastDomainCommand();
-      const finalizedSale = useStore.getState().sales.find((item) => item.id === sale.id) ?? sale;
+      const finalizedSale = getStoreState().sales.find((item) => item.id === sale.id) ?? sale;
       setDone(finalizedSale); setReceived(""); setQ(""); setCustomer(""); setCpf(""); setDiscountInput(""); setDiscountType("R$"); setFlash("");
       return true;
     } catch (error) {
