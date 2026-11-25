@@ -277,11 +277,14 @@ function RootComponent() {
           // explicitly in the company/operator forms. Only a network failure may
           // restore the previously authorized, encrypted PDV session.
           try {
-            await fetch("/api/mobflow/session-context", {
+            const connectivity = await fetch("/api/mobflow/session-context", {
               credentials: "omit",
               cache: "no-store",
               headers: { "x-mobflow-desktop-connectivity-check": "1" },
             });
+            if (connectivity.headers.get("x-mobflow-local-proxy-error") === "1") {
+              throw new Error("Sem conexão com o servidor remoto; tentando restaurar a sessão local.");
+            }
           } catch {
             const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
             const cachedPermissions = Array.isArray(cached?.permissions) ? cached.permissions : [];
