@@ -55,7 +55,11 @@ async function proxyRequest(request, response, remoteOrigin, fetchImpl) {
   const cookies = typeof upstream.headers.getSetCookie === "function"
     ? upstream.headers.getSetCookie()
     : (upstream.headers.get("set-cookie") ? [upstream.headers.get("set-cookie")] : []);
-  if (cookies.length) responseHeaders["set-cookie"] = cookies;
+  // The renderer runs on the isolated 127.0.0.1 origin, not on the upstream
+  // Vercel hostname. Convert upstream domain cookies to host-only local cookies
+  // so Chromium can persist and resend the Better Auth session on app restarts.
+  const localCookies = cookies.map((cookie) => cookie.replace(/;\\s*domain=[^;]*/ig, ""));
+  if (localCookies.length) responseHeaders["set-cookie"] = localCookies;
   response.writeHead(upstream.status, responseHeaders);
   if (!upstream.body || method === "HEAD") {
     response.end();
