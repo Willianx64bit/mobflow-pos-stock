@@ -519,11 +519,14 @@ async function restoreOutboxBackup(tenantId: string) {
   writeOutboxBackup(remaining);
 }
 
+function isDesktopTransportUnavailable(response?: Response): boolean {
+  if (!response) return true;
+  return response.headers.get("x-mobflow-local-proxy-error") === "1";
+}
+
 function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables", payload: Record<string, unknown>): boolean {
   if (typeof window === "undefined") return false;
 
-  // All desktop transactions enter the durable outbox first, even while online.
-  // This closes the gap where the network drops but Windows still reports "online".
   if (isDesktopRuntime()) {
     const tenantId = localStorage.getItem(OWNER_KEY);
     if (!tenantId) return false;
@@ -531,46 +534,73 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables"
       const idempotencyKey = typeof payload["idempotencyKey"] === "string"
         ? String(payload["idempotencyKey"])
         : crypto.randomUUID();
-      const command = createSyncCommand({ tenantId, domain, payload: { ...payload, idempotencyKey }, idempotencyKey });
-      const backup = readOutboxBackup().filter((item) => item.id !== command.id);
-      if (!writeOutboxBackup([...backup, command])) return false;
-      lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
-        writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
-        if (cloudReady && cloudAccountId === tenantId) {
-          let result = incrementalSyncEnabled()
-            ? await syncNow()
-            : await flushDesktopOutbox(tenantId);
-          // Drain successive ordered batches without waiting for a full app_state
-          // refresh after each checkout. The Neon transaction response is the commit.
-          for (let pass = 0; pass < 9 && result.failed === 0 && result.sent > 0 && result.pending > 0; pass += 1) {
-            result = incrementalSyncEnabled()
-              ? await syncNow()
-              : await flushDesktopOutbox(tenantId);
+      const stablePayload = { ...payload, idempotencyKey };
+      const command = createSyncCommand({ tenantId, domain, payload: stablePayload, idempotencyKey });
+      const endpoint = command.endpoint;
+
+      // Decide using an authenticated Neon API request, never navigator.onLine.
+      // Try the transaction directly first. If the connection drops after commit,
+      // the same idempotency key makes the local retry safe against duplicates.
+      lastDomainCommandPromise = (async () => {
+        let sessionResponse: Response | undefined;
+        try {
+          const session = await callMobFlowApi("/api/mobflow/session-context", { cache: "no-store" });
+          sessionResponse = session.response;
+          if (isDesktopTransportUnavailable(session.response)) throw new TypeError("Neon indisponível");
+          if (!session.response.ok || session.body.ok !== true ||
+              typeof session.body.accountId !== "string" || session.body.accountId !== tenantId) {
+            throw new Error(String(session.body.error ?? "A sessão autenticada da empresa não foi confirmada pelo Neon."));
           }
-          if (result.failed > 0 || result.pending > 0) {
-            throw new Error("A operação foi guardada neste computador, mas o Neon ainda não confirmou. Use Sincronizar para tentar novamente.");
+          cloudReady = true;
+          cloudAccountId = tenantId;
+          sessionStorage.removeItem("mobflow-desktop-offline");
+          window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+
+          const result = await callMobFlowApi(endpoint, {
+            method: "POST",
+            body: JSON.stringify(stablePayload),
+            cache: "no-store",
+          });
+          if (isDesktopTransportUnavailable(result.response)) throw new TypeError("Conexão com Neon interrompida");
+          if (!result.response.ok || result.body.ok !== true) {
+            throw new Error(String(result.body.error ?? result.body.message ?? `Neon rejeitou a operação (HTTP ${result.response.status}).`));
           }
-          if (result.sent > 0 && result.pending === 0) {
-            if (domain === "sales") {
-              const saleId = String(payload["saleId"] ?? "");
-              if (saleId) set({ sales: state.sales.map((sale) => sale.id === saleId ? { ...sale, syncStatus: "synced" } : sale) }, { persist: false });
-            } else if (domain === "receivables") {
-              const saleId = String(payload["saleId"] ?? "");
-              const key = String(payload["idempotencyKey"] ?? "");
-              if (saleId && key) set({ sales: state.sales.map((sale) => sale.id === saleId
-                ? { ...sale, payments: (sale.payments ?? []).map((payment) => payment.idempotencyKey === key ? { ...payment, syncStatus: "synced" } : payment) }
-                : sale) }, { persist: false });
-            }
+          await hydrateStore().catch(() => undefined);
+          if (domain === "sales") {
+            const saleId = String(stablePayload["saleId"] ?? "");
+            if (saleId) set({ sales: state.sales.map((sale) => sale.id === saleId ? { ...sale, syncStatus: "synced" } : sale) }, { persist: false });
           }
+          if (domain === "receivables") {
+            const saleId = String(stablePayload["saleId"] ?? "");
+            if (saleId) set({ sales: state.sales.map((sale) => sale.id === saleId
+              ? { ...sale, payments: (sale.payments ?? []).map((payment) => payment.idempotencyKey === idempotencyKey ? { ...payment, syncStatus: "synced" } : payment) }
+              : sale) }, { persist: false });
+          }
+          return;
+        } catch (error) {
+          // Only transport failures fall back to local storage. Auth and business
+          // validation errors are real server responses and must reach the operator.
+          const transportFailure = error instanceof TypeError ||
+            (sessionResponse ? isDesktopTransportUnavailable(sessionResponse) : true);
+          if (!transportFailure) throw error;
         }
-      });
-      void lastDomainCommandPromise.catch((error) => console.error("[MobFlow Offline] Não foi possível persistir a operação na fila:", error));
+
+        const backup = readOutboxBackup().filter((item) => item.id !== command.id);
+        if (!writeOutboxBackup([...backup, command])) throw new Error("Não foi possível guardar a operação localmente.");
+        await syncOutbox.enqueue(command);
+        writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
+        sessionStorage.setItem("mobflow-desktop-offline", "1");
+        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+        // A later authenticated connectivity probe will resume this command.
+      })();
+      void lastDomainCommandPromise.catch((error) => console.error("[MobFlow Transaction] Operação não confirmada:", error));
       return true;
     } catch (error) {
-      console.error("[MobFlow Offline] Operação não entrou na fila:", error);
+      console.error("[MobFlow Transaction] Não foi possível preparar a operação:", error);
       return false;
     }
   }
+
 
   // Until incremental events are approved, online critical operations go straight
   // to their transactional Neon endpoints.
