@@ -1487,6 +1487,11 @@ export function syncNow(options: { retryFailed?: boolean } = {}) {
 }
 
 const serverState = state;
+export function getStoreState(): State {
+  load();
+  return state;
+}
+
 export function useStore<T>(sel: (s: State) => T): T {
   return useSyncExternalStore(
     (l) => { load(); listeners.add(l); l(); return () => listeners.delete(l); },
