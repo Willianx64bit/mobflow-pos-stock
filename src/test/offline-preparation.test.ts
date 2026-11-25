@@ -113,8 +113,8 @@ describe("verifyDesktopOfflinePreparation", () => {
       value: { controller: {} },
     });
     const cache = {
-      match: vi.fn().mockResolvedValue(new Response("<html></html>")),
-      keys: vi.fn().mockResolvedValue([new Request(`${window.location.origin}/assets/app.js`)]),
+      match: vi.fn().mockResolvedValue(({} as Response)),
+      keys: vi.fn().mockResolvedValue([({ url: `${window.location.origin}/assets/app.js` } as unknown as Request)]),
     };
     Object.defineProperty(globalThis, "caches", {
       configurable: true,
@@ -124,7 +124,7 @@ describe("verifyDesktopOfflinePreparation", () => {
 
     cache.keys.mockResolvedValue([
       new Request(`${window.location.origin}/assets/app.js`),
-      new Request(`${window.location.origin}/assets/route.js`),
+      ({ url: `${window.location.origin}/assets/route.js` } as unknown as Request),
     ]);
     await expect(verifyDesktopOfflineAssets()).resolves.toMatchObject({ cachedScripts: 2 });
   });
