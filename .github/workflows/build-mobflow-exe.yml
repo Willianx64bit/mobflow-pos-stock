@@ -23,6 +23,7 @@ on:
       - "src/lib/offline-fiado-auth.ts"
       - "src/test/offline-fiado-auth.test.ts"
       - "src/test/offline-preparation.test.ts"
+      - "src/test/pix-offline-payload.test.ts"
       - "src/test/sync-outbox.test.ts"
       - "src/test/mobflow-receivables-command.test.ts"
       - "public/mobflow-desktop-sw.js"
