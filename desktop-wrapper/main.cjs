@@ -2,9 +2,7 @@ const { app, BrowserWindow, shell, dialog, session, ipcMain, safeStorage } = req
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { validateOfflineSession, isValidOfflineSessionRecord } = require("./offline-session.cjs");
-
-const APP_URL = "https://mobflow-pdv-gestao.vercel.app/";
-const APP_ORIGIN = new URL(APP_URL).origin;
+const { APP_URL, APP_ORIGIN } = require("./app-config.cjs");
 let mainWindow = null;
 let showingOfflineFallback = false;
 
