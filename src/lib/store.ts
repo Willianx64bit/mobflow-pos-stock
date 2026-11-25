@@ -1265,6 +1265,21 @@ function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   if (options.persist !== false) scheduleStatePersist();
 }
 
+export async function clearLocalPendingOperations(): Promise<{ pending: number; failed: number }> {
+  const tenantId = cloudAccountId;
+  if (!tenantId) throw new Error("Não foi possível identificar a empresa autenticada. Entre novamente online antes de limpar a fila.");
+  await persistQueue.catch(() => undefined);
+  if (outboxFlushInFlight) await outboxFlushInFlight.catch(() => undefined);
+  await restoreOutboxBackup(tenantId);
+  const [pending, failed] = await Promise.all([
+    syncOutbox.pendingCount(tenantId),
+    syncOutbox.failedCount(tenantId),
+  ]);
+  await syncOutbox.clearTenant(tenantId);
+  writeOutboxBackup(readOutboxBackup().filter((command) => command.tenantId !== tenantId));
+  return { pending, failed };
+}
+
 export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
   const next = applySyncEventsToState(state, events);
   state = next;
