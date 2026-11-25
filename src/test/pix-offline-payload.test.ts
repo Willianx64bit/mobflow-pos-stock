@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPixPayload } from "@/lib/store";
+import { buildPixPayload, buildPixQrMatrix } from "@/lib/store";
 
 function readEmvField(payload: string, wantedId: string): string | null {
   let cursor = 0;
@@ -29,5 +29,13 @@ describe("Pix offline payload", () => {
     const negativePayload = buildPixPayload("12345678900", -10);
     expect(readEmvField(zeroPayload, "54")).toBe("0.00");
     expect(readEmvField(negativePayload, "54")).toBe("0.00");
+  });
+
+  it("renders a non-empty QR matrix locally without a network request", () => {
+    const payload = buildPixPayload("financeiro@empresa.com.br", 42.5, "Mercado Teste", "Capao Bonito");
+    const qr = buildPixQrMatrix(payload);
+    expect(qr.width).toBeGreaterThan(0);
+    expect(qr.height).toBeGreaterThan(0);
+    expect(qr.path).toMatch(/^M\\d+ \\d+h1v1h-1z/);
   });
 });
