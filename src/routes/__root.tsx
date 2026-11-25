@@ -22,6 +22,10 @@ declare global {
   interface Window {
     mobflowDesktop?: {
       retryConnection: () => void;
+      savePdf?: (filename: string) => Promise<boolean>;
+      saveLoginSecret?: (value: { cnpj: string; role: "manager" | "pdv"; username: string; password: string }) => Promise<boolean>;
+      getLoginSecret?: (value: { cnpj: string; role: "manager" | "pdv"; username: string }) => Promise<{ password: string } | null>;
+      clearLoginSecret?: (value: { cnpj: string; role: "manager" | "pdv"; username: string }) => Promise<boolean>;
       cacheAuthorizedSession?: (session: { accountId: string; role: string; username: string; permissions: string[] }) => Promise<boolean>;
       getCachedAuthorizedSession?: () => Promise<{ accountId: string; role: string; username: string; permissions: string[]; savedAt: number } | null>;
       clearCachedAuthorizedSession?: () => Promise<boolean>;
