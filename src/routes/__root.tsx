@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { mobflowAuthClient } from "@/lib/auth-client";
-import { hydrateStore, hydrateStoreOffline, resumeOnlineSync, verifyDesktopOfflinePreparation, verifyDesktopOfflineAssets } from "@/lib/store";
+import { hydrateStore, hydrateStoreOffline, resumeOnlineSync, verifyDesktopOfflinePreparation } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
 declare global {
@@ -25,6 +25,7 @@ declare global {
       cacheAuthorizedSession?: (session: { accountId: string; role: string; username: string; permissions: string[] }) => Promise<boolean>;
       getCachedAuthorizedSession?: () => Promise<{ accountId: string; role: string; username: string; permissions: string[]; savedAt: number } | null>;
       clearCachedAuthorizedSession?: () => Promise<boolean>;
+      verifyLocalRuntime?: () => Promise<boolean>;
     };
   }
 }
@@ -156,31 +157,12 @@ function RootComponent() {
   const router = useRouter();
   const prepareDesktopOfflineRoutes = async () => {
     if (!window.mobflowDesktop) return;
-    if (!("serviceWorker" in navigator)) {
-      throw new Error("Este computador não oferece suporte ao cache offline do MobFlow.");
+    // The Electron installer contains the complete client build and every lazy
+    // route chunk. Offline navigation must not depend on a per-port Service Worker.
+    const ready = await window.mobflowDesktop.verifyLocalRuntime?.();
+    if (ready !== true) {
+      throw new Error("Os arquivos locais do MobFlow estão incompletos. Reinstale o aplicativo e tente novamente.");
     }
-    if (!navigator.serviceWorker.controller) {
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => {
-          navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-          reject(new Error("O cache offline ainda não assumiu o controle do aplicativo. Tente novamente com internet."));
-        }, 10000);
-        const onControllerChange = () => {
-          window.clearTimeout(timeout);
-          navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
-          resolve();
-        };
-        navigator.serviceWorker.addEventListener("controllerchange", onControllerChange, { once: true });
-      });
-    }
-    // Preload every route available to the PDV/Operações role while online.
-    const offlineRoutes = [
-      "/", "/operacoes", "/conferencia", "/baixa-produtos",
-      "/transferencias", "/balanco-estoque", "/fornecedores-clientes",
-      "/movimentacoes-estoque",
-    ] as const;
-    await Promise.all(offlineRoutes.map((to) => router.preloadRoute({ to })));
-    await verifyDesktopOfflineAssets();
   };
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const previousPath = useRef(pathname);
@@ -226,15 +208,10 @@ function RootComponent() {
   const [userLoginRequired, setUserLoginRequired] = useState(false);
 
   const prepareDesktopShellCache = async () => {
-    if (!window.mobflowDesktop || !("serviceWorker" in navigator)) return;
-    try {
-      await navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" });
-      await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<void>((resolve) => window.setTimeout(resolve, 8000)),
-      ]);
-    } catch (cacheError) {
-      console.warn("MobFlow Desktop: não foi possível preparar o cache offline:", cacheError);
+    if (!window.mobflowDesktop) return;
+    const ready = await window.mobflowDesktop.verifyLocalRuntime?.();
+    if (ready !== true) {
+      throw new Error("A interface local do MobFlow não está íntegra. Reinstale o aplicativo antes de continuar.");
     }
   };
 
