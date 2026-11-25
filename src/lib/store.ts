@@ -1616,14 +1616,17 @@ export const actions = {
 
     if (isDesktopRuntime() && !queued) return null;
     if (queued && lastDomainCommandPromise && isDesktopRuntime()) {
-      // Persist the provisional sale and its stock delta locally; the pending label
-      // remains until Neon confirms the same idempotent command after reconnection.
-      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: false });
+      // Keep a provisional local sale for offline continuity, but never clear the
+      // checkout cart until the direct Neon request succeeds or the offline outbox
+      // has durably accepted the command. The command promise resolves only then.
+      set({ products, cart: state.cart, sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: false });
+      lastDomainCommandPromise = lastDomainCommandPromise.then(() => {
+        const cartIsUnchanged = state.cart.length === checkoutCart.length &&
+          checkoutCart.every((item) => state.cart.some((current) => current.productId === item.productId && current.qty === item.qty));
+        if (cartIsUnchanged) set({ cart: [] }, { persist: false });
+      });
     } else if (queued && lastDomainCommandPromise) {
-      // Keep the checkout visible until Neon confirms the transaction. The
-      // command promise already hydrates the authoritative sale and stock;
-      // only then clear the exact cart that was checked out. If the operator
-      // changed the cart while waiting, preserve those newer items.
+      // Keep the checkout visible until Neon confirms the transaction.
       lastDomainCommandPromise = lastDomainCommandPromise.then(() => {
         const cartIsUnchanged = state.cart.length === checkoutCart.length &&
           checkoutCart.every((item) => state.cart.some((current) => current.productId === item.productId && current.qty === item.qty));
