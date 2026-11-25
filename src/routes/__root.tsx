@@ -227,10 +227,16 @@ function RootComponent() {
         sessionStorage.setItem("mobflow-desktop-offline", "1");
       }
     };
+    let reconnecting = false;
     const onOnline = async () => {
-      if (!window.mobflowDesktop || sessionStorage.getItem("mobflow-desktop-offline") !== "1") return;
+      if (!window.mobflowDesktop || sessionStorage.getItem("mobflow-desktop-offline") !== "1" || reconnecting) return;
+      reconnecting = true;
       try {
-        const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+        const response = await fetch("/api/mobflow/session-context", {
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "x-mobflow-desktop-connectivity-check": "1" },
+        });
         if (response.status === 401 || response.status === 403) {
           await window.mobflowDesktop.clearCachedAuthorizedSession?.();
           sessionStorage.removeItem("mobflow-desktop-offline");
@@ -239,11 +245,16 @@ function RootComponent() {
           setUserLoginRequired(false);
           return;
         }
-        if (!response.ok) return;
+        if (!response.ok || response.headers.get("x-mobflow-local-proxy-error") === "1") return;
         const synchronized = await resumeOnlineSync();
-        if (synchronized) { sessionStorage.removeItem("mobflow-desktop-offline"); window.dispatchEvent(new Event("mobflow-offline-state-changed")); }
+        if (synchronized) {
+          sessionStorage.removeItem("mobflow-desktop-offline");
+          window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+        }
       } catch {
-        // A rede persistente ainda não voltou; mantém o estado local e tenta novamente no próximo evento online.
+        // Mantém os dados locais e tenta novamente no próximo ciclo de reconexão.
+      } finally {
+        reconnecting = false;
       }
     };
     const onFocus = () => {
@@ -256,7 +267,13 @@ function RootComponent() {
     window.addEventListener("offline", onOffline);
     window.addEventListener("online", onOnline);
     window.addEventListener("focus", onFocus);
+    // navigator.onLine can remain true when only the Neon/API route is unreachable.
+    // Retry the authenticated cloud handshake without requiring the user to restart the EXE.
+    const reconnectTimer = window.setInterval(() => {
+      if (navigator.onLine && sessionStorage.getItem("mobflow-desktop-offline") === "1") void onOnline();
+    }, 15000);
     return () => {
+      window.clearInterval(reconnectTimer);
       window.removeEventListener("mobflow-auth-changed", onAuthChanged);
       window.removeEventListener("mobflow-user-logout", onUserLogout);
       window.removeEventListener("offline", onOffline);
