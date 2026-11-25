@@ -129,6 +129,34 @@ describe("verifyDesktopOfflinePreparation", () => {
     await expect(verifyDesktopOfflineAssets()).resolves.toMatchObject({ cachedScripts: 2 });
   });
 
+  it("restores only the authorized tenant snapshot for an offline PDV session", async () => {
+    const { hydrateStoreOffline } = await import("@/lib/store");
+    saveSnapshot(validSnapshot());
+    await expect(hydrateStoreOffline(accountId)).resolves.toMatchObject({
+      products: 1,
+      sales: 0,
+      pending: 0,
+      failed: 0,
+    });
+  });
+
+  it("blocks offline restoration when the tenant changes or the snapshot expires", async () => {
+    const { hydrateStoreOffline } = await import("@/lib/store");
+    saveSnapshot(validSnapshot(), "company-b");
+    await expect(hydrateStoreOffline(accountId)).rejects.toThrow("empresa neste computador");
+
+    saveSnapshot(validSnapshot(), accountId, new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString());
+    await expect(hydrateStoreOffline(accountId)).rejects.toThrow("mais de 7 dias");
+  });
+
+  it("does not restore an offline snapshot with an empty product catalog", async () => {
+    const { hydrateStoreOffline } = await import("@/lib/store");
+    const snapshot = validSnapshot();
+    snapshot.products = [];
+    saveSnapshot(snapshot);
+    await expect(hydrateStoreOffline(accountId)).rejects.toThrow("catálogo necessário");
+  });
+
   it("rejects malformed local JSON and non-desktop execution", async () => {
     localStorage.setItem("mobflow:owner", accountId);
     localStorage.setItem(`mobflow:v1:${accountId}`, "{broken");
