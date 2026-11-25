@@ -89,6 +89,13 @@ describe("verifyDesktopOfflinePreparation", () => {
     await expect(verify()).rejects.toThrow("produtos incompletos");
   });
 
+  it("refuses offline preparation when the company Pix key is missing", async () => {
+    const snapshot = validSnapshot();
+    snapshot.settings.pixKey = " ";
+    saveSnapshot(snapshot);
+    await expect(verify()).rejects.toThrow("chave Pix");
+  });
+
   it("rejects missing, stale, and future preparation timestamps", async () => {
     saveSnapshot(validSnapshot(), accountId, "");
     await expect(verify()).rejects.toThrow("preparação local recente");
