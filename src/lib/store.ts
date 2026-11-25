@@ -1275,7 +1275,7 @@ export async function clearLocalPendingOperations(): Promise<{ pending: number; 
     syncOutbox.pendingCount(tenantId),
     syncOutbox.failedCount(tenantId),
   ]);
-  await syncOutbox.clearTenant(tenantId);
+  await syncOutbox.clearCommands(tenantId);
   writeOutboxBackup(readOutboxBackup().filter((command) => command.tenantId !== tenantId));
   return { pending, failed };
 }
