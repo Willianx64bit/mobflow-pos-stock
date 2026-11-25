@@ -93,6 +93,24 @@ function Fiado() {
     setPasswordModalOpen(true);
   };
 
+  const completeOfflineFiadoAuthorization = async () => {
+    const desktop = typeof window !== "undefined"
+      ? (window as Window & { mobflowDesktop?: { getCachedAuthorizedSession?: () => Promise<{ accountId: string; role: string; username: string; permissions: string[]; savedAt: number } | null> } }).mobflowDesktop
+      : undefined;
+    if (!desktop) return false;
+    const cached = await desktop.getCachedAuthorizedSession?.().catch(() => null);
+    const expectedAccount = localStorage.getItem("mobflow:owner");
+    const expectedUsername = sessionStorage.getItem("mobflow-username")?.trim();
+    if (!isValidOfflineFiadoSession(cached, expectedAccount, expectedUsername)) return false;
+    await pendingChange?.();
+    setPasswordModalOpen(false);
+    setPasswordInput("");
+    setPendingChange(null);
+    setPasswordError("");
+    setOfflineAuthorizationBlocked(false);
+    return true;
+  };
+
   const submitFiadoPassword = async () => {
     if (authorizing) return;
     const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
@@ -111,6 +129,10 @@ function Fiado() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data?.ok || data?.profile?.role !== "pdv") {
+        // A server-side outage is not the same as an invalid password. If this
+        // is the same authorized PDV on this EXE, accept the protected local grant.
+        if ((response.status >= 500 || response.headers.get("x-mobflow-local-proxy-error") === "1") &&
+            await completeOfflineFiadoAuthorization()) return;
         setPasswordError("Senha incorreta ou usuário do PDV inválido.");
         return;
       }
@@ -119,6 +141,14 @@ function Fiado() {
       setPasswordInput("");
       setPendingChange(null);
     } catch (error) {
+      // A dropped connection can happen while navigator.onLine still says true.
+      // Fall back only to the same tenant/user's unexpired encrypted PDV grant.
+      try {
+        if (await completeOfflineFiadoAuthorization()) return;
+      } catch (offlineError) {
+        setPasswordError(offlineError instanceof Error ? offlineError.message : "Não foi possível validar a autorização offline.");
+        return;
+      }
       setPasswordError(error instanceof Error ? error.message : "Não foi possível concluir a operação. Tente novamente.");
     } finally {
       setAuthorizing(false);
