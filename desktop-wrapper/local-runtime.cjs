@@ -123,7 +123,7 @@ function createLocalRuntimeServer({ publicDir, remoteOrigin, fetchImpl = fetch, 
   });
 
   return {
-    listen() {
+    listen(port = 0) {
       return new Promise((resolve, reject) => {
         const onError = (error) => { server.off("listening", onListening); reject(error); };
         const onListening = () => {
@@ -134,7 +134,7 @@ function createLocalRuntimeServer({ publicDir, remoteOrigin, fetchImpl = fetch, 
         };
         server.once("error", onError);
         server.once("listening", onListening);
-        server.listen(0, "127.0.0.1");
+        server.listen(port, "127.0.0.1");
       });
     },
     close() {
