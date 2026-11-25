@@ -346,7 +346,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           return;
         }
         const authResult = await withTimeout(
-          mobflowAuthClient.signIn.email({ email, password }),
+          mobflowAuthClient.signIn.email({ email, password, rememberMe: rememberLogin }),
           15000,
         );
         if (authResult.error) {
