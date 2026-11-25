@@ -291,7 +291,7 @@ describe("MobFlow durable incremental outbox contract", () => {
       attempts: 1,
     });
 
-    const onlineTransport = vi.fn().mockResolvedValue(response({ ok: true, replayed: false }));
+    const onlineTransport = vi.fn().mockImplementation(async () => response({ ok: true, replayed: false }));
     const synced = await flushSyncOutbox(reopenedApp, TENANT, onlineTransport);
     expect(synced).toMatchObject({ sent: 1, failed: 0, pending: 0 });
     expect(onlineTransport).toHaveBeenCalledTimes(1);
