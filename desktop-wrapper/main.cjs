@@ -267,6 +267,80 @@ ipcMain.handle("mobflow:save-pdf", async (event, requestedName) => {
   }
 });
 
+const SAVED_LOGIN_FILE = "mobflow-saved-logins.bin";
+
+async function readSavedLogins() {
+  if (!safeStorage.isEncryptionAvailable()) return {};
+  try {
+    const encrypted = await fs.readFile(path.join(app.getPath("userData"), SAVED_LOGIN_FILE));
+    const value = JSON.parse(safeStorage.decryptString(encrypted));
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function savedLoginKey(value) {
+  if (!value || typeof value !== "object") return null;
+  const cnpj = String(value.cnpj || "").replace(/\\D/g, "");
+  const username = String(value.username || "").trim().toLocaleLowerCase("pt-BR");
+  const role = value.role === "pdv" ? "pdv" : value.role === "manager" ? "manager" : "";
+  if (cnpj.length !== 14 || !username || username.length > 120 || !role) return null;
+  return cnpj + ":" + role + ":" + username;
+}
+
+ipcMain.handle("mobflow:save-login-secret", async (event, value) => {
+  if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return false;
+  const key = savedLoginKey(value);
+  const password = typeof value?.password === "string" ? value.password : "";
+  if (!key || !password || password.length > 256) return false;
+  try {
+    const records = await readSavedLogins();
+    records[key] = { password, savedAt: Date.now() };
+    await fs.mkdir(app.getPath("userData"), { recursive: true });
+    const encrypted = safeStorage.encryptString(JSON.stringify(records));
+    const target = path.join(app.getPath("userData"), SAVED_LOGIN_FILE);
+    const temporary = target + ".tmp";
+    await fs.writeFile(temporary, encrypted, { mode: 0o600 });
+    await fs.rename(temporary, target);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+ipcMain.handle("mobflow:get-login-secret", async (event, value) => {
+  if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return null;
+  const key = savedLoginKey(value);
+  if (!key) return null;
+  const records = await readSavedLogins();
+  const record = records[key];
+  if (!record || typeof record.password !== "string" || !Number.isFinite(record.savedAt)) return null;
+  return { password: record.password };
+});
+
+ipcMain.handle("mobflow:clear-login-secret", async (event, value) => {
+  if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return false;
+  const key = savedLoginKey(value);
+  if (!key) return false;
+  try {
+    const records = await readSavedLogins();
+    delete records[key];
+    const target = path.join(app.getPath("userData"), SAVED_LOGIN_FILE);
+    if (Object.keys(records).length === 0) {
+      await fs.rm(target, { force: true });
+    } else {
+      const encrypted = safeStorage.encryptString(JSON.stringify(records));
+      const temporary = target + ".tmp";
+      await fs.writeFile(temporary, encrypted, { mode: 0o600 });
+      await fs.rename(temporary, target);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+});
+
 ipcMain.handle("mobflow:cache-authorized-session", async (event, value) => {
   if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return false;
   const sessionData = validateOfflineSession(value);
