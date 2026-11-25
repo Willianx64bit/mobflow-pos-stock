@@ -3,14 +3,18 @@ const path = require("node:path");
 const fs = require("node:fs/promises");
 const { validateOfflineSession, isValidOfflineSessionRecord } = require("./offline-session.cjs");
 const { APP_URL, APP_ORIGIN } = require("./app-config.cjs");
+const { createLocalRuntimeServer } = require("./local-runtime.cjs");
 let mainWindow = null;
 let showingOfflineFallback = false;
+let localRuntime = null;
+let localUrl = null;
+let localOrigin = null;
 
 const OFFLINE_SESSION_FILE = "mobflow-authorized-session.bin";
 
 function isTrustedAppSender(event) {
   try {
-    return new URL(event.senderFrame?.url || "").origin === APP_ORIGIN;
+    return Boolean(localOrigin && new URL(event.senderFrame?.url || "").origin === localOrigin);
   } catch {
     return false;
   }
@@ -40,10 +44,10 @@ async function readAuthorizedSession() {
 function isInternalWindowUrl(rawUrl) {
   if (rawUrl === "about:blank" || rawUrl.startsWith("data:")) return true;
   if (rawUrl.startsWith("blob:")) {
-    return rawUrl.startsWith("blob:" + APP_ORIGIN + "/") || rawUrl.startsWith("blob:" + APP_ORIGIN);
+    return Boolean(localOrigin && (rawUrl.startsWith("blob:" + localOrigin + "/") || rawUrl.startsWith("blob:" + localOrigin)));
   }
   try {
-    return new URL(rawUrl).origin === APP_ORIGIN;
+    return Boolean(localOrigin && new URL(rawUrl).origin === localOrigin);
   } catch {
     return false;
   }
@@ -81,7 +85,7 @@ function showOfflineFallback(win) {
 function loadMobFlow(win) {
   if (win.isDestroyed()) return;
   showingOfflineFallback = false;
-  win.loadURL(APP_URL).catch(() => showOfflineFallback(win));
+  win.loadURL(localUrl).catch(() => showOfflineFallback(win));
 }
 
 function configurePermissions() {
@@ -92,7 +96,7 @@ function configurePermissions() {
     try {
       origin = new URL(details.requestingUrl || webContents.getURL()).origin;
     } catch {}
-    const isApp = origin === APP_ORIGIN;
+    const isApp = Boolean(localOrigin && origin === localOrigin);
     const requestsCamera = permission === "camera" ||
       (permission === "media" && Array.isArray(details.mediaTypes) && details.mediaTypes.includes("video"));
     callback(Boolean(isApp && requestsCamera));
@@ -103,7 +107,7 @@ function configurePermissions() {
     try {
       origin = new URL(requestingOrigin || webContents?.getURL() || "").origin;
     } catch {}
-    return origin === APP_ORIGIN && (permission === "camera" || permission === "media");
+    return Boolean(localOrigin && origin === localOrigin && (permission === "camera" || permission === "media"));
   });
 
   ses.on("will-download", async (event, item, webContents) => {
@@ -111,7 +115,7 @@ function configurePermissions() {
     try {
       sourceOrigin = new URL(webContents.getURL()).origin;
     } catch {}
-    if (sourceOrigin !== APP_ORIGIN) {
+    if (!localOrigin || sourceOrigin !== localOrigin) {
       event.preventDefault();
       return;
     }
@@ -157,7 +161,7 @@ function createWindow() {
 
   win.webContents.on("did-finish-load", () => {
     try {
-      if (new URL(win.webContents.getURL()).origin === APP_ORIGIN) {
+      if (localOrigin && new URL(win.webContents.getURL()).origin === localOrigin) {
         appShellLoaded = true;
         retryingOfflineNavigation = false;
       }
@@ -254,14 +258,31 @@ ipcMain.on("mobflow:retry-connection", () => {
   if (mainWindow && !mainWindow.isDestroyed()) loadMobFlow(mainWindow);
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId("com.mobflow.desktop");
+  const publicDir = app.isPackaged
+    ? path.join(process.resourcesPath, "mobflow-web")
+    : path.resolve(__dirname, "../.output/public");
+  localRuntime = createLocalRuntimeServer({ publicDir, remoteOrigin: APP_ORIGIN });
+  try {
+    const address = await localRuntime.listen();
+    localUrl = address.url;
+    localOrigin = address.origin;
+  } catch (error) {
+    dialog.showErrorBox("MobFlow não iniciou", error instanceof Error ? error.message : "Não foi possível iniciar o aplicativo local.");
+    app.quit();
+    return;
+  }
   configurePermissions();
   createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on("before-quit", () => {
+  void localRuntime?.close().catch((error) => console.error("[MobFlow Desktop] Local server shutdown failed:", error));
 });
 
 app.on("window-all-closed", () => {
