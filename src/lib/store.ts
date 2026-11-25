@@ -853,15 +853,15 @@ export async function hydrateStoreOffline(accountId: string) {
   if (!isDesktopRuntime() || !accountId || localStorage.getItem(OWNER_KEY) !== accountId) {
     throw new Error("Não existe uma cópia local autorizada para esta empresa neste computador.");
   }
-  // A cold offline startup must enforce the same complete-cache contract as
-  // first-time preparation. Never hydrate a partial or legacy snapshot.
-  await verifyDesktopOfflinePreparation(accountId);
   const raw = localStorage.getItem(tenantStateKey(accountId));
   if (!raw) throw new Error("Esta empresa ainda não possui dados salvos para uso offline.");
   const lastSync = Date.parse(localStorage.getItem(offlineCacheTimestampKey(accountId)) ?? "");
   if (!Number.isFinite(lastSync) || lastSync > Date.now() + 60_000 || Date.now() - lastSync > OFFLINE_CACHE_TTL_MS) {
     throw new Error("A cópia local está desatualizada há mais de 7 dias. Conecte-se para atualizar os dados antes de usar o PDV offline.");
   }
+  // A cold offline startup must enforce the same complete-cache contract as
+  // first-time preparation. Never hydrate a partial or legacy snapshot.
+  await verifyDesktopOfflinePreparation(accountId);
   let cached: unknown;
   try { cached = JSON.parse(raw); } catch { throw new Error("A cópia local da empresa está inválida."); }
   if (!cached || typeof cached !== "object" || !Array.isArray((cached as State).products) ||
