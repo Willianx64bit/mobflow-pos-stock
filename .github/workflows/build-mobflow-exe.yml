@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - packaging/windows-exe-neon
+      - desktop/local-runtime-foundation
     paths:
       - "desktop-wrapper/**"
       - "src/routes/__root.tsx"
