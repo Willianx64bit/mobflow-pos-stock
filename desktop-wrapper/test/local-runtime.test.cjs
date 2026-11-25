@@ -87,7 +87,7 @@ test("proxies authenticated API cookies, methods, request bodies and Set-Cookie 
     };
     return new Response(JSON.stringify({ ok: true }), {
       status: 201,
-      headers: { "content-type": "application/json", "set-cookie": "better-auth.session_token=abc; Path=/; HttpOnly; Secure; SameSite=Lax" },
+      headers: { "content-type": "application/json", "set-cookie": "better-auth.session_token=abc; Domain=.vercel.app; Path=/; HttpOnly; Secure; SameSite=Lax" },
     });
   };
   try {
