@@ -221,11 +221,14 @@ function RootComponent() {
 
   useEffect(() => {
     const onAuthChanged = () => { setAuthenticated(false); setUserLoginRequired(false); };
-    const onUserLogout = () => { setUserLoginRequired(true); sessionStorage.removeItem("mobflow-desktop-offline"); void window.mobflowDesktop?.clearCachedAuthorizedSession?.(); };
+    const onUserLogout = () => { setUserLoginRequired(true); sessionStorage.setItem("mobflow-suppress-saved-login", "1"); sessionStorage.removeItem("mobflow-desktop-offline"); void window.mobflowDesktop?.clearCachedAuthorizedSession?.(); };
     const onOffline = () => {
-      if (window.mobflowDesktop && localStorage.getItem("mobflow:owner")) {
-        sessionStorage.setItem("mobflow-desktop-offline", "1");
-      }
+      // Electron can emit "offline" for its loopback shell even when the remote
+      // Neon API is reachable. Trust an authenticated cloud probe, not this hint.
+      if (!window.mobflowDesktop || !localStorage.getItem("mobflow:owner")) return;
+      void probeDesktopCloudConnectivity().then((connected) => {
+        if (!connected) window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+      });
     };
     let reconnecting = false;
     const onOnline = async () => {
@@ -258,7 +261,7 @@ function RootComponent() {
       }
     };
     const onFocus = () => {
-      if (window.mobflowDesktop && sessionStorage.getItem("mobflow-desktop-offline") === "1" && navigator.onLine) {
+      if (window.mobflowDesktop && sessionStorage.getItem("mobflow-desktop-offline") === "1") {
         void onOnline();
       }
     };
