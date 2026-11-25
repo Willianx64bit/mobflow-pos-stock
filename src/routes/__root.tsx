@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { mobflowAuthClient } from "@/lib/auth-client";
-import { hydrateStore, hydrateStoreOffline, resumeOnlineSync, verifyDesktopOfflinePreparation } from "@/lib/store";
+import { hydrateStore, hydrateStoreOffline, resumeOnlineSync, verifyDesktopOfflinePreparation, verifyDesktopOfflineAssets } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
 declare global {
@@ -156,14 +156,31 @@ function RootComponent() {
   const router = useRouter();
   const prepareDesktopOfflineRoutes = async () => {
     if (!window.mobflowDesktop) return;
-    // Load the actual route modules while online. The desktop service worker
-    // caches these JS chunks so PDV and every Operações screen can open offline.
+    if (!("serviceWorker" in navigator)) {
+      throw new Error("Este computador não oferece suporte ao cache offline do MobFlow.");
+    }
+    if (!navigator.serviceWorker.controller) {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+          reject(new Error("O cache offline ainda não assumiu o controle do aplicativo. Tente novamente com internet."));
+        }, 10000);
+        const onControllerChange = () => {
+          window.clearTimeout(timeout);
+          navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+          resolve();
+        };
+        navigator.serviceWorker.addEventListener("controllerchange", onControllerChange, { once: true });
+      });
+    }
+    // Preload every route available to the PDV/Operações role while online.
     const offlineRoutes = [
       "/", "/operacoes", "/conferencia", "/baixa-produtos",
       "/transferencias", "/balanco-estoque", "/fornecedores-clientes",
       "/movimentacoes-estoque",
     ] as const;
     await Promise.all(offlineRoutes.map((to) => router.preloadRoute({ to })));
+    await verifyDesktopOfflineAssets();
   };
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const previousPath = useRef(pathname);
@@ -341,13 +358,11 @@ function RootComponent() {
           try {
             if (window.mobflowDesktop) setPreparationMessage("Baixando produtos, estoque, caixa e configurações...");
             await hydrateStore();
-            if (window.mobflowDesktop) {
+            if (window.mobflowDesktop && profile.role === "pdv") {
               setPreparationMessage("Validando os dados armazenados neste computador...");
               await verifyDesktopOfflinePreparation(profile.accountId);
-              if (profile.role === "pdv") {
-                setPreparationMessage("Baixando as telas do PDV e de Operações...");
-                await prepareDesktopOfflineRoutes();
-              }
+              setPreparationMessage("Baixando as telas do PDV e de Operações...");
+              await prepareDesktopOfflineRoutes();
             }
           } catch (error) {
             console.error("MobFlow: falha ao carregar os dados da conta", error);
@@ -403,31 +418,30 @@ function RootComponent() {
         onLogin={async (options) => {
           const role = sessionStorage.getItem("mobflow-role");
           if (window.mobflowDesktop) {
-            setPreparationMessage("Baixando os dados necessários para PDV e Operações...");
+            setPreparationMessage("Carregando os dados da empresa...");
             setCheckingSession(true);
           }
-          await hydrateStore();
-          if (window.mobflowDesktop && role === "pdv") {
-            setPreparationMessage("Conferindo se os dados da empresa foram salvos corretamente...");
-            const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
-            if (!cached?.accountId) throw new Error("Não foi possível confirmar a autorização offline deste operador.");
-            await verifyDesktopOfflinePreparation(cached.accountId);
-            if (role === "pdv") {
-              setPreparationMessage("Baixando as telas do PDV e de Operações...");
-              await prepareDesktopOfflineRoutes();
+          try {
+            await hydrateStore();
+            setAuthenticated(true);
+            if (options?.firstManagerLogin) {
+              setUserLoginRequired(false);
+              await router.navigate({ to: "/gerencia" });
+            } else {
+              setUserLoginRequired(role === "manager");
+              if (role === "pdv") {
+                let permissions: string[] = [];
+                try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch { permissions = []; }
+                if (!permissions.includes("PDV") && permissions.includes("Operações")) await router.navigate({ to: "/operacoes" });
+              }
             }
-          }
-          setAuthenticated(true);
-          if (options?.firstManagerLogin) {
+          } catch (error) {
+            console.error("MobFlow: não foi possível concluir o login:", error);
+            setAuthenticated(false);
             setUserLoginRequired(false);
-            await router.navigate({ to: "/gerencia" });
-          } else {
-            setUserLoginRequired(role === "manager");
-            if (role === "pdv") {
-              let permissions: string[] = [];
-              try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]"); } catch { permissions = []; }
-              if (!permissions.includes("PDV") && permissions.includes("Operações")) await router.navigate({ to: "/operacoes" });
-            }
+            throw error;
+          } finally {
+            if (window.mobflowDesktop) setCheckingSession(false);
           }
         }}
       />
@@ -451,6 +465,7 @@ function RootComponent() {
       } catch (error) {
         console.error("MobFlow Desktop: preparação offline não concluída:", error);
         setPreparationMessage(error instanceof Error ? error.message : "Não foi possível preparar os dados offline.");
+        throw error;
       } finally {
         setCheckingSession(false);
       }
