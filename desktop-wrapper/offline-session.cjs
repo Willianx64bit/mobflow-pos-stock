@@ -1,5 +1,5 @@
 const OFFLINE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const ALLOWED_OFFLINE_ROLES = new Set(["manager", "pdv"]);
+const ALLOWED_OFFLINE_ROLES = new Set(["pdv"]);
 
 function validateOfflineSession(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
