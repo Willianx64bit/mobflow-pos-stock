@@ -985,7 +985,9 @@ export async function resumeOnlineSync() {
   if (!cloudReady || !cloudAccountId) return false;
   try {
     await restoreOutboxBackup(cloudAccountId);
-    const result = await syncNow();
+    // A hydration can start a background sync. Queue the explicit retry behind it
+    // so retryFailed is never swallowed by the in-flight promise coalescer.
+    const result = await syncNow({ retryFailed: true });
     return result.pending === 0 && result.failed === 0;
   } catch (error) {
     console.warn("[MobFlow Desktop] A reconexão ainda não concluiu a sincronização:", error);
@@ -1002,12 +1004,11 @@ export async function probeDesktopCloudConnectivity(): Promise<boolean> {
       throw new Error("O serviço de dados da empresa ainda não respondeu.");
     }
     if (!cloudReady || !cloudAccountId || sessionStorage.getItem("mobflow-desktop-offline") === "1") {
-      await resumeOnlineSync();
-    } else {
-      sessionStorage.removeItem("mobflow-desktop-offline");
+      const synchronized = await resumeOnlineSync();
+      if (!synchronized) throw new Error("A conexão voltou, mas ainda existem operações aguardando confirmação do Neon.");
     }
     if (!cloudReady) throw new Error("O MobFlow ainda não conseguiu restaurar a sessão online.");
-    sessionStorage.removeItem("mobflow-desktop-offline");
+    // Do not declare the desktop online until the durable transaction queue is empty.
     window.dispatchEvent(new Event("mobflow-offline-state-changed"));
     return true;
   } catch (error) {
@@ -1163,10 +1164,8 @@ export async function hydrateStore() {
         try { localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString()); }
         catch { throw new Error("Não foi possível registrar a data da preparação offline."); }
       }
-      if (isDesktopRuntime()) {
-        sessionStorage.removeItem("mobflow-desktop-offline");
-        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
-      }
+      // Keep the offline marker until the outbox has been acknowledged by Neon.
+      // Hydration proves that a snapshot is reachable, not that queued sales were committed.
       startRealtime(accountId);
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
@@ -1351,10 +1350,12 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       syncOutbox.getCursor(tenantId),
     ]);
     if (isDesktopRuntime() && typeof navigator !== "undefined") {
-      if (cloudReady && cloudAccountId === tenantId) {
+      if (cloudReady && cloudAccountId === tenantId && pending === 0 && failed === 0) {
         sessionStorage.removeItem("mobflow-desktop-offline");
+        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       } else {
         sessionStorage.setItem("mobflow-desktop-offline", "1");
+        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       }
     }
     return { sent, failed, pending, applied: 0, cursor, hasMore: false };
@@ -1392,10 +1393,13 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
     }
     const failed = await syncOutbox.failedCount(tenantId);
     if (isDesktopRuntime() && typeof navigator !== "undefined") {
-      if (navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+      const pending = await syncOutbox.pendingCount(tenantId);
+      if (navigator.onLine && cloudReady && cloudAccountId === tenantId && pending === 0 && failed === 0) {
         sessionStorage.removeItem("mobflow-desktop-offline");
+        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       } else {
         sessionStorage.setItem("mobflow-desktop-offline", "1");
+        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       }
     }
     return { ...result, failed };
@@ -1419,7 +1423,15 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
  * Only one cursor read/apply cycle may run for this app instance at a time.
  */
 export function syncNow(options: { retryFailed?: boolean } = {}) {
-  if (syncInFlight) return syncInFlight;
+  if (syncInFlight) {
+    const current = syncInFlight;
+    // A manual retry must not inherit an automatic sync that started without
+    // retryFailed. Wait for that cycle to finish, then execute a fresh cycle.
+    if (options.retryFailed) {
+      return current.catch(() => undefined).then(() => syncNow(options));
+    }
+    return current;
+  }
   const running = performSyncNow(options);
   const shared = running.finally(() => {
     if (syncInFlight === shared) syncInFlight = null;
