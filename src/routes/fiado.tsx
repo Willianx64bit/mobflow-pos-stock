@@ -2,9 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, buildPixPayload, printReceipt, useStore, type Sale } from "@/lib/store";
+import { actions, brl, buildPixPayload, isOfflineMode, printReceipt, useStore, type Sale } from "@/lib/store";
 import { isValidOfflineFiadoSession } from "@/lib/offline-fiado-auth";
-import { isOfflineMode } from "@/lib/store";
 
 import { UserRound, ArrowLeft, ReceiptText, LockKeyhole, SlidersHorizontal, CalendarDays } from "lucide-react";
 
