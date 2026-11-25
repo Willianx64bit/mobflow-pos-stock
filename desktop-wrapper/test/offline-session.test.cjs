@@ -70,3 +70,46 @@ test("accepts a previously authorized PDV session with Operações-only permissi
   assert.deepEqual(validateOfflineSession(operationsOnly), operationsOnly);
   assert.equal(isValidOfflineSessionRecord({ session: operationsOnly, savedAt: now }, now), true);
 });
+
+test("survives JSON serialization as a restart-safe, least-privilege session", () => {
+  const cached = validateOfflineSession(validSession);
+  const reopened = JSON.parse(JSON.stringify({
+    session: cached,
+    savedAt: now
+  }));
+  assert.equal(isValidOfflineSessionRecord(reopened, now), true);
+  assert.deepEqual(validateOfflineSession(reopened.session), {
+    accountId: "tenant-123",
+    role: "pdv",
+    username: "William",
+    permissions: ["PDV"]
+  });
+});
+
+test("rejects an expired session after seven days and a timestamp beyond clock tolerance", () => {
+  assert.equal(isValidOfflineSessionRecord({
+    session: validSession,
+    savedAt: now - OFFLINE_SESSION_TTL_MS - 1
+  }, now), false);
+  assert.equal(isValidOfflineSessionRecord({
+    session: validSession,
+    savedAt: now + 60_001
+  }, now), false);
+});
+
+test("keeps only the explicit offline permissions for a mixed-permission operator", () => {
+  const session = validateOfflineSession({
+    ...validSession,
+    permissions: ["Gerência", "PDV", "Estoque", "Operações", "Relatórios", "PDV"]
+  });
+  assert.deepEqual(session.permissions, ["PDV", "Operações"]);
+  assert.equal(session.permissions.includes("Gerência"), false);
+  assert.equal(session.permissions.includes("Relatórios"), false);
+});
+
+test("rejects oversized permission lists instead of caching an unbounded session", () => {
+  assert.equal(validateOfflineSession({
+    ...validSession,
+    permissions: Array.from({ length: 65 }, (_, index) => "permission-" + index)
+  }), null);
+});
