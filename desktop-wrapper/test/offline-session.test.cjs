@@ -11,7 +11,7 @@ const validSession = {
   accountId: "tenant-123",
   role: "pdv",
   username: "William",
-  permissions: ["PDV", "Gerência", "PDV"]
+  permissions: ["PDV", "Gerência", "Validade", "PDV"]
 };
 
 test("accepts only PDV sessions and normalizes the cached identity", () => {
@@ -19,11 +19,12 @@ test("accepts only PDV sessions and normalizes the cached identity", () => {
     accountId: "tenant-123",
     role: "pdv",
     username: "William",
-    permissions: ["PDV", "Gerência"]
+    permissions: ["PDV"]
   });
   assert.equal(validateOfflineSession({ ...validSession, role: "manager" }), null);
   assert.equal(validateOfflineSession({ ...validSession, role: "admin" }), null);
   assert.equal(validateOfflineSession({ ...validSession, role: "owner" }), null);
+  assert.equal(validateOfflineSession({ ...validSession, permissions: ["Gerência", "Validade"] }), null);
 });
 
 test("rejects malformed identity and permission payloads", () => {
