@@ -100,6 +100,7 @@ test("proxies authenticated API cookies, methods, request bodies and Set-Cookie 
       assert.equal(response.status, 201);
       assert.deepEqual(await response.json(), { ok: true });
       assert.match(response.headers.get("set-cookie") || "", /better-auth\.session_token=abc/);
+      assert.doesNotMatch(response.headers.get("set-cookie") || "", /Domain=/i);
       assert.equal(observed.url, "https://mobflow-pdv-gestao.vercel.app/api/mobflow/login?source=desktop");
       assert.equal(observed.method, "POST");
       assert.equal(observed.cookie, "better-auth.session_token=old");
