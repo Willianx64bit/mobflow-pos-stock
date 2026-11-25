@@ -36,6 +36,6 @@ describe("Pix offline payload", () => {
     const qr = buildPixQrMatrix(payload);
     expect(qr.width).toBeGreaterThan(0);
     expect(qr.height).toBeGreaterThan(0);
-    expect(qr.path).toMatch(/^M\\d+ \\d+h1v1h-1z/);
+    expect(qr.path).toMatch(/^M\d+ \d+h1v1h-1z/);
   });
 });
