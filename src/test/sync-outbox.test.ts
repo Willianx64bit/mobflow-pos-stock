@@ -38,6 +38,31 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(isValidSyncCursor("12x")).toBe(false);
   });
 
+  it("isolates pending commands and counts by tenant on a shared computer", async () => {
+    const otherTenant = "7c47eaac-2abf-4cd6-b614-24e27077bdf6";
+    const first = createSyncCommand({
+      tenantId: TENANT,
+      domain: "cash",
+      id: "c6c47ea1-2abf-4cd6-b614-24e27077bdf6",
+      idempotencyKey: "d6c47ea1-2abf-4cd6-b614-24e27077bdf6",
+      payload: { action: "open", sessionId: "tenant-a-cash" },
+    });
+    const second = createSyncCommand({
+      tenantId: otherTenant,
+      domain: "cash",
+      id: "e6c47ea1-2abf-4cd6-b614-24e27077bdf6",
+      idempotencyKey: "f6c47ea1-2abf-4cd6-b614-24e27077bdf6",
+      payload: { action: "open", sessionId: "tenant-b-cash" },
+    });
+    const outbox = new SyncOutbox();
+    await outbox.enqueue(first);
+    await outbox.enqueue(second);
+    await expect(outbox.listPending(TENANT)).resolves.toEqual([first]);
+    await expect(outbox.pendingCount(TENANT)).resolves.toBe(1);
+    await expect(outbox.listPending(otherTenant)).resolves.toEqual([second]);
+    await expect(outbox.pendingCount(otherTenant)).resolves.toBe(1);
+  });
+
   it("creates stable domain endpoint and keeps idempotency key in the payload", () => {
     const command = createSyncCommand({
       tenantId: TENANT,
