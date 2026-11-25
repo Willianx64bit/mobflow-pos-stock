@@ -1400,7 +1400,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
     const failed = await syncOutbox.failedCount(tenantId);
     if (isDesktopRuntime() && typeof navigator !== "undefined") {
       const pending = await syncOutbox.pendingCount(tenantId);
-      if (navigator.onLine && cloudReady && cloudAccountId === tenantId && pending === 0 && failed === 0) {
+      if (cloudReady && cloudAccountId === tenantId && pending === 0 && failed === 0) {
         sessionStorage.removeItem("mobflow-desktop-offline");
         window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       } else {
