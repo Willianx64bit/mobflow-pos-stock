@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, buildPixPayload, printReceipt, useStore, type Sale } from "@/lib/store";
 import { isValidOfflineFiadoSession } from "@/lib/offline-fiado-auth";
+import { isOfflineMode } from "@/lib/store";
 
 import { UserRound, ArrowLeft, ReceiptText, LockKeyhole, SlidersHorizontal, CalendarDays } from "lucide-react";
 
@@ -58,7 +59,7 @@ function Fiado() {
     const desktop = typeof window !== "undefined"
       ? (window as Window & { mobflowDesktop?: { getCachedAuthorizedSession?: () => Promise<{ accountId: string; role: string; username: string; permissions: string[]; savedAt: number } | null> } }).mobflowDesktop
       : undefined;
-    if (desktop && typeof navigator !== "undefined" && !navigator.onLine) {
+    if (desktop && typeof navigator !== "undefined" && (!navigator.onLine || isOfflineMode())) {
       setAuthorizing(true);
       setPasswordError("");
       setOfflineAuthorizationBlocked(false);
