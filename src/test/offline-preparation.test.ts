@@ -149,6 +149,14 @@ describe("verifyDesktopOfflinePreparation", () => {
     await expect(hydrateStoreOffline(accountId)).rejects.toThrow("mais de 7 dias");
   });
 
+  it("refuses to restore a partial snapshot even when its timestamp is recent", async () => {
+    const { hydrateStoreOffline } = await import("@/lib/store");
+    const snapshot = validSnapshot() as Record<string, unknown>;
+    delete snapshot.cashMovements;
+    saveSnapshot(snapshot);
+    await expect(hydrateStoreOffline(accountId)).rejects.toThrow("dados essenciais");
+  });
+
   it("does not restore an offline snapshot with an empty product catalog", async () => {
     const { hydrateStoreOffline } = await import("@/lib/store");
     const snapshot = validSnapshot();
