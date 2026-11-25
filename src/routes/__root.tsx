@@ -225,6 +225,19 @@ function RootComponent() {
   const [authenticated, setAuthenticated] = useState(false);
   const [userLoginRequired, setUserLoginRequired] = useState(false);
 
+  const prepareDesktopShellCache = async () => {
+    if (!window.mobflowDesktop || !("serviceWorker" in navigator)) return;
+    try {
+      await navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" });
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<void>((resolve) => window.setTimeout(resolve, 8000)),
+      ]);
+    } catch (cacheError) {
+      console.warn("MobFlow Desktop: não foi possível preparar o cache offline:", cacheError);
+    }
+  };
+
   useEffect(() => {
     const onAuthChanged = () => { setAuthenticated(false); setUserLoginRequired(false); };
     const onUserLogout = () => { setUserLoginRequired(true); sessionStorage.removeItem("mobflow-desktop-offline"); void window.mobflowDesktop?.clearCachedAuthorizedSession?.(); };
@@ -276,20 +289,8 @@ function RootComponent() {
     const bootstrap = async () => {
       setPreparationMessage(window.mobflowDesktop ? "Preparando o aplicativo para uso offline..." : "Carregando...");
       try {
-        // Wait for the desktop shell worker to finish its install/precache before
-        // presenting the authenticated PDV. Otherwise an immediate network loss
-        // can leave Electron with no cached HTML or JS chunks to restore.
-        if (window.mobflowDesktop && "serviceWorker" in navigator) {
-          try {
-            await navigator.serviceWorker.register("/mobflow-desktop-sw.js", { scope: "/" });
-            await Promise.race([
-              navigator.serviceWorker.ready,
-              new Promise<void>((resolve) => window.setTimeout(resolve, 8000)),
-            ]);
-          } catch (cacheError) {
-            console.warn("MobFlow Desktop: não foi possível preparar o cache offline:", cacheError);
-          }
-        }
+        // The login form must be visible before any desktop preparation starts.
+        // The shell cache is prepared only after the server validates the company/operator login.
         let profile: { accountId: string; role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
         let restoredOffline = false;
 
@@ -426,6 +427,7 @@ function RootComponent() {
             setCheckingSession(true);
           }
           try {
+            await prepareDesktopShellCache();
             await hydrateStore();
             setAuthenticated(true);
             if (options?.firstManagerLogin) {
@@ -458,6 +460,7 @@ function RootComponent() {
       setPreparationMessage("Baixando os dados necessários para PDV e Operações...");
       setCheckingSession(true);
       try {
+        await prepareDesktopShellCache();
         await hydrateStore();
         setPreparationMessage("Validando a cópia local desta empresa...");
         const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
