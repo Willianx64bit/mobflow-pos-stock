@@ -1088,7 +1088,6 @@ export async function hydrateStore() {
         normalizeState();
         try {
           localStorage.setItem(activeStateKey, JSON.stringify(state));
-          localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
         } catch (error) {
           if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
         }
@@ -1102,13 +1101,20 @@ export async function hydrateStore() {
 
       cloudAccountId = accountId;
       cloudReady = true;
+      if (isDesktopRuntime() && !incrementalSyncEnabled()) {
+        // The first offline snapshot is not considered complete until the initial
+        // receiving/conference event cursor has been applied to the local database.
+        await pullReceivingConferenceEvents(accountId);
+      }
+      if (isDesktopRuntime()) {
+        try { localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString()); }
+        catch { throw new Error("Não foi possível registrar a data da preparação offline."); }
+      }
       if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine) {
         sessionStorage.removeItem("mobflow-desktop-offline");
         window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       }
       startRealtime(accountId);
-      // Catch up only the two enabled modules in compatibility mode; no global incremental cutover.
-      if (!incrementalSyncEnabled()) void pullReceivingConferenceEvents(accountId).catch(() => undefined);
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
     } catch (error) {
@@ -2169,6 +2175,10 @@ export const formatCpf = (v: string) => {
 export async function saveCurrentPageAsPdf(filename: string) {
   if (typeof window === "undefined") return;
   const desktop = (window as Window & { mobflowDesktop?: { savePdf?: (name: string) => Promise<boolean> } }).mobflowDesktop;
+  const runningInElectron = typeof navigator !== "undefined" && /Electron/i.test(navigator.userAgent);
+  if (runningInElectron && !desktop) {
+    throw new Error("A ponte do Electron não foi carregada. O PDF não será enviado para a tela de impressão; verifique a instalação do EXE.");
+  }
   if (desktop) {
     if (typeof desktop.savePdf !== "function") {
       throw new Error("O módulo de salvamento PDF do MobFlow Desktop não foi carregado. Feche e abra novamente o EXE; se persistir, reinstale a versão mais recente.");

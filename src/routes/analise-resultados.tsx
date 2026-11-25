@@ -290,7 +290,7 @@ function AnaliseResultados() {
           </div>
           <div className="mt-4 flex flex-wrap gap-2 print:hidden">
             <button type="button" onClick={exportExcel} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90"><FileSpreadsheet className="h-4 w-4" />Exportar Excel</button>
-            <button type="button" onClick={() => void saveCurrentPageAsPdf("mobflow-resultados-empresa.pdf")} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-accent"><FileText className="h-4 w-4" />Salvar relatório em PDF</button>
+            <button type="button" onClick={async () => { try { await saveCurrentPageAsPdf("mobflow-resultados-empresa.pdf"); } catch (error) { window.alert(error instanceof Error ? error.message : "Não foi possível salvar o relatório em PDF."); } }} className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-accent"><FileText className="h-4 w-4" />Salvar relatório em PDF</button>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3 print:mt-2 print:border-0 print:bg-transparent print:px-0 print:py-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="h-4 w-4" />Período: <strong className="capitalize text-foreground">{periodLabel}</strong></div>
