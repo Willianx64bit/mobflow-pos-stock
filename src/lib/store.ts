@@ -917,6 +917,33 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
   }
   return { products: cached.products.length, syncedAt };
 }
+/** Confirma que o shell e os módulos de rota foram realmente persistidos pelo Service Worker. */
+export async function verifyDesktopOfflineAssets() {
+  if (!isDesktopRuntime() || typeof navigator === "undefined" ||
+      !("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+    throw new Error("O cache offline do aplicativo ainda não está ativo neste computador. Mantenha a internet conectada e tente novamente.");
+  }
+  if (typeof caches === "undefined") {
+    throw new Error("Este computador não disponibilizou o armazenamento local das telas do MobFlow.");
+  }
+  const cacheNames = await caches.keys();
+  const cacheName = cacheNames.find((name) => name.startsWith("mobflow-desktop-shell-"));
+  if (!cacheName) {
+    throw new Error("A tela inicial do MobFlow ainda não foi armazenada para uso offline.");
+  }
+  const cache = await caches.open(cacheName);
+  const shell = await cache.match(new URL("/", window.location.origin).href);
+  const requests = await cache.keys();
+  const cachedScripts = requests.filter((request) => {
+    const url = new URL(request.url);
+    return url.origin === window.location.origin && /\\.(?:m?js)$/i.test(url.pathname);
+  });
+  if (!shell || cachedScripts.length < 2) {
+    throw new Error("Nem todas as telas do PDV e de Operações foram armazenadas. Reconecte-se e tente preparar novamente.");
+  }
+  return { cachedScripts: cachedScripts.length };
+}
+
 export async function resumeOnlineSync() {
   if (!isDesktopRuntime() || typeof navigator === "undefined" || !navigator.onLine) return false;
   await hydrateStore();
