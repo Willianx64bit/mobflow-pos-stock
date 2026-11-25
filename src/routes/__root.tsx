@@ -15,7 +15,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { mobflowAuthClient } from "@/lib/auth-client";
-import { hydrateStore, hydrateStoreOffline, resumeOnlineSync, verifyDesktopOfflinePreparation } from "@/lib/store";
+import { hydrateStore, hydrateStoreOffline, probeDesktopCloudConnectivity, resumeOnlineSync, verifyDesktopOfflinePreparation } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
 declare global {
@@ -270,7 +270,10 @@ function RootComponent() {
     // navigator.onLine can remain true when only the Neon/API route is unreachable.
     // Retry the authenticated cloud handshake without requiring the user to restart the EXE.
     const reconnectTimer = window.setInterval(() => {
-      if (navigator.onLine && sessionStorage.getItem("mobflow-desktop-offline") === "1") void onOnline();
+      if (!window.mobflowDesktop || reconnecting) return;
+      void probeDesktopCloudConnectivity().then((connected) => {
+        if (connected && sessionStorage.getItem("mobflow-desktop-offline") === "1") void onOnline();
+      });
     }, 15000);
     return () => {
       window.clearInterval(reconnectTimer);

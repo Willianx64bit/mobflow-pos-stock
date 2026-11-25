@@ -127,10 +127,11 @@ function isDesktopRuntime() {
 }
 
 function isDesktopOffline() {
-  return isDesktopRuntime() && (
-    (typeof navigator !== "undefined" && navigator.onLine === false) ||
-    (typeof sessionStorage !== "undefined" && sessionStorage.getItem("mobflow-desktop-offline") === "1")
-  );
+  // navigator.onLine is only a network-interface hint; it can be false even
+  // while the MobFlow cloud endpoints are reachable from the Electron process.
+  return isDesktopRuntime() &&
+    typeof sessionStorage !== "undefined" &&
+    sessionStorage.getItem("mobflow-desktop-offline") === "1";
 }
 
 export function isOfflineMode() {
@@ -524,7 +525,7 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables"
       if (!writeOutboxBackup([...backup, command])) return false;
       lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
         writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
-        if (typeof navigator !== "undefined" && navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+        if (cloudReady && cloudAccountId === tenantId) {
           let result = await syncNow();
           // If another command entered the queue during the current flush, drain
           // another ordered batch before reporting success to the caller.
@@ -952,7 +953,7 @@ export async function verifyDesktopOfflineAssets() {
 }
 
 export async function resumeOnlineSync() {
-  if (!isDesktopRuntime() || typeof navigator === "undefined" || !navigator.onLine) return false;
+  if (!isDesktopRuntime()) return false;
   await hydrateStore();
   if (!cloudReady || !cloudAccountId) return false;
   try {
@@ -961,6 +962,31 @@ export async function resumeOnlineSync() {
     return result.pending === 0 && result.failed === 0;
   } catch (error) {
     console.warn("[MobFlow Desktop] A reconexão ainda não concluiu a sincronização:", error);
+    return false;
+  }
+}
+
+/** Probe a tiny authenticated Neon-backed endpoint; never infer cloud state from navigator.onLine. */
+export async function probeDesktopCloudConnectivity(): Promise<boolean> {
+  if (!isDesktopRuntime()) return false;
+  try {
+    const result = await callMobFlowApi("/api/mobflow/private-data?kind=settings", { cache: "no-store" });
+    if (!result.response.ok || result.body.ok !== true || !result.body.record) {
+      throw new Error("O serviço de dados da empresa ainda não respondeu.");
+    }
+    if (!cloudReady || !cloudAccountId || sessionStorage.getItem("mobflow-desktop-offline") === "1") {
+      await resumeOnlineSync();
+    } else {
+      sessionStorage.removeItem("mobflow-desktop-offline");
+    }
+    if (!cloudReady) throw new Error("O MobFlow ainda não conseguiu restaurar a sessão online.");
+    sessionStorage.removeItem("mobflow-desktop-offline");
+    window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+    return true;
+  } catch (error) {
+    sessionStorage.setItem("mobflow-desktop-offline", "1");
+    window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+    console.warn("[MobFlow Desktop] Verificação de conexão com Neon falhou:", error);
     return false;
   }
 }
@@ -1110,7 +1136,7 @@ export async function hydrateStore() {
         try { localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString()); }
         catch { throw new Error("Não foi possível registrar a data da preparação offline."); }
       }
-      if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine) {
+      if (isDesktopRuntime()) {
         sessionStorage.removeItem("mobflow-desktop-offline");
         window.dispatchEvent(new Event("mobflow-offline-state-changed"));
       }
@@ -1279,7 +1305,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
     await restoreOutboxBackup(tenantId);
     if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
     let sent = 0;
-    if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+    if (isDesktopRuntime() && cloudReady && cloudAccountId === tenantId) {
       const pushed = await flushSyncOutbox(syncOutbox, tenantId);
       sent = pushed.sent;
       if (sent > 0) await refreshFromCloud(tenantId, true);
@@ -1290,7 +1316,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       syncOutbox.getCursor(tenantId),
     ]);
     if (isDesktopRuntime() && typeof navigator !== "undefined") {
-      if (navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+      if (cloudReady && cloudAccountId === tenantId) {
         sessionStorage.removeItem("mobflow-desktop-offline");
       } else {
         sessionStorage.setItem("mobflow-desktop-offline", "1");
