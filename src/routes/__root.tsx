@@ -294,23 +294,36 @@ function RootComponent() {
         let profile: { accountId: string; role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
         let restoredOffline = false;
 
-        try {
-          const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
-          if (response.ok) {
-            const body = await response.json();
-            if (body?.ok && body.user && typeof body.accountId === "string") profile = { ...body.user, accountId: body.accountId, active: true };
-          } else if (response.status === 401 || response.status === 403) {
-            await window.mobflowDesktop?.clearCachedAuthorizedSession?.();
-          } else if (response.status >= 500) {
-            throw new Error("Servidor indisponível; tentando recuperar a sessão local");
+        if (window.mobflowDesktop) {
+          // Never reuse the Electron session cookie as an implicit desktop login.
+          // Probe connectivity without credentials; online users must authenticate
+          // explicitly in the company/operator forms. Only a network failure may
+          // restore the previously authorized, encrypted PDV session.
+          try {
+            await fetch("/api/mobflow/session-context", {
+              credentials: "omit",
+              cache: "no-store",
+              headers: { "x-mobflow-desktop-connectivity-check": "1" },
+            });
+          } catch {
+            const cached = await window.mobflowDesktop.getCachedAuthorizedSession?.();
+            const cachedPermissions = Array.isArray(cached?.permissions) ? cached.permissions : [];
+            if (cached && cached.role === "pdv" &&
+                (cachedPermissions.includes("PDV") || cachedPermissions.includes("Operações")) &&
+                typeof cached.accountId === "string" && typeof cached.username === "string") {
+              profile = { accountId: cached.accountId, role: cached.role, username: cached.username, permissions: cachedPermissions, active: true };
+              restoredOffline = true;
+            }
           }
-        } catch {
-          const cached = await window.mobflowDesktop?.getCachedAuthorizedSession?.();
-          const cachedPermissions = Array.isArray(cached?.permissions) ? cached.permissions : [];
-          if (cached && cached.role === "pdv" && (cachedPermissions.includes("PDV") || cachedPermissions.includes("Operações")) &&
-              typeof cached.accountId === "string" && typeof cached.username === "string") {
-            profile = { accountId: cached.accountId, role: cached.role, username: cached.username, permissions: cachedPermissions, active: true };
-            restoredOffline = true;
+        } else {
+          try {
+            const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+            if (response.ok) {
+              const body = await response.json();
+              if (body?.ok && body.user && typeof body.accountId === "string") profile = { ...body.user, accountId: body.accountId, active: true };
+            }
+          } catch {
+            // Browser sessions remain online-only; never use the desktop offline session here.
           }
         }
 
