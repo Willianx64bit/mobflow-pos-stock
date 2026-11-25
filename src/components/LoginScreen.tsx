@@ -116,10 +116,11 @@ export async function logout() {
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void | Promise<void>; onClose?: () => void; mode?: "empresa" | "pdv" }) {
   const companySettings = useStore((s) => s.settings);
-  const [username, setUsername] = useState("");
+  const savedUsernameKey = mode === "pdv" ? "mobflow-saved-operator-username" : "mobflow-saved-company-username";
+  const [username, setUsername] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1" ? localStorage.getItem(savedUsernameKey) || "" : "");
   const [password, setPassword] = useState("");
-  // Deixa o campo vazio para o navegador oferecer o CNPJ salvo ao tocar nele.
-  const [cnpj, setCnpj] = useState("");
+  // Reuse the company identifier on this device; never persist the password.
+  const [cnpj, setCnpj] = useState(() => localStorage.getItem("mobflow-company-cnpj") || "");
   const [error, setError] = useState("");
   const [captchaRequired, setCaptchaRequired] = useState(false);
   const [captchaToken, setCaptchaToken] = useState("");
@@ -171,13 +172,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   // Ao alternar entre login da empresa e do usuário, limpa as credenciais,
   // mas preserva a preferência "Salvar login" para ambos os acessos.
   useEffect(() => {
-    setUsername("");
+    const shouldRemember = localStorage.getItem(REMEMBER_KEY) === "1";
+    const key = mode === "pdv" ? "mobflow-saved-operator-username" : "mobflow-saved-company-username";
+    setUsername(shouldRemember ? localStorage.getItem(key) || "" : "");
+    setCnpj(localStorage.getItem("mobflow-company-cnpj") || "");
     setPassword("");
     setError("");
     setCaptchaRequired(false);
     setCaptchaToken("");
     setLockoutRemaining(0);
-    setRememberLogin(localStorage.getItem(REMEMBER_KEY) === "1");
+    setRememberLogin(shouldRemember);
   }, [mode]);
 
   useEffect(() => {
@@ -273,7 +277,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setLoading(true);
     setError("");
     localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
-    if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
+    if (!rememberLogin) {
+      localStorage.removeItem(AUTH_KEY);
+      localStorage.removeItem("mobflow-saved-company-username");
+      localStorage.removeItem("mobflow-saved-operator-username");
+    }
 
     try {
       // Reutiliza o CNPJ da empresa atual no acesso do operador.
@@ -352,6 +360,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         setCaptchaToken("");
         setLockoutRemaining(0);
         if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+        if (rememberLogin) localStorage.setItem(savedUsernameKey, String(validation.profile.username || username.trim()));
+        else localStorage.removeItem(savedUsernameKey);
         if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
         sessionStorage.setItem("mobflow-role", validation.profile.role);
         sessionStorage.setItem("mobflow-username", validation.profile.username);
@@ -628,7 +638,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="on">
           <div>
             <label className="label-mono mb-1.5 block !text-muted-foreground">Usuário</label>
-            <input value={username} onChange={(e) => { setUsername(e.target.value); setLockoutRemaining(0); }} onBlur={checkExistingLockout} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
+            <input value={username} onChange={(e) => { setUsername(e.target.value); setLockoutRemaining(0); }} onBlur={checkExistingLockout} autoComplete="username" name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
           </div>
 
           <div>
@@ -655,7 +665,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           )}
 
           <label className="flex cursor-pointer select-none items-center gap-2 text-sm lg:text-base text-muted-foreground">
-            <input type="checkbox" checked={rememberLogin} onChange={(e) => { setRememberLogin(e.target.checked); localStorage.setItem(REMEMBER_KEY, e.target.checked ? "1" : "0"); }} className="h-4 w-4 accent-primary" />
+            <input type="checkbox" checked={rememberLogin} onChange={(e) => {
+              const checked = e.target.checked;
+              setRememberLogin(checked);
+              localStorage.setItem(REMEMBER_KEY, checked ? "1" : "0");
+              if (!checked) {
+                localStorage.removeItem("mobflow-saved-company-username");
+                localStorage.removeItem("mobflow-saved-operator-username");
+              }
+            }} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
           </label>
 
