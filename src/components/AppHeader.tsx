@@ -127,6 +127,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
       if (newContacts > 0) parts.push(`${newContacts} contato(s) atualizado(s)`);
       if (refreshWarnings.length) parts.push(`falha ao atualizar ${refreshWarnings.join(" e ")}`);
       if (result.reconciliationRequired) parts.push("reconciliação necessária");
+      if (result.lastError) parts.push(result.lastError);
       setSyncMessage(parts.join(" · ") || "Tudo sincronizado");
     } catch (error) {
       setSyncMessage(error instanceof Error ? error.message : "Sincronização não concluída");
