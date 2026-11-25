@@ -54,9 +54,19 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: npm install --legacy-peer-deps --no-audit --no-fund
 
-      - name: Gerar build do aplicativo MobFlow
+      - name: Gerar build local do aplicativo MobFlow para Electron
         working-directory: ${{ github.workspace }}
+        env:
+          MOBFLOW_DESKTOP_BUILD: "1"
         run: npm run build
+
+      - name: Verificar shell local do MobFlow
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          $shell = Join-Path $env:GITHUB_WORKSPACE ".output/public/_shell.html"
+          if (-not (Test-Path $shell)) { throw "Shell SPA local não foi gerado em .output/public/_shell.html." }
+          if ((Get-Item $shell).Length -lt 500) { throw "Shell local está vazio ou incompleto." }
 
       - name: Testar fila offline e transações Neon
         working-directory: ${{ github.workspace }}
