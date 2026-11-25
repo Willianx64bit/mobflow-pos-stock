@@ -23,6 +23,7 @@
     },
     "files": [
       "main.cjs",
+      "local-runtime.cjs",
       "offline-session.cjs",
       "preload.cjs",
       "offline.html",
