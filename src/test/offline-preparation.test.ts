@@ -100,6 +100,35 @@ describe("verifyDesktopOfflinePreparation", () => {
     await expect(verify()).rejects.toThrow("preparação local recente");
   });
 
+  it("requires an active service worker and a cached app shell plus route scripts", async () => {
+    const { verifyDesktopOfflineAssets } = await import("@/lib/store");
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller: null },
+    });
+    await expect(verifyDesktopOfflineAssets()).rejects.toThrow("cache offline");
+
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: { controller: {} },
+    });
+    const cache = {
+      match: vi.fn().mockResolvedValue(new Response("<html></html>")),
+      keys: vi.fn().mockResolvedValue([new Request("https://mobflow.test/assets/app.js")]),
+    };
+    Object.defineProperty(globalThis, "caches", {
+      configurable: true,
+      value: { keys: vi.fn().mockResolvedValue(["mobflow-desktop-shell-v1"]), open: vi.fn().mockResolvedValue(cache) },
+    });
+    await expect(verifyDesktopOfflineAssets()).rejects.toThrow("telas do PDV");
+
+    cache.keys.mockResolvedValue([
+      new Request("https://mobflow.test/assets/app.js"),
+      new Request("https://mobflow.test/assets/route.js"),
+    ]);
+    await expect(verifyDesktopOfflineAssets()).resolves.toMatchObject({ cachedScripts: 2 });
+  });
+
   it("rejects malformed local JSON and non-desktop execution", async () => {
     localStorage.setItem("mobflow:owner", accountId);
     localStorage.setItem(`mobflow:v1:${accountId}`, "{broken");
