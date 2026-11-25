@@ -10,6 +10,17 @@ let localRuntime = null;
 let localPublicDir = null;
 let localUrl = null;
 let localOrigin = null;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+}
 
 const OFFLINE_SESSION_FILE = "mobflow-authorized-session.bin";
 
@@ -287,6 +298,7 @@ ipcMain.on("mobflow:retry-connection", () => {
 });
 
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
   app.setAppUserModelId("com.mobflow.desktop");
   const publicDir = app.isPackaged
     ? path.join(process.resourcesPath, "mobflow-web")
@@ -297,7 +309,7 @@ app.whenReady().then(async () => {
     : fetch;
   localRuntime = createLocalRuntimeServer({ publicDir, remoteOrigin: APP_ORIGIN, fetchImpl: runtimeFetch });
   try {
-    const address = await localRuntime.listen();
+    const address = await localRuntime.listen(43173);
     localUrl = address.url;
     localOrigin = address.origin;
     if (process.env.MOBFLOW_TEST_READY_FILE) {
