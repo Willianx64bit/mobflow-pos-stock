@@ -102,9 +102,9 @@ jobs:
           if (-not $app -or -not (Test-Path $app)) { throw "MobFlow.exe não foi encontrado após a instalação." }
           $resources = Join-Path (Split-Path $app) "resources"
           $shell = Join-Path $resources "mobflow-web/_shell.html"
-          $runtimeModule = Join-Path $resources "app/local-runtime.cjs"
+          $appArchive = Join-Path $resources "app.asar"
           if (-not (Test-Path $shell)) { throw "O instalador não contém o shell local do MobFlow." }
-          if (-not (Test-Path $runtimeModule)) { throw "O instalador não contém o servidor local do Electron." }
+          if (-not (Test-Path $appArchive)) { throw "O instalador não contém o pacote Electron com o servidor local." }
 
           $readyFile = Join-Path $env:TEMP "mobflow-local-runtime-ready-$PID.json"
           Remove-Item $readyFile -Force -ErrorAction SilentlyContinue
