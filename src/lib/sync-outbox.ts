@@ -252,7 +252,7 @@ export class SyncOutbox {
 }
 
 export type SyncTransport = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-export type OutboxFlushResult = { sent: number; failed: number; pending: number };
+export type OutboxFlushResult = { sent: number; failed: number; pending: number; lastError?: string };
 
 const isRetryable = (status: number) => status === 401 || status === 403 || status === 408 || status === 425 || status === 429 || status >= 500;
 
@@ -264,6 +264,7 @@ export async function flushSyncOutbox(
 ): Promise<OutboxFlushResult> {
   const commands = await outbox.listPending(tenantId, limit);
   let sent = 0, failed = 0;
+  let lastError: string | undefined;
   for (const command of commands) {
     await outbox.markAttempt(command.id);
     try {
@@ -277,6 +278,7 @@ export async function flushSyncOutbox(
         await outbox.acknowledge(command.id);
         sent++;
       } else if (isRetryable(response.status)) {
+        lastError = body.error ?? body.code ?? `O servidor não confirmou a operação (HTTP ${response.status}).`;
         break;
       } else {
         await outbox.markFailed(command.id, body.error ?? `Falha HTTP ${response.status}`);
@@ -284,12 +286,13 @@ export async function flushSyncOutbox(
         // Do not send later commands that may depend on the rejected operation.
         break;
       }
-    } catch {
+    } catch (error) {
       // Keep the command pending. Its stable idempotency key makes retry safe after a lost response.
+      lastError = error instanceof Error ? error.message : "Falha de comunicação com o servidor.";
       break;
     }
   }
-  return { sent, failed, pending: await outbox.pendingCount(tenantId) };
+  return { sent, failed, pending: await outbox.pendingCount(tenantId), ...(lastError ? { lastError } : {}) };
 }
 
 export async function pullSyncEvents(
