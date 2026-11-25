@@ -9,7 +9,10 @@ function resolveAppUrl(value = process.env.MOBFLOW_APP_URL || DEFAULT_APP_URL) {
     throw new Error("MOBFLOW_APP_URL precisa ser uma URL HTTPS válida.");
   }
 
-  if (parsed.protocol !== "https:" || parsed.hostname !== "mobflow-pdv-gestao.vercel.app") {
+  if (parsed.protocol !== "https:") {
+    throw new Error("MOBFLOW_APP_URL precisa usar HTTPS.");
+  }
+  if (parsed.hostname !== "mobflow-pdv-gestao.vercel.app") {
     throw new Error("O MobFlow Desktop deve apontar para o domínio oficial do PDV.");
   }
 
