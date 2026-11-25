@@ -127,6 +127,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const captchaContainerRef = useRef<HTMLDivElement | null>(null);
   const captchaWidgetIdRef = useRef<string | null>(null);
+  const autoLoginAttempted = useRef(false);
   const [showLocationNotice, setShowLocationNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
@@ -182,6 +183,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setCaptchaToken("");
     setLockoutRemaining(0);
     setRememberLogin(shouldRemember);
+    autoLoginAttempted.current = false;
   }, [mode]);
 
   // Restore the password only inside the Windows EXE, from Electron safeStorage.
@@ -438,6 +440,20 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
       setLoading(false);
     }
   };
+
+  // When saved login is enabled, do not stop at pre-filling the fields:
+  // submit the stored credentials automatically for both company and PDV access.
+  // The password itself is only read from Electron safeStorage.
+  useEffect(() => {
+    if (!window.mobflowDesktop || !rememberLogin || !username.trim() || !password ||
+        loading || captchaRequired || lockoutRemaining > 0 || autoLoginAttempted.current) return;
+    const document = (mode === "pdv"
+      ? localStorage.getItem("mobflow-company-cnpj") || ""
+      : cnpj).replace(/\D/g, "");
+    if (document.length !== 14) return;
+    autoLoginAttempted.current = true;
+    void submit({ preventDefault: () => undefined } as unknown as FormEvent);
+  }, [mode, rememberLogin, username, password, cnpj, loading, captchaRequired, lockoutRemaining]);
 
   const submitSignup = async (e: FormEvent) => {
     e.preventDefault();

@@ -112,19 +112,24 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     setSyncing(true);
     setSyncMessage("");
     try {
-      // Product catalog and promotions are intentionally fetched only by this manual action.
-      await actions.refreshCatalog();
-      await actions.loadPromotions();
+      // Flush business transactions first. A catalog/promotions refresh failure
+      // must never prevent the 13 (or more) durable commands from being sent.
       const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      const refreshWarnings: string[] = [];
+      try { await actions.refreshCatalog(); } catch { refreshWarnings.push("catálogo"); }
+      try { await actions.loadPromotions(); } catch { refreshWarnings.push("promoções"); }
       // Contacts are deliberately excluded from background/realtime pulls.
-      // Fetch only newly registered customer/supplier IDs when the user taps this button.
-      const newContacts = await syncNewContacts();
-      const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
-      setSyncMessage(newContacts > 0
-        ? `${newContacts} novo(s) cliente(s)/fornecedor(es) sincronizado(s)`
-        : pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
-    } catch {
-      setSyncMessage("Sincronização não concluída");
+      const newContacts = await syncNewContacts().catch(() => 0);
+      const parts: string[] = [];
+      if (result.sent > 0) parts.push(`${result.sent} operação(ões) confirmada(s)`);
+      if (result.pending > 0) parts.push(`${result.pending} pendente(s)`);
+      if (result.failed > 0) parts.push(`${result.failed} com erro`);
+      if (newContacts > 0) parts.push(`${newContacts} contato(s) atualizado(s)`);
+      if (refreshWarnings.length) parts.push(`falha ao atualizar ${refreshWarnings.join(" e ")}`);
+      if (result.reconciliationRequired) parts.push("reconciliação necessária");
+      setSyncMessage(parts.join(" · ") || "Tudo sincronizado");
+    } catch (error) {
+      setSyncMessage(error instanceof Error ? error.message : "Sincronização não concluída");
     } finally {
       setSyncing(false);
     }

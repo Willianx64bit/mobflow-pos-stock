@@ -17,7 +17,6 @@ export function isValidOfflineFiadoSession(
   return !!cached &&
     cached.role === "pdv" &&
     Array.isArray(cached.permissions) &&
-    cached.permissions.includes("PDV") &&
     cached.permissions.includes("Fiado") &&
     !!expectedAccount &&
     cached.accountId === expectedAccount &&

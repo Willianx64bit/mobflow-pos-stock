@@ -115,7 +115,18 @@ let realtimeCatchupTimer: ReturnType<typeof setInterval> | null = null;
 let realtimeRevision = 0;
 const listeners = new Set<() => void>();
 const syncOutbox = new SyncOutbox();
+let outboxFlushInFlight: Promise<Awaited<ReturnType<typeof flushSyncOutbox>>> | null = null;
 let lastDomainCommandPromise: Promise<void> | null = null;
+
+function flushDesktopOutbox(tenantId: string) {
+  if (outboxFlushInFlight) return outboxFlushInFlight;
+  const running = flushSyncOutbox(syncOutbox, tenantId);
+  const shared = running.finally(() => {
+    if (outboxFlushInFlight === shared) outboxFlushInFlight = null;
+  });
+  outboxFlushInFlight = shared;
+  return shared;
+}
 // Keep the command cutover fail-closed until the Neon snapshot bootstrap has relational projections.
 const incrementalSyncEnabled = () =>
   import.meta.env["VITE_MOBFLOW_INCREMENTAL_SYNC"] === "true" &&
@@ -526,14 +537,30 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables"
       lastDomainCommandPromise = syncOutbox.enqueue(command).then(async () => {
         writeOutboxBackup(readOutboxBackup().filter((item) => item.id !== command.id));
         if (cloudReady && cloudAccountId === tenantId) {
-          let result = await syncNow();
-          // If another command entered the queue during the current flush, drain
-          // another ordered batch before reporting success to the caller.
+          let result = incrementalSyncEnabled()
+            ? await syncNow()
+            : await flushDesktopOutbox(tenantId);
+          // Drain successive ordered batches without waiting for a full app_state
+          // refresh after each checkout. The Neon transaction response is the commit.
           for (let pass = 0; pass < 9 && result.failed === 0 && result.sent > 0 && result.pending > 0; pass += 1) {
-            result = await syncNow();
+            result = incrementalSyncEnabled()
+              ? await syncNow()
+              : await flushDesktopOutbox(tenantId);
           }
           if (result.failed > 0 || result.pending > 0) {
-            throw new Error("A operação foi salva na fila local, mas ainda aguarda confirmação do Neon.");
+            throw new Error("A operação foi guardada neste computador, mas o Neon ainda não confirmou. Use Sincronizar para tentar novamente.");
+          }
+          if (result.sent > 0 && result.pending === 0) {
+            if (domain === "sales") {
+              const saleId = String(payload["saleId"] ?? "");
+              if (saleId) set({ sales: state.sales.map((sale) => sale.id === saleId ? { ...sale, syncStatus: "synced" } : sale) }, { persist: false });
+            } else if (domain === "receivables") {
+              const saleId = String(payload["saleId"] ?? "");
+              const key = String(payload["idempotencyKey"] ?? "");
+              if (saleId && key) set({ sales: state.sales.map((sale) => sale.id === saleId
+                ? { ...sale, payments: (sale.payments ?? []).map((payment) => payment.idempotencyKey === key ? { ...payment, syncStatus: "synced" } : payment) }
+                : sale) }, { persist: false });
+            }
           }
         }
       });
@@ -1302,11 +1329,19 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       try { tenantId = localStorage.getItem(OWNER_KEY); } catch {}
     }
     if (!tenantId) return { sent: 0, failed: 0, pending: 0, applied: 0, cursor: "0", hasMore: false };
+    // A stale cloudReady=false flag previously made the Sync button only count
+    // pending commands. Re-authenticate and hydrate before attempting delivery.
+    if (isDesktopRuntime() && (!cloudReady || cloudAccountId !== tenantId)) {
+      await hydrateStore();
+    }
+    if (isDesktopRuntime() && (!cloudReady || cloudAccountId !== tenantId)) {
+      throw new Error("A sessão online da empresa ainda não foi restabelecida. Os comandos continuam guardados localmente.");
+    }
     await restoreOutboxBackup(tenantId);
     if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
     let sent = 0;
     if (isDesktopRuntime() && cloudReady && cloudAccountId === tenantId) {
-      const pushed = await flushSyncOutbox(syncOutbox, tenantId);
+      const pushed = await flushDesktopOutbox(tenantId);
       sent = pushed.sent;
       if (sent > 0) await refreshFromCloud(tenantId, true);
     }

@@ -11,7 +11,7 @@ const validSession = {
   accountId: "tenant-123",
   role: "pdv",
   username: "William",
-  permissions: ["PDV", "Gerência", "Validade", "PDV"]
+  permissions: ["PDV", "Fiado", "Gerência", "Validade", "PDV"]
 };
 
 test("accepts only PDV sessions and normalizes the cached identity", () => {
@@ -19,7 +19,7 @@ test("accepts only PDV sessions and normalizes the cached identity", () => {
     accountId: "tenant-123",
     role: "pdv",
     username: "William",
-    permissions: ["PDV"]
+    permissions: ["PDV", "Fiado"]
   });
   assert.equal(validateOfflineSession({ ...validSession, role: "manager" }), null);
   assert.equal(validateOfflineSession({ ...validSession, role: "admin" }), null);
@@ -105,6 +105,7 @@ test("keeps only the explicit offline permissions for a mixed-permission operato
   assert.deepEqual(session.permissions, ["PDV", "Operações"]);
   assert.equal(session.permissions.includes("Gerência"), false);
   assert.equal(session.permissions.includes("Relatórios"), false);
+  assert.equal(session.permissions.includes("Fiado"), true);
 });
 
 test("rejects oversized permission lists instead of caching an unbounded session", () => {
