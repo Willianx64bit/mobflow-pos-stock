@@ -27,7 +27,8 @@
       "preload.cjs",
       "offline.html",
       "offline.js",
-      "package.json"
+      "package.json",
+      "app-config.cjs"
     ],
     "win": {
       "target": [
