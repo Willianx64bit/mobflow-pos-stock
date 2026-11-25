@@ -161,6 +161,9 @@ describe("MobFlow durable incremental outbox contract", () => {
     expect(outbox.markFailed).toHaveBeenCalledWith(ID, "Estoque insuficiente.");
     expect(outbox.acknowledge).not.toHaveBeenCalled();
     expect(result.failed).toBe(1);
+    expect(result.lastError).toContain("sales");
+    expect(result.lastError).toContain("HTTP 409");
+    expect(result.lastError).toContain("Estoque insuficiente.");
   });
 
   it("stops the queue after a permanent failure so later dependent commands are not sent", async () => {
