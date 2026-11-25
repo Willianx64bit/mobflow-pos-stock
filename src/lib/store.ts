@@ -936,7 +936,7 @@ export async function verifyDesktopOfflineAssets() {
   const requests = await cache.keys();
   const cachedScripts = requests.filter((request) => {
     const url = new URL(request.url);
-    return url.origin === window.location.origin && /\\.(?:m?js)$/i.test(url.pathname);
+    return url.origin === window.location.origin && /\.(?:m?js)$/i.test(url.pathname);
   });
   if (!shell || cachedScripts.length < 2) {
     throw new Error("Nem todas as telas do PDV e de Operações foram armazenadas. Reconecte-se e tente preparar novamente.");
