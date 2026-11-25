@@ -48,6 +48,30 @@ test("serves the packaged SPA shell for root and client-side routes without inte
   }
 });
 
+test("serves the same local shell after a complete runtime server shutdown and restart", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "mobflow-runtime-restart-"));
+  await fs.writeFile(path.join(root, "_shell.html"), "<html>RESTARTED LOCAL SHELL</html>");
+  try {
+    const first = createLocalRuntimeServer({ publicDir: root, remoteOrigin: "https://mobflow-pdv-gestao.vercel.app" });
+    const firstAddress = await first.listen();
+    const firstResponse = await fetch(firstAddress.url);
+    assert.match(await firstResponse.text(), /RESTARTED LOCAL SHELL/);
+    await first.close();
+
+    const second = createLocalRuntimeServer({ publicDir: root, remoteOrigin: "https://mobflow-pdv-gestao.vercel.app" });
+    const secondAddress = await second.listen();
+    try {
+      const secondResponse = await fetch(secondAddress.url);
+      assert.equal(secondResponse.status, 200);
+      assert.match(await secondResponse.text(), /RESTARTED LOCAL SHELL/);
+    } finally {
+      await second.close();
+    }
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test("proxies authenticated API cookies, methods, request bodies and Set-Cookie headers", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "mobflow-local-proxy-"));
   await fs.writeFile(path.join(root, "_shell.html"), "<html>shell</html>");
