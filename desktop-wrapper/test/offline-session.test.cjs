@@ -9,18 +9,19 @@ const {
 const now = 1_800_000_000_000;
 const validSession = {
   accountId: "tenant-123",
-  role: "manager",
+  role: "pdv",
   username: "William",
   permissions: ["PDV", "Gerência", "PDV"]
 };
 
-test("accepts only supported roles and normalizes the cached identity", () => {
+test("accepts only PDV sessions and normalizes the cached identity", () => {
   assert.deepEqual(validateOfflineSession(validSession), {
     accountId: "tenant-123",
-    role: "manager",
+    role: "pdv",
     username: "William",
     permissions: ["PDV", "Gerência"]
   });
+  assert.equal(validateOfflineSession({ ...validSession, role: "manager" }), null);
   assert.equal(validateOfflineSession({ ...validSession, role: "admin" }), null);
   assert.equal(validateOfflineSession({ ...validSession, role: "owner" }), null);
 });
