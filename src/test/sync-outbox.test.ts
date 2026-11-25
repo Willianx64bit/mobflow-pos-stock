@@ -323,7 +323,7 @@ describe("MobFlow durable incremental outbox contract", () => {
 
     const reopened = new SyncOutbox();
     expect(await reopened.listPending(restartTenant)).toHaveLength(3);
-    const onlineTransport = vi.fn().mockResolvedValue(response({ ok: true, replayed: false }));
+    const onlineTransport = vi.fn().mockImplementation(async () => response({ ok: true, replayed: false }));
     expect(await flushSyncOutbox(reopened, restartTenant, onlineTransport)).toMatchObject({ sent: 3, failed: 0, pending: 0 });
     expect(onlineTransport).toHaveBeenCalledTimes(3);
     expect(onlineTransport.mock.calls.map((call) => call[0]).sort()).toEqual([
