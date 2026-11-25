@@ -114,7 +114,7 @@ describe("verifyDesktopOfflinePreparation", () => {
     });
     const cache = {
       match: vi.fn().mockResolvedValue(new Response("<html></html>")),
-      keys: vi.fn().mockResolvedValue([new Request("https://mobflow.test/assets/app.js")]),
+      keys: vi.fn().mockResolvedValue([new Request(`${window.location.origin}/assets/app.js`)]),
     };
     Object.defineProperty(globalThis, "caches", {
       configurable: true,
@@ -123,8 +123,8 @@ describe("verifyDesktopOfflinePreparation", () => {
     await expect(verifyDesktopOfflineAssets()).rejects.toThrow("telas do PDV");
 
     cache.keys.mockResolvedValue([
-      new Request("https://mobflow.test/assets/app.js"),
-      new Request("https://mobflow.test/assets/route.js"),
+      new Request(`${window.location.origin}/assets/app.js`),
+      new Request(`${window.location.origin}/assets/route.js`),
     ]);
     await expect(verifyDesktopOfflineAssets()).resolves.toMatchObject({ cachedScripts: 2 });
   });
