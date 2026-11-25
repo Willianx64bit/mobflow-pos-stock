@@ -282,7 +282,7 @@ async function readSavedLogins() {
 
 function savedLoginKey(value) {
   if (!value || typeof value !== "object") return null;
-  const cnpj = String(value.cnpj || "").replace(/\\D/g, "");
+  const cnpj = String(value.cnpj || "").replace(/\D/g, "");
   const username = String(value.username || "").trim().toLocaleLowerCase("pt-BR");
   const role = value.role === "pdv" ? "pdv" : value.role === "manager" ? "manager" : "";
   if (cnpj.length !== 14 || !username || username.length > 120 || !role) return null;

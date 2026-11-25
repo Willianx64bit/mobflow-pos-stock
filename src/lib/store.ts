@@ -1102,6 +1102,10 @@ export async function hydrateStore() {
 
       cloudAccountId = accountId;
       cloudReady = true;
+      if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine) {
+        sessionStorage.removeItem("mobflow-desktop-offline");
+        window.dispatchEvent(new Event("mobflow-offline-state-changed"));
+      }
       startRealtime(accountId);
       // Catch up only the two enabled modules in compatibility mode; no global incremental cutover.
       if (!incrementalSyncEnabled()) void pullReceivingConferenceEvents(accountId).catch(() => undefined);
@@ -1279,9 +1283,12 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       syncOutbox.pendingCount(tenantId),
       syncOutbox.getCursor(tenantId),
     ]);
-    if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine) {
-      if (failed === 0 && pending === 0) sessionStorage.removeItem("mobflow-desktop-offline");
-      else sessionStorage.setItem("mobflow-desktop-offline", "1");
+    if (isDesktopRuntime() && typeof navigator !== "undefined") {
+      if (navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+        sessionStorage.removeItem("mobflow-desktop-offline");
+      } else {
+        sessionStorage.setItem("mobflow-desktop-offline", "1");
+      }
     }
     return { sent, failed, pending, applied: 0, cursor, hasMore: false };
   }
@@ -1317,9 +1324,12 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       }
     }
     const failed = await syncOutbox.failedCount(tenantId);
-    if (isDesktopRuntime() && typeof navigator !== "undefined" && navigator.onLine) {
-      if (failed === 0 && result.pending === 0) sessionStorage.removeItem("mobflow-desktop-offline");
-      else sessionStorage.setItem("mobflow-desktop-offline", "1");
+    if (isDesktopRuntime() && typeof navigator !== "undefined") {
+      if (navigator.onLine && cloudReady && cloudAccountId === tenantId) {
+        sessionStorage.removeItem("mobflow-desktop-offline");
+      } else {
+        sessionStorage.setItem("mobflow-desktop-offline", "1");
+      }
     }
     return { ...result, failed };
   } catch (error) {

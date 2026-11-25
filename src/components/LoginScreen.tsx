@@ -184,6 +184,27 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setRememberLogin(shouldRemember);
   }, [mode]);
 
+  // Restore the password only inside the Windows EXE, from Electron safeStorage.
+  // The browser version continues to remember only the username and company CNPJ.
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      if (!rememberLogin || !window.mobflowDesktop?.getLoginSecret || !username.trim()) return;
+      const document = (mode === "pdv"
+        ? localStorage.getItem("mobflow-company-cnpj") || ""
+        : cnpj).replace(/\D/g, "");
+      if (document.length !== 14) return;
+      const saved = await window.mobflowDesktop.getLoginSecret({
+        cnpj: document,
+        role: mode === "pdv" ? "pdv" : "manager",
+        username: username.trim(),
+      }).catch(() => null);
+      if (!cancelled && saved?.password) setPassword(saved.password);
+    };
+    void restore();
+    return () => { cancelled = true; };
+  }, [mode, rememberLogin, username, cnpj]);
+
   useEffect(() => {
     if (!captchaRequired) return;
     let cancelled = false;
@@ -362,6 +383,19 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
         if (rememberLogin) localStorage.setItem(savedUsernameKey, String(validation.profile.username || username.trim()));
         else localStorage.removeItem(savedUsernameKey);
+        if (window.mobflowDesktop) {
+          const savedLogin = {
+            cnpj: loginCnpj,
+            role: mode === "pdv" ? "pdv" as const : "manager" as const,
+            username: String(validation.profile.username || username.trim()),
+          };
+          if (rememberLogin) {
+            const stored = await window.mobflowDesktop.saveLoginSecret?.({ ...savedLogin, password });
+            if (stored !== true) throw new Error("Não foi possível salvar a senha com segurança neste computador.");
+          } else {
+            await window.mobflowDesktop.clearLoginSecret?.(savedLogin).catch(() => false);
+          }
+        }
         if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
         sessionStorage.setItem("mobflow-role", validation.profile.role);
         sessionStorage.setItem("mobflow-username", validation.profile.username);
@@ -670,8 +704,15 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
               setRememberLogin(checked);
               localStorage.setItem(REMEMBER_KEY, checked ? "1" : "0");
               if (!checked) {
+                const savedName = username.trim();
+                const savedRole = mode === "pdv" ? "pdv" as const : "manager" as const;
+                const savedCnpj = (mode === "pdv" ? localStorage.getItem("mobflow-company-cnpj") || "" : cnpj).replace(/\D/g, "");
                 localStorage.removeItem("mobflow-saved-company-username");
                 localStorage.removeItem("mobflow-saved-operator-username");
+                if (window.mobflowDesktop?.clearLoginSecret && savedCnpj.length === 14 && savedName) {
+                  void window.mobflowDesktop.clearLoginSecret({ cnpj: savedCnpj, role: savedRole, username: savedName });
+                }
+                setPassword("");
               }
             }} className="h-4 w-4 accent-primary" />
             <span>Salvar login</span>
