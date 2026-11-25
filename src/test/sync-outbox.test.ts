@@ -61,6 +61,7 @@ describe("MobFlow durable incremental outbox contract", () => {
     await expect(outbox.pendingCount(TENANT)).resolves.toBe(1);
     await expect(outbox.listPending(otherTenant)).resolves.toEqual([second]);
     await expect(outbox.pendingCount(otherTenant)).resolves.toBe(1);
+    outbox.close();
   });
 
   it("creates stable domain endpoint and keeps idempotency key in the payload", () => {
@@ -269,6 +270,8 @@ describe("MobFlow durable incremental outbox contract", () => {
       payload: { saleId: "offline-sale-1", total: 42.5, payment: "Pix", paymentStatus: "pending_validation" },
     });
     await firstAppInstance.enqueue(command);
+    // Close the first app's IndexedDB connection before simulating a fresh process.
+    firstAppInstance.close();
 
     const offlineTransport = vi.fn().mockRejectedValue(new TypeError("Failed to fetch: simulated offline"));
     const offlineResult = await flushSyncOutbox(firstAppInstance, TENANT, offlineTransport);
@@ -297,6 +300,7 @@ describe("MobFlow durable incremental outbox contract", () => {
       body: expect.stringContaining('"idempotencyKey":"a6c47ea1-2abf-4cd6-b614-24e27077bdf6"'),
     }));
     expect(await reopenedApp.pendingCount(TENANT)).toBe(0);
+    reopenedApp.close();
   });
 
   it("does not advance the cursor if applying an event page fails", async () => {
