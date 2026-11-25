@@ -333,15 +333,19 @@ function RootComponent() {
         const savedPermissions = Array.isArray(profile.permissions) ? profile.permissions : (profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
         const normalizedPermissions = Array.from(new Set(savedPermissions.map((permission: string) => permission === "Conferência" ? "Operações" : permission)));
         sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
-        // Cache only the minimum authorization context, encrypted by Electron's OS-backed safeStorage.
-        // No password, Better Auth cookie, bearer token or session secret is persisted.
-        if (!restoredOffline) {
-          void window.mobflowDesktop?.cacheAuthorizedSession?.({
+        // Refresh only the PDV operator's minimum authorization context after a
+        // server-authenticated startup. Manager/Admin sessions are never persisted
+        // as offline-capable sessions. No password, cookie or bearer token is stored.
+        if (!restoredOffline && window.mobflowDesktop && profile.role === "pdv") {
+          const cached = await window.mobflowDesktop.cacheAuthorizedSession({
             accountId: profile.accountId,
             role: profile.role,
             username: profile.username,
             permissions: normalizedPermissions,
-          })?.catch((error) => console.warn("MobFlow Desktop: não foi possível salvar a sessão offline:", error));
+          }).catch(() => false);
+          if (cached !== true) {
+            throw new Error("Não foi possível renovar a autorização offline deste operador. Verifique o armazenamento do Windows e tente novamente.");
+          }
         }
 
         if (profile.role === "pdv") {
