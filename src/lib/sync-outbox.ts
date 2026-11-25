@@ -281,7 +281,9 @@ export async function flushSyncOutbox(
         lastError = body.error ?? body.code ?? `O servidor não confirmou a operação (HTTP ${response.status}).`;
         break;
       } else {
-        await outbox.markFailed(command.id, body.error ?? `Falha HTTP ${response.status}`);
+        const reason = body.error ?? body.code ?? `Falha HTTP ${response.status}`;
+        await outbox.markFailed(command.id, reason);
+        lastError = `${command.domain} · ${command.endpoint} · HTTP ${response.status}: ${reason}`;
         failed++;
         // Do not send later commands that may depend on the rejected operation.
         break;
