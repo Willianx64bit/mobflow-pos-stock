@@ -114,7 +114,7 @@ export async function logout() {
   await window.mobflowDesktop?.clearCachedAuthorizedSession?.().catch(() => false);
 }
 
-export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
+export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void | Promise<void>; onClose?: () => void; mode?: "empresa" | "pdv" }) {
   const companySettings = useStore((s) => s.settings);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -373,11 +373,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         }
         const firstManagerLogin = mode === "empresa" && validation.firstManagerLogin === true;
         if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
-        onLogin({ firstManagerLogin });
+        await onLogin({ firstManagerLogin });
         return;
     } catch (err) {
-      setError(err instanceof Error && err.message === "LOGIN_TIMEOUT"
-        ? "O servidor está demorando para responder. Tente novamente em instantes."
+      setError(err instanceof Error
+        ? (err.message === "LOGIN_TIMEOUT" ? "O servidor está demorando para responder. Tente novamente em instantes." : err.message)
         : "Não foi possível conectar ao servidor.");
     } finally {
       setShowLocationNotice(false);
