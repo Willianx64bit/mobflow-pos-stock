@@ -56,6 +56,9 @@ function MovimentacoesEstoque() {
     let client: ReturnType<typeof createRealtimeClient> | null = null;
     let renewalTimer: ReturnType<typeof setTimeout> | null = null;
     let lastSequence: string | null | undefined;
+    let lastStockMovementSequence: string | null = null;
+    let stockChangeCheckInFlight = false;
+    let stockChangeCheckQueued = false;
 
     const refreshMovements = async () => {
       const response = await fetch("/api/mobflow/stock-movements/list", {
@@ -73,6 +76,43 @@ function MovimentacoesEstoque() {
       }
     };
 
+    const fetchStockMovementChanges = async (cursor: string) => {
+      const response = await fetch(`/api/mobflow/stock-movements/changes?cursor=${encodeURIComponent(cursor)}`, {
+        method: "GET", credentials: "same-origin", cache: "no-store",
+      });
+      if (!response.ok) throw new Error("Falha ao verificar alterações no histórico de estoque (HTTP " + response.status + ").");
+      const body = await response.json() as { ok?: boolean; highWaterMark?: string; hasStockChanges?: boolean; error?: string };
+      if (!body.ok || typeof body.highWaterMark !== "string" || typeof body.hasStockChanges !== "boolean") {
+        throw new Error(body.error || "A API não retornou o estado das alterações de estoque.");
+      }
+      return body as { ok: true; highWaterMark: string; hasStockChanges: boolean };
+    };
+
+    const checkStockMovementChanges = async () => {
+      if (stockChangeCheckInFlight) {
+        stockChangeCheckQueued = true;
+        return;
+      }
+      stockChangeCheckInFlight = true;
+      try {
+        do {
+          stockChangeCheckQueued = false;
+          if (lastStockMovementSequence === null) break;
+          const changes = await fetchStockMovementChanges(lastStockMovementSequence);
+          lastStockMovementSequence = changes.highWaterMark;
+          if (changes.hasStockChanges) await refreshMovements();
+        } while (stockChangeCheckQueued && !stopped);
+      } catch (error) {
+        if (!stopped) {
+          setRealtimeStatus("error");
+          setRealtimeError(error instanceof Error ? error.message : "Não foi possível verificar alterações no histórico.");
+        }
+      } finally {
+        stockChangeCheckInFlight = false;
+        if (stockChangeCheckQueued && !stopped) void checkStockMovementChanges();
+      }
+    };
+
     const fetchSealedQuery = async (): Promise<SealedLiveQuery<{ last_sequence: string }>> => {
       const response = await fetch("/api/mobflow/stock-movements/live-query", {
         method: "POST", credentials: "same-origin",
@@ -84,8 +124,11 @@ function MovimentacoesEstoque() {
 
     const start = async () => {
       try {
-        // Load the durable ledger through the authenticated API. Never query the
-        // RLS-protected stock_movements table directly through Neon Realtime.
+        // Establish an independent stock-event cursor before loading the ledger.
+        // Global Realtime signals still wake this screen, but unrelated events no
+        // longer cause a full history query.
+        const stockBaseline = await fetchStockMovementChanges("0");
+        lastStockMovementSequence = stockBaseline.highWaterMark;
         await refreshMovements();
         if (stopped) return;
 
@@ -99,16 +142,12 @@ function MovimentacoesEstoque() {
           const nextSequence = snapshot.data?.[0]?.last_sequence ?? null;
           if (lastSequence === undefined) {
             lastSequence = nextSequence;
+            void checkStockMovementChanges();
             return;
           }
           if (nextSequence && nextSequence !== lastSequence) {
             lastSequence = nextSequence;
-            void refreshMovements().catch((error) => {
-              if (!stopped) {
-                setRealtimeStatus("error");
-                setRealtimeError(error instanceof Error ? error.message : "Não foi possível atualizar o histórico.");
-              }
-            });
+            void checkStockMovementChanges();
           }
         });
         subscription.onStateChange((state) => {
