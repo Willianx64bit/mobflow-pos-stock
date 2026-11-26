@@ -92,7 +92,7 @@ describe("Neon product catalog API",()=>{
  it("publishes active/inactive changes as automatic catalog events",async()=>{
   const disabled={...product,active:false,version:"2"};
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product]}).mockResolvedValueOnce({rows:[disabled]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]});
-  const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,active:false})});
+  const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,code:"001",name:"Arroz",unit:"un",price:10,cost:7,minStock:1,category:"Mercearia",active:false})});
   expect(response.status).toBe(200);
   const statusEvent=client.query.mock.calls.find(c=>String(c[0]).includes("'catalog','automatic','product'"));
   expect(statusEvent).toBeDefined();

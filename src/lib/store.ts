@@ -1797,7 +1797,7 @@ export const actions = {
   },
   async setProductActive(product: Product, active: boolean): Promise<Product> {
     if (!Number.isSafeInteger(Number(product.version))) throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
-    const result = await callMobFlowApi("/api/mobflow/products", { method: "PATCH", body: JSON.stringify({ id: product.id, expectedVersion: Number(product.version), active }) });
+    const result = await callMobFlowApi("/api/mobflow/products", { method: "PATCH", body: JSON.stringify({ id: product.id, expectedVersion: Number(product.version), code: product.code, name: product.name, ...(product.ref !== undefined ? { ref: product.ref } : {}), category: product.category, unit: product.unit, price: product.price, cost: product.cost ?? 0, minStock: product.minStock, barcodes: product.barcodes ?? [], active }) });
     const saved = result.body.product as Product | undefined;
     if (!result.response.ok || result.body.ok !== true || !saved || saved.id !== product.id || saved.active !== active || !Number.isSafeInteger(Number(saved.version))) throw new Error(String(result.body.error ?? "O servidor não confirmou a alteração de situação do produto."));
     const updated = { ...product, ...saved, active };
