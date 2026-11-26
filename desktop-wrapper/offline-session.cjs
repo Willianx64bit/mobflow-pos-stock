@@ -28,7 +28,17 @@ function isValidOfflineSessionRecord(record, now = Date.now()) {
   return now - record.savedAt <= OFFLINE_SESSION_TTL_MS && record.savedAt <= now + 60_000;
 }
 
+const { timingSafeEqual } = require("node:crypto");
+
+function verifyCachedPassword(stored, provided) {
+  if (typeof stored !== "string" || typeof provided !== "string" || !stored || !provided) return false;
+  const expected = Buffer.from(stored, "utf8");
+  const supplied = Buffer.from(provided, "utf8");
+  return expected.length === supplied.length && timingSafeEqual(expected, supplied);
+}
+
 module.exports = {
+  verifyCachedPassword,
   OFFLINE_SESSION_TTL_MS,
   validateOfflineSession,
   isValidOfflineSessionRecord
