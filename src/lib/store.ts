@@ -565,7 +565,10 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables"
           if (!result.response.ok || result.body.ok !== true) {
             throw new Error(String(result.body.error ?? result.body.message ?? `Neon rejeitou a operação (HTTP ${result.response.status}).`));
           }
-          await hydrateStore().catch(() => undefined);
+          // The transaction and its sync event are committed atomically in Neon.
+          // Pull by the durable cursor instead of re-downloading the full company snapshot
+          // after every sale, cash or stock command.
+          void syncNow().catch((error) => console.warn("[MobFlow Sync] Cursor pull deferred after committed command:", error));
           if (domain === "sales") {
             const saleId = String(stablePayload["saleId"] ?? "");
             if (saleId) set({ sales: state.sales.map((sale) => sale.id === saleId ? { ...sale, syncStatus: "synced" } : sale) }, { persist: false });
@@ -898,6 +901,10 @@ function startRealtime(accountId: string) {
       return;
     }
     stopRealtimeSubscription = stop;
+    // The initial Realtime snapshot is a baseline, not a change notification.
+    // Catch up the durable cursor after every (re)subscription so events created
+    // while this desktop was offline or disconnected cannot be missed.
+    void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime reconnect catch-up deferred:", error));
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
     realtimeOwnerId = null;
