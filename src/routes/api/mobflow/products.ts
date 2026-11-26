@@ -162,6 +162,7 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   }
   const b=await c.query("SELECT barcode FROM public.product_barcodes WHERE tenant_id=$1 AND product_id=$2 ORDER BY is_primary DESC,created_at",[i.accountId,id]);
   await appendCatalogEvent(c,i.accountId,i.userId,id,Number(upd.rows[0].version),{operation:"upsert",product:{id,code:values[0],name:values[1],reference:values[2],unit:values[4],price:values[5],cost:values[6],minStock:values[7],category:values[3],active:values[8],version:Number(upd.rows[0].version),barcodes:b.rows.map((x:any)=>x.barcode)}});
+  // Status flips are small automatic catalog events; product metadata stays manual-only.
   if(old.active!==values[8]){
    const statusProduct=mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)});
    await c.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','automatic','product',$3,$4::jsonb)",[randomUUID(),stableUuid(i.accountId+":catalog-status:"+id+":"+statusProduct.version),id,JSON.stringify({operation:"upsert",product:statusProduct})]);
