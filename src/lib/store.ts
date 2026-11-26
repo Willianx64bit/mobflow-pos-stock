@@ -1628,14 +1628,20 @@ export const actions = {
 
     if (isDesktopRuntime() && !queued) return null;
     if (queued && lastDomainCommandPromise && isDesktopRuntime()) {
-      // Keep a provisional local sale for offline continuity, but never clear the
-      // checkout cart until the direct Neon request succeeds or the offline outbox
-      // has durably accepted the command. The command promise resolves only then.
-      set({ products, cart: state.cart, sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: false });
+      // Desktop stock is not reduced optimistically while the server is still
+      // deciding the transaction. Commit the local projection only after Neon
+      // confirms it, or after the offline command is durably stored in IndexedDB.
+      // This keeps a rejected/failed checkout from looking like a completed sale.
       lastDomainCommandPromise = lastDomainCommandPromise.then(() => {
         const cartIsUnchanged = state.cart.length === checkoutCart.length &&
           checkoutCart.every((item) => state.cart.some((current) => current.productId === item.productId && current.qty === item.qty));
-        if (cartIsUnchanged) set({ cart: [] }, { persist: false });
+        if (!cartIsUnchanged) return;
+        set({
+          products,
+          cart: [],
+          sales: [sale, ...state.sales],
+          stockMovements: [...stockMovements, ...(state.stockMovements ?? [])],
+        }, { persist: false });
       });
     } else if (queued && lastDomainCommandPromise) {
       // Keep the checkout visible until Neon confirms the transaction.
