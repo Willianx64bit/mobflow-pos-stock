@@ -679,7 +679,6 @@ function reconnect() {
   realtimeReconnectTimer = setTimeout(() => {
     realtimeReconnectTimer = null;
     if (cloudAccountId === accountId && !stopRealtimeSubscription) {
-      realtimeOwnerId = null;
       startRealtime(accountId);
     }
   }, delay);
@@ -772,7 +771,6 @@ function startRealtime(accountId: string) {
       console.warn("[MobFlow Realtime] Subscription stopped:", message);
       stopRealtimeSubscription?.();
       stopRealtimeSubscription = null;
-      realtimeOwnerId = null;
       reconnect();
     },
   ).then((stop) => {
@@ -783,7 +781,6 @@ function startRealtime(accountId: string) {
     stopRealtimeSubscription = stop;
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
-    realtimeOwnerId = null;
     reconnect();
     console.warn("[MobFlow Realtime] Reconnect scheduled; cursor catch-up remains active.");
   });
