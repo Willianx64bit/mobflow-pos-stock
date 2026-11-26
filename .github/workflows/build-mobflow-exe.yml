@@ -65,6 +65,11 @@ jobs:
           MOBFLOW_DESKTOP_BUILD: "1"
           # Public Realtime endpoint configured for the isolated Neon Preview branch.
           VITE_NEON_REALTIME_URL: "https://ep-tiny-band-bd5bkjdc.rt.c-8.us-east-2.aws.neon.tech/"
+          # This EXE targets the isolated Neon Preview branch whose relational
+          # bootstrap is enabled and whose incremental event contracts are tested.
+          VITE_MOBFLOW_INCREMENTAL_SYNC: "true"
+          VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY: "true"
+          VITE_MOBFLOW_CATALOG_READ_PROVIDER: "neon"
         run: npm run build
 
       - name: Verificar shell local do MobFlow
