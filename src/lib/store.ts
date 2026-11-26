@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
+import { getRealtimeReconnectDelay } from "@/lib/realtime-reconnect";
+import { shouldReconcileCashSessionAfterSync } from "@/lib/cash-sync";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
@@ -110,6 +112,7 @@ let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
 let realtimeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeReconnectAttempt = 0;
 let realtimeCatchupTimer: ReturnType<typeof setInterval> | null = null;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
@@ -810,13 +813,14 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
 function reconnect() {
   const accountId = cloudAccountId;
   if (!accountId || realtimeReconnectTimer) return;
+  const delay = getRealtimeReconnectDelay(realtimeReconnectAttempt);
+  realtimeReconnectAttempt += 1;
   realtimeReconnectTimer = setTimeout(() => {
     realtimeReconnectTimer = null;
     if (cloudAccountId === accountId && !stopRealtimeSubscription) {
-      realtimeOwnerId = null;
       startRealtime(accountId);
     }
-  }, 3_000);
+  }, delay);
 }
 
 let receivingConferencePull: Promise<unknown> | null = null;
@@ -855,6 +859,9 @@ function pullReceivingConferenceEvents(accountId: string) {
 function startRealtime(accountId: string) {
   if (typeof window === "undefined") return;
   if (realtimeOwnerId !== accountId) {
+    if (realtimeReconnectTimer) clearTimeout(realtimeReconnectTimer);
+    realtimeReconnectTimer = null;
+    realtimeReconnectAttempt = 0;
     stopRealtimeSubscription?.();
     stopRealtimeSubscription = null;
     realtimeOwnerId = accountId;
@@ -890,6 +897,8 @@ function startRealtime(accountId: string) {
   // Realtime is only a wake-up signal; the client drains the durable outbox and pulls events by cursor.
   void subscribeToTenantEvents(
     () => {
+      // A received signal proves the live subscription recovered; restart the backoff window.
+      realtimeReconnectAttempt = 0;
       if (incrementalSyncEnabled()) {
         void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error));
       } else {
@@ -901,7 +910,6 @@ function startRealtime(accountId: string) {
       console.warn("[MobFlow Realtime] Subscription stopped:", message);
       stopRealtimeSubscription?.();
       stopRealtimeSubscription = null;
-      realtimeOwnerId = null;
       reconnect();
     },
   ).then((stop) => {
@@ -916,7 +924,6 @@ function startRealtime(accountId: string) {
     void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime reconnect catch-up deferred:", error));
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
-    realtimeOwnerId = null;
     reconnect();
     console.warn("[MobFlow Realtime] Reconnect scheduled; cursor catch-up remains active.");
   });
@@ -1440,21 +1447,27 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
   if (options.retryFailed && outboxFlushInFlight) await outboxFlushInFlight.catch(() => undefined);
   if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
   try {
+    let cashReconciliationNeeded = false;
     const result = await runIncrementalSync({
       outbox: syncOutbox,
       tenantId,
-      applyEvents: (events) => applyIncrementalEvents(events),
+      applyEvents: async (events) => {
+        if (shouldReconcileCashSessionAfterSync(events)) cashReconciliationNeeded = true;
+        await applyIncrementalEvents(events);
+      },
     });
-    // Reconcile this operator's open cash session against Neon, including devices
-    // that missed the original event notification.
-    const cashStatus = await callMobFlowApi("/api/mobflow/cash");
-    if (cashStatus.response.ok && cashStatus.body.ok === true) {
-      const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
-      const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
-      if (username) {
-        const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
-        const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
-        set({ cashSessions: [...canonical, ...retained] }, { persist: false });
+    // The cash endpoint only returns this operator's open session. Avoid an
+    // authenticated DB round-trip after sales, stock, catalog, or other unrelated events.
+    if (cashReconciliationNeeded) {
+      const cashStatus = await callMobFlowApi("/api/mobflow/cash");
+      if (cashStatus.response.ok && cashStatus.body.ok === true) {
+        const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
+        const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+        if (username) {
+          const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
+          const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
+          set({ cashSessions: [...canonical, ...retained] }, { persist: false });
+        }
       }
     }
     const failed = await syncOutbox.failedCount(tenantId);
