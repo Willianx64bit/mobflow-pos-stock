@@ -280,11 +280,11 @@ function Fiado() {
             <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-primary/10"><LockKeyhole className="h-5 w-5 text-primary" /></div>
             <h2 className="text-xl font-bold text-heading">Confirmar senha do usuário</h2>
             <p className="mt-2 text-sm text-muted-foreground">Para confirmar esta alteração no fiado, digite novamente a senha do usuário do PDV.</p>
-            {<input type="password" value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setPasswordError(""); }} placeholder="Senha do usuário" autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />}
+            <input type="password" value={passwordInput} onChange={e => { setPasswordInput(e.target.value); setPasswordError(""); }} placeholder="Senha do usuário" autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />
             {passwordError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{passwordError}</p>}
             <div className="mt-5 flex gap-2">
-              <button type="button" onClick={() => { setPasswordModalOpen(false); setPasswordInput(""); setPasswordError(""); setPendingChange(null); setOfflineAuthorizationBlocked(false); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
-              {<button type="submit" disabled={authorizing} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{authorizing ? "Validando..." : "Confirmar"}</button>}
+              <button type="button" onClick={() => { setPasswordModalOpen(false); setPasswordInput(""); setPasswordError(""); setPendingChange(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+              <button type="submit" disabled={authorizing} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{authorizing ? "Validando..." : "Confirmar"}</button>
             </div>
           </form>
         </div>
