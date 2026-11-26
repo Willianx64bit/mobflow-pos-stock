@@ -100,14 +100,16 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
       // Product catalog and promotions are intentionally fetched only by this manual action.
       await actions.refreshCatalog();
       await actions.loadPromotions();
-      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean; reconciliationReason?: string };
       // Contacts are deliberately excluded from background/realtime pulls.
       // Fetch only newly registered customer/supplier IDs when the user taps this button.
       const newContacts = await syncNewContacts();
       const pendingCount = Math.max(0, result.pending) + Math.max(0, result.failed) + (result.reconciliationRequired ? 1 : 0);
-      setSyncMessage(newContacts > 0
-        ? `${newContacts} novo(s) cliente(s)/fornecedor(es) sincronizado(s)`
-        : pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
+      setSyncMessage(result.reconciliationRequired
+        ? `Verificação necessária: ${result.reconciliationReason ?? "há um evento que o sincronizador ainda não reconhece."}`
+        : newContacts > 0
+          ? `${newContacts} novo(s) cliente(s)/fornecedor(es) sincronizado(s)`
+          : pendingCount === 1 ? "1 pendente" : `${pendingCount} pendentes`);
     } catch {
       setSyncMessage("Sincronização não concluída");
     } finally {

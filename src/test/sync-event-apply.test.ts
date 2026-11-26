@@ -171,6 +171,24 @@ describe("MobFlow incremental event projection", () => {
     expect(twice.conferences[0]).toMatchObject({ id: "conf-1", receivingId: "note-1", counts: { p1: 4 } });
   });
 
+  it("ignores stock and price events for products outside the active local catalog", () => {
+    const price = event({ delivery_mode: "automatic", category: "price", entity_type: "product", entity_id: "missing-product", payload: { price: 12 } });
+    const stock = event({ delivery_mode: "automatic", category: "stock", entity_type: "product", entity_id: "missing-product", payload: { stockBefore: 5, stockAfter: 3, stockDelta: -2, quantity: 2 } });
+    const next = applySyncEventsToState(state, [price, stock]);
+    expect(next.products).toHaveLength(1);
+    expect(next.products[0]).toMatchObject({ id: "p1", price: 10, stock: 10 });
+  });
+
+  it("projects automatic product activation changes without downloading the whole catalog", () => {
+    const disabled = event({ delivery_mode: "automatic", category: "catalog", entity_type: "product", entity_id: "p1", payload: { operation: "upsert", product: { id: "p1", code: "SKU-1", name: "Arroz", unit: "un", price: 10, cost: 5, stock: 10, minStock: 2, category: "Geral", active: false, version: 2 } } });
+    const inactiveState = applySyncEventsToState(state, [disabled]);
+    expect(inactiveState.products).toHaveLength(0);
+    const enabled = event({ delivery_mode: "automatic", category: "catalog", entity_type: "product", entity_id: "p1", payload: { operation: "upsert", product: { id: "p1", code: "SKU-1", name: "Arroz", unit: "un", price: 10, cost: 5, stock: 7, minStock: 2, category: "Geral", active: true, version: 3 } } });
+    const activeState = applySyncEventsToState(inactiveState, [enabled]);
+    expect(activeState.products).toHaveLength(1);
+    expect(activeState.products[0]).toMatchObject({ id: "p1", active: true, stock: 7 });
+  });
+
   it("does not silently advance over event categories without an application contract", () => {
     const unsupported = event({ category: "conference", entity_type: "conference", entity_id: "conf-1", payload: { operation: "upsert" } });
     expect(() => applySyncEventsToState(state, [unsupported])).toThrow(UnsupportedSyncEventError);

@@ -102,7 +102,7 @@ let persistRequested = false;
 let persistWorker: Promise<void> | null = null;
 let stopRealtimeSubscription: (() => void) | null = null;
 let syncFallbackInFlight = false;
-let syncInFlight: Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; reconciliationRequired?: boolean }> | null = null;
+let syncInFlight: Promise<{ sent: number; failed: number; pending: number; applied: number; cursor: string; hasMore: boolean; reconciliationRequired?: boolean; reconciliationReason?: string }> | null = null;
 let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
@@ -1061,6 +1061,7 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
         sent: 0, failed: await syncOutbox.failedCount(tenantId),
         pending: await syncOutbox.pendingCount(tenantId), applied: 0,
         cursor: await syncOutbox.getCursor(tenantId), hasMore: false, reconciliationRequired: true,
+        reconciliationReason: error.message,
       };
     }
     throw error;
