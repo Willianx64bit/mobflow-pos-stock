@@ -73,6 +73,7 @@ export const Route = createFileRoute("/api/mobflow/sync/events")({
                     to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
              FROM public.mobflow_sync_events
              WHERE tenant_id = $1
+               AND delivery_mode = 'automatic'
                AND sequence > $2::bigint
                AND sequence <= $3::bigint
                AND ($4::text[] IS NULL OR category = ANY($4::text[]))
