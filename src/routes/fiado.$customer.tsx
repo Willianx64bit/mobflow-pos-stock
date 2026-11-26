@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router"
 import { useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
+import { verifyFiadoPassword } from "@/lib/fiado-password";
+import { LockKeyhole } from "lucide-react";
 
 export const Route = createFileRoute("/fiado/$customer")({
   head: () => ({ meta: [{ title: "MobFlow — Detalhes do cliente" }] }),
@@ -21,6 +23,10 @@ function FiadoCliente() {
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [pendingPayment, setPendingPayment] = useState<{ saleId: string; amount: number } | null>(null);
   const customer = decodeURIComponent(encodedCustomer || "");
   const customerSales = useMemo(
     () => sales.filter((s) => s.payment === "Fiado" && (s.customer || "Cliente não informado").trim() === customer.trim()).sort((a, b) => +new Date(b.date) - +new Date(a.date)),
@@ -30,15 +36,31 @@ function FiadoCliente() {
   const remaining = (s: Sale) => Math.max(0, s.total - paidTotal(s));
   const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0);
   const paid = balance <= 0;
-  const registerFiadoPayment = async (saleId: string, amount: number) => {
+  const registerFiadoPayment = (saleId: string, amount: number) => {
     if (paymentSaving || !Number.isFinite(amount) || amount <= 0) return;
-    setPaymentSaving(true); setPaymentError("");
+    setPaymentError("");
+    setPasswordError("");
+    setPasswordInput("");
+    setPendingPayment({ saleId, amount });
+    setPasswordOpen(true);
+  };
+  const confirmFiadoPayment = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pendingPayment || paymentSaving) return;
+    setPaymentSaving(true);
+    setPasswordError("");
     try {
-      await actions.addFiadoPayment(saleId, amount, "cash");
-      setPaymentDrafts((previous) => ({ ...previous, [saleId]: "" }));
+      await verifyFiadoPassword(passwordInput);
+      await actions.addFiadoPayment(pendingPayment.saleId, pendingPayment.amount, "cash");
+      setPaymentDrafts((previous) => ({ ...previous, [pendingPayment.saleId]: "" }));
+      setPasswordOpen(false);
+      setPasswordInput("");
+      setPendingPayment(null);
     } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : "O recebimento não foi confirmado pelo Neon.");
-    } finally { setPaymentSaving(false); }
+      setPasswordError(error instanceof Error ? error.message : "O recebimento não foi confirmado.");
+    } finally {
+      setPaymentSaving(false);
+    }
   };
 
   return (
@@ -160,6 +182,31 @@ function FiadoCliente() {
             })}
           </div>
         </section>
+        {passwordOpen && (
+          <div className="fixed inset-0 z-[80] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+            <form onSubmit={confirmFiadoPayment} className="w-full max-w-md glass p-6 shadow-2xl">
+              <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-primary/10">
+                <LockKeyhole className="h-5 w-5 text-primary" />
+              </div>
+              <h2 className="text-xl font-bold text-heading">Confirmar recebimento</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Digite novamente a senha do usuário do PDV para registrar este pagamento do fiado.</p>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(event) => { setPasswordInput(event.target.value); setPasswordError(""); }}
+                placeholder="Senha do usuário"
+                autoComplete="current-password"
+                autoFocus
+                className="field mt-4 w-full text-foreground"
+              />
+              {passwordError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{passwordError}</p>}
+              <div className="mt-5 flex gap-2">
+                <button type="button" disabled={paymentSaving} onClick={() => { setPasswordOpen(false); setPasswordInput(""); setPasswordError(""); setPendingPayment(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+                <button type="submit" disabled={paymentSaving || !passwordInput} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{paymentSaving ? "Validando..." : "Confirmar"}</button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );
