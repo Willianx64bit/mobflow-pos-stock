@@ -39,12 +39,18 @@ function Cell({ value, onSave, money, danger, weight }: { value: number; onSave:
 function Estoque() {
   const navigate = useNavigate();
   const products = useStore((s) => s.products);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(products);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const refreshStockCatalog = async () => {
+    const loaded = await actions.loadStockCatalog();
+    setCatalogProducts(loaded);
+  };
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
 
   useEffect(() => {
-    void actions.refreshCatalog();
+    void actions.refreshCatalog().finally(() => { void refreshStockCatalog().catch(() => undefined); });
   }, []);
 
   const [q, setQ] = useState("");
@@ -55,16 +61,16 @@ function Estoque() {
 
   const list = useMemo(() => {
     const n = norm(q);
-    return products.filter((p) => (!onlyLow || p.stock <= p.minStock) && (!n || norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n)));
-  }, [products, q, onlyLow]);
-  const lowCount = products.filter((p) => p.stock <= p.minStock).length;
-  const value = products.reduce((s, p) => s + p.price * Math.max(0, p.stock), 0);
+    return catalogProducts.filter((p) => (!onlyLow || p.stock <= p.minStock) && (!n || norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n)));
+  }, [catalogProducts, q, onlyLow]);
+  const lowCount = catalogProducts.filter((p) => p.stock <= p.minStock).length;
+  const value = catalogProducts.reduce((s, p) => s + p.price * Math.max(0, p.stock), 0);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <div className="grid sm:grid-cols-3 gap-4 mb-4">
-        {[["Produtos", String(products.length)], ["Valor em estoque", `R$ ${brl(value)}`], ["Estoque baixo", String(lowCount)]].map(([l, v], i) => (
+        {[["Produtos", String(catalogProducts.length)], ["Valor em estoque", `R$ ${brl(value)}`], ["Estoque baixo", String(lowCount)]].map(([l, v], i) => (
           <div key={l} className="glass p-4">
             <div className="label-mono">{l}</div>
             <div className={`font-display text-4xl mt-1 ${i === 2 && lowCount ? "text-destructive" : "text-heading"}`}>{v}</div>
@@ -90,15 +96,15 @@ function Estoque() {
           </button>
         </div>
         <div className="overflow-x-auto">
-          <div className="min-w-[808px]">
-            <div className="grid grid-cols-[34px_72px_150px_1fr_110px_110px] gap-x-4 label-mono px-2 pb-3 text-[14px]">
-              <span></span><span>Foto</span><span>Código</span><span>Descrição</span><span>Quantidade</span><span>Preço</span>
+          <div className="min-w-[930px]">
+            <div className="grid grid-cols-[34px_72px_120px_1fr_100px_100px_140px] gap-x-3 label-mono px-2 pb-3 text-[14px]">
+              <span></span><span>Foto</span><span>Código</span><span>Descrição</span><span>Quantidade</span><span>Preço</span><span>Situação</span>
             </div>
             <div className="divide-y divide-border/50">
               {list.map((p) => {
                 const low = p.stock <= p.minStock;
                 return (
-                  <div key={p.id} className={`grid grid-cols-[34px_72px_150px_1fr_110px_110px] gap-x-4 items-center py-3 px-2 text-[16px] rounded-lg ${low ? "bg-destructive/5" : ""}`}>
+                  <div key={p.id} className={`grid grid-cols-[34px_72px_120px_1fr_100px_100px_140px] gap-x-3 items-center py-3 px-2 text-[16px] rounded-lg ${low ? "bg-destructive/5" : ""} ${p.active === false ? "opacity-70" : ""}`}>
                     <button onClick={() => setEditing(p)} aria-label={`Editar ${p.name}`} title="Editar produto" className="h-7 w-7 rounded-md grid place-items-center text-muted-foreground hover:text-primary hover:bg-accent text-lg">
                       ✎
                     </button>
@@ -111,6 +117,18 @@ function Estoque() {
                       {p.unit === "kg" ? `${p.stock} kg` : `${p.stock} un`}
                     </span>
                     <span className="text-foreground font-medium">R$ {brl(p.price)}</span>
+                    <button type="button" disabled={updatingStatusId === p.id} title={p.active === false ? "Ativar produto" : "Desativar produto"} onClick={async () => {
+                      const nextActive = p.active === false;
+                      setUpdatingStatusId(p.id);
+                      try {
+                        const updated = await actions.setProductActive(p, nextActive);
+                        setCatalogProducts((current) => current.map((item) => item.id === p.id ? updated : item));
+                      } catch (error) {
+                        alert(error instanceof Error ? error.message : "Não foi possível alterar a situação do produto.");
+                      } finally { setUpdatingStatusId(null); }
+                    }} className={`rounded-lg px-2 py-1.5 text-xs font-semibold ring-1 disabled:opacity-50 ${p.active === false ? "bg-amber-50 text-amber-800 ring-amber-300 hover:bg-amber-100" : "bg-green-50 text-green-800 ring-green-300 hover:bg-green-100"}`}>
+                      {updatingStatusId === p.id ? "Salvando…" : p.active === false ? "Inativo · Ativar" : "Ativo · Desativar"}
+                    </button>
                   </div>
                 );
               })}
@@ -120,9 +138,9 @@ function Estoque() {
         </div>
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Use o ✎ no início do produto para editar.</p>
       </section>
-      {editing !== undefined && <ProductForm product={editing} onClose={() => setEditing(undefined)} />}
-      {importing && <ImportProducts onClose={() => setImporting(false)} />}
-      {exporting && <StockExportDialog products={products} onClose={() => setExporting(false)} />}
+      {editing !== undefined && <ProductForm product={editing} onClose={() => { setEditing(undefined); void refreshStockCatalog().catch(() => undefined); }} />}
+      {importing && <ImportProducts onClose={() => { setImporting(false); void refreshStockCatalog().catch(() => undefined); }} />}
+      {exporting && <StockExportDialog products={catalogProducts} onClose={() => setExporting(false)} />}
     </div>
   );
 }

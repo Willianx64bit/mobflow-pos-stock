@@ -3,7 +3,7 @@ import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
-export type Product = { id: string; version?: number; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
+export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 
 const normalizeProductUnit = (unit: unknown): "kg" | "un" => {
   const value = String(unit ?? "").trim().toLowerCase();
@@ -525,21 +525,29 @@ export async function confirmLastDomainCommand(): Promise<void> {
   await pending;
 }
 
-async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full"): Promise<Product[]> {
-  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
+async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false"): Promise<Product[]> {
+  if (includeInactive) {
+    const [activeProducts, inactiveProducts] = await Promise.all([
+      readPreviewNeonCatalog(fallbackProducts, "full", false, "true"),
+      readPreviewNeonCatalog(fallbackProducts, "full", false, "false"),
+    ]);
+    return [...activeProducts, ...inactiveProducts];
+  }
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return activeFilter === "false" ? [] : fallbackProducts;
   try {
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
     let cursor: string | null = null;
     for (let page = 0; page < 100; page += 1) {
       const query = new URLSearchParams({ limit: "100" });
+      if (activeFilter) query.set("active", activeFilter);
       if (cursor) query.set("cursor", cursor);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) {
         // A transient API/network failure is not an authoritative empty catalog.
         // Keep the last tenant-scoped catalog already verified in this session.
         console.error("[MobFlow Catalog] Neon catalog request failed; keeping the last verified tenant catalog.");
-        return fallbackProducts;
+        return activeFilter === "false" ? [] : fallbackProducts;
       }
       for (const raw of body.products as any[]) {
         const previous = existing.get(String(raw.id));
@@ -548,7 +556,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
           ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
           price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
           minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
-          unit: normalizeProductUnit(raw.unit), photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
+          unit: normalizeProductUnit(raw.unit), active: raw.active !== false, photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
       }
       if (body.hasMore !== true) {
         if (mode === "full") return products;
@@ -562,15 +570,15 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
       }
       if (typeof body.nextCursor !== "string" || !body.nextCursor) {
         console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
-        return fallbackProducts;
+        return activeFilter === "false" ? [] : fallbackProducts;
       }
       cursor = body.nextCursor;
     }
     console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
-    return fallbackProducts;
+    return activeFilter === "false" ? [] : fallbackProducts;
   } catch (error) {
     console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog; keeping the last verified tenant catalog:", error);
-    return fallbackProducts;
+    return activeFilter === "false" ? [] : fallbackProducts;
   }
 }
 
@@ -1330,13 +1338,30 @@ export const actions = {
     set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
     return products.length;
   },
+  async loadStockCatalog() {
+    return readPreviewNeonCatalog(state.products ?? [], "full", true);
+  },
+  async setProductActive(product: Product, active: boolean): Promise<Product> {
+    if (!Number.isSafeInteger(Number(product.version))) throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
+    const result = await callMobFlowApi("/api/mobflow/products", { method: "PATCH", body: JSON.stringify({ id: product.id, expectedVersion: Number(product.version), active }) });
+    const saved = result.body.product as Product | undefined;
+    if (!result.response.ok || result.body.ok !== true || !saved || saved.id !== product.id || saved.active !== active || !Number.isSafeInteger(Number(saved.version))) throw new Error(String(result.body.error ?? "O servidor não confirmou a alteração de situação do produto."));
+    const updated = { ...product, ...saved, active };
+    const products = active
+      ? (state.products.some((item) => item.id === updated.id) ? state.products.map((item) => item.id === updated.id ? updated : item) : [updated, ...state.products])
+      : state.products.filter((item) => item.id !== updated.id);
+    set({ products }, { persist: false });
+    return updated;
+  },
   applyCatalogProduct(product: Product) {
     const existing = state.products.some((item) => item.id === product.id);
     // The relational catalog API already committed this product and its sync event.
     // Do not race that transaction with a stale whole-app-state PUT.
-    set({ products: existing
-      ? state.products.map((item) => item.id === product.id ? { ...item, ...product } : item)
-      : [product, ...state.products] }, { persist: false });
+    set({ products: product.active === false
+      ? state.products.filter((item) => item.id !== product.id)
+      : existing
+        ? state.products.map((item) => item.id === product.id ? { ...item, ...product, active: true } : item)
+        : [{ ...product, active: true }, ...state.products] }, { persist: false });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
