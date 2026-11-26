@@ -89,6 +89,15 @@ describe("Neon product catalog API",()=>{
   expect(response.status).toBe(400);
   expect(client.query.mock.calls.some(c=>String(c[0]).startsWith("UPDATE public.products"))).toBe(false);
  });
+ it("publishes active/inactive changes as automatic catalog events",async()=>{
+  const disabled={...product,active:false,version:"2"};
+  client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product]}).mockResolvedValueOnce({rows:[disabled]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]});
+  const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,active:false})});
+  expect(response.status).toBe(200);
+  const statusEvent=client.query.mock.calls.find(c=>String(c[0]).includes("'catalog','automatic','product'"));
+  expect(statusEvent).toBeDefined();
+  expect(JSON.parse(String(statusEvent?.[1]?.[3]))).toMatchObject({operation:"upsert",product:{id:"p1",active:false,version:2}});
+ });
  it("returns version conflict instead of overwriting a concurrent edit",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{...product,version:"2"}]});
   const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,price:12})});
