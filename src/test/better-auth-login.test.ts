@@ -16,6 +16,7 @@ vi.mock("@/lib/server/auth-security", () => ({
   checkLoginSecurity: vi.fn(async () => ({ blockedUntil: null, captchaRequired: false, retryAfterSeconds: 0 })),
   recordLoginFailure: vi.fn(async () => ({ blockedUntil: null, ipFailures: 0, deviceFailures: 0, companyFailures: 0 })),
   recordLoginSuccess: vi.fn(async () => undefined),
+  recordLoginAuditEvent: vi.fn(async () => undefined),
   verifyCompanyLoginCaptcha: vi.fn(async () => true),
   acquireLoginAttemptLock: vi.fn(async () => "test-lock"),
   releaseLoginAttemptLock: vi.fn(async () => undefined),
