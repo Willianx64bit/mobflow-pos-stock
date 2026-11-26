@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
+import { getRealtimeReconnectDelay } from "@/lib/realtime-reconnect";
 import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
@@ -107,6 +108,7 @@ let syncRefreshPending = false;
 let refreshAfterPersist = false;
 let syncWakeListenersInstalled = false;
 let realtimeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeReconnectAttempt = 0;
 let realtimeCatchupTimer: ReturnType<typeof setInterval> | null = null;
 // Incremented whenever a cloud event arrives while a persistence request is in flight.
 let realtimeRevision = 0;
@@ -672,13 +674,15 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
 function reconnect() {
   const accountId = cloudAccountId;
   if (!accountId || realtimeReconnectTimer) return;
+  const delay = getRealtimeReconnectDelay(realtimeReconnectAttempt);
+  realtimeReconnectAttempt += 1;
   realtimeReconnectTimer = setTimeout(() => {
     realtimeReconnectTimer = null;
     if (cloudAccountId === accountId && !stopRealtimeSubscription) {
       realtimeOwnerId = null;
       startRealtime(accountId);
     }
-  }, 3_000);
+  }, delay);
 }
 
 let receivingConferencePull: Promise<unknown> | null = null;
@@ -717,6 +721,9 @@ function pullReceivingConferenceEvents(accountId: string) {
 function startRealtime(accountId: string) {
   if (typeof window === "undefined") return;
   if (realtimeOwnerId !== accountId) {
+    if (realtimeReconnectTimer) clearTimeout(realtimeReconnectTimer);
+    realtimeReconnectTimer = null;
+    realtimeReconnectAttempt = 0;
     stopRealtimeSubscription?.();
     stopRealtimeSubscription = null;
     realtimeOwnerId = accountId;
@@ -772,6 +779,7 @@ function startRealtime(accountId: string) {
       return;
     }
     stopRealtimeSubscription = stop;
+    realtimeReconnectAttempt = 0;
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
     realtimeOwnerId = null;
