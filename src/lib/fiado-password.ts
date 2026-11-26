@@ -27,7 +27,7 @@ async function verifyOfflineFiadoPassword(
 
 export async function verifyFiadoPassword(password: string): Promise<void> {
   const username = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() ?? "" : "";
-  const cnpj = typeof window !== "undefined" ? (localStorage.getItem("mobflow-company-cnpj") ?? "").replace(/\\D/g, "") : "";
+  const cnpj = typeof window !== "undefined" ? (localStorage.getItem("mobflow-company-cnpj") ?? "").replace(/\D/g, "") : "";
   const accountId = typeof window !== "undefined" ? localStorage.getItem("mobflow:owner") ?? "" : "";
   if (!username) throw new Error("Entre com um usuário do PDV para confirmar o recebimento.");
   if (!password) throw new Error("Informe sua senha para confirmar.");
