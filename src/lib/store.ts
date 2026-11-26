@@ -759,6 +759,8 @@ function startRealtime(accountId: string) {
   // Realtime is only a wake-up signal; the client drains the durable outbox and pulls events by cursor.
   void subscribeToTenantEvents(
     () => {
+      // A received signal proves the live subscription recovered; restart the backoff window.
+      realtimeReconnectAttempt = 0;
       if (incrementalSyncEnabled()) {
         void syncNow().catch((error) => console.warn("[MobFlow Sync] Realtime pull deferred:", error));
       } else {
@@ -779,7 +781,6 @@ function startRealtime(accountId: string) {
       return;
     }
     stopRealtimeSubscription = stop;
-    realtimeReconnectAttempt = 0;
   }).catch((error) => {
     console.warn("[MobFlow Realtime] Could not start subscription:", error instanceof Error ? error.message : "unknown");
     realtimeOwnerId = null;
