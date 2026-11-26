@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("mobflowDesktop", Object.freeze({
   savePdf: (filename) => ipcRenderer.invoke("mobflow:save-pdf", filename),
   saveLoginSecret: (value) => ipcRenderer.invoke("mobflow:save-login-secret", value),
   getLoginSecret: (value) => ipcRenderer.invoke("mobflow:get-login-secret", value),
+  verifyCachedLoginPassword: (value) => ipcRenderer.invoke("mobflow:verify-cached-login-password", value),
   clearLoginSecret: (value) => ipcRenderer.invoke("mobflow:clear-login-secret", value),
   cacheAuthorizedSession: (session) => ipcRenderer.invoke("mobflow:cache-authorized-session", session),
   getCachedAuthorizedSession: () => ipcRenderer.invoke("mobflow:get-cached-authorized-session"),
