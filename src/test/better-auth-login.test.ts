@@ -16,6 +16,7 @@ vi.mock("@/lib/server/auth-security", () => ({
   checkLoginSecurity: vi.fn(async () => ({ blockedUntil: null, captchaRequired: false, retryAfterSeconds: 0 })),
   recordLoginFailure: vi.fn(async () => ({ blockedUntil: null, ipFailures: 0, deviceFailures: 0, companyFailures: 0 })),
   recordLoginSuccess: vi.fn(async () => undefined),
+  recordLoginAuditEvent: vi.fn(async () => undefined),
   verifyCompanyLoginCaptcha: vi.fn(async () => true),
   acquireLoginAttemptLock: vi.fn(async () => "test-lock"),
   releaseLoginAttemptLock: vi.fn(async () => undefined),
@@ -63,6 +64,7 @@ describe("MobFlow Better Auth login validation", () => {
       if (sql.includes("mobflow_is_first_manager_login")) return { rows: [{ first_manager_login: false }] };
       if (sql.includes("FROM public.profiles") && sql.includes("role='pdv'")) return { rows: [] };
       if (sql.includes("mobflow_get_login_credential")) return { rows: [{ password: passwordHash }] };
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@accounts.mobflow.local" }] };
       return { rows: [] };
     });
     client.release.mockReset();
@@ -116,6 +118,7 @@ describe("MobFlow Better Auth login validation", () => {
       }
       if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };
       if (sql.includes("mobflow_get_login_credential")) return { rows: [{ password: passwordHash }] };
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@accounts.mobflow.local" }] };
       return { rows: [] };
     });
 
@@ -141,6 +144,7 @@ describe("MobFlow Better Auth login validation", () => {
       if (sql.includes("mobflow_find_login_profile")) return { rows: [] };
       if (sql.includes("FROM public.account_allowlist")) return { rows: [{ "?column?": 1 }] };
       if (sql.includes("FROM public.profiles") && sql.includes("WHERE cnpj")) return { rows: [] };
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@accounts.mobflow.local" }] };
       return { rows: [] };
     });
 
