@@ -110,16 +110,17 @@ describe("MobFlow incremental sync event pull API", () => {
     expect(client.query).toHaveBeenNthCalledWith(2, expect.any(String), [TENANT_A, "0", "500", null, 251]);
   });
 
-  it("returns manual-only events instead of skipping their payloads", async () => {
+  it("skips manual-only events in the automatic feed and advances to the high-water mark", async () => {
     client.query
       .mockResolvedValueOnce({ rows: [{ last_sequence: "50" }] })
-      .mockResolvedValueOnce({ rows: [{ event_id: "manual-1", sequence: "25", category: "catalog", delivery_mode: "manual", entity_type: "product", entity_id: "p1", payload: { operation: "upsert" }, created_at: "2026-11-07T12:00:00.000000Z" }] });
+      // The SQL predicate delivery_mode = 'automatic' excludes manual events.
+      .mockResolvedValueOnce({ rows: [] });
 
     const response = await getHandler({ request: request("?cursor=10") });
     await expect(json(response)).resolves.toMatchObject({
-      events: [{ event_id: "manual-1", sequence: "25", delivery_mode: "manual" }], cursor: "10", nextCursor: "50", highWaterMark: "50", hasMore: false,
+      events: [], cursor: "10", nextCursor: "50", highWaterMark: "50", hasMore: false,
     });
-    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("sequence > $2::bigint"), [TENANT_A, "10", "50", null, 101]);
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringContaining("delivery_mode = 'automatic'"), [TENANT_A, "10", "50", null, 101]);
   });
 
   it("rolls back and releases the transaction if the event query fails", async () => {
