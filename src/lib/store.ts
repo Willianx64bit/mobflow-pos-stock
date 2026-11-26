@@ -813,6 +813,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
 function reconnect() {
   const accountId = cloudAccountId;
   if (!accountId || realtimeReconnectTimer) return;
+  // Back off repeated failures so a disconnected desktop does not hammer Neon.
   const delay = getRealtimeReconnectDelay(realtimeReconnectAttempt);
   realtimeReconnectAttempt += 1;
   realtimeReconnectTimer = setTimeout(() => {
