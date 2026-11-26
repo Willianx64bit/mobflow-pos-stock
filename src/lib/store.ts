@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { getRealtimeReconnectDelay } from "@/lib/realtime-reconnect";
+import { shouldReconcileCashSessionAfterSync } from "@/lib/cash-sync";
 import { SyncOutbox, createSyncCommand, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 
@@ -1050,21 +1051,27 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
   await restoreOutboxBackup(tenantId);
   if (options.retryFailed) await syncOutbox.retryFailed(tenantId);
   try {
+    let cashReconciliationNeeded = false;
     const result = await runIncrementalSync({
       outbox: syncOutbox,
       tenantId,
-      applyEvents: (events) => applyIncrementalEvents(events),
+      applyEvents: async (events) => {
+        if (shouldReconcileCashSessionAfterSync(events)) cashReconciliationNeeded = true;
+        await applyIncrementalEvents(events);
+      },
     });
-    // Reconcile this operator's open cash session against Neon, including devices
-    // that missed the original event notification.
-    const cashStatus = await callMobFlowApi("/api/mobflow/cash");
-    if (cashStatus.response.ok && cashStatus.body.ok === true) {
-      const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
-      const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
-      if (username) {
-        const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
-        const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
-        set({ cashSessions: [...canonical, ...retained] }, { persist: false });
+    // The cash endpoint only returns this operator's open session. Avoid an
+    // authenticated DB round-trip after sales, stock, catalog, or other unrelated events.
+    if (cashReconciliationNeeded) {
+      const cashStatus = await callMobFlowApi("/api/mobflow/cash");
+      if (cashStatus.response.ok && cashStatus.body.ok === true) {
+        const remote = cashStatus.body.session as null | { id:string; status:"open"; openingAmount:number; openedAt:string; note?:string; operatorUsername:string };
+        const username = sessionStorage.getItem("mobflow-username")?.trim() || "";
+        if (username) {
+          const retained = (state.cashSessions ?? []).filter((item) => item.id !== remote?.id && !(item.status === "open" && isCashSessionForOperator(item, username)));
+          const canonical: CashSession[] = remote ? [{ id:remote.id, status:"open", openingAmount:Number(remote.openingAmount), openedAt:remote.openedAt, openedBy:remote.operatorUsername, operatorUsername:remote.operatorUsername, ...(remote.note ? {note:remote.note} : {}) }] : [];
+          set({ cashSessions: [...canonical, ...retained] }, { persist: false });
+        }
       }
     }
     return { ...result, failed: await syncOutbox.failedCount(tenantId) };
