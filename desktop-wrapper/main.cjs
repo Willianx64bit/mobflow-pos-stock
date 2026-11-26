@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, dialog, session, ipcMain, safeStorage } = require("electron");
+const { app, BrowserWindow, shell, dialog, session, ipcMain, safeStorage, net } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { validateOfflineSession, isValidOfflineSessionRecord } = require("./offline-session.cjs");
@@ -380,9 +380,13 @@ app.whenReady().then(async () => {
     ? path.join(process.resourcesPath, "mobflow-web")
     : path.resolve(__dirname, "../.output/public");
   localPublicDir = publicDir;
+  // Use Chromium networking for upstream API calls. Unlike Node global fetch,
+  // net.fetch follows Electron/Windows proxy and certificate configuration, so
+  // an online desktop does not falsely enqueue sales as offline on networks where
+  // the browser works but Node fetch cannot reach Vercel.
   const runtimeFetch = process.env.MOBFLOW_TEST_OFFLINE === "1"
     ? async () => { throw new TypeError("Failed to fetch: simulated offline startup"); }
-    : fetch;
+    : net.fetch.bind(net);
   localRuntime = createLocalRuntimeServer({ publicDir, remoteOrigin: APP_ORIGIN, fetchImpl: runtimeFetch });
   try {
     const address = await localRuntime.listen(43173);
