@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
 import { verifyFiadoPassword } from "@/lib/fiado-password";
@@ -44,7 +44,7 @@ function FiadoCliente() {
     setPendingPayment({ saleId, amount });
     setPasswordOpen(true);
   };
-  const confirmFiadoPayment = async (event: React.FormEvent<HTMLFormElement>) => {
+  const confirmFiadoPayment = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!pendingPayment || paymentSaving) return;
     setPaymentSaving(true);
