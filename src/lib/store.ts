@@ -1636,10 +1636,18 @@ export const actions = {
         const cartIsUnchanged = state.cart.length === checkoutCart.length &&
           checkoutCart.every((item) => state.cart.some((current) => current.productId === item.productId && current.qty === item.qty));
         if (!cartIsUnchanged) return;
+        // The command promise resolves only after Neon confirms the online
+        // transaction or the offline command is durably stored. The sale object
+        // was created as pending before that decision, so derive its final status
+        // now; otherwise this stale object overwrites the synced status and the
+        // UI incorrectly displays "VENDA SALVA OFFLINE" for online sales.
+        const finalizedSale: Sale = isDesktopRuntime()
+          ? { ...sale, syncStatus: isDesktopOffline() ? "pending" : "synced" }
+          : sale;
         set({
           products,
           cart: [],
-          sales: [sale, ...state.sales],
+          sales: [finalizedSale, ...state.sales.filter((item) => item.id !== sale.id)],
           stockMovements: [...stockMovements, ...(state.stockMovements ?? [])],
         }, { persist: false });
       });
