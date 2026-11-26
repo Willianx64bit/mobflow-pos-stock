@@ -447,6 +447,7 @@ type MobFlowApiBody = {
   remoteUpdatedAt?: string | null;
   error?: string;
   products?: unknown;
+  product?: unknown;
   hasMore?: unknown;
   nextCursor?: unknown;
   session?: unknown;
