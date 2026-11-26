@@ -114,7 +114,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
     try {
       // Flush business transactions first. A catalog/promotions refresh failure
       // must never prevent the 13 (or more) durable commands from being sent.
-      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean };
+      const result = await syncNow({ retryFailed: true }) as Awaited<ReturnType<typeof syncNow>> & { reconciliationRequired?: boolean; reconciliationReason?: string };
       const refreshWarnings: string[] = [];
       try { await actions.refreshCatalog(); } catch { refreshWarnings.push("catálogo"); }
       try { await actions.loadPromotions(); } catch { refreshWarnings.push("promoções"); }
@@ -126,7 +126,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
       if (result.failed > 0) parts.push(`${result.failed} com erro`);
       if (newContacts > 0) parts.push(`${newContacts} contato(s) atualizado(s)`);
       if (refreshWarnings.length) parts.push(`falha ao atualizar ${refreshWarnings.join(" e ")}`);
-      if (result.reconciliationRequired) parts.push("reconciliação necessária");
+      if (result.reconciliationRequired) parts.push(result.reconciliationReason ? `verificação necessária: ${result.reconciliationReason}` : "reconciliação necessária");
       if (result.lastError) parts.push(result.lastError);
       setSyncMessage(parts.join(" · ") || "Tudo sincronizado");
     } catch (error) {

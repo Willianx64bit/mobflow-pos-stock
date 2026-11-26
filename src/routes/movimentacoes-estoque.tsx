@@ -48,7 +48,7 @@ function MovimentacoesEstoque() {
   const navigate = useNavigate();
   const cachedMovements = useStore((s) => s.stockMovements ?? []);
   const [liveMovements, setLiveMovements] = useState<StockMovement[] | null>(null);
-  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "error">("connecting");
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "loaded" | "live" | "error">("connecting");
   const [realtimeError, setRealtimeError] = useState("");
 
   useEffect(() => {
@@ -68,6 +68,7 @@ function MovimentacoesEstoque() {
       }
       if (!stopped) {
         setLiveMovements(body.movements.map(mapLiveMovement));
+        setRealtimeStatus((current) => current === "connecting" ? "loaded" : current);
         setRealtimeError("");
       }
     };
@@ -224,7 +225,7 @@ function MovimentacoesEstoque() {
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-bold text-heading">Histórico</h2>
               <span className={realtimeStatus === "live" ? "rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800" : realtimeStatus === "error" ? "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800" : "rounded-full bg-secondary px-2 py-1 text-xs font-semibold text-muted-foreground"}>
-                {realtimeStatus === "live" ? "Ao vivo" : realtimeStatus === "error" ? "Sem conexão ao vivo" : "Conectando…"}
+                {realtimeStatus === "live" ? "Ao vivo" : realtimeStatus === "error" ? "Sem conexão ao vivo" : realtimeStatus === "loaded" ? "Histórico carregado" : "Carregando histórico…"}
               </span>
             </div>
             <span className="rounded-full bg-secondary px-3 py-1 text-sm md:text-base font-semibold text-muted-foreground">{filtered.length} registro(s) no período filtrado</span>

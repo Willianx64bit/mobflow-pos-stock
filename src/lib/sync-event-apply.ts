@@ -75,7 +75,8 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
         unit, price, cost, minStock, category: typeof raw["category"] === "string" ? raw["category"] : "",
         ...(productVersion !== undefined ? { version: productVersion } : {}),
         barcodes: Array.isArray(raw["barcodes"]) ? raw["barcodes"].filter((item): item is string => typeof item === "string") : existing?.barcodes ?? [],
-        stock: existing?.stock ?? 0, photoObjectKey: existing?.photoObjectKey,
+        stock: existing?.stock ?? number(raw["stock"]) ?? 0, active: true,
+        photoObjectKey: existing?.photoObjectKey ?? (typeof raw["photoObjectKey"] === "string" ? raw["photoObjectKey"] : undefined),
       });
       continue;
     }
@@ -274,10 +275,12 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
 
     if (event.category === "stock" && event.entity_type === "product") {
       const product = next.products.find((item) => item.id === event.entity_id);
-      if (!product) throw new UnsupportedSyncEventError(event);
       const absoluteStock = number(payload["stockAfter"] ?? payload["resultingStock"]);
       const deltaOnly = number(payload["delta"] ?? payload["stockDelta"]);
       if (absoluteStock === null && deltaOnly === null) throw new UnsupportedSyncEventError(event);
+      // Events may reference a newly-created, inactive or removed product outside the active catalog.
+      // Catalog state is synchronized separately; do not freeze the global cursor for an absent product.
+      if (!product) continue;
       const stockBefore = number(payload["stockBefore"]) ?? product.stock;
       const stockAfter = absoluteStock ?? stockBefore + deltaOnly!;
       const alreadyApplied = next.stockMovements.some((movement) => movement.id === event.event_id);
@@ -359,7 +362,9 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     if (event.category === "price" && event.entity_type === "product") {
       const product = next.products.find((item) => item.id === event.entity_id);
       const price = number(payload["price"]);
-      if (!product || price === null) throw new UnsupportedSyncEventError(event);
+      if (price === null) throw new UnsupportedSyncEventError(event);
+      // Product metadata is refreshed through the catalog endpoint; absent products are not sold on this device.
+      if (!product) continue;
       next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, price } : item);
       continue;
     }
