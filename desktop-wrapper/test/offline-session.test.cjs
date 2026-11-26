@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const {
   OFFLINE_SESSION_TTL_MS,
   validateOfflineSession,
-  isValidOfflineSessionRecord
+  isValidOfflineSessionRecord,
+  verifyCachedPassword
 } = require("../offline-session.cjs");
 
 const now = 1_800_000_000_000;
@@ -113,4 +114,14 @@ test("rejects oversized permission lists instead of caching an unbounded session
     ...validSession,
     permissions: Array.from({ length: 65 }, (_, index) => "permission-" + index)
   }), null);
+});
+
+
+test("verifies an entered offline fiado password against the saved secret", () => {
+  assert.equal(verifyCachedPassword("Senha-forte-123", "Senha-forte-123"), true);
+  assert.equal(verifyCachedPassword("Senha-forte-123", "senha-forte-123"), false);
+  assert.equal(verifyCachedPassword("Senha-forte-123", "Senha-errada"), false);
+  assert.equal(verifyCachedPassword("", "Senha-forte-123"), false);
+  assert.equal(verifyCachedPassword("Senha-forte-123", ""), false);
+  assert.equal(verifyCachedPassword(null, "Senha-forte-123"), false);
 });
