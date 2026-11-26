@@ -3,7 +3,7 @@ name: MobFlow Stage 3 validation
 on:
   pull_request:
     branches:
-      - migration/neon-preparation
+      - fix/realtime-reconnect-backoff
     paths:
       - "src/lib/**"
       - "src/routes/api/mobflow/**"
