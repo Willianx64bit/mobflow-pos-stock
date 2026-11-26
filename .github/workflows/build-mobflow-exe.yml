@@ -86,7 +86,11 @@ jobs:
 
       - name: Testar fila offline e transações Neon
         working-directory: ${{ github.workspace }}
-        run: npm test -- src/test/sync-outbox.test.ts src/test/mobflow-bidirectional-sync.test.ts src/lib/sync-event-apply.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-receivables-command.test.ts src/test/offline-fiado-auth.test.ts src/test/offline-preparation.test.ts src/test/pix-offline-payload.test.ts
+        run: npm test -- src/test/sync-outbox.test.ts src/test/mobflow-bidirectional-sync.test.ts src/lib/sync-event-apply.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-receivables-command.test.ts src/test/offline-fiado-auth.test.ts src/test/offline-preparation.test.ts src/test/pix-offline-payload.test.ts src/test/stock-movement-changes-api.test.ts src/test/realtime-reconnect.test.ts src/lib/cash-sync.test.ts
+
+      - name: Executar suíte completa de testes do PDV
+        working-directory: ${{ github.workspace }}
+        run: npm test
 
       - name: Instalar dependências do empacotador Windows
         run: npm install
