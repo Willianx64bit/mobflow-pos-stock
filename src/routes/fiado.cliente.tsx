@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, brl, printReceipt, useStore, type Sale } from "@/lib/store";
+import { verifyFiadoPassword } from "@/lib/fiado-password";
+import { LockKeyhole } from "lucide-react";
 
 export const Route = createFileRoute("/fiado/cliente")({
   head: () => ({ meta: [{ title: "MobFlow — Detalhes do cliente" }] }),
@@ -23,6 +25,11 @@ function FiadoCliente() {
   }, []);
   const sales = useStore((s) => s.sales);
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [pendingPayment, setPendingPayment] = useState<{ saleId: string; amount: number } | null>(null);
   const customerSales = useMemo(
     () => sales.filter((s) => s.payment === "Fiado" && (s.customer || "Cliente não informado").trim() === customer.trim()).sort((a, b) => +new Date(b.date) - +new Date(a.date)),
     [sales, customer],
@@ -32,6 +39,31 @@ function FiadoCliente() {
   const balance = customerSales.reduce((sum, s) => sum + remaining(s), 0);
   const paid = balance <= 0;
   const totalPurchased = customerSales.reduce((sum, s) => sum + s.total, 0);
+  const requestPayment = (saleId: string, amount: number) => {
+    if (paymentSaving || !Number.isFinite(amount) || amount <= 0) return;
+    setPasswordInput("");
+    setPasswordError("");
+    setPendingPayment({ saleId, amount });
+    setPasswordOpen(true);
+  };
+  const confirmFiadoPayment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!pendingPayment || paymentSaving) return;
+    setPaymentSaving(true);
+    setPasswordError("");
+    try {
+      await verifyFiadoPassword(passwordInput);
+      await actions.addFiadoPayment(pendingPayment.saleId, pendingPayment.amount);
+      setPaymentDrafts((previous) => ({ ...previous, [pendingPayment.saleId]: "" }));
+      setPasswordOpen(false);
+      setPasswordInput("");
+      setPendingPayment(null);
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "O recebimento não foi confirmado.");
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -100,16 +132,14 @@ function FiadoCliente() {
                             onClick={() => {
                               const value = Number(draft.replace(/\./g, "").replace(",", "."));
                               if (Number.isFinite(value) && value > 0) {
-                                actions.addFiadoPayment(s.id, value);
-                                setPaymentDrafts((prev) => ({ ...prev, [s.id]: "" }));
+                                requestPayment(s.id, value);
                               }
                             }}
                             className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground hover:opacity-90"
                           >Adicionar pagamento</button>
                           <button
                             onClick={() => {
-                              actions.addFiadoPayment(s.id, due);
-                              setPaymentDrafts((prev) => ({ ...prev, [s.id]: "" }));
+                              requestPayment(s.id, due);
                             }}
                             className="rounded-xl bg-green-500/15 px-4 py-3 text-sm font-bold text-green-600"
                           >Quitar tudo</button>
@@ -142,6 +172,21 @@ function FiadoCliente() {
             })}
           </div>
         </section>
+        {passwordOpen && (
+          <div className="fixed inset-0 z-[80] grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+            <form onSubmit={confirmFiadoPayment} className="w-full max-w-md glass p-6 shadow-2xl">
+              <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-primary/10"><LockKeyhole className="h-5 w-5 text-primary" /></div>
+              <h2 className="text-xl font-bold text-heading">Confirmar recebimento</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Digite novamente a senha do usuário do PDV para registrar este pagamento do fiado.</p>
+              <input type="password" value={passwordInput} onChange={(event) => { setPasswordInput(event.target.value); setPasswordError(""); }} placeholder="Senha do usuário" autoComplete="current-password" autoFocus className="field mt-4 w-full text-foreground" />
+              {passwordError && <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{passwordError}</p>}
+              <div className="mt-5 flex gap-2">
+                <button type="button" disabled={paymentSaving} onClick={() => { setPasswordOpen(false); setPasswordInput(""); setPasswordError(""); setPendingPayment(null); }} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
+                <button type="submit" disabled={paymentSaving || !passwordInput} className="flex-1 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50">{paymentSaving ? "Validando..." : "Confirmar"}</button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );
