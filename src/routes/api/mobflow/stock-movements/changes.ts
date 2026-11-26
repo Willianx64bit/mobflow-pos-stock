@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/mobflow/stock-movements/changes")({
         try {
           const url = new URL(request.url);
           const cursor = url.searchParams.get("cursor") ?? "0";
-          if (!/^\\d+$/.test(cursor) || BigInt(cursor) > MAX_CURSOR) {
+          if (!/^\d+$/.test(cursor) || BigInt(cursor) > MAX_CURSOR) {
             return Response.json(
               { ok: false, error: "Cursor de movimentações inválido.", code: "invalid_stock_movement_cursor" },
               { status: 400 },
