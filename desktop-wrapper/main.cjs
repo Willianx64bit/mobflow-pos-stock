@@ -1,7 +1,7 @@
 const { app, BrowserWindow, shell, dialog, session, ipcMain, safeStorage, net } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
-const { validateOfflineSession, isValidOfflineSessionRecord } = require("./offline-session.cjs");
+const { validateOfflineSession, isValidOfflineSessionRecord, verifyCachedPassword } = require("./offline-session.cjs");
 const { APP_ORIGIN } = require("./app-config.cjs");
 const { createLocalRuntimeServer } = require("./local-runtime.cjs");
 let mainWindow = null;
@@ -317,6 +317,16 @@ ipcMain.handle("mobflow:get-login-secret", async (event, value) => {
   const record = records[key];
   if (!record || typeof record.password !== "string" || !Number.isFinite(record.savedAt)) return null;
   return { password: record.password };
+});
+
+ipcMain.handle("mobflow:verify-cached-login-password", async (event, value) => {
+  if (!isTrustedAppSender(event) || !safeStorage.isEncryptionAvailable()) return false;
+  const key = savedLoginKey(value);
+  const password = typeof value?.password === "string" ? value.password : "";
+  if (!key || !password || password.length > 256) return false;
+  const records = await readSavedLogins();
+  const record = records[key];
+  return verifyCachedPassword(record?.password, password);
 });
 
 ipcMain.handle("mobflow:clear-login-secret", async (event, value) => {
