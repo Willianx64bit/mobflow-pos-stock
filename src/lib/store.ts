@@ -1042,7 +1042,10 @@ export async function probeDesktopCloudConnectivity(): Promise<boolean> {
     sessionStorage.removeItem("mobflow-desktop-offline");
     window.dispatchEvent(new Event("mobflow-offline-state-changed"));
     if (wasOffline) {
-      void syncNow().catch((error) => console.warn("[MobFlow Desktop] Fila local aguardando sincronização:", error));
+      // A connectivity transition is the safe point to retry commands previously
+      // marked failed by a transient server/network condition. Permanent business
+      // validation errors remain visible and blocked after this single retry.
+      void syncNow({ retryFailed: true }).catch((error) => console.warn("[MobFlow Desktop] Fila local aguardando sincronização:", error));
     }
     return true;
   } catch (error) {
