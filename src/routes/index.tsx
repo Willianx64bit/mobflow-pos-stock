@@ -227,7 +227,7 @@ function PDV() {
       window.clearTimeout(timer);
     };
   }, [q]);
-  const results = remoteSearch?.query === q.trim() ? remoteSearch.products : localResults;
+  const results = q.trim().length === 1 ? [] : remoteSearch?.query === q.trim() ? remoteSearch.products : localResults;
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
   const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
