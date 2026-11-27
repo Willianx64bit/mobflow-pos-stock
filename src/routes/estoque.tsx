@@ -38,6 +38,7 @@ function Estoque() {
   const [reloadKey, setReloadKey] = useState(0);
   const requestSequence = useRef(0);
   const detailsRequestSequence = useRef(0);
+  const summaryLoaded = useRef(false);
   const editRequestSequence = useRef(0);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
@@ -72,10 +73,11 @@ function Estoque() {
       active: activeFilter,
       stock: stockFilter,
       cursor,
+      includeSummary: !summaryLoaded.current,
     }).then((page) => {
+      if (page.summary) { setSummary(page.summary); summaryLoaded.current = true; }
       if (requestId !== requestSequence.current) return;
       setCatalogProducts(page.products);
-      if (page.summary) setSummary(page.summary);
       setHasMore(page.hasMore);
       setNextCursor(page.nextCursor);
     }).catch((reason) => {
@@ -90,7 +92,7 @@ function Estoque() {
     return () => { requestSequence.current += 1; };
   }, [debouncedQ, category, activeFilter, stockFilter, cursor, reloadKey]);
 
-  const refreshStockCatalog = () => { setCursorHistory([null]); setReloadKey((value) => value + 1); };
+  const refreshStockCatalog = () => { summaryLoaded.current = false; setSummary(null); setCursorHistory([null]); setReloadKey((value) => value + 1); };
   const openExport = async () => {
     setLoadingExport(true);
     setError("");
