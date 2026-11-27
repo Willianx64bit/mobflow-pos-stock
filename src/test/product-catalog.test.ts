@@ -44,7 +44,7 @@ describe("offline product catalog", () => {
         const batch: OfflineCatalogProduct[] = [];
         for (let index = offset; index < end; index += 1) {
           batch.push({
-            id: `product-${index}`,
+            id: `product-${String(index).padStart(6, "0")}`,
             code: String(index).padStart(8, "0"),
             name: `Produto de teste ${index}`,
             price: 10 + (index % 100),
@@ -62,8 +62,8 @@ describe("offline product catalog", () => {
     const restored = await readOfflineCatalog("company-large");
     expect(restored.hasCatalog).toBe(true);
     expect(restored.products).toHaveLength(total);
-    expect(restored.products[0]?.id).toBe("product-0");
-    expect(restored.products[total - 1]?.id).toBe(`product-${total - 1}`);
+    expect(restored.products[0]?.id).toBe("product-000000");
+    expect(restored.products[total - 1]?.id).toBe(`product-${String(total - 1).padStart(6, "0")}`);
   });
 
   it("reports the committed catalog count without loading product rows", async () => {
