@@ -36,6 +36,36 @@ describe("offline product catalog", () => {
     expect((await readOfflineCatalog("company-b")).products).toEqual([]);
   });
 
+  it("stores and restores an 80,000-product catalog in 500-row batches", async () => {
+    const total = 80_000;
+    async function* largePages(): AsyncGenerator<OfflineCatalogProduct[]> {
+      for (let offset = 0; offset < total; offset += 500) {
+        const end = Math.min(offset + 500, total);
+        const batch: OfflineCatalogProduct[] = [];
+        for (let index = offset; index < end; index += 1) {
+          batch.push({
+            id: `product-${index}`,
+            code: String(index).padStart(8, "0"),
+            name: `Produto de teste ${index}`,
+            price: 10 + (index % 100),
+            stock: index % 50,
+            minStock: 2,
+            category: "Teste",
+            unit: "un",
+          });
+        }
+        yield batch;
+      }
+    }
+
+    expect(await replaceOfflineCatalog("company-large", largePages())).toBe(total);
+    const restored = await readOfflineCatalog("company-large");
+    expect(restored.hasCatalog).toBe(true);
+    expect(restored.products).toHaveLength(total);
+    expect(restored.products[0]?.id).toBe("product-0");
+    expect(restored.products[total - 1]?.id).toBe(`product-${total - 1}`);
+  });
+
   it("reports the committed catalog count without loading product rows", async () => {
     const product = { id: "1", code: "001", name: "Feijão", price: 8, stock: 4, minStock: 1, category: "Mercearia", unit: "un" as const };
     await replaceOfflineCatalog("company-a", pages([product]));
