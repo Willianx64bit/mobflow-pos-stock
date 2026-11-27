@@ -59,7 +59,7 @@ function stableUuid(value:string){
  const h=b.toString("hex");return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);
 }
 async function appendCatalogEvent(client:any,tenant:string,actor:string,id:string,version:number,payload:unknown){
- await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[
+ await client.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','automatic','product',$3,$4::jsonb)",[
   randomUUID(),stableUuid(tenant+":catalog:"+id+":"+version),id,JSON.stringify(payload)
  ]);
 }
