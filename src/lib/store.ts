@@ -781,8 +781,8 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
     let cursor: string | null = null;
-    for (let page = 0; page < 100; page += 1) {
-      const query = new URLSearchParams({ limit: "100" });
+    for (let page = 0; page < 30; page += 1) {
+      const query = new URLSearchParams({ limit: "500" });
       if (activeFilter) query.set("active", activeFilter);
       if (cursor) query.set("cursor", cursor);
       if (updatedSince) query.set("updatedSince", updatedSince);
