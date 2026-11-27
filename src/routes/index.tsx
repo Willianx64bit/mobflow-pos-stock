@@ -209,8 +209,20 @@ function PDV() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const localSearchIndex = useMemo(() => buildLocalProductSearchIndex(sellableProducts), [sellableProducts]);
-  const localResults = useMemo(() => searchIndexedLocalProducts(localSearchIndex, debouncedQ, 100), [localSearchIndex, debouncedQ]);
+  const offlineCatalogSearch = isOfflineMode();
+  const localSearchIndex = useMemo(
+    () => offlineCatalogSearch
+      ? buildLocalProductSearchIndex(sellableProducts)
+      : { products: sellableProducts, searchText: [] },
+    [sellableProducts, offlineCatalogSearch],
+  );
+  const localResults = useMemo(() => {
+    const term = debouncedQ.trim();
+    // Online search belongs to Neon; avoid scanning and normalizing the full
+    // 10k–100k local catalog for every keystroke. Offline keeps the local index.
+    if (term.length === 1 || (term.length >= 2 && !offlineCatalogSearch)) return [];
+    return searchIndexedLocalProducts(localSearchIndex, term, 100);
+  }, [localSearchIndex, debouncedQ, offlineCatalogSearch]);
 
   useEffect(() => {
     const term = debouncedQ.trim();
@@ -229,7 +241,7 @@ function PDV() {
       clearTimeout(timer);
       supplementalRequestRef.current += 1;
     };
-  }, [debouncedQ, localResults.length]);
+  }, [debouncedQ, localResults.length, offlineCatalogSearch]);
 
   const results = useMemo(() => {
     const remoteById = new Map(supplementalProducts.map((product) => [product.id, product]));
