@@ -1326,7 +1326,7 @@ export async function hydrateStore() {
         // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
         // unreachable. A successful Neon response still replaces it with the
         // authoritative active catalog.
-        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []), "full", false, undefined, undefined, false, accountId);
+        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []), "full", false, undefined, undefined, isDesktopRuntime(), accountId);
         // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
         // refreshes, but keep only products confirmed by the authoritative tenant catalog.
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
@@ -1381,7 +1381,6 @@ export async function hydrateStore() {
         try {
           const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
           state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
-          normalizeState();
           try { persistLocalState(); }
           catch (error) {
             if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
