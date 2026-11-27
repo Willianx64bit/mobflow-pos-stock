@@ -162,6 +162,13 @@ export function isOfflineMode() {
 }
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
+// When Neon owns the relational catalog, never JSON-clone 10k–100k cached
+// products just to build an app-state snapshot that will immediately omit them.
+function cloneCloudSnapshot(value: State): State {
+  const catalogIsRelational = import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" &&
+    Array.isArray(lastSyncedState?.products) && lastSyncedState.products.length === 0;
+  return cloneState(catalogIsRelational ? { ...value, products: [] } : value);
+}
 const isCashSessionForOperator = (session: CashSession, username: string) => {
   const expected = username.trim().toLocaleLowerCase();
   return !!expected && (session.operatorUsername?.trim().toLocaleLowerCase() === expected || session.openedBy.trim().toLocaleLowerCase() === expected);
@@ -318,10 +325,33 @@ function persistLocalState() {
 async function persistCatalogDelta(previous: Product[], next: Product[]) {
   const tenantId = cloudAccountId ?? (typeof localStorage !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
   if (!tenantId || typeof indexedDB === "undefined" || previous === next) return;
+  const writes: Promise<void>[] = [];
+  // Stock/price deltas preserve catalog order. Fast-path that common case
+  // without allocating two 100k-entry Maps on every sale or stock event.
+  if (previous.length === next.length) {
+    let sameOrder = true;
+    for (let index = 0; index < next.length; index += 1) {
+      const oldProduct = previous[index];
+      const newProduct = next[index];
+      if (!oldProduct || !newProduct || oldProduct.id !== newProduct.id) {
+        sameOrder = false;
+        break;
+      }
+      if (oldProduct !== newProduct) writes.push(upsertOfflineCatalogProduct(tenantId, newProduct));
+    }
+    if (sameOrder) {
+      if (writes.length) await Promise.all(writes);
+      return;
+    }
+    writes.length = 0;
+  }
+  // Insertions, deletions and reordered imports use the full diff fallback.
   const before = new Map(previous.map((product) => [product.id, product]));
   const after = new Map(next.map((product) => [product.id, product]));
-  const writes: Promise<void>[] = [];
-  for (const [id, product] of after) { const old = before.get(id); if (!old || old !== product) writes.push(upsertOfflineCatalogProduct(tenantId, product)); }
+  for (const [id, product] of after) {
+    const oldProduct = before.get(id);
+    if (!oldProduct || oldProduct !== product) writes.push(upsertOfflineCatalogProduct(tenantId, product));
+  }
   for (const id of before.keys()) if (!after.has(id)) writes.push(removeOfflineCatalogProduct(tenantId, id));
   if (writes.length) await Promise.all(writes);
 }
@@ -860,7 +890,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     // Product prices and stock balances arrive through the durable incremental event cursor.
     // Never scan the complete relational catalog during an app-state refresh.
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
-    lastSyncedState = cloneState(remote);
+    lastSyncedState = cloneCloudSnapshot(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
@@ -1261,7 +1291,7 @@ export async function hydrateStore() {
         // refreshes, but keep only products confirmed by the authoritative tenant catalog.
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
         lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
-        lastSyncedState = cloneState(remote);
+        lastSyncedState = cloneCloudSnapshot(remote);
       } else {
         state = emptyState();
         lastCloudUpdatedAt = null;
@@ -1385,9 +1415,8 @@ function scheduleStatePersist() {
       if (!accountId || !cloudReady) break;
       // Private contacts/settings have their own authenticated endpoint.
       // Keep only the public company caption in the shared snapshot.
-      const snapshot = cloneState(state);
+      const snapshot = cloneCloudSnapshot(state);
       snapshot.contacts = [];
-      if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" && Array.isArray(lastSyncedState?.products) && lastSyncedState.products.length === 0) snapshot.products = [];
       snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
       let attempts = 0;
       let saved = false;
@@ -1408,12 +1437,11 @@ function scheduleStatePersist() {
           const remote = result.body.remoteState as State;
           lastCloudUpdatedAt = typeof result.body.remoteUpdatedAt === "string" ? result.body.remoteUpdatedAt : null;
           state = mergeConcurrentState(lastSyncedState, state, remote);
-          const retrySnapshot = cloneState(state);
+          const retrySnapshot = cloneCloudSnapshot(state);
           retrySnapshot.contacts = [];
-          if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" && Array.isArray(lastSyncedState?.products) && lastSyncedState.products.length === 0) retrySnapshot.products = [];
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
           Object.assign(snapshot, retrySnapshot);
-          lastSyncedState = cloneState(remote);
+          lastSyncedState = cloneCloudSnapshot(remote);
           listeners.forEach((listener) => listener());
           continue;
         }
