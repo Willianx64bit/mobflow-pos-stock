@@ -1948,6 +1948,16 @@ export const actions = {
   async loadStockCatalog() {
     return readPreviewNeonCatalog(state.products ?? [], "full", true);
   },
+  async searchCatalogProducts(query: string, limit = 100): Promise<Product[]> {
+    const term = query.trim();
+    if (!term) return [];
+    const params = new URLSearchParams({ limit: String(Math.min(100, Math.max(1, limit))), q: term });
+    const result = await callMobFlowApi("/api/mobflow/products?" + params.toString());
+    if (!result.response.ok || result.body.ok !== true || !Array.isArray(result.body.products)) {
+      throw new Error(String(result.body.error ?? "Falha ao complementar a busca no Neon."));
+    }
+    return result.body.products as Product[];
+  },
   async loadStockCatalogPage(filters: StockCatalogFilters = {}): Promise<StockCatalogPage> {
     const params = new URLSearchParams({
       limit: "100",
