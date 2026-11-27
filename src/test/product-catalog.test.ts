@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
-import { getOfflineCatalogStatus, readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, type OfflineCatalogProduct } from "@/lib/product-catalog";
+import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, writeOfflineCatalogPage, type OfflineCatalogProduct } from "@/lib/product-catalog";
 
 async function* pages(items: Array<{ id: string; code: string; name: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg" }>) {
   yield items.slice(0, 1);
@@ -71,6 +71,29 @@ describe("offline product catalog", () => {
     await replaceOfflineCatalog("company-a", pages([product]));
     expect(await getOfflineCatalogStatus("company-a")).toMatchObject({ count: 1, hasCatalog: true });
     expect(await getOfflineCatalogStatus("company-b")).toMatchObject({ count: 0, hasCatalog: false });
+  });
+
+  it("resumes a staged catalog from its saved cursor and commits only when complete", async () => {
+    const previous: OfflineCatalogProduct = { id: "old", code: "001", name: "Catálogo anterior", price: 5, stock: 1, minStock: 0, category: "Teste", unit: "un" };
+    const first: OfflineCatalogProduct = { id: "new-1", code: "002", name: "Produto novo A", price: 7, stock: 2, minStock: 0, category: "Teste", unit: "un" };
+    const second: OfflineCatalogProduct = { id: "new-2", code: "003", name: "Produto novo B", price: 9, stock: 3, minStock: 0, category: "Teste", unit: "un" };
+    await replaceOfflineCatalog("company-resume", pages([previous]));
+
+    await writeOfflineCatalogPage("company-resume", [first], "cursor-after-first");
+    expect(await getOfflineCatalogSyncState("company-resume")).toMatchObject({
+      pending: true,
+      cursor: "cursor-after-first",
+      count: 1,
+      complete: false,
+    });
+    expect((await readOfflineCatalog("company-resume")).products.map((product) => product.id)).toEqual(["old"]);
+    expect((await readPendingOfflineCatalog("company-resume")).map((product) => product.id)).toEqual(["new-1"]);
+
+    await writeOfflineCatalogPage("company-resume", [second], null);
+    expect((await getOfflineCatalogSyncState("company-resume")).complete).toBe(true);
+    expect(await commitOfflineCatalogSync("company-resume")).toBe(2);
+    expect((await readOfflineCatalog("company-resume")).products.map((product) => product.id)).toEqual(["new-1", "new-2"]);
+    expect((await getOfflineCatalogSyncState("company-resume")).pending).toBe(false);
   });
 
   it("updates an existing product in the committed generation", async () => {
