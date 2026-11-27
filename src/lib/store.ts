@@ -6,6 +6,10 @@ import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-ev
 import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct, writeOfflineCatalogPage } from "@/lib/product-catalog";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
+export type StockCatalogSummary = { total: number; active: number; inactive: number; lowStock: number; inventoryValue: number };
+export type StockCatalogPage = { products: Product[]; hasMore: boolean; nextCursor: string | null; summary: StockCatalogSummary };
+export type StockProductDetails = { cost: number; unitsSold: number; salesCount: number; revenue: number; costTotal: number; grossProfit: number };
+export type StockCatalogFilters = { q?: string; category?: string; active?: "all" | "active" | "inactive"; stock?: "all" | "low" | "zero" | "positive"; cursor?: string | null };
 
 const normalizeProductUnit = (unit: unknown): "kg" | "un" => {
   const value = String(unit ?? "").trim().toLowerCase();
@@ -1941,6 +1945,33 @@ export const actions = {
   },
   async loadStockCatalog() {
     return readPreviewNeonCatalog(state.products ?? [], "full", true);
+  },
+  async loadStockCatalogPage(filters: StockCatalogFilters = {}): Promise<StockCatalogPage> {
+    const params = new URLSearchParams({
+      limit: "100",
+      active: filters.active ?? "all",
+      stock: filters.stock ?? "all",
+    });
+    if (filters.q?.trim()) params.set("q", filters.q.trim());
+    if (filters.category?.trim()) params.set("category", filters.category.trim());
+    if (filters.cursor) params.set("cursor", filters.cursor);
+    const result = await callMobFlowApi("/api/mobflow/products/inventory?" + params.toString());
+    if (!result.response.ok || result.body.ok !== true || !Array.isArray(result.body.products) || !result.body.summary) {
+      throw new Error(String(result.body.error ?? "Falha ao consultar a página do inventário no Neon."));
+    }
+    return {
+      products: result.body.products as Product[],
+      hasMore: result.body.hasMore === true,
+      nextCursor: typeof result.body.nextCursor === "string" ? result.body.nextCursor : null,
+      summary: result.body.summary as StockCatalogSummary,
+    };
+  },
+  async loadStockProductDetails(productId: string): Promise<StockProductDetails> {
+    const result = await callMobFlowApi("/api/mobflow/products/details?productId=" + encodeURIComponent(productId));
+    if (!result.response.ok || result.body.ok !== true || !result.body.details) {
+      throw new Error(String(result.body.error ?? "Falha ao consultar os detalhes do produto no Neon."));
+    }
+    return result.body.details as StockProductDetails;
   },
   async setProductActive(product: Product, active: boolean): Promise<Product> {
     if (!Number.isSafeInteger(Number(product.version))) throw new Error("Não foi possível confirmar a versão deste produto. Atualize a lista e tente novamente.");
