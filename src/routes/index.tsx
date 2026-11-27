@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { buildProductBarcodeIndex, searchLocalProducts } from "@/lib/product-search";
+import { buildLocalProductSearchIndex, buildProductBarcodeIndex, searchIndexedLocalProducts } from "@/lib/product-search";
 import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 // Desktop and web share the server-side PDV user lifecycle; deletion preserves audit references in Neon.
 
@@ -209,7 +209,8 @@ function PDV() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const localResults = useMemo(() => searchLocalProducts(sellableProducts, debouncedQ, 100), [debouncedQ, sellableProducts]);
+  const localSearchIndex = useMemo(() => buildLocalProductSearchIndex(sellableProducts), [sellableProducts]);
+  const localResults = useMemo(() => searchIndexedLocalProducts(localSearchIndex, debouncedQ, 100), [localSearchIndex, debouncedQ]);
 
   useEffect(() => {
     const term = debouncedQ.trim();
