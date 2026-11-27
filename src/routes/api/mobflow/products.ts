@@ -103,9 +103,9 @@ async function getProducts(request:Request){
  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  const u=new URL(request.url),raw=u.searchParams.get("limit")??"50";
  if(!/^\d+$/.test(raw)||Number(raw)<1)return Response.json({ok:false,error:"Limite inválido.",code:"invalid_product_query"},{status:400});
- const limit=Math.min(Number(raw),500),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
+ const limit=Math.min(Number(raw),500),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),barcode=(u.searchParams.get("barcode")??"").trim(),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
  const liveOnly=projection==="live";
- if(cursor&&cursor.length>160||active!==null&&active!=="true"&&active!=="false"||projection!==null&&!liveOnly)return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
+ if(cursor&&cursor.length>160||active!==null&&active!=="true"&&active!=="false"||projection!==null&&!liveOnly||barcode.length>80||(liveOnly&&barcode))return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
  let tx:any=null;
  try{
   tx=await beginAuthenticatedTransaction(request);const c=tx.client;await ready(c);
@@ -132,8 +132,9 @@ async function getProducts(request:Request){
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR p.category ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
       "AND ($4::timestamptz IS NULL OR (p.created_at,p.id)>($4::timestamptz,$5::text)) "+
-      "GROUP BY p.tenant_id,p.id ORDER BY p.created_at,p.id LIMIT $6",
-      [tx.identity.accountId,active===null?null:active==="true",q,cursorPosition?.createdAt??null,cursorPosition?.id??null,limit+1]);
+      "AND ($6::text='' OR p.code=$6 OR EXISTS(SELECT 1 FROM public.product_barcodes exact_b WHERE exact_b.tenant_id=p.tenant_id AND exact_b.product_id=p.id AND exact_b.barcode=$6)) "+
+      "GROUP BY p.tenant_id,p.id ORDER BY p.created_at,p.id LIMIT $7",
+      [tx.identity.accountId,active===null?null:active==="true",q,cursorPosition?.createdAt??null,cursorPosition?.id??null,barcode,limit+1]);
   const more=result.rows.length>limit,rows=result.rows.slice(0,limit);
   await releaseTransaction(c,true);tx=null;
   return Response.json({ok:true,products:liveOnly?rows.map((r:any)=>({id:r.id,price:Number(r.price),stock:Number(r.stock)})):rows.map(mapProduct),nextCursor:more?encodeProductCursor(rows[rows.length-1]):null,hasMore:more});
