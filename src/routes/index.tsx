@@ -391,6 +391,8 @@ function PDV() {
             </div>
           </div>
           {flash && <div className={`mt-2 w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</div>}
+          {searchingRemote && <div className="mt-1 text-[11px] text-muted-foreground">Consultando catálogo no Neon…</div>}
+          {!q.trim() && sellableProducts.length > 50 && <div className="mt-1 text-[11px] text-muted-foreground">Digite para localizar entre todos os produtos. Exibindo até 50 itens por vez.</div>}
 
           <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3 content-start" : "flex flex-col"} gap-2 mt-2 flex-1 min-h-0 overflow-y-auto pr-1`}>
             {results.map((p, i) => {
