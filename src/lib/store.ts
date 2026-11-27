@@ -723,11 +723,12 @@ export async function confirmLastDomainCommand(): Promise<void> {
   await pending;
 }
 
-async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false", updatedSince?: string, throwOnError = false): Promise<Product[]> {
+async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false", updatedSince?: string, throwOnError = false, tenantId?: string): Promise<Product[]> {
+  const fullSyncStartedAt = !updatedSince && mode === "full" ? new Date().toISOString() : null;
   if (includeInactive) {
     const [activeProducts, inactiveProducts] = await Promise.all([
-      readPreviewNeonCatalog(fallbackProducts, "full", false, "true", updatedSince, throwOnError),
-      readPreviewNeonCatalog(fallbackProducts, "full", false, "false", updatedSince, throwOnError),
+      readPreviewNeonCatalog(fallbackProducts, "full", false, "true", updatedSince, throwOnError, tenantId),
+      readPreviewNeonCatalog(fallbackProducts, "full", false, "false", updatedSince, throwOnError, tenantId),
     ]);
     return [...activeProducts, ...inactiveProducts];
   }
@@ -759,7 +760,15 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
           unit: normalizeProductUnit(raw.unit), active: raw.active !== false, photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
       }
       if (body.hasMore !== true) {
-        if (mode === "full") return products;
+        if (mode === "full") {
+          // Establish a safe delta watermark only after every page was fetched.
+          // The request-start timestamp ensures edits made during pagination are
+          // included in the next manual sync instead of being skipped.
+          if (tenantId && fullSyncStartedAt) {
+            try { localStorage.setItem(catalogSyncTimestampKey(tenantId), fullSyncStartedAt); } catch {}
+          }
+          return products;
+        }
         // Realtime may refresh only high-priority fields. Catalog identity and
         // metadata remain frozen until the user runs the manual synchronization.
         const latestById = new Map(products.map((product) => [product.id, product]));
@@ -1241,7 +1250,7 @@ export async function hydrateStore() {
         // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
         // unreachable. A successful Neon response still replaces it with the
         // authoritative active catalog.
-        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []));
+        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []), "full", false, undefined, undefined, false, accountId);
         // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
         // refreshes, but keep only products confirmed by the authoritative tenant catalog.
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
@@ -1912,7 +1921,7 @@ export const actions = {
     // manual sync requests only products created/changed since the last cursor.
     const products = updatedSince
       ? await readIncrementalNeonCatalog(state.products ?? [], updatedSince)
-      : await readPreviewNeonCatalog(state.products ?? [], "full", false, undefined, undefined, true);
+      : await readPreviewNeonCatalog(state.products ?? [], "full", false, undefined, undefined, true, tenantId ?? undefined);
     set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
     if (syncKey) localStorage.setItem(syncKey, startedAt);
     return products.length;
