@@ -7,7 +7,7 @@ import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyn
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 export type StockCatalogSummary = { total: number; active: number; inactive: number; lowStock: number; inventoryValue: number };
-export type StockCatalogPage = { products: Product[]; hasMore: boolean; nextCursor: string | null; summary: StockCatalogSummary };
+export type StockCatalogPage = { products: Product[]; hasMore: boolean; nextCursor: string | null; summary: StockCatalogSummary | null };
 export type StockProductDetails = { cost: number; unitsSold: number; salesCount: number; revenue: number; costTotal: number; grossProfit: number };
 export type StockCatalogFilters = { q?: string; category?: string; active?: "all" | "active" | "inactive"; stock?: "all" | "low" | "zero" | "positive"; cursor?: string | null };
 
@@ -1958,14 +1958,14 @@ export const actions = {
     if (filters.category?.trim()) params.set("category", filters.category.trim());
     if (filters.cursor) params.set("cursor", filters.cursor);
     const result = await callMobFlowApi("/api/mobflow/products/inventory?" + params.toString());
-    if (!result.response.ok || result.body.ok !== true || !Array.isArray(result.body.products) || !result.body.summary) {
+    if (!result.response.ok || result.body.ok !== true || !Array.isArray(result.body.products)) {
       throw new Error(String(result.body.error ?? "Falha ao consultar a página do inventário no Neon."));
     }
     return {
       products: result.body.products as Product[],
       hasMore: result.body.hasMore === true,
       nextCursor: typeof result.body.nextCursor === "string" ? result.body.nextCursor : null,
-      summary: result.body.summary as StockCatalogSummary,
+      summary: result.body.summary ? result.body.summary as StockCatalogSummary : null,
     };
   },
   async loadStockProductDetails(productId: string): Promise<StockProductDetails> {
