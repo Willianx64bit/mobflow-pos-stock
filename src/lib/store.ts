@@ -3,6 +3,7 @@ import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
+import { buildDesktopStockCatalogPage } from "@/lib/desktop-stock-inventory";
 import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct, writeOfflineCatalogPage } from "@/lib/product-catalog";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
@@ -689,6 +690,30 @@ export async function confirmLastDomainCommand(): Promise<void> {
   lastDomainCommandPromise = null;
   if (!pending) throw new Error("A operação não entrou na fila de sincronização e não foi enviada ao servidor.");
   await pending;
+}
+
+async function loadDesktopInventoryProducts(): Promise<Product[]> {
+  const tenantId = cloudAccountId ?? (typeof localStorage !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
+  if (tenantId) {
+    try {
+      const cached = await readOfflineCatalog(tenantId);
+      if (cached.hasCatalog && cached.products.length) {
+        return cached.products.map((product) => ({
+          ...product,
+          unit: normalizeProductUnit(product.unit),
+          photo: product.photoObjectKey ? `/api/mobflow/product-photo?productId=${encodeURIComponent(product.id)}` : undefined,
+        }));
+      }
+    } catch (error) {
+      console.warn("[MobFlow Desktop Inventory] Local catalog read failed; trying the authenticated catalog endpoint.", error);
+    }
+  }
+  if (!isDesktopOffline() && cloudReady) {
+    const products = await readPreviewNeonCatalog(state.products ?? [], "full", true);
+    if (products.length) return products;
+  }
+  if (state.products.length) return state.products;
+  throw new Error("O catálogo local ainda não está disponível. Conecte-se à internet para sincronizar os produtos antes de abrir o inventário.");
 }
 
 async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false"): Promise<Product[]> {
@@ -1912,6 +1937,7 @@ export const actions = {
     }
   },
   async loadStockCatalog() {
+    if (isDesktopRuntime()) return loadDesktopInventoryProducts();
     return readPreviewNeonCatalog(state.products ?? [], "full", true);
   },
   async lookupCatalogBarcode(barcode: string): Promise<Product | null> {
@@ -1935,6 +1961,10 @@ export const actions = {
     return result.body.products as Product[];
   },
   async loadStockCatalogPage(filters: StockCatalogFilters = {}): Promise<StockCatalogPage> {
+    if (isDesktopRuntime()) {
+      const products = await loadDesktopInventoryProducts();
+      return buildDesktopStockCatalogPage(products, filters);
+    }
     const params = new URLSearchParams({
       limit: "100",
       active: filters.active ?? "all",
@@ -1956,6 +1986,12 @@ export const actions = {
     };
   },
   async loadStockProductCost(productId: string): Promise<number> {
+    if (isDesktopRuntime()) {
+      const products = await loadDesktopInventoryProducts();
+      const product = products.find((item) => item.id === productId);
+      if (!product) throw new Error("Produto não encontrado no catálogo local deste computador.");
+      return Number(product.cost ?? 0);
+    }
     const result = await callMobFlowApi("/api/mobflow/products/details?productId=" + encodeURIComponent(productId) + "&includeSales=0");
     if (!result.response.ok || result.body.ok !== true || typeof result.body.cost !== "number") {
       throw new Error(String(result.body.error ?? "Falha ao consultar o custo do produto no Neon."));
@@ -1963,6 +1999,17 @@ export const actions = {
     return result.body.cost;
   },
   async loadStockProductDetails(productId: string): Promise<StockProductDetails> {
+    if (isDesktopRuntime()) {
+      const products = await loadDesktopInventoryProducts();
+      const product = products.find((item) => item.id === productId);
+      if (!product) throw new Error("Produto não encontrado no catálogo local deste computador.");
+      const matchingSales = state.sales.filter((sale) => sale.items.some((item) => item.productId === productId));
+      const soldItems = matchingSales.flatMap((sale) => sale.items.filter((item) => item.productId === productId));
+      const unitsSold = soldItems.reduce((sum, item) => sum + item.qty, 0);
+      const revenue = soldItems.reduce((sum, item) => sum + item.qty * item.price, 0);
+      const costTotal = soldItems.reduce((sum, item) => sum + item.qty * Number(item.cost ?? product.cost ?? 0), 0);
+      return { cost: Number(product.cost ?? 0), unitsSold, salesCount: matchingSales.length, revenue, costTotal, grossProfit: revenue - costTotal };
+    }
     const result = await callMobFlowApi("/api/mobflow/products/details?productId=" + encodeURIComponent(productId));
     if (!result.response.ok || result.body.ok !== true || !result.body.details) {
       throw new Error(String(result.body.error ?? "Falha ao consultar os detalhes do produto no Neon."));
