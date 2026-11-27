@@ -73,7 +73,7 @@ function Estoque() {
     }).then((page) => {
       if (requestId !== requestSequence.current) return;
       setCatalogProducts(page.products);
-      setSummary(page.summary);
+      if (page.summary) setSummary(page.summary);
       setHasMore(page.hasMore);
       setNextCursor(page.nextCursor);
     }).catch((reason) => {
