@@ -75,7 +75,7 @@ async function getProducts(request:Request){
  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  const u=new URL(request.url),raw=u.searchParams.get("limit")??"50";
  if(!/^\d+$/.test(raw)||Number(raw)<1)return Response.json({ok:false,error:"Limite inválido.",code:"invalid_product_query"},{status:400});
- const limit=Math.min(Number(raw),100),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
+ const limit=Math.min(Number(raw),500),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
  const updatedSinceRaw=u.searchParams.get("updatedSince");
  const updatedSince=updatedSinceRaw===null?null:new Date(updatedSinceRaw);
  const liveOnly=projection==="live";
@@ -188,10 +188,10 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   // Status flips are small automatic catalog events; product metadata stays manual-only.
   if(old.active!==values[8]){
    const statusProduct=mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)});
-   await c.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','automatic','product',$3,$4::jsonb)",[randomUUID(),stableUuid(i.accountId+":catalog-status:"+id+":"+statusProduct.version),id,JSON.stringify({operation:"upsert",product:statusProduct})]);
+   await c.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'catalog','manual','product',$3,$4::jsonb)",[randomUUID(),stableUuid(i.accountId+":catalog-status:"+id+":"+statusProduct.version),id,JSON.stringify({operation:"upsert",product:statusProduct})]);
   }
   // Product metadata stays manual, but an existing product price is a compact automatic event.
-  if(Number(old.price)!==values[5]) await c.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'price','automatic','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({price:values[5]})]);
+  if(Number(old.price)!==values[5]) await c.query("SELECT public.mobflow_append_sync_event($1::uuid,$2::uuid,'price','manual','product',$3,$4::jsonb)",[randomUUID(),randomUUID(),id,JSON.stringify({price:values[5]})]);
   await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)})});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
