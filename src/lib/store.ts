@@ -408,13 +408,17 @@ function normalizeState() {
   // Build a read-only bridge for historical operations created before the ledger existed.
   // Legacy rows are explicitly marked so they never participate in stock delta reconciliation.
   const knownMovementIds = new Set(state.stockMovements.map((movement) => movement.id));
+  const operationsWithCurrentMovements = new Set(state.stockMovements.filter((movement) => !movement.legacy).map((movement) => movement.operationId));
+  const operationProductKeys = new Set(state.stockMovements.map((movement) => `${movement.operationId}\u0000${movement.productId}`));
+  const productById = new Map(state.products.map((product) => [product.id, product]));
+  const productByName = new Map(state.products.map((product) => [product.name.trim().toLocaleLowerCase(), product]));
   const hasRelationalLegacyMovement = (operationId: string, productId: string) =>
-    state.stockMovements.some((movement) => movement.operationId === operationId && movement.productId === productId);
+    operationProductKeys.has(`${operationId}\u0000${productId}`);
   const legacyCandidates: StockMovement[] = [];
   for (const sale of state.sales) {
-    if (state.stockMovements.some((movement) => movement.operationId === sale.id && !movement.legacy)) continue;
+    if (operationsWithCurrentMovements.has(sale.id)) continue;
     (sale.items ?? []).forEach((item, index) => {
-      const product = state.products.find((p) => p.id === item.productId) ?? state.products.find((p) => p.name.trim().toLocaleLowerCase() === item.name.trim().toLocaleLowerCase());
+      const product = productById.get(item.productId ?? "") ?? productByName.get(item.name.trim().toLocaleLowerCase());
       const productId = product?.id ?? `legacy-product:${item.name.trim().toLocaleLowerCase()}`;
       if (hasRelationalLegacyMovement(sale.id, productId)) return;
       const id = `legacy:sale:${sale.id}:${productId}:${index}`;
@@ -423,17 +427,17 @@ function normalizeState() {
     });
   }
   for (const adjustment of state.stockAdjustments) {
-    if (state.stockMovements.some((movement) => movement.operationId === adjustment.id && !movement.legacy)) continue;
+    if (operationsWithCurrentMovements.has(adjustment.id)) continue;
     for (const item of adjustment.items) {
       if (hasRelationalLegacyMovement(adjustment.id, item.productId)) continue;
       const id = `legacy:adjustment:${adjustment.id}:${item.productId}`;
       if (knownMovementIds.has(id)) continue;
       const delta = item.newStock - item.previousStock;
-      legacyCandidates.push({ id, operationId: adjustment.id, date: adjustment.date, type: /balanço/i.test(adjustment.reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(delta), totalValue: Math.round(Math.abs(delta) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta, operator: adjustment.operator, details: adjustment.reason, legacy: true });
+      legacyCandidates.push({ id, operationId: adjustment.id, date: adjustment.date, type: /balanço/i.test(adjustment.reason) ? "Balanço" : "Ajuste de estoque", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(delta), totalValue: Math.round(Math.abs(delta) * (productById.get(item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta, operator: adjustment.operator, details: adjustment.reason, legacy: true });
     }
   }
   for (const writeoff of state.stockWriteoffs) {
-    if (state.stockMovements.some((movement) => movement.operationId === writeoff.id && !movement.legacy)) continue;
+    if (operationsWithCurrentMovements.has(writeoff.id)) continue;
     for (const item of writeoff.items) {
       if (hasRelationalLegacyMovement(writeoff.id, item.productId)) continue;
       const id = `legacy:writeoff:${writeoff.id}:${item.productId}`;
@@ -442,7 +446,7 @@ function normalizeState() {
     }
   }
   for (const transfer of state.stockTransfers) {
-    if (state.stockMovements.some((movement) => movement.operationId === transfer.id && !movement.legacy)) continue;
+    if (operationsWithCurrentMovements.has(transfer.id)) continue;
     for (const item of transfer.items) {
       if (hasRelationalLegacyMovement(transfer.id, item.productId)) continue;
       const id = `legacy:transfer:${transfer.id}:${item.productId}`;
@@ -451,7 +455,7 @@ function normalizeState() {
     }
   }
   for (const note of state.receiving) {
-    if (!note.stockReleased || state.stockMovements.some((movement) => movement.operationId === note.id && !movement.legacy)) continue;
+    if (!note.stockReleased || operationsWithCurrentMovements.has(note.id)) continue;
     const lines = [...note.items, ...(note.extras ?? [])];
     const totals = new Map<string, { quantity: number; name: string; unit: "un" | "kg" }>();
     for (const line of lines) {
@@ -465,15 +469,19 @@ function normalizeState() {
       if (hasRelationalLegacyMovement(note.id, productId)) continue;
       const id = `legacy:receiving:${note.id}:${productId}`;
       if (knownMovementIds.has(id)) continue;
-      const product = state.products.find((p) => p.id === productId);
+      const product = productById.get(productId);
       legacyCandidates.push({ id, operationId: note.id, date: note.date, type: "Recebimento", productId, productCode: product?.code, productName: line.name, unit: line.unit, quantity: line.quantity, totalValue: Math.round(line.quantity * (product?.price ?? 0) * 100) / 100, stockBefore: 0, stockAfter: 0, delta: line.quantity, details: `Nota ${note.number} · ${note.supplier}`, legacy: true });
     }
   }
   // Reconstruct missing legacy stock snapshots backwards from the current product balance.
   const legacyByProduct = new Map<string, StockMovement[]>();
-  for (const movement of legacyCandidates) legacyByProduct.set(movement.productId, [...(legacyByProduct.get(movement.productId) ?? []), movement]);
+  for (const movement of legacyCandidates) {
+    const bucket = legacyByProduct.get(movement.productId);
+    if (bucket) bucket.push(movement);
+    else legacyByProduct.set(movement.productId, [movement]);
+  }
   for (const [productId, movements] of legacyByProduct) {
-    const product = state.products.find((p) => p.id === productId);
+    const product = productById.get(productId);
     let runningStock = product?.stock ?? 0;
     for (const movement of movements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())) {
       if (movement.stockBefore === 0 && movement.stockAfter === 0) {
@@ -1335,10 +1343,10 @@ export async function hydrateStore() {
 
       // Store the snapshot first, but mark it as prepared only after private company
       // settings and contacts have also been downloaded successfully.
-      normalizeState();
+      if (!useDailyCache) normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
-        persistLocalState();
+        if (!useDailyCache) persistLocalState();
       } catch (error) {
         if (isDesktopRuntime()) throw new Error("Não foi possível armazenar os dados da empresa neste computador.");
       }
