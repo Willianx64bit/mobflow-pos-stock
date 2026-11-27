@@ -1250,7 +1250,7 @@ export async function hydrateStore() {
       normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
-        localStorage.setItem(activeStateKey, JSON.stringify(state));
+        persistLocalState();
       } catch (error) {
         if (isDesktopRuntime()) throw new Error("Não foi possível armazenar os dados da empresa neste computador.");
       }
@@ -1261,7 +1261,7 @@ export async function hydrateStore() {
         state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
         normalizeState();
         try {
-          localStorage.setItem(activeStateKey, JSON.stringify(state));
+          persistLocalState();
         } catch (error) {
           if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
         }
@@ -1389,7 +1389,7 @@ function scheduleStatePersist() {
 
 function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
-  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  try { persistLocalState(); } catch {}
   listeners.forEach((l) => l());
   if (options.persist !== false) scheduleStatePersist();
 }
@@ -1418,7 +1418,7 @@ export async function applyIncrementalEvents(events: import("@/lib/sync-outbox")
     const privateData = await loadPrivateData([]);
     state = { ...state, settings: { ...state.settings, ...privateData.settings } };
   }
-  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  try { persistLocalState(); } catch {}
   listeners.forEach((listener) => listener());
 }
 
@@ -1455,7 +1455,7 @@ export async function syncNewContacts(): Promise<number> {
   const additions = downloaded.filter((contact) => !currentIds.has(contact.id));
   if (additions.length) {
     state = { ...state, contacts: [...additions, ...(state.contacts ?? [])] };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    try { persistLocalState(); } catch {}
     listeners.forEach((listener) => listener());
   }
   return additions.length;
@@ -2341,7 +2341,7 @@ export const actions = {
 
     const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n);
     state = { ...state, receiving: updated };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    try { persistLocalState(); } catch {}
     listeners.forEach((listener) => listener());
     void hydrateStore();
     return true;
@@ -2396,7 +2396,7 @@ export const actions = {
         ? { ...n, decisions, decisionCompleted: true, status: "aceito", stockReleased: true }
         : n),
     };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    try { persistLocalState(); } catch {}
     listeners.forEach((l) => l());
     void hydrateStore();
     return true;
