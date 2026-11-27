@@ -76,6 +76,16 @@ jobs:
           VITE_MOBFLOW_CATALOG_READ_PROVIDER: "neon"
         run: npm run build
 
+      - name: Confirmar Neon Realtime embutido no build do EXE
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem ".output/public" -Recurse -File
+          $endpoint = "https://ep-tiny-band-bd5bkjdc.rt.c-8.us-east-2.aws.neon.tech/"
+          $embedded = Select-String -Path $assets.FullName -SimpleMatch $endpoint -Quiet
+          if (-not $embedded) { throw "O endpoint público do Neon Realtime não foi incorporado ao bundle que será empacotado no EXE." }
+          Write-Host "Aprovado: endpoint público do Neon Realtime está embutido no bundle do EXE."
+
       - name: Verificar shell local do MobFlow
         working-directory: ${{ github.workspace }}
         shell: pwsh
