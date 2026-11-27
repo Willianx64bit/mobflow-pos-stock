@@ -340,9 +340,8 @@ function PDV() {
       const scanCode = multipliedScan?.[2] ?? value;
       if (/^\d{6,}$/.test(scanCode) && !productsByBarcode.has(scanCode) && !isOfflineMode()) {
         e.preventDefault();
-        void actions.searchCatalogProducts(scanCode, 10).then((found) => {
-          const match = found.find((product) => productHasBarcode(product, scanCode));
-          if (!match) { setFlash(`código não cadastrado: ${scanCode}`); return; }
+        void actions.lookupCatalogBarcode(scanCode).then((match) => {
+          if (!match || !productHasBarcode(match, scanCode)) { setFlash(`código não cadastrado: ${scanCode}`); return; }
           setSupplementalProducts((current) => [...current.filter((item) => item.id !== match.id), match]);
           if (!quick) { setFlash("bipe rápido desligado: código pesquisado, não adicionado"); return; }
           if (multipliedScan) {
