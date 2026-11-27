@@ -10,6 +10,7 @@ async function getProductDetails(request: Request) {
     return Response.json({ ok: false, error: "O catálogo Neon ainda não está habilitado neste ambiente.", code: "catalog_provider_disabled" }, { status: 503 });
   }
   const productId = new URL(request.url).searchParams.get("productId")?.trim() ?? "";
+  const includeSales = new URL(request.url).searchParams.get("includeSales") !== "0";
   if (!productId || productId.length > 160) {
     return Response.json({ ok: false, error: "Produto inválido.", code: "invalid_product_id" }, { status: 400 });
   }
@@ -20,6 +21,17 @@ async function getProductDetails(request: Request) {
     const isManager = identity.role === "manager" ||
       (Array.isArray(identity.permissions) && identity.permissions.includes("Gerência"));
     if (!isManager) throw new ProductDetailsApiError("Somente a Gerência pode consultar custos e totais de vendas.", 403, "permission_denied");
+    if (!includeSales) {
+      const costResult = await client.query(
+        "SELECT cost::text AS cost FROM public.products WHERE tenant_id=$1 AND id=$2",
+        [identity.accountId, productId],
+      );
+      if (!costResult.rows.length) throw new ProductDetailsApiError("Produto não encontrado nesta empresa.", 404, "product_not_found");
+      const cost = Number(costResult.rows[0].cost ?? 0);
+      await releaseTransaction(client, true);
+      transaction = null;
+      return Response.json({ ok: true, cost }, { headers: { "Cache-Control": "no-store" } });
+    }
     const result = await client.query(
       "SELECT p.cost::text AS cost, " +
       "COALESCE(SUM(si.quantity) FILTER (WHERE s.id IS NOT NULL),0)::text AS units_sold, " +
