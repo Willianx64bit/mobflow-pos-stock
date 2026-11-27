@@ -45,8 +45,8 @@ describe("Neon product catalog API",()=>{
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1"}],hasMore:true,nextCursor:"p1"});
   const [sql,params]=client.query.mock.calls[1] ?? [];
-  expect(String(sql)).toContain("(p.name,p.id)>(SELECT cp.name,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)");
-  expect(String(sql)).toContain("ORDER BY p.name,p.id LIMIT $5");
+  expect(String(sql)).toContain("(p.created_at,p.id)>(SELECT cp.created_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)");
+  expect(String(sql)).toContain("ORDER BY p.created_at,p.id LIMIT $5");
   expect(params).toEqual([TENANT,null,"","p0",2]);
  });
  it("returns only compact price and stock fields for realtime refreshes",async()=>{
