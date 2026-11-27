@@ -183,7 +183,7 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   const old=oldResult.rows[0];if(Number(old.version)!==version)fail("Produto alterado em outro dispositivo. Atualize e tente novamente.",409,"version_conflict");
   const unit=body.unit===undefined?old.unit:body.unit;if(unit!=="un"&&unit!=="kg")fail("Unidade inválida.");
   const values=[
-   field(body.code,"código",true,80)??old.code,field(body.name,"nome",true,160)??old.name,
+   body.code===undefined?old.code:field(body.code,"código",true,80)!,body.name===undefined?old.name:field(body.name,"nome",true,160)!,
    body.ref===undefined?old.reference:field(body.ref,"referência",false,80),
    body.category===undefined?old.category:field(body.category,"categoria",false,100),
    unit,amount(body.price,"preço",Number(old.price)),amount(body.cost,"custo",Number(old.cost)),
