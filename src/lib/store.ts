@@ -96,6 +96,7 @@ let state: State = emptyState();
 let receivingDraftPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let loaded = false;
 let cloudReady = false;
+let catalogStorageReady = false;
 let hydrating: Promise<void> | null = null;
 let realtimeOwnerId: string | null = null;
 let cloudAccountId: string | null = null;
@@ -299,7 +300,9 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
 }
 
 function persistLocalState() {
-  try { localStorage.setItem(activeStateKey, JSON.stringify({ ...state, products: [] })); } catch {}
+  try {
+    localStorage.setItem(activeStateKey, JSON.stringify(catalogStorageReady ? { ...state, products: [] } : state));
+  } catch {}
 }
 
 async function persistCatalogDelta(previous: Product[], next: Product[]) {
@@ -713,7 +716,11 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
         if (mode === "full") {
           if (!activeFilter && typeof localStorage !== "undefined") {
             const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
-            if (tenantId) await replaceOfflineCatalog(tenantId, (async function* () { for (let offset = 0; offset < products.length; offset += 500) yield products.slice(offset, offset + 500); })());
+            if (tenantId) {
+              await replaceOfflineCatalog(tenantId, (async function* () { for (let offset = 0; offset < products.length; offset += 500) yield products.slice(offset, offset + 500); })());
+              catalogStorageReady = true;
+              persistLocalState();
+            }
           }
           return products;
         }
@@ -974,7 +981,13 @@ export async function hydrateStoreOffline(accountId: string) {
   state = { ...emptyState(), ...(cached as State) };
   try {
     const catalog = await readOfflineCatalog(accountId);
-    if (catalog.hasCatalog) state.products = catalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+    if (catalog.hasCatalog) {
+      catalogStorageReady = true;
+      state.products = catalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+    } else if (state.products.length) {
+      await replaceOfflineCatalog(accountId, (async function* () { yield state.products; })());
+      catalogStorageReady = true;
+    }
   } catch (error) {
     if (!state.products.length) throw new Error("Não foi possível recuperar o catálogo offline desta empresa.");
     console.warn("[MobFlow Catalog] Using legacy localStorage catalog:", error);
@@ -1103,14 +1116,20 @@ export async function hydrateStore() {
       }
       const accountId = contextResult.body.accountId;
       activeStateKey = tenantStateKey(accountId);
+      catalogStorageReady = false;
       loaded = false;
       state = emptyState();
       load();
       const legacyLocalProducts = [...(state.products ?? [])];
       try {
         const cachedCatalog = await readOfflineCatalog(accountId);
-        if (cachedCatalog.hasCatalog) state.products = cachedCatalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
-        else if (legacyLocalProducts.length) await replaceOfflineCatalog(accountId, (async function* () { yield legacyLocalProducts; })());
+        if (cachedCatalog.hasCatalog) {
+          catalogStorageReady = true;
+          state.products = cachedCatalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+        } else if (legacyLocalProducts.length) {
+          await replaceOfflineCatalog(accountId, (async function* () { yield legacyLocalProducts; })());
+          catalogStorageReady = true;
+        }
       } catch (catalogError) {
         console.warn("[MobFlow Catalog] IndexedDB cache unavailable; using the previous local snapshot:", catalogError);
         if (isDesktopRuntime() && legacyLocalProducts.length === 0) throw new Error("Não foi possível abrir o catálogo offline deste computador.");
