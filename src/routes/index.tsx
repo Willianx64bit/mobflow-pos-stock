@@ -51,7 +51,9 @@ function PDV() {
   const [, setPriceClock] = useState(0);
   useEffect(() => { const timer = setInterval(() => setPriceClock((v) => v + 1), 15000); return () => clearInterval(timer); }, []);
   const [q, setQ] = useState("");
+  const [visibleProductLimit, setVisibleProductLimit] = useState(60);
   const [sel, setSel] = useState(0);
+  useEffect(() => { setVisibleProductLimit(60); }, [q, productView]);
   const [payment, setPayment] = useState<Payment>("Pix");
   const [received, setReceived] = useState("");
   const [paymentShortcutArmed, setPaymentShortcutArmed] = useState(false);
@@ -204,11 +206,22 @@ function PDV() {
     }, 120);
   };
 
+  const productSearchIndex = useMemo(() => sellableProducts.map((product) => ({
+    product,
+    name: norm(product.name),
+    category: norm(product.category),
+    code: product.code.toLocaleLowerCase(),
+    barcodes: (product.barcodes ?? []).map((barcode) => barcode.toLocaleLowerCase()),
+  })), [sellableProducts]);
   const results = useMemo(() => {
     const n = norm(q.trim());
-    if (!n) return sellableProducts;
-    return sellableProducts.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
-  }, [q, sellableProducts]);
+    if (!n) return productSearchIndex.map((entry) => entry.product);
+    return productSearchIndex
+      .filter((entry) => entry.name.includes(n) || entry.code.includes(n) ||
+        entry.barcodes.some((barcode) => barcode.includes(n)) || entry.category.includes(n))
+      .map((entry) => entry.product);
+  }, [q, productSearchIndex]);
+  const visibleResults = useMemo(() => results.slice(0, visibleProductLimit), [results, visibleProductLimit]);
 
   const lines = cart.map((c) => ({ ...c, p: productsById.get(c.productId)! })).filter((l) => l.p);
   const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
@@ -382,7 +395,7 @@ function PDV() {
           {flash && <div className={`mt-2 w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</div>}
 
           <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3 content-start" : "flex flex-col"} gap-2 mt-2 flex-1 min-h-0 overflow-y-auto pr-1`}>
-            {results.map((p, i) => {
+            {visibleResults.map((p, i) => {
               return (
                 <button
                   key={p.id}
@@ -417,6 +430,12 @@ function PDV() {
                 </button>
               );
             })}
+            {results.length > visibleResults.length && (
+              <button type="button" onClick={() => setVisibleProductLimit((limit) => Math.min(limit + 60, results.length))}
+                className="col-span-full my-2 rounded-xl border border-border bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+                Mostrar mais produtos ({visibleResults.length} de {results.length})
+              </button>
+            )}
           </div>
           
         </section>
