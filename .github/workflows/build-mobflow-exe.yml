@@ -19,6 +19,8 @@ on:
       - "src/components/AppHeader.tsx"
       - "src/lib/store.ts"
       - "src/lib/sync-outbox.ts"
+      - "src/lib/sync-event-apply.ts"
+      - "src/routes/api/mobflow/products.ts"
       - "src/routes/api/mobflow/receivables.ts"
       - "src/routes/api/mobflow/state.ts"
       - "src/routes/fiado.tsx"
