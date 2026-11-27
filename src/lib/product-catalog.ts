@@ -131,7 +131,7 @@ export async function readPendingOfflineCatalog(tenantId: string): Promise<Offli
       return [];
     }
     const index = tx.objectStore(PRODUCT_STORE).index("tenantGenerationName");
-    const range = IDBKeyRange.bound([tenantId, meta.pendingGeneration, ""], [tenantId, meta.pendingGeneration, "\\uffff"]);
+    const range = IDBKeyRange.bound([tenantId, meta.pendingGeneration, ""], [tenantId, meta.pendingGeneration, "\uffff"]);
     const records = await requestValue(index.getAll(range)) as CatalogRecord[];
     await done;
     return records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product);
