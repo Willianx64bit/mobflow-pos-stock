@@ -150,8 +150,9 @@ export async function removeOfflineCatalogProduct(tenantId: string, productId: s
   const db = await openCatalogDb();
   try {
     const metaTx = db.transaction(META_STORE, "readonly");
+    const metaDone = transactionDone(metaTx);
     const meta = await requestValue(metaTx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
-    await transactionDone(metaTx);
+    await metaDone;
     if (!meta?.activeGeneration) return;
     const tx = db.transaction(PRODUCT_STORE, "readwrite");
     const done = transactionDone(tx);
