@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
 import { ImportProducts } from "@/components/ImportProducts";
@@ -38,45 +38,61 @@ function Cell({ value, onSave, money, danger, weight }: { value: number; onSave:
 
 function Estoque() {
   const navigate = useNavigate();
-  const products = useStore((s) => s.products);
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>(products);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [summary, setSummary] = useState({ total: 0, active: 0, inactive: 0, low: 0, value: 0 });
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  const refreshStockCatalog = async () => {
-    const loaded = await actions.loadStockCatalog();
-    setCatalogProducts(loaded);
-  };
-  useEffect(() => {
-    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
-  }, [navigate]);
-
-  useEffect(() => {
-    void actions.refreshCatalog().finally(() => { void refreshStockCatalog().catch(() => undefined); });
-  }, []);
-
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportProducts, setExportProducts] = useState<Product[]>([]);
 
-  const list = useMemo(() => {
-    const n = norm(q);
-    return catalogProducts.filter((p) => (!onlyLow || p.stock <= p.minStock) && (!n || norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n)));
-  }, [catalogProducts, q, onlyLow]);
-  const [visibleCount, setVisibleCount] = useState(50);
-  useEffect(() => { setVisibleCount(50); }, [q, onlyLow]);
-  const visibleList = list.slice(0, visibleCount);
-  const lowCount = catalogProducts.filter((p) => p.stock <= p.minStock).length;
-  const value = catalogProducts.reduce((s, p) => s + p.price * Math.max(0, p.stock), 0);
+  const refreshStockCatalog = async () => {
+    setLoading(true);
+    try {
+      const [page, totals] = await Promise.all([
+        actions.loadStockCatalogPage(q, null, onlyLow, 50),
+        actions.loadStockCatalogSummary(),
+      ]);
+      setCatalogProducts(page.products);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+      setSummary(totals);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const loadMoreProducts = async () => {
+    if (!hasMore || !nextCursor || loading) return;
+    setLoading(true);
+    try {
+      const page = await actions.loadStockCatalogPage(q, nextCursor, onlyLow, 50);
+      setCatalogProducts((current) => [...current, ...page.products]);
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
+  }, [navigate]);
+
+  useEffect(() => { void refreshStockCatalog().catch(() => undefined); }, [q, onlyLow]);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
       <AppHeader />
       <div className="grid sm:grid-cols-3 gap-4 mb-4">
-        {[["Produtos", String(catalogProducts.length)], ["Valor em estoque", `R$ ${brl(value)}`], ["Estoque baixo", String(lowCount)]].map(([l, v], i) => (
+        {[["Produtos", summary.total.toLocaleString("pt-BR")], ["Valor em estoque", `R$ ${brl(summary.value)}`], ["Estoque baixo", summary.low.toLocaleString("pt-BR")]].map(([l, v], i) => (
           <div key={l} className="glass p-4">
             <div className="label-mono">{l}</div>
-            <div className={`font-display text-4xl mt-1 ${i === 2 && lowCount ? "text-destructive" : "text-heading"}`}>{v}</div>
+            <div className={`font-display text-4xl mt-1 ${i === 2 && summary.low ? "text-destructive" : "text-heading"}`}>{v}</div>
           </div>
         ))}
       </div>
@@ -91,7 +107,7 @@ function Estoque() {
           <button onClick={() => setImporting(true)} className="rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 bg-secondary ring-border text-secondary-foreground hover:bg-accent">
             ⬆ Importar planilha
           </button>
-          <button onClick={() => setExporting(true)} className="rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 bg-secondary ring-border text-secondary-foreground hover:bg-accent">
+          <button onClick={async () => { const all = await actions.loadStockCatalog(); setExportProducts(all); setExporting(true); }} className="rounded-lg px-3 py-2 text-[12px] font-semibold ring-1 bg-secondary ring-border text-secondary-foreground hover:bg-accent">
             ⬇ Exportar estoque
           </button>
           <button onClick={() => setEditing(null)} className="text-[13px] font-semibold text-primary-foreground bg-primary rounded-lg px-4 py-2 hover:bg-primary/85">
@@ -104,7 +120,7 @@ function Estoque() {
               <span></span><span>Foto</span><span>Código</span><span>Descrição</span><span>Quantidade</span><span>Preço</span><span>Situação</span>
             </div>
             <div className="divide-y divide-border/50">
-              {visibleList.map((p) => {
+              {catalogProducts.map((p) => {
                 const low = p.stock <= p.minStock;
                 return (
                   <div key={p.id} className={`grid grid-cols-[34px_72px_120px_1fr_100px_100px_140px] gap-x-3 items-center py-3 px-2 text-[16px] rounded-lg ${low ? "bg-destructive/5" : ""} ${p.active === false ? "opacity-70" : ""}`}>
@@ -135,15 +151,15 @@ function Estoque() {
                   </div>
                 );
               })}
-              {list.length === 0 && <p className="py-10 text-center font-mono text-[13px] text-muted-foreground">nenhum produto encontrado</p>}
+              {!loading && catalogProducts.length === 0 && <p className="py-10 text-center font-mono text-[13px] text-muted-foreground">nenhum produto encontrado</p>}{loading && catalogProducts.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Carregando produtos…</p>}
             </div>
-            {visibleCount < list.length && (
+            {(hasMore || catalogProducts.length > 0) && (
               <div className="flex flex-col items-center gap-2 py-4">
-                <p className="text-xs text-muted-foreground">Exibindo {visibleList.length.toLocaleString("pt-BR")} de {list.length.toLocaleString("pt-BR")} produtos</p>
-                <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + 50, list.length))}
-                  className="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
-                  Carregar mais 50 produtos
-                </button>
+                <p className="text-xs text-muted-foreground">Exibindo {catalogProducts.length.toLocaleString("pt-BR")} produtos{summary.total ? ` · ${summary.total.toLocaleString("pt-BR")} no catálogo` : ""}</p>
+                {hasMore && <button type="button" disabled={loading} onClick={() => void loadMoreProducts()}
+                  className="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent disabled:opacity-50">
+                  {loading ? "Carregando…" : "Carregar mais 50 produtos"}
+                </button>}
               </div>
             )}
           </div>
@@ -152,7 +168,7 @@ function Estoque() {
       </section>
       {editing !== undefined && <ProductForm product={editing} onClose={() => { setEditing(undefined); void refreshStockCatalog().catch(() => undefined); }} />}
       {importing && <ImportProducts onClose={() => { setImporting(false); void refreshStockCatalog().catch(() => undefined); }} />}
-      {exporting && <StockExportDialog products={catalogProducts} onClose={() => setExporting(false)} />}
+      {exporting && <StockExportDialog products={exportProducts} onClose={() => setExporting(false)} />}
     </div>
   );
 }
