@@ -26,6 +26,7 @@ function Estoque() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [category, setCategory] = useState("");
@@ -102,6 +103,19 @@ function Estoque() {
       setLoadingExport(false);
     }
   };
+  const openEdit = async (product: Product) => {
+    setLoadingEditId(product.id);
+    try {
+      // The paged inventory list intentionally omits cost. Fetch it only when
+      // opening the editor so ProductForm never defaults an existing cost to zero.
+      const productDetails = await actions.loadStockProductDetails(product.id);
+      setEditing({ ...product, cost: productDetails.cost });
+    } catch (reason) {
+      alert(reason instanceof Error ? reason.message : "Não foi possível carregar o custo do produto.");
+    } finally {
+      setLoadingEditId(null);
+    }
+  };
   const openDetails = async (product: Product) => {
     setDetailsFor(product);
     setDetails(null);
@@ -169,7 +183,7 @@ function Estoque() {
                 const low = product.stock <= product.minStock;
                 return (
                   <div key={product.id} className={`grid grid-cols-[34px_34px_72px_120px_1fr_100px_100px_140px] gap-x-3 items-center py-3 px-2 text-[16px] rounded-lg ${low ? "bg-destructive/5" : ""} ${product.active === false ? "opacity-70" : ""}`}>
-                    <button onClick={() => setEditing(product)} aria-label={`Editar ${product.name}`} title="Editar produto" className="h-7 w-7 rounded-md grid place-items-center text-muted-foreground hover:text-primary hover:bg-accent text-lg">✎</button>
+                    <button onClick={() => void openEdit(product)} disabled={loadingEditId === product.id} aria-label={`Editar ${product.name}`} title="Editar produto" className="h-7 w-7 rounded-md grid place-items-center text-muted-foreground hover:text-primary hover:bg-accent text-lg disabled:opacity-40">{loadingEditId === product.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "✎"}</button>
                     <button onClick={() => void openDetails(product)} aria-label={`Ver custo e vendas de ${product.name}`} title="Ver custo e totais de vendas" className="h-7 w-7 rounded-md grid place-items-center text-muted-foreground hover:text-primary hover:bg-accent">
                       <Eye className="h-4 w-4" />
                     </button>
