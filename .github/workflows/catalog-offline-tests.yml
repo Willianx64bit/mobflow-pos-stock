@@ -17,6 +17,8 @@ on:
       - "src/routes/api/mobflow/state.ts"
       - "src/test/product-catalog.test.ts"
       - "src/test/product-search.test.ts"
+      - "src/test/desktop-stock-inventory.test.ts"
+      - "src/lib/desktop-stock-inventory.ts"
       - "src/test/mobflow-products-api.test.ts"
       - "src/test/mobflow-products-inventory-api.test.ts"
       - "src/test/mobflow-products-details-api.test.ts"
@@ -51,7 +53,7 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Test atomic offline catalog
-        run: npm test -- src/test/product-catalog.test.ts src/test/product-search.test.ts src/test/mobflow-products-api.test.ts src/test/mobflow-products-inventory-api.test.ts src/test/mobflow-products-details-api.test.ts src/test/mobflow-bidirectional-sync.test.ts src/test/sync-outbox.test.ts src/lib/sync-event-apply.test.ts
+        run: npm test -- src/test/product-catalog.test.ts src/test/product-search.test.ts src/test/desktop-stock-inventory.test.ts src/test/mobflow-products-api.test.ts src/test/mobflow-products-inventory-api.test.ts src/test/mobflow-products-details-api.test.ts src/test/mobflow-bidirectional-sync.test.ts src/test/sync-outbox.test.ts src/lib/sync-event-apply.test.ts
       - name: TypeScript validation
         run: npx tsc --noEmit -p tsconfig.catalog.json
       - name: Build application bundle
