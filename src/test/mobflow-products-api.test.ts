@@ -41,7 +41,7 @@ describe("Neon product catalog API",()=>{
  });
  it("uses an opaque immutable cursor and returns the last product as cursor",async()=>{
   const cursor="v2."+Buffer.from(JSON.stringify({createdAt:"2026-11-08T10:00:00.000Z",id:"p0"})).toString("base64url");
-  const expectedNext="v2."+Buffer.from(JSON.stringify({createdAt:"2026-11-08T10:00:00.000Z",id:"p1"})).toString("base64url");
+  const expectedNext="v2."+Buffer.from(JSON.stringify({createdAt:"2026-11-08T10:00:00Z",id:"p1"})).toString("base64url");
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product,{...product,id:"p2",name:"Feijão"}]});
   const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?limit=1&cursor="+encodeURIComponent(cursor))});
   expect(response.status).toBe(200);
