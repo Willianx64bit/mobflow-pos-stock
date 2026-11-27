@@ -11,6 +11,7 @@ on:
       - "src/routes/api/mobflow/products.ts"
       - "src/routes/api/mobflow/state.ts"
       - "src/test/product-catalog.test.ts"
+      - "tsconfig.catalog.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/catalog-offline-tests.yml"
@@ -38,6 +39,6 @@ jobs:
       - name: Test atomic offline catalog
         run: npm test -- src/test/product-catalog.test.ts
       - name: TypeScript validation
-        run: npx tsc --noEmit
+        run: npx tsc --noEmit -p tsconfig.catalog.json
       - name: Build application bundle
         run: npm run build
