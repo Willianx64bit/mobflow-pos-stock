@@ -39,6 +39,14 @@ describe("Neon product details API",()=>{
   expect(client.query.mock.calls[0]?.[1]).toEqual([TENANT,"p1"]);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
+ it("returns only current cost for the editor without scanning sales history",async()=>{
+  client.query.mockResolvedValueOnce({rows:[{cost:"7.25"}]});
+  const response=await handler({request:req("https://mobflow.test/api/mobflow/products/details?productId=p1&includeSales=0")});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,cost:7.25});
+  expect(String(client.query.mock.calls[0]?.[0])).toContain("SELECT cost::text AS cost FROM public.products");
+  expect(String(client.query.mock.calls[0]?.[0])).not.toContain("sale_items");
+ });
  it("does not disclose cost or sales totals to PDV operators",async()=>{
   beginAuthenticatedTransaction.mockResolvedValueOnce({client,identity:{userId:"u1",accountId:TENANT,role:"pdv",permissions:["PDV"]}});
   const response=await handler({request:req()});
