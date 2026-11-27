@@ -108,6 +108,16 @@ jobs:
           Write-Host "Instalador gerado: $($installer.Name)"
           if ($installer.Length -lt 10MB) { throw "Instalador inesperadamente pequeno." }
 
+      - name: Gerar checksum SHA-256 do instalador
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "dist/*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Instalador EXE não encontrado para gerar checksum." }
+          $hash = (Get-FileHash -Path $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $checksum = Join-Path $installer.DirectoryName ($installer.Name + ".sha256")
+          "$hash  $($installer.Name)" | Set-Content -Path $checksum -Encoding ascii
+          Write-Host "SHA-256: $hash"
+
       - name: Testar instalação e inicialização local sem internet
         shell: pwsh
         run: |
@@ -178,6 +188,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mobflow-windows-exe
-          path: desktop-wrapper/dist/*.exe
+          path: |
+            desktop-wrapper/dist/*.exe
+            desktop-wrapper/dist/*.exe.sha256
           if-no-files-found: error
           retention-days: 30
