@@ -52,6 +52,15 @@ jobs:
       - name: Baixar código
         uses: actions/checkout@v4
 
+      - name: Registrar versão do aplicativo
+        id: desktop-version
+        shell: pwsh
+        run: |
+          $package = Get-Content "package.json" -Raw | ConvertFrom-Json
+          if (-not $package.version) { throw "Versão não encontrada em desktop-wrapper/package.json." }
+          "version=$($package.version)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Versão do instalador: $($package.version)"
+
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
@@ -187,7 +196,7 @@ jobs:
       - name: Publicar instalador como artefato
         uses: actions/upload-artifact@v4
         with:
-          name: mobflow-windows-exe
+          name: mobflow-windows-exe-${{ steps.desktop-version.outputs.version }}
           path: |
             desktop-wrapper/dist/*.exe
             desktop-wrapper/dist/*.exe.sha256
