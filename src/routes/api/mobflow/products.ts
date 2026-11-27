@@ -83,7 +83,7 @@ async function getProducts(request:Request){
   tx=await beginAuthenticatedTransaction(request);const c=tx.client;await ready(c);
   if(summaryOnly){
    const summaryResult=await c.query(
-    "SELECT COUNT(*)::text AS total,COUNT(*) FILTER(WHERE active)::text AS active,COUNT(*) FILTER(WHERE NOT active)::text AS inactive,COUNT(*) FILTER(WHERE active AND stock<=min_stock)::text AS low,COALESCE(SUM(price*GREATEST(stock,0)) FILTER(WHERE active),0)::text AS value FROM public.products WHERE tenant_id=$1",
+    "SELECT COUNT(*)::text AS total,COUNT(*) FILTER(WHERE active)::text AS active,COUNT(*) FILTER(WHERE NOT active)::text AS inactive,COUNT(*) FILTER(WHERE stock<=min_stock)::text AS low,COALESCE(SUM(price*GREATEST(stock,0)),0)::text AS value FROM public.products WHERE tenant_id=$1",
     [tx.identity.accountId]);
    await releaseTransaction(c,true);tx=null;
    const row=summaryResult.rows[0]??{};
