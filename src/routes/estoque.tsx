@@ -63,6 +63,9 @@ function Estoque() {
     const n = norm(q);
     return catalogProducts.filter((p) => (!onlyLow || p.stock <= p.minStock) && (!n || norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n)));
   }, [catalogProducts, q, onlyLow]);
+  const [visibleCount, setVisibleCount] = useState(50);
+  useEffect(() => { setVisibleCount(50); }, [q, onlyLow]);
+  const visibleList = list.slice(0, visibleCount);
   const lowCount = catalogProducts.filter((p) => p.stock <= p.minStock).length;
   const value = catalogProducts.reduce((s, p) => s + p.price * Math.max(0, p.stock), 0);
 
@@ -101,7 +104,7 @@ function Estoque() {
               <span></span><span>Foto</span><span>Código</span><span>Descrição</span><span>Quantidade</span><span>Preço</span><span>Situação</span>
             </div>
             <div className="divide-y divide-border/50">
-              {list.map((p) => {
+              {visibleList.map((p) => {
                 const low = p.stock <= p.minStock;
                 return (
                   <div key={p.id} className={`grid grid-cols-[34px_72px_120px_1fr_100px_100px_140px] gap-x-3 items-center py-3 px-2 text-[16px] rounded-lg ${low ? "bg-destructive/5" : ""} ${p.active === false ? "opacity-70" : ""}`}>
@@ -134,6 +137,15 @@ function Estoque() {
               })}
               {list.length === 0 && <p className="py-10 text-center font-mono text-[13px] text-muted-foreground">nenhum produto encontrado</p>}
             </div>
+            {visibleCount < list.length && (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <p className="text-xs text-muted-foreground">Exibindo {visibleList.length.toLocaleString("pt-BR")} de {list.length.toLocaleString("pt-BR")} produtos</p>
+                <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + 50, list.length))}
+                  className="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent">
+                  Carregar mais 50 produtos
+                </button>
+              </div>
+            )}
           </div>
         </div>
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Use o ✎ no início do produto para editar.</p>
