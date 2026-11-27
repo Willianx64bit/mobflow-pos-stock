@@ -76,8 +76,12 @@ async function getProducts(request:Request){
  const u=new URL(request.url),raw=u.searchParams.get("limit")??"50";
  if(!/^\d+$/.test(raw)||Number(raw)<1)return Response.json({ok:false,error:"Limite inválido.",code:"invalid_product_query"},{status:400});
  const limit=Math.min(Number(raw),100),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
+ const updatedSinceRaw=u.searchParams.get("updatedSince");
+ const updatedSince=updatedSinceRaw===null?null:new Date(updatedSinceRaw);
  const liveOnly=projection==="live";
- if(cursor&&cursor.length>160||active!==null&&active!=="true"&&active!=="false"||projection!==null&&!liveOnly)return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
+ if(cursor&&cursor.length>160||active!==null&&active!=="true"&&active!=="false"||projection!==null&&!liveOnly||
+    (updatedSinceRaw!==null&&(!updatedSinceRaw||!Number.isFinite(updatedSince.getTime()))))return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
+ const updatedSinceIso=updatedSince?.toISOString()??null;
  let tx:any=null;
  try{
   tx=await beginAuthenticatedTransaction(request);const c=tx.client;await ready(c);
@@ -89,7 +93,17 @@ async function getProducts(request:Request){
       "AND ($4::text IS NULL OR (p.name,p.id)>(SELECT cp.name,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
       "ORDER BY p.name,p.id LIMIT $5",
       [tx.identity.accountId,active===null?null:active==="true",q,cursor,limit+1])
-   : await c.query(
+   : updatedSinceIso
+    ? await c.query(
+      "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
+      "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
+      "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
+      "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
+      "AND p.updated_at > $5::timestamptz "+
+      "AND ($4::text IS NULL OR (p.updated_at,p.id)>(SELECT cp.updated_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
+      "GROUP BY p.tenant_id,p.id ORDER BY p.updated_at,p.id LIMIT $6",
+      [tx.identity.accountId,active===null?null:active==="true",q,cursor,updatedSinceIso,limit+1])
+    : await c.query(
       "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
       "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
