@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createHash, randomUUID } from "node:crypto";
+import { Buffer } from "node:buffer";
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { beginAuthenticatedTransaction, jsonError, ApiAuthError } from "@/lib/server/mobflow-auth";
 import { releaseTransaction } from "@/lib/server/neon";
@@ -49,6 +50,27 @@ const mapProduct=(r:ProductRow)=>({
   version:Number(r.version),createdAt:r.created_at,updatedAt:r.updated_at,barcodes:r.barcodes??[],
 });
 const columns="id,code,name,reference,unit,price::text,cost::text,stock::text,min_stock::text,category,photo_object_key,active,version::text,created_at,updated_at";
+type ProductCursorPosition = { createdAt: string; id: string };
+function encodeProductCursor(row: { created_at: unknown; id: string }): string {
+ const date = new Date(row.created_at as string | number | Date);
+ if (!Number.isFinite(date.getTime()) || typeof row.id !== "string" || !row.id) {
+  throw new ProductApiError("Não foi possível criar o cursor de paginação do catálogo.",500,"invalid_product_cursor");
+ }
+ return "v2."+Buffer.from(JSON.stringify({createdAt:date.toISOString(),id:row.id}),"utf8").toString("base64url");
+}
+function decodeProductCursor(cursor: string): ProductCursorPosition | null {
+ if (!cursor.startsWith("v2.")) return null;
+ try {
+  const value=JSON.parse(Buffer.from(cursor.slice(3),"base64url").toString("utf8"));
+  if (!value || typeof value.createdAt!=="string" || typeof value.id!=="string" || !value.id || !Number.isFinite(Date.parse(value.createdAt))) {
+   fail("Cursor de paginação inválido.",400,"invalid_product_cursor");
+  }
+  return {createdAt:new Date(value.createdAt).toISOString(),id:value.id};
+ } catch (error) {
+  if (error instanceof ProductApiError) throw error;
+  fail("Cursor de paginação inválido.",400,"invalid_product_cursor");
+ }
+}
 async function ready(client:any,requireEvents=false){
  const r=await client.query("SELECT to_regclass('public.products')::text AS p,to_regclass('public.product_barcodes')::text AS b,to_regclass('public.mobflow_sync_events')::text AS e,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS fn");
  if(!r.rows[0]?.p||!r.rows[0]?.b||(requireEvents&&(!r.rows[0]?.e||!r.rows[0]?.fn)))throw new ProductApiError("O catálogo relacional ainda não foi preparado neste ambiente.",503,"catalog_schema_not_ready");
@@ -81,25 +103,34 @@ async function getProducts(request:Request){
  let tx:any=null;
  try{
   tx=await beginAuthenticatedTransaction(request);const c=tx.client;await ready(c);
+  let cursorPosition: ProductCursorPosition | null = cursor ? decodeProductCursor(cursor) : null;
+  if (cursor && !cursorPosition) {
+   // Backward compatibility with an interrupted sync created before v2 cursors.
+   const legacy = await c.query("SELECT created_at::text AS created_at,id FROM public.products WHERE tenant_id=$1 AND id=$2",[tx.identity.accountId,cursor]);
+   if (!legacy.rows.length) fail("O cursor salvo não existe mais no catálogo. Reinicie a sincronização completa.",409,"stale_product_cursor");
+   const date = new Date(legacy.rows[0].created_at);
+   if (!Number.isFinite(date.getTime())) fail("O cursor salvo do catálogo é inválido.",409,"stale_product_cursor");
+   cursorPosition = {createdAt:date.toISOString(),id:String(legacy.rows[0].id)};
+  }
   const result=liveOnly
    ? await c.query(
-      "SELECT p.id,p.price::text,p.stock::text FROM public.products p "+
+      "SELECT p.id,p.price::text,p.stock::text,p.created_at FROM public.products p "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
-      "AND ($4::text IS NULL OR (p.created_at,p.id)>(SELECT cp.created_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
-      "ORDER BY p.created_at,p.id LIMIT $5",
-      [tx.identity.accountId,active===null?null:active==="true",q,cursor,limit+1])
+      "AND ($4::timestamptz IS NULL OR (p.created_at,p.id)>($4::timestamptz,$5::text)) "+
+      "ORDER BY p.created_at,p.id LIMIT $6",
+      [tx.identity.accountId,active===null?null:active==="true",q,cursorPosition?.createdAt??null,cursorPosition?.id??null,limit+1])
    : await c.query(
       "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
       "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
-      "AND ($4::text IS NULL OR (p.created_at,p.id)>(SELECT cp.created_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
-      "GROUP BY p.tenant_id,p.id ORDER BY p.created_at,p.id LIMIT $5",
-      [tx.identity.accountId,active===null?null:active==="true",q,cursor,limit+1]);
+      "AND ($4::timestamptz IS NULL OR (p.created_at,p.id)>($4::timestamptz,$5::text)) "+
+      "GROUP BY p.tenant_id,p.id ORDER BY p.created_at,p.id LIMIT $6",
+      [tx.identity.accountId,active===null?null:active==="true",q,cursorPosition?.createdAt??null,cursorPosition?.id??null,limit+1]);
   const more=result.rows.length>limit,rows=result.rows.slice(0,limit);
   await releaseTransaction(c,true);tx=null;
-  return Response.json({ok:true,products:liveOnly?rows.map((r:any)=>({id:r.id,price:Number(r.price),stock:Number(r.stock)})):rows.map(mapProduct),nextCursor:more?rows[rows.length-1].id:null,hasMore:more});
+  return Response.json({ok:true,products:liveOnly?rows.map((r:any)=>({id:r.id,price:Number(r.price),stock:Number(r.stock)})):rows.map(mapProduct),nextCursor:more?encodeProductCursor(rows[rows.length-1]):null,hasMore:more});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 async function writeProduct(request:Request,method:"POST"|"PATCH"){
