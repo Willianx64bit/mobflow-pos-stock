@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildProductBarcodeIndex, searchLocalProducts } from "@/lib/product-search";
+import { buildLocalProductSearchIndex, buildProductBarcodeIndex, searchIndexedLocalProducts, searchLocalProducts } from "@/lib/product-search";
 import type { Product } from "@/lib/store";
 
 const product = (id: string, name: string, code: string, barcodes: string[] = []): Product => ({
@@ -20,9 +20,12 @@ describe("local PDV product search",()=>{
       i%2===0?`Arroz tipo ${i}`:`Produto ${i}`,
       String(i).padStart(8,"0"),
     ));
-    const matches=searchLocalProducts(products,"arroz",100);
+    products[99_999] = { ...products[99_999], barcodes:["789000099999"] };
+    const index=buildLocalProductSearchIndex(products);
+    const matches=searchIndexedLocalProducts(index,"arroz",100);
     expect(matches).toHaveLength(100);
     expect(matches.every((item)=>item.name.toLocaleLowerCase("pt-BR").includes("arroz"))).toBe(true);
+    expect(buildProductBarcodeIndex(products).get("789000099999")?.id).toBe("p-99999");
   });
   it("matches accented product names with an unaccented query",()=>{
     const products=[product("sugar","Açúcar refinado","123")];
