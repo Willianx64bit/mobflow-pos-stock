@@ -1873,7 +1873,6 @@ export const actions = {
     return updated;
   },
   applyCatalogProduct(product: Product) {
-    const previous = state.products;
     const existing = state.products.some((item) => item.id === product.id);
     // The relational catalog API already committed this product and its sync event.
     // Do not race that transaction with a stale whole-app-state PUT.
@@ -1882,7 +1881,6 @@ export const actions = {
       : existing
         ? state.products.map((item) => item.id === product.id ? { ...item, ...product, active: true } : item)
         : [{ ...product, active: true }, ...state.products] }, { persist: false });
-    void persistCatalogDelta(previous, state.products).catch((error) => console.warn("[MobFlow Catalog] Local product event could not be stored:", error));
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
