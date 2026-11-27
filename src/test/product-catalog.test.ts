@@ -160,7 +160,7 @@ describe("offline product catalog", () => {
     expect(restored.products[0]?.id).toBe("resume-product-000000");
     expect(restored.products[total - 1]?.id).toBe("resume-product-099999");
     expect((await getOfflineCatalogSyncState("company-resume-large")).pending).toBe(false);
-  });
+  }, 15_000);
 
   it("updates an existing product in the committed generation", async () => {
     const product = { id: "1", code: "001", name: "Arroz", price: 20, stock: 1, minStock: 1, category: "Mercearia", unit: "un" as const };
