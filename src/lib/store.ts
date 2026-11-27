@@ -156,17 +156,24 @@ const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 const catalogCacheKey = () => `${activeStateKey}:catalog`;
 let persistedCatalogKey: string | null = null;
 let persistedCatalogRef: Product[] | null = null;
+const productBalancesCacheKey = () => `${activeStateKey}:balances`;
 
 /**
  * Keep the large product catalog outside the frequently-changing app snapshot.
  * Cart edits and navigation-related state updates therefore never stringify
  * thousands of products. Legacy snapshots are migrated on the next local write.
  */
-function persistLocalState() {
+function persistLocalState(options: { catalog?: "full" | "balances" } = {}) {
   try {
     const key = catalogCacheKey();
-    if (persistedCatalogKey !== key || persistedCatalogRef !== state.products || !localStorage.getItem(key)) {
+    if (options.catalog === "balances") {
+      const balances = state.products.map((product) => [product.id, product.price, product.stock]);
+      localStorage.setItem(productBalancesCacheKey(), JSON.stringify(balances));
+      persistedCatalogKey = key;
+      persistedCatalogRef = state.products;
+    } else if (persistedCatalogKey !== key || persistedCatalogRef !== state.products || !localStorage.getItem(key)) {
       localStorage.setItem(key, JSON.stringify(state.products));
+      localStorage.removeItem(productBalancesCacheKey());
       persistedCatalogKey = key;
       persistedCatalogRef = state.products;
     }
@@ -332,13 +339,22 @@ function load() {
     const cachedCatalog = localStorage.getItem(catalogCacheKey());
     if (cachedCatalog) {
       const parsed = JSON.parse(cachedCatalog);
-      if (Array.isArray(parsed)) {
-        state.products = parsed;
-        persistedCatalogKey = catalogCacheKey();
-        persistedCatalogRef = state.products;
-      }
+      if (Array.isArray(parsed)) state.products = parsed;
+    }
+    const balancesRaw = localStorage.getItem(productBalancesCacheKey());
+    if (balancesRaw) {
+      const balances = JSON.parse(balancesRaw) as [string, number, number][];
+      const byId = new Map(balances.map(([id, price, stock]) => [id, { price, stock }]));
+      state.products = state.products.map((product) => {
+        const balance = byId.get(product.id);
+        return balance ? { ...product, price: balance.price, stock: balance.stock } : product;
+      });
     }
     state.products = state.products.map((p) => ({ ...p, unit: normalizeProductUnit(p.unit) }));
+    if (cachedCatalog && Array.isArray(state.products)) {
+      persistedCatalogKey = catalogCacheKey();
+      persistedCatalogRef = state.products;
+    }
     normalizeState();
   } catch {}
 }
@@ -824,7 +840,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
     try {
-      persistLocalState();
+      persistLocalState({ catalog: "balances" });
       localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
     } catch {}
     listeners.forEach((listener) => listener());
@@ -988,6 +1004,17 @@ export async function hydrateStoreOffline(accountId: string) {
   activeStateKey = tenantStateKey(accountId);
   loaded = true;
   state = { ...emptyState(), ...(cached as State), products: cachedCatalog as Product[] };
+  try {
+    const balancesRaw = localStorage.getItem(`${activeStateKey}:balances`);
+    if (balancesRaw) {
+      const balances = JSON.parse(balancesRaw) as [string, number, number][];
+      const byId = new Map(balances.map(([id, price, stock]) => [id, { price, stock }]));
+      state.products = state.products.map((product) => {
+        const balance = byId.get(product.id);
+        return balance ? { ...product, price: balance.price, stock: balance.stock } : product;
+      });
+    }
+  } catch { throw new Error("Os preços e saldos locais estão inválidos. Conecte-se e tente preparar novamente."); }
   state.products = state.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit) }));
   persistedCatalogKey = `${activeStateKey}:catalog`;
   persistedCatalogRef = state.products;
@@ -1307,6 +1334,7 @@ function scheduleStatePersist() {
       const snapshot = cloneState(state);
       snapshot.contacts = [];
       snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
+      if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") snapshot.products = [];
       let attempts = 0;
       let saved = false;
       while (!saved && attempts < 4) {
@@ -1329,6 +1357,7 @@ function scheduleStatePersist() {
           const retrySnapshot = cloneState(state);
           retrySnapshot.contacts = [];
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
+          if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") retrySnapshot.products = [];
           Object.assign(snapshot, retrySnapshot);
           lastSyncedState = cloneState(remote);
           listeners.forEach((listener) => listener());
