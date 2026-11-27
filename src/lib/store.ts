@@ -98,6 +98,7 @@ let loaded = false;
 let cloudReady = false;
 let catalogStorageReady = false;
 let hydrating: Promise<void> | null = null;
+let catalogRefreshBarrier: Promise<void> | null = null;
 let realtimeOwnerId: string | null = null;
 let cloudAccountId: string | null = null;
 let lastCloudUpdatedAt: string | null = null;
@@ -780,6 +781,7 @@ async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise
 }
 
 async function refreshFromCloud(accountId: string, forceLatest = false) {
+  if (catalogRefreshBarrier) await catalogRefreshBarrier;
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
     refreshAfterPersist = true;
     return;
@@ -1392,6 +1394,7 @@ export async function clearLocalPendingOperations(): Promise<{ pending: number; 
 }
 
 export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
+  if (catalogRefreshBarrier) await catalogRefreshBarrier;
   const previousProducts = state.products;
   const next = applySyncEventsToState(state, events);
   state = next;
@@ -1852,10 +1855,18 @@ export const actions = {
     });
   },
   async refreshCatalog() {
-    const previous = state.products ?? [];
-    const products = await readPreviewNeonCatalog(previous, "full");
-    set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false, catalog: false });
-    return products.length;
+    if (catalogRefreshBarrier) await catalogRefreshBarrier;
+    let releaseBarrier: (() => void) | null = null;
+    catalogRefreshBarrier = new Promise<void>((resolve) => { releaseBarrier = resolve; });
+    try {
+      const previous = state.products ?? [];
+      const products = await readPreviewNeonCatalog(previous, "full");
+      set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false, catalog: false });
+      return products.length;
+    } finally {
+      releaseBarrier?.();
+      catalogRefreshBarrier = null;
+    }
   },
   async loadStockCatalog() {
     return readPreviewNeonCatalog(state.products ?? [], "full", true);
