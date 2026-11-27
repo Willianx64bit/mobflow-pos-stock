@@ -698,9 +698,8 @@ function enqueueDomainCommand(domain: "sales" | "cash" | "stock" | "receivables"
       if (!result.response.ok || result.body.ok !== true) {
         throw new Error(String(result.body.error ?? "O Neon não confirmou a operação."));
       }
-      // The relational transaction is the source of truth. Refresh the
-      // snapshot after commit so the UI uses the server-generated values.
-      await hydrateStore().catch(() => undefined);
+      // The transaction is authoritative and this device applies its confirmed
+      // local projection. Avoid re-downloading the full tenant snapshot per action.
     })();
     void lastDomainCommandPromise.catch((error) => console.warn("[MobFlow Neon] Operation was not confirmed:", error));
     return true;
@@ -905,7 +904,9 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     const verifiedCatalog = state.products ?? [];
     const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
-    state.products = await readRealtimeProductBalances(catalogFallback);
+    // Product catalog and price metadata are deliberately not polled by Realtime.
+    // The local catalog changes only on the once-daily bootstrap or manual sync.
+    state.products = catalogFallback;
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
@@ -1239,7 +1240,18 @@ export async function hydrateStore() {
       const localStockTransfers = [...(state.stockTransfers ?? [])];
       const sameOwner = true;
 
-      const stateResult = await callMobFlowApi("/api/mobflow/state");
+      const dailySyncRaw = localStorage.getItem(dailyStateSyncTimestampKey(accountId));
+      const dailySyncAt = dailySyncRaw ? Date.parse(dailySyncRaw) : Number.NaN;
+      const hasLocalSnapshot = !!localStorage.getItem(tenantStateKey(accountId)) && !!localStorage.getItem(`${tenantStateKey(accountId)}:catalog`);
+      const useDailyCache = isDesktopRuntime() && hasLocalSnapshot &&
+        Number.isFinite(dailySyncAt) && dailySyncAt <= Date.now() + 60_000 &&
+        Date.now() - dailySyncAt < 24 * 60 * 60 * 1000;
+
+      // Reuse the already prepared local company snapshot for the rest of the
+      // day. Full state + catalog downloads happen only once per 24h.
+      const stateResult = useDailyCache
+        ? { response: { ok: true }, body: { ok: true, state: null, syncCursor: null, updatedAt: localStorage.getItem(lastCloudUpdatedAtKey(accountId)), privateContactIds: [] as string[] } }
+        : await callMobFlowApi("/api/mobflow/state");
       if (!stateResult.response.ok || !stateResult.body.ok) {
         throw new Error("Não foi possível carregar os dados da empresa pelo Neon.");
       }
@@ -1287,6 +1299,9 @@ export async function hydrateStore() {
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
         lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
         lastSyncedState = cloneState(remote);
+      } else if (useDailyCache) {
+        lastCloudUpdatedAt = localStorage.getItem(lastCloudUpdatedAtKey(accountId));
+        lastSyncedState = cloneState(state);
       } else {
         state = emptyState();
         lastCloudUpdatedAt = null;
@@ -1329,20 +1344,21 @@ export async function hydrateStore() {
       }
       listeners.forEach((listener) => listener());
 
-      try {
-        const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
-        state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
-        normalizeState();
+      if (!useDailyCache) {
         try {
-          persistLocalState();
+          const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
+          state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
+          normalizeState();
+          try { persistLocalState(); }
+          catch (error) {
+            if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
+          }
+          listeners.forEach((listener) => listener());
         } catch (error) {
-          if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
-        }
-        listeners.forEach((listener) => listener());
-      } catch (error) {
-        console.error("[MobFlow Hydration] Private company data could not be loaded:", error);
-        if (isDesktopRuntime()) {
-          throw new Error("Não foi possível baixar as configurações e os dados privados da empresa. A preparação offline não foi concluída.");
+          console.error("[MobFlow Hydration] Private company data could not be loaded:", error);
+          if (isDesktopRuntime()) {
+            throw new Error("Não foi possível baixar as configurações e os dados privados da empresa. A preparação offline não foi concluída.");
+          }
         }
       }
 
@@ -1353,9 +1369,13 @@ export async function hydrateStore() {
         // receiving/conference event cursor has been applied to the local database.
         await pullReceivingConferenceEvents(accountId);
       }
-      if (isDesktopRuntime()) {
-        try { localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString()); }
-        catch { throw new Error("Não foi possível registrar a data da preparação offline."); }
+      if (isDesktopRuntime() && !useDailyCache) {
+        try {
+          const syncedAt = new Date().toISOString();
+          localStorage.setItem(offlineCacheTimestampKey(accountId), syncedAt);
+          localStorage.setItem(dailyStateSyncTimestampKey(accountId), syncedAt);
+          if (lastCloudUpdatedAt) localStorage.setItem(lastCloudUpdatedAtKey(accountId), lastCloudUpdatedAt);
+        } catch { throw new Error("Não foi possível registrar a data da preparação offline."); }
       }
       // Keep the offline marker until the outbox has been acknowledged by Neon.
       // Hydration proves that a snapshot is reachable, not that queued sales were committed.
@@ -1492,7 +1512,13 @@ export async function applyIncrementalEvents(events: import("@/lib/sync-outbox")
     const privateData = await loadPrivateData([]);
     state = { ...state, settings: { ...state.settings, ...privateData.settings } };
   }
-  try { persistLocalState(); } catch {}
+  const changedProductIds = events
+    .filter((event) => (event.category === "stock" || event.category === "price") && event.entity_type === "product")
+    .map((event) => event.entity_id);
+  try {
+    if (changedProductIds.length) persistLocalState({ catalog: "balances", productIds: changedProductIds });
+    else persistLocalState();
+  } catch {}
   listeners.forEach((listener) => listener());
 }
 
@@ -1562,7 +1588,8 @@ async function performSyncNow(options: { retryFailed?: boolean } = {}) {
       const pushed = await flushDesktopOutbox(tenantId);
       sent = pushed.sent;
       lastError = pushed.lastError;
-      if (sent > 0) await refreshFromCloud(tenantId, true);
+      // The transaction already updated this device's local projection. Do not
+      // download the full company snapshot after each sale/cash/stock operation.
     }
     const [failed, pending, cursor] = await Promise.all([
       syncOutbox.failedCount(tenantId),
