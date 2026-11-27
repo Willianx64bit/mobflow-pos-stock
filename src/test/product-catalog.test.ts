@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
-import { readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, type OfflineCatalogProduct } from "@/lib/product-catalog";
+import { getOfflineCatalogStatus, readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, type OfflineCatalogProduct } from "@/lib/product-catalog";
 
 async function* pages(items: Array<{ id: string; code: string; name: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg" }>) {
   yield items.slice(0, 1);
@@ -34,6 +34,13 @@ describe("offline product catalog", () => {
     await replaceOfflineCatalog("company-a", pages([product]));
     expect((await readOfflineCatalog("company-a")).products[0]).not.toHaveProperty("photo");
     expect((await readOfflineCatalog("company-b")).products).toEqual([]);
+  });
+
+  it("reports the committed catalog count without loading product rows", async () => {
+    const product = { id: "1", code: "001", name: "Feijão", price: 8, stock: 4, minStock: 1, category: "Mercearia", unit: "un" as const };
+    await replaceOfflineCatalog("company-a", pages([product]));
+    expect(await getOfflineCatalogStatus("company-a")).toMatchObject({ count: 1, hasCatalog: true });
+    expect(await getOfflineCatalogStatus("company-b")).toMatchObject({ count: 0, hasCatalog: false });
   });
 
   it("updates an existing product in the committed generation", async () => {
