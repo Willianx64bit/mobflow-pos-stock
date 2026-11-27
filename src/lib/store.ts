@@ -1274,7 +1274,7 @@ export async function hydrateStore() {
         // receiving/conference event cursor has been applied to the local database.
         await pullReceivingConferenceEvents(accountId);
       }
-      if (isDesktopRuntime()) {
+      if (isDesktopRuntime() && catalogStorageReady) {
         try { localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString()); }
         catch { throw new Error("Não foi possível registrar a data da preparação offline."); }
       }
