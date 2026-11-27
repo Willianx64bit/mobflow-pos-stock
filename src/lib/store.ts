@@ -250,7 +250,8 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     if (movement.legacy || baseMovementIds.has(movement.id)) continue;
     newMovementDeltas.set(movement.productId, (newMovementDeltas.get(movement.productId) ?? 0) + movement.delta);
   }
-  const products = remote.products.map((rp) => {
+  const remoteProducts = Array.isArray(remote.products) && remote.products.length ? remote.products : local.products;
+  const products = remoteProducts.map((rp) => {
     const bp = base.products.find((p) => p.id === rp.id);
     const lp = local.products.find((p) => p.id === rp.id);
     if (!lp || !bp) return rp;
@@ -272,7 +273,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   // cached products that are absent from the server response (including products deleted
   // from this company or left in an old full-state snapshot).
   if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") {
-    for (const lp of local.products) if (!remote.products.some((p) => p.id === lp.id)) products.push(lp);
+    for (const lp of local.products) if (!remoteProducts.some((p) => p.id === lp.id)) products.push(lp);
   }
   return {
     ...remote,
@@ -1316,6 +1317,7 @@ function scheduleStatePersist() {
       // Keep only the public company caption in the shared snapshot.
       const snapshot = cloneState(state);
       snapshot.contacts = [];
+      if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") snapshot.products = [];
       snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
       let attempts = 0;
       let saved = false;
@@ -1338,6 +1340,7 @@ function scheduleStatePersist() {
           state = mergeConcurrentState(lastSyncedState, state, remote);
           const retrySnapshot = cloneState(state);
           retrySnapshot.contacts = [];
+          if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") retrySnapshot.products = [];
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
           Object.assign(snapshot, retrySnapshot);
           lastSyncedState = cloneState(remote);
