@@ -77,7 +77,7 @@ export async function readOfflineCatalog(tenantId: string): Promise<{ products: 
     const range = IDBKeyRange.only([tenantId, meta.activeGeneration]);
     const records = await requestValue(index.getAll(range)) as CatalogRecord[];
     await done;
-    return { products: records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product), syncedAt: meta.syncedAt, hasCatalog: true };
+    return { products: records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product), syncedAt: meta.syncedAt ?? null, hasCatalog: true };
   } finally {
     db.close();
   }
@@ -130,8 +130,9 @@ export async function readPendingOfflineCatalog(tenantId: string): Promise<Offli
       await done;
       return [];
     }
-    const index = tx.objectStore(PRODUCT_STORE).index("tenantGeneration");
-    const records = await requestValue(index.getAll(IDBKeyRange.only([tenantId, meta.pendingGeneration]))) as CatalogRecord[];
+    const index = tx.objectStore(PRODUCT_STORE).index("tenantGenerationName");
+    const range = IDBKeyRange.bound([tenantId, meta.pendingGeneration, ""], [tenantId, meta.pendingGeneration, "\\uffff"]);
+    const records = await requestValue(index.getAll(range)) as CatalogRecord[];
     await done;
     return records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product);
   } finally {
