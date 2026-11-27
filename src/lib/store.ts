@@ -960,6 +960,7 @@ export async function hydrateStoreOffline(accountId: string) {
   if (!isDesktopRuntime() || !accountId || localStorage.getItem(OWNER_KEY) !== accountId) {
     throw new Error("Não existe uma cópia local autorizada para esta empresa neste computador.");
   }
+  catalogStorageReady = false;
   const raw = localStorage.getItem(tenantStateKey(accountId));
   if (!raw) throw new Error("Esta empresa ainda não possui dados salvos para uso offline.");
   const lastSync = Date.parse(localStorage.getItem(offlineCacheTimestampKey(accountId)) ?? "");
