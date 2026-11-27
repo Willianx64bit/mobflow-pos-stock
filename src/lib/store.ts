@@ -891,7 +891,7 @@ function reconnect() {
       realtimeOwnerId = null;
       startRealtime(accountId);
     }
-  }, 3_000);
+  }, 30_000);
 }
 
 let receivingConferencePull: Promise<unknown> | null = null;
