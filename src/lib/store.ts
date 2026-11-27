@@ -175,15 +175,13 @@ function persistLocalCart() {
   }
 }
 
-function persistLocalState(options: { catalog?: "full" | "balances"; productIds?: string[] } = {}) {
+function persistLocalState(options: { catalog?: "full" | "balances"; productUpdates?: Product[] } = {}) {
   try {
     const key = catalogCacheKey();
     if (options.catalog === "balances" && persistedCatalogKey === key && localStorage.getItem(key) && options.productIds?.length) {
       // Only touch IDs changed by this operation. Never scan the 10k catalog on
       // every sale/stock event just to discover which balances changed.
-      const wanted = new Set(options.productIds);
-      for (const product of state.products) {
-        if (!wanted.has(product.id)) continue;
+      for (const product of options.productUpdates ?? []) {
         productBalanceOverrides.set(product.id, [product.price, product.stock]);
       }
       localStorage.setItem(productBalancesCacheKey(), JSON.stringify(Array.from(productBalanceOverrides, ([id, value]) => [id, value[0], value[1]])));
@@ -1488,10 +1486,10 @@ function scheduleStatePersist() {
   });
 }
 
-function set(next: Partial<State>, options: { persist?: boolean; catalog?: "full" | "balances"; productIds?: string[]; localCartOnly?: boolean } = {}) {
+function set(next: Partial<State>, options: { persist?: boolean; catalog?: "full" | "balances"; productUpdates?: Product[]; localCartOnly?: boolean } = {}) {
   state = { ...state, ...next };
   if (options.localCartOnly) persistLocalCart();
-  else try { persistLocalState({ catalog: options.catalog, productIds: options.productIds }); } catch {}
+  else try { persistLocalState({ catalog: options.catalog, productUpdates: options.productUpdates }); } catch {}
   listeners.forEach((l) => l());
   if (options.persist !== false) scheduleStatePersist();
 }
@@ -1524,7 +1522,10 @@ export async function applyIncrementalEvents(events: import("@/lib/sync-outbox")
     .filter((event) => (event.category === "stock" || event.category === "price") && event.entity_type === "product")
     .map((event) => event.entity_id);
   try {
-    if (changedProductIds.length) persistLocalState({ catalog: "balances", productIds: changedProductIds });
+    if (changedProductIds.length) {
+      const changedIds = new Set(changedProductIds);
+      persistLocalState({ catalog: "balances", productUpdates: next.products.filter((product) => changedIds.has(product.id)) });
+    }
     else persistLocalState();
   } catch {}
   listeners.forEach((listener) => listener());
@@ -1851,7 +1852,7 @@ export const actions = {
           cart: [],
           sales: [finalizedSale, ...state.sales.filter((item) => item.id !== sale.id)],
           stockMovements: [...stockMovements, ...(state.stockMovements ?? [])],
-        }, { persist: false, catalog: "balances", productIds: checkoutCart.map((item) => item.productId) });
+        }, { persist: false, catalog: "balances", productUpdates: products.filter((product) => checkoutCart.some((item) => item.productId === product.id)) });
       });
     } else if (queued && lastDomainCommandPromise) {
       // Keep the checkout visible until Neon confirms the transaction.
@@ -1862,7 +1863,7 @@ export const actions = {
       });
     } else {
       // Non-browser/local fallback: retain the existing local-only behavior.
-      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: true, catalog: "balances", productIds: checkoutCart.map((item) => item.productId) });
+      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: true, catalog: "balances", productUpdates: products.filter((product) => checkoutCart.some((item) => item.productId === product.id)) });
     }
     return sale;
   },
@@ -2067,7 +2068,7 @@ export const actions = {
     const product = state.products.find((x) => x.id === id);
     if (!product) return;
     const movements = field === "stock" && product.stock !== value ? [movementEntry({ operationId: `field:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: id, productCode: product.code, productName: product.name, unit: product.unit, quantity: Math.abs(value - product.stock), totalValue: Math.round(Math.abs(value - product.stock) * product.price * 100) / 100, stockBefore: product.stock, stockAfter: value, delta: value - product.stock, details: "Alteração direta do estoque" })] : [];
-    set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { catalog: "balances", productIds: [id] });
+    set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { catalog: "balances", productUpdates: [{ ...product, [field]: value }] });
   },
   applyStockAdjustmentBatch(input: { reason: string; items: { productId: string; mode: "somar" | "definir"; quantity: number }[] }) {
     const reason = input.reason.trim();
@@ -2102,7 +2103,7 @@ export const actions = {
     });
     if (isDesktopRuntime() && !queued) return false;
     if (!queued || incrementalSyncEnabled() || isDesktopRuntime()) {
-      set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued, catalog: "balances", productIds: items.map((item) => item.productId) });
+      set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued, catalog: "balances", productUpdates: updatedProducts.filter((product) => items.some((item) => item.productId === product.id)) });
     }
     // With incremental sync disabled, enqueueDomainCommand commits through Neon and
     // hydrateStore refreshes the authoritative state before confirmLastDomainCommand resolves.
@@ -2151,7 +2152,7 @@ export const actions = {
         stockAfter: item.newStock, delta: item.newStock - item.previousStock,
         details: `${entry.number} · ${entry.reason}`,
       }));
-      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances", productIds: items.map((item) => item.productId) });
+      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances", productUpdates: products.filter((product) => items.some((item) => item.productId === product.id)) });
       return entry;
     }
     try {
