@@ -67,8 +67,10 @@ jobs:
         working-directory: ${{ github.workspace }}
         env:
           MOBFLOW_DESKTOP_BUILD: "1"
-          # Public Realtime endpoint configured for the isolated Neon Preview branch.
-          VITE_NEON_REALTIME_URL: "https://ep-tiny-band-bd5bkjdc.rt.c-8.us-east-2.aws.neon.tech/"
+          # Never point the official desktop app at the isolated Preview branch.
+          # Set this GitHub Actions variable only to the production Neon Realtime URL.
+          # If it is unset, the app uses the incremental event-polling fallback.
+          VITE_NEON_REALTIME_URL: ${{ vars.MOBFLOW_PRODUCTION_NEON_REALTIME_URL }}
           # This EXE targets the isolated Neon Preview branch whose relational
           # bootstrap is enabled and whose incremental event contracts are tested.
           VITE_MOBFLOW_INCREMENTAL_SYNC: "true"
