@@ -3,7 +3,7 @@ import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
-import { readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct } from "@/lib/product-catalog";
+import { getOfflineCatalogStatus, readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct } from "@/lib/product-catalog";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 
@@ -978,9 +978,8 @@ export async function hydrateStoreOffline(accountId: string) {
   await verifyDesktopOfflinePreparation(accountId);
   let cached: unknown;
   try { cached = JSON.parse(raw); } catch { throw new Error("A cópia local da empresa está inválida."); }
-  if (!cached || typeof cached !== "object" || !Array.isArray((cached as State).products) ||
-      !(cached as State).products.length || !Array.isArray((cached as State).sales)) {
-    throw new Error("A cópia local ainda não contém o catálogo necessário para abrir o PDV offline.");
+  if (!cached || typeof cached !== "object" || !Array.isArray((cached as State).sales)) {
+    throw new Error("A cópia local ainda não contém os dados necessários para abrir o PDV offline.");
   }
 
   stopRealtimeSubscription?.();
@@ -1026,7 +1025,10 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
   try { snapshot = JSON.parse(raw); } catch { throw new Error("O arquivo local da empresa está inválido. Tente preparar novamente."); }
   if (!snapshot || typeof snapshot !== "object") throw new Error("A preparação local não foi concluída.");
   const cached = snapshot as Partial<State>;
-  if (!Array.isArray(cached.products) || cached.products.length === 0 ||
+  const legacyProducts = Array.isArray(cached.products) ? cached.products : [];
+  const catalogStatus = await getOfflineCatalogStatus(accountId).catch(() => ({ count: 0, syncedAt: null, hasCatalog: false }));
+  const hasIndexedCatalog = catalogStatus.hasCatalog && catalogStatus.count > 0;
+  if ((!hasIndexedCatalog && legacyProducts.length === 0) ||
       !Array.isArray(cached.sales) || !Array.isArray(cached.cashSessions) ||
       !Array.isArray(cached.cashMovements) || !Array.isArray(cached.stockMovements) ||
       !Array.isArray(cached.stockAdjustments) || !Array.isArray(cached.stockWriteoffs) ||
@@ -1039,7 +1041,7 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
       !cached.settings.pixKey.trim()) {
     throw new Error("Ainda faltam dados essenciais da empresa, do catálogo, do caixa, da chave Pix ou das Operações para liberar o modo offline.");
   }
-  const hasInvalidProduct = cached.products.some((product) =>
+  const hasInvalidProduct = !hasIndexedCatalog && legacyProducts.some((product) =>
     !product || typeof product.id !== "string" || !product.id ||
     typeof product.name !== "string" || !product.name.trim() ||
     !Number.isFinite(Number(product.price)) || !Number.isFinite(Number(product.stock))
@@ -1049,7 +1051,7 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
   if (!Number.isFinite(syncedAt) || syncedAt > Date.now() + 60_000 || Date.now() - syncedAt > OFFLINE_CACHE_TTL_MS) {
     throw new Error("Não foi possível confirmar uma preparação local recente. Conecte-se e tente novamente.");
   }
-  return { products: cached.products.length, syncedAt };
+  return { products: hasIndexedCatalog ? catalogStatus.count : legacyProducts.length, syncedAt };
 }
 /** Confirma que o shell e os módulos de rota foram realmente persistidos pelo Service Worker. */
 export async function verifyDesktopOfflineAssets() {
