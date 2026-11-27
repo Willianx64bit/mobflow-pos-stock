@@ -97,6 +97,7 @@ let receivingDraftPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let loaded = false;
 let cloudReady = false;
 let catalogStorageReady = false;
+let catalogReadAuthoritative = false;
 let hydrating: Promise<void> | null = null;
 let catalogRefreshBarrier: Promise<void> | null = null;
 let realtimeOwnerId: string | null = null;
@@ -682,6 +683,7 @@ export async function confirmLastDomainCommand(): Promise<void> {
 }
 
 async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false"): Promise<Product[]> {
+  if (mode === "full" && !activeFilter) catalogReadAuthoritative = false;
   if (includeInactive) {
     const [activeProducts, inactiveProducts] = await Promise.all([
       readPreviewNeonCatalog(fallbackProducts, "full", false, "true"),
@@ -689,7 +691,10 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     ]);
     return [...activeProducts, ...inactiveProducts];
   }
-  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return activeFilter === "false" ? [] : fallbackProducts;
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") {
+    if (mode === "full" && !activeFilter) catalogReadAuthoritative = fallbackProducts.length > 0;
+    return activeFilter === "false" ? [] : fallbackProducts;
+  }
   try {
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
@@ -721,6 +726,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
             if (tenantId) {
               await replaceOfflineCatalog(tenantId, (async function* () { for (let offset = 0; offset < products.length; offset += 500) yield products.slice(offset, offset + 500); })());
               catalogStorageReady = true;
+              catalogReadAuthoritative = true;
               persistLocalState();
             }
           }
@@ -826,7 +832,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     realtimeRevision += 1;
     try {
       persistLocalState();
-      localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
+      if (catalogStorageReady) localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
     } catch {}
     listeners.forEach((listener) => listener());
   } catch {
@@ -1275,7 +1281,12 @@ export async function hydrateStore() {
       // Keep the offline marker until the outbox has been acknowledged by Neon.
       // Hydration proves that a snapshot is reachable, not that queued sales were committed.
       startRealtime(accountId);
-      void actions.refreshCatalog().catch((error) => console.warn("[MobFlow Catalog] Background catalog preparation deferred:", error));
+      void actions.refreshCatalog().then(() => {
+        if (isDesktopRuntime() && catalogReadAuthoritative) {
+          try { localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString()); }
+          catch (error) { console.warn("[MobFlow Catalog] Could not update offline preparation timestamp:", error); }
+        }
+      }).catch((error) => console.warn("[MobFlow Catalog] Background catalog preparation deferred:", error));
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
     } catch (error) {
