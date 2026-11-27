@@ -68,6 +68,7 @@ const OWNER_KEY = "mobflow:owner";
 const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
 const OFFLINE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const offlineCacheTimestampKey = (tenantId: string) => `mobflow:last-sync:${tenantId}`;
+const catalogSyncTimestampKey = (tenantId: string) => `mobflow:catalog-last-sync:${tenantId}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const currentOperator = () => typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined;
 const movementEntry = (input: Omit<StockMovement, "id" | "operator"> & { id?: string; operator?: string }): StockMovement => ({ ...input, id: input.id ?? uid(), operator: input.operator ?? currentOperator() });
@@ -722,11 +723,11 @@ export async function confirmLastDomainCommand(): Promise<void> {
   await pending;
 }
 
-async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false"): Promise<Product[]> {
+async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" | "realtime" = "full", includeInactive = false, activeFilter?: "true" | "false", updatedSince?: string, throwOnError = false): Promise<Product[]> {
   if (includeInactive) {
     const [activeProducts, inactiveProducts] = await Promise.all([
-      readPreviewNeonCatalog(fallbackProducts, "full", false, "true"),
-      readPreviewNeonCatalog(fallbackProducts, "full", false, "false"),
+      readPreviewNeonCatalog(fallbackProducts, "full", false, "true", updatedSince, throwOnError),
+      readPreviewNeonCatalog(fallbackProducts, "full", false, "false", updatedSince, throwOnError),
     ]);
     return [...activeProducts, ...inactiveProducts];
   }
@@ -739,8 +740,10 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
       const query = new URLSearchParams({ limit: "100" });
       if (activeFilter) query.set("active", activeFilter);
       if (cursor) query.set("cursor", cursor);
+      if (updatedSince) query.set("updatedSince", updatedSince);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) {
+        if (throwOnError) throw new Error(String(body.error ?? "Não foi possível buscar as alterações do catálogo."));
         // A transient API/network failure is not an authoritative empty catalog.
         // Keep the last tenant-scoped catalog already verified in this session.
         console.error("[MobFlow Catalog] Neon catalog request failed; keeping the last verified tenant catalog.");
@@ -766,6 +769,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
         });
       }
       if (typeof body.nextCursor !== "string" || !body.nextCursor) {
+        if (throwOnError) throw new Error("O servidor retornou um cursor inválido para sincronizar o catálogo.");
         console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
         return activeFilter === "false" ? [] : fallbackProducts;
       }
@@ -774,9 +778,22 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
     return activeFilter === "false" ? [] : fallbackProducts;
   } catch (error) {
+    if (throwOnError) throw error;
     console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog; keeping the last verified tenant catalog:", error);
     return activeFilter === "false" ? [] : fallbackProducts;
   }
+}
+
+async function readIncrementalNeonCatalog(fallbackProducts: Product[], updatedSince: string): Promise<Product[]> {
+  const [activeProducts, inactiveProducts] = await Promise.all([
+    readPreviewNeonCatalog([], "full", false, "true", updatedSince, true),
+    readPreviewNeonCatalog([], "full", false, "false", updatedSince, true),
+  ]);
+  if (!activeProducts.length && !inactiveProducts.length) return fallbackProducts;
+  const byId = new Map(fallbackProducts.map((product) => [product.id, product]));
+  for (const product of inactiveProducts) byId.delete(product.id);
+  for (const product of activeProducts) byId.set(product.id, product);
+  return Array.from(byId.values());
 }
 
 async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
@@ -1883,8 +1900,20 @@ export const actions = {
     });
   },
   async refreshCatalog() {
-    const products = await readPreviewNeonCatalog(state.products ?? [], "full");
+    const tenantId = cloudAccountId ?? (typeof window !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
+    const syncKey = tenantId ? catalogSyncTimestampKey(tenantId) : null;
+    const previousSync = syncKey ? localStorage.getItem(syncKey) : null;
+    const startedAt = new Date().toISOString();
+    const updatedSince = previousSync && Number.isFinite(Date.parse(previousSync))
+      ? new Date(Date.parse(previousSync) - 2_000).toISOString()
+      : undefined;
+    // First refresh after this upgrade establishes the baseline. Every later
+    // manual sync requests only products created/changed since the last cursor.
+    const products = updatedSince
+      ? await readIncrementalNeonCatalog(state.products ?? [], updatedSince)
+      : await readPreviewNeonCatalog(state.products ?? [], "full", false, undefined, undefined, true);
     set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
+    if (syncKey) localStorage.setItem(syncKey, startedAt);
     return products.length;
   },
   async loadStockCatalog() {
