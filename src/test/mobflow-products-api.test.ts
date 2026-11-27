@@ -48,8 +48,8 @@ describe("Neon product catalog API",()=>{
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1"}],hasMore:true,nextCursor:expectedNext});
   const [sql,params]=client.query.mock.calls[1] ?? [];
   expect(String(sql)).toContain("(p.created_at,p.id)>($4::timestamptz,$5::text)");
-  expect(String(sql)).toContain("ORDER BY p.created_at,p.id LIMIT $6");
-  expect(params).toEqual([TENANT,null,"","2026-11-08T10:00:00.000Z","p0",2]);
+  expect(String(sql)).toContain("ORDER BY p.created_at,p.id LIMIT $7");
+  expect(params).toEqual([TENANT,null,"","2026-11-08T10:00:00.000Z","p0","",2]);
  });
  it("resolves legacy product-ID cursors from interrupted older syncs",async()=>{
   client.query.mockResolvedValueOnce(ready)
@@ -58,7 +58,17 @@ describe("Neon product catalog API",()=>{
   const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?limit=10&cursor=legacy-p0")});
   expect(response.status).toBe(200);
   expect(client.query.mock.calls[1]?.[0]).toContain("SELECT created_at::text AS created_at,id");
-  expect(client.query.mock.calls[2]?.[1]).toEqual([TENANT,null,"","2026-11-07T00:00:00.000Z","legacy-p0",11]);
+  expect(client.query.mock.calls[2]?.[1]).toEqual([TENANT,null,"","2026-11-07T00:00:00.000Z","legacy-p0","",11]);
+ });
+ it("looks up a scanned barcode exactly instead of relying on a capped substring search",async()=>{
+  client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{...product,barcodes:["7890001"]}]});
+  const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?barcode=7890001&limit=1")});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",barcodes:["7890001"]}]});
+  const [sql,params]=client.query.mock.calls[1] ?? [];
+  expect(String(sql)).toContain("p.code=$6");
+  expect(String(sql)).toContain("exact_b.barcode=$6");
+  expect(params).toEqual([TENANT,null,"",null,null,"7890001",2]);
  });
  it("returns only compact price and stock fields for realtime refreshes",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{id:"p1",price:"12.50",stock:"8.000"}]});
