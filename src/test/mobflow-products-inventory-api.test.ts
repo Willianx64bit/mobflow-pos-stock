@@ -48,6 +48,14 @@ describe("Neon inventory API",()=>{
   expect(params).toEqual([TENANT,"inactive","arroz","mercearia","low",null,null,101]);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
+ it("skips the expensive global aggregate when the client already has its summary",async()=>{
+  client.query.mockResolvedValueOnce({rows:[product]});
+  const response=await handler({request:req("https://mobflow.test/api/mobflow/products/inventory?summary=0&limit=100&q=arroz")});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1"}],summary:null});
+  expect(client.query).toHaveBeenCalledTimes(1);
+  expect(String(client.query.mock.calls[0]?.[0])).toContain("FROM public.products p LEFT JOIN");
+ });
  it("returns an opaque cursor preserving PostgreSQL timestamp precision",async()=>{
   const createdAt="2026-11-08 10:00:00.123456+00";
   const expected="v2."+Buffer.from(JSON.stringify({createdAt,id:"p1"})).toString("base64url");
