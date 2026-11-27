@@ -475,6 +475,8 @@ type MobFlowApiBody = {
   product?: unknown;
   hasMore?: unknown;
   nextCursor?: unknown;
+  summary?: unknown;
+  details?: unknown;
   session?: unknown;
   data?: unknown;
 };
