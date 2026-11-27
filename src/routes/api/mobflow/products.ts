@@ -230,7 +230,7 @@ async function deleteProduct(request:Request){
   if(!locked.rows.length)fail("Produto não encontrado.",404,"product_not_found");
   const current=locked.rows[0],stock=Number(current.stock);
   if(!Number.isFinite(stock))fail("Não foi possível confirmar o estoque no Neon. Exclusão bloqueada.",409,"stock_unconfirmed");
-  if(current.active&&stock>0)fail("Este produto não pode ser excluído porque ainda possui estoque acima de zero.",409,"product_has_stock");
+  if(stock>0)fail("Este produto não pode ser excluído porque ainda possui estoque acima de zero.",409,"product_has_stock");
   if(current.active){
    const deletedVersion=Number(current.version)+1;
    await appendCatalogEvent(c,i.accountId,i.userId,id,deletedVersion,{operation:"delete",productId:id,version:deletedVersion});
