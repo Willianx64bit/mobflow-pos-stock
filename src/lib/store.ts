@@ -330,6 +330,7 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
   // without allocating two 100k-entry Maps on every sale or stock event.
   if (previous.length === next.length) {
     let sameOrder = true;
+    const changedProducts: Product[] = [];
     for (let index = 0; index < next.length; index += 1) {
       const oldProduct = previous[index];
       const newProduct = next[index];
@@ -337,13 +338,14 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
         sameOrder = false;
         break;
       }
-      if (oldProduct !== newProduct) writes.push(upsertOfflineCatalogProduct(tenantId, newProduct));
+      if (oldProduct !== newProduct) changedProducts.push(newProduct);
     }
     if (sameOrder) {
-      if (writes.length) await Promise.all(writes);
+      if (changedProducts.length) {
+        await Promise.all(changedProducts.map((product) => upsertOfflineCatalogProduct(tenantId, product)));
+      }
       return;
     }
-    writes.length = 0;
   }
   // Insertions, deletions and reordered imports use the full diff fallback.
   const before = new Map(previous.map((product) => [product.id, product]));
