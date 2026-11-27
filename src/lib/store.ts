@@ -1536,7 +1536,15 @@ export async function clearLocalPendingOperations(): Promise<{ pending: number; 
 }
 
 export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
+  const previousProducts = state.products;
   const next = applySyncEventsToState(state, events);
+  const hasProductBalanceEvents = events.some((event) =>
+    (event.category === "stock" || event.category === "price") && event.entity_type === "product"
+  );
+  // The event reducer starts with a shallow catalog copy. Preserve the original
+  // array for unrelated sales/cash/receiving events so they never trigger a
+  // full 10k-product localStorage rewrite.
+  if (!hasProductBalanceEvents) next.products = previousProducts;
   state = next;
   // Contact records are private master data: automatic event delivery only signals
   // that something changed. Full contact details are fetched only by the manual button.
