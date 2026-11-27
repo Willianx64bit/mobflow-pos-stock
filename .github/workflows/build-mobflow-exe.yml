@@ -18,6 +18,7 @@ on:
       - "src/routes/api/mobflow/products/inventory.ts"
       - "src/routes/api/mobflow/products/details.ts"
       - "src/lib/product-search.ts"
+      - "src/lib/desktop-stock-inventory.ts"
       - "src/routes/analise-resultados.tsx"
       - "src/routes/transferencias.tsx"
       - "src/routes/baixa-produtos.tsx"
@@ -111,7 +112,7 @@ jobs:
 
       - name: Testar fila offline e transações Neon
         working-directory: ${{ github.workspace }}
-        run: npm test -- src/test/product-catalog.test.ts src/test/product-search.test.ts src/test/mobflow-products-api.test.ts src/test/mobflow-products-inventory-api.test.ts src/test/mobflow-products-details-api.test.ts src/test/sync-outbox.test.ts src/test/mobflow-bidirectional-sync.test.ts src/lib/sync-event-apply.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-receivables-command.test.ts src/test/offline-fiado-auth.test.ts src/test/offline-preparation.test.ts src/test/pix-offline-payload.test.ts
+        run: npm test -- src/test/product-catalog.test.ts src/test/product-search.test.ts src/test/desktop-stock-inventory.test.ts src/test/mobflow-products-api.test.ts src/test/mobflow-products-inventory-api.test.ts src/test/mobflow-products-details-api.test.ts src/test/sync-outbox.test.ts src/test/mobflow-bidirectional-sync.test.ts src/lib/sync-event-apply.test.ts src/test/mobflow-sales-command.test.ts src/test/mobflow-cash-command.test.ts src/test/mobflow-stock-command.test.ts src/test/mobflow-receivables-command.test.ts src/test/offline-fiado-auth.test.ts src/test/offline-preparation.test.ts src/test/pix-offline-payload.test.ts
 
       - name: Instalar dependências do empacotador Windows
         run: npm install
