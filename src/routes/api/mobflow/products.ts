@@ -52,7 +52,7 @@ const mapProduct=(r:ProductRow)=>({
 const columns="id,code,name,reference,unit,price::text,cost::text,stock::text,min_stock::text,category,photo_object_key,active,version::text,created_at,updated_at";
 type ProductCursorPosition = { createdAt: string; id: string };
 function encodeProductCursor(row: { created_at: unknown; id: string }): string {
- const date = new Date(row.created_at as string | number | Date);
+ const date = row.created_at instanceof Date ? row.created_at : new Date(row.created_at as string | number);
  if (!Number.isFinite(date.getTime()) || typeof row.id !== "string" || !row.id) {
   throw new ProductApiError("Não foi possível criar o cursor de paginação do catálogo.",500,"invalid_product_cursor");
  }
