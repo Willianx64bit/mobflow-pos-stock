@@ -104,6 +104,16 @@ describe("applySyncEventsToState", () => {
     });
   });
 
+  it("applies price updates through the incremental cursor without a catalog snapshot", () => {
+    const priceEvent = event({
+      sequence: "2", category: "price", entity_type: "product", entity_id: "product-1",
+      payload: { price: 12.5 },
+    });
+    const result = applySyncEventsToState(emptyState(), [priceEvent]);
+    expect(result.products[0]?.price).toBe(12.5);
+    expect(result.products[0]?.stock).toBe(10);
+  });
+
   it("applies manual stock movement events and the complementary adjustment event", () => {
     const productEvent = event({
       sequence: "3", category: "stock", entity_type: "product", entity_id: "product-1",
