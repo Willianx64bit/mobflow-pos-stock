@@ -827,11 +827,8 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     if (Number.isFinite(currentTime) && Number.isFinite(remoteTime) && (forceLatest ? remoteTime < currentTime : remoteTime <= currentTime)) return;
 
     const remote = body.state as State;
-    // Keep the catalog that was actually visible before merging the shared app_state.
-    // In Neon catalog mode that snapshot may intentionally contain products: [],
-    // so taking the fallback after merge would discard the last verified catalog.
-    const verifiedCatalog = state.products ?? [];
-    const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
+    // The relational catalog remains the local product source; app_state refreshes
+    // non-catalog domains only. Product deltas arrive through the durable event cursor.
     state = mergeConcurrentState(lastSyncedState, state, remote);
     // Product prices and stock balances arrive through the durable incremental event cursor.
     // Never scan the complete relational catalog during an app-state refresh.
