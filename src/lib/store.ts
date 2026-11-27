@@ -775,6 +775,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
       }
       cursor = body.nextCursor;
     }
+    if (throwOnError) throw new Error("O catálogo excedeu o limite seguro de páginas durante a sincronização.");
     console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
     return activeFilter === "false" ? [] : fallbackProducts;
   } catch (error) {
