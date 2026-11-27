@@ -1,7 +1,7 @@
 import type { Product, StockCatalogFilters, StockCatalogPage, StockCatalogSummary } from "@/lib/store";
 
 function normalize(value: string): string {
-  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 }
 
 /** Paginate the EXE's already-synchronized local catalog when the deployed web host
