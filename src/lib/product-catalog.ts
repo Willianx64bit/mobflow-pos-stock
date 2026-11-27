@@ -68,7 +68,10 @@ export async function readOfflineCatalog(tenantId: string): Promise<{ products: 
     const tx = db.transaction([PRODUCT_STORE, META_STORE], "readonly");
     const done = transactionDone(tx);
     const meta = await requestValue(tx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
-    if (!meta?.activeGeneration) return { products: [], syncedAt: null, hasCatalog: false };
+    if (!meta?.activeGeneration) {
+      await done;
+      return { products: [], syncedAt: null, hasCatalog: false };
+    }
     const index = tx.objectStore(PRODUCT_STORE).index("tenantGeneration");
     const range = IDBKeyRange.only([tenantId, meta.activeGeneration]);
     const records = await requestValue(index.getAll(range)) as CatalogRecord[];
