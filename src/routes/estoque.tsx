@@ -109,8 +109,8 @@ function Estoque() {
     try {
       // The paged inventory list intentionally omits cost. Fetch it only when
       // opening the editor so ProductForm never defaults an existing cost to zero.
-      const productDetails = await actions.loadStockProductDetails(product.id);
-      setEditing({ ...product, cost: productDetails.cost });
+      const cost = await actions.loadStockProductCost(product.id);
+      setEditing({ ...product, cost });
     } catch (reason) {
       alert(reason instanceof Error ? reason.message : "Não foi possível carregar o custo do produto.");
     } finally {
