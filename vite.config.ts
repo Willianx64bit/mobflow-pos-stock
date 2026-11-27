@@ -3,7 +3,7 @@
 // The Windows EXE build emits a client-only SPA shell that Electron serves locally.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-const isDesktopBuild = process.env.MOBFLOW_DESKTOP_BUILD === "1";
+const isDesktopBuild = process.env["MOBFLOW_DESKTOP_BUILD"] === "1";
 
 export default defineConfig({
   tanstackStart: {
