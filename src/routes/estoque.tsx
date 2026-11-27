@@ -55,17 +55,17 @@ function Estoque() {
   const refreshStockCatalog = async () => {
     setLoading(true);
     try {
-      const [page, totals] = await Promise.all([
-        actions.loadStockCatalogPage(debouncedQ, null, onlyLow, 50),
-        actions.loadStockCatalogSummary(),
-      ]);
+      const page = await actions.loadStockCatalogPage(debouncedQ, null, onlyLow, 50);
       setCatalogProducts(page.products);
       setNextCursor(page.nextCursor);
       setHasMore(page.hasMore);
-      setSummary(totals);
     } finally {
       setLoading(false);
     }
+  };
+  const refreshStockSummary = async () => {
+    const totals = await actions.loadStockCatalogSummary();
+    setSummary(totals);
   };
   const loadMoreProducts = async () => {
     if (!hasMore || !nextCursor || loading) return;
@@ -89,6 +89,7 @@ function Estoque() {
     return () => window.clearTimeout(timer);
   }, [q]);
   useEffect(() => { void refreshStockCatalog().catch(() => undefined); }, [debouncedQ, onlyLow]);
+  useEffect(() => { void refreshStockSummary().catch(() => undefined); }, []);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
@@ -147,6 +148,7 @@ function Estoque() {
                       try {
                         const updated = await actions.setProductActive(p, nextActive);
                         setCatalogProducts((current) => current.map((item) => item.id === p.id ? updated : item));
+                        void refreshStockSummary().catch(() => undefined);
                       } catch (error) {
                         alert(error instanceof Error ? error.message : "Não foi possível alterar a situação do produto.");
                       } finally { setUpdatingStatusId(null); }
@@ -171,8 +173,8 @@ function Estoque() {
         </div>
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Use o ✎ no início do produto para editar.</p>
       </section>
-      {editing !== undefined && <ProductForm product={editing} onClose={() => { setEditing(undefined); void refreshStockCatalog().catch(() => undefined); }} />}
-      {importing && <ImportProducts onClose={() => { setImporting(false); void refreshStockCatalog().catch(() => undefined); }} />}
+      {editing !== undefined && <ProductForm product={editing} onClose={() => { setEditing(undefined); void refreshStockCatalog().catch(() => undefined); void refreshStockSummary().catch(() => undefined); }} />}
+      {importing && <ImportProducts onClose={() => { setImporting(false); void refreshStockCatalog().catch(() => undefined); void refreshStockSummary().catch(() => undefined); }} />}
       {exporting && <StockExportDialog products={exportProducts} onClose={() => setExporting(false)} />}
     </div>
   );
