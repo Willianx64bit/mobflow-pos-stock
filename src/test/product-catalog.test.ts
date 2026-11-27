@@ -96,6 +96,72 @@ describe("offline product catalog", () => {
     expect((await getOfflineCatalogSyncState("company-resume")).pending).toBe(false);
   });
 
+  it("resumes an 80,000-product paged Neon sync after an interruption", async () => {
+    const total = 80_000;
+    const pageSize = 500;
+    const makePage = (offset: number, end: number): OfflineCatalogProduct[] => {
+      const batch: OfflineCatalogProduct[] = [];
+      for (let index = offset; index < end; index += 1) {
+        batch.push({
+          id: `resume-product-${String(index).padStart(6, "0")}`,
+          code: String(index).padStart(8, "0"),
+          name: `Produto retomável ${index}`,
+          price: 12 + (index % 90),
+          stock: index % 40,
+          minStock: 1,
+          category: "Teste de retomada",
+          unit: "un",
+        });
+      }
+      return batch;
+    };
+
+    // Simulate the first app session: persist 40,000 rows and a durable cursor,
+    // then stop before the remaining pages are downloaded.
+    for (let offset = 0; offset < total / 2; offset += pageSize) {
+      const end = offset + pageSize;
+      await writeOfflineCatalogPage(
+        "company-resume-large",
+        makePage(offset, end),
+        end < total / 2 ? `cursor-${end}` : `cursor-${end}`,
+      );
+    }
+
+    const checkpoint = await getOfflineCatalogSyncState("company-resume-large");
+    expect(checkpoint).toMatchObject({
+      pending: true,
+      cursor: "cursor-40000",
+      count: 40_000,
+      complete: false,
+    });
+    expect(await readPendingOfflineCatalog("company-resume-large")).toHaveLength(40_000);
+    expect((await readOfflineCatalog("company-resume-large")).hasCatalog).toBe(false);
+
+    // Simulate a fresh app session resuming from the saved cursor.
+    for (let offset = total / 2; offset < total; offset += pageSize) {
+      const end = offset + pageSize;
+      await writeOfflineCatalogPage(
+        "company-resume-large",
+        makePage(offset, end),
+        end < total ? `cursor-${end}` : null,
+      );
+    }
+
+    expect(await getOfflineCatalogSyncState("company-resume-large")).toMatchObject({
+      pending: true,
+      cursor: null,
+      count: total,
+      complete: true,
+    });
+    expect(await commitOfflineCatalogSync("company-resume-large")).toBe(total);
+    const restored = await readOfflineCatalog("company-resume-large");
+    expect(restored.hasCatalog).toBe(true);
+    expect(restored.products).toHaveLength(total);
+    expect(restored.products[0]?.id).toBe("resume-product-000000");
+    expect(restored.products[total - 1]?.id).toBe("resume-product-079999");
+    expect((await getOfflineCatalogSyncState("company-resume-large")).pending).toBe(false);
+  });
+
   it("updates an existing product in the committed generation", async () => {
     const product = { id: "1", code: "001", name: "Arroz", price: 20, stock: 1, minStock: 1, category: "Mercearia", unit: "un" as const };
     await replaceOfflineCatalog("company-a", pages([product]));
