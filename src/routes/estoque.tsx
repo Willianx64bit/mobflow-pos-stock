@@ -38,6 +38,7 @@ function Estoque() {
   const [reloadKey, setReloadKey] = useState(0);
   const requestSequence = useRef(0);
   const detailsRequestSequence = useRef(0);
+  const editRequestSequence = useRef(0);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
   const [exportProducts, setExportProducts] = useState<Product[] | null>(null);
@@ -105,16 +106,17 @@ function Estoque() {
     }
   };
   const openEdit = async (product: Product) => {
+    const requestId = ++editRequestSequence.current;
     setLoadingEditId(product.id);
     try {
       // The paged inventory list intentionally omits cost. Fetch it only when
       // opening the editor so ProductForm never defaults an existing cost to zero.
       const cost = await actions.loadStockProductCost(product.id);
-      setEditing({ ...product, cost });
+      if (requestId === editRequestSequence.current) setEditing({ ...product, cost });
     } catch (reason) {
-      alert(reason instanceof Error ? reason.message : "Não foi possível carregar o custo do produto.");
+      if (requestId === editRequestSequence.current) alert(reason instanceof Error ? reason.message : "Não foi possível carregar o custo do produto.");
     } finally {
-      setLoadingEditId(null);
+      if (requestId === editRequestSequence.current) setLoadingEditId(null);
     }
   };
   const openDetails = async (product: Product) => {
@@ -237,7 +239,7 @@ function Estoque() {
         </div>
         <p className="mt-3 font-mono text-[10px] text-muted-foreground">Use o ✎ para editar. O ícone de olho consulta custo e vendas somente quando solicitado.</p>
       </section>
-      {editing !== undefined && <ProductForm product={editing} onClose={() => { setEditing(undefined); refreshStockCatalog(); }} />}
+      {editing !== undefined && <ProductForm product={editing} onClose={() => { editRequestSequence.current += 1; setLoadingEditId(null); setEditing(undefined); refreshStockCatalog(); }} /> }
       {importing && <ImportProducts onClose={() => { setImporting(false); refreshStockCatalog(); }} />}
       {exportProducts && <StockExportDialog products={exportProducts} onClose={() => setExportProducts(null)} />}
       {detailsFor && (
@@ -248,7 +250,7 @@ function Estoque() {
                 <h2 id="product-details-title" className="font-display text-xl text-heading">CUSTO E VENDAS</h2>
                 <p className="mt-1 truncate text-sm text-muted-foreground">{detailsFor.name} · {detailsFor.code}</p>
               </div>
-              <button type="button" onClick={() => setDetailsFor(null)} aria-label="Fechar detalhes" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
+              <button type="button" onClick={closeDetails} aria-label="Fechar detalhes" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
             </header>
             {detailsLoading && <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Consultando dados no Neon…</div>}
             {detailsError && <p role="alert" className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{detailsError}</p>}
