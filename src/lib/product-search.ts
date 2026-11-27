@@ -6,7 +6,8 @@ function normalizeSearchText(value: string): string {
 
 export function buildProductBarcodeIndex(products: Product[], supplemental: Product[] = []): Map<string, Product> {
   const index = new Map<string, Product>();
-  for (const product of products) {
+  // Neon is authoritative when an online supplement returns a newer record.
+  for (const product of supplemental) {
     const code = product.code.trim();
     if (code) index.set(code, product);
     for (const barcode of product.barcodes ?? []) {
@@ -14,8 +15,7 @@ export function buildProductBarcodeIndex(products: Product[], supplemental: Prod
       if (value) index.set(value, product);
     }
   }
-  // Local catalog entries always win over supplemental server results.
-  for (const product of supplemental) {
+  for (const product of products) {
     const code = product.code.trim();
     if (code && !index.has(code)) index.set(code, product);
     for (const barcode of product.barcodes ?? []) {
