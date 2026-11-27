@@ -71,7 +71,7 @@ function Estoque() {
     if (!hasMore || !nextCursor || loading) return;
     setLoading(true);
     try {
-      const page = await actions.loadStockCatalogPage(q, nextCursor, onlyLow, 50);
+      const page = await actions.loadStockCatalogPage(debouncedQ, nextCursor, onlyLow, 50);
       setCatalogProducts((current) => [...current, ...page.products]);
       setNextCursor(page.nextCursor);
       setHasMore(page.hasMore);
