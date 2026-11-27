@@ -96,6 +96,28 @@ const emptyState = (): State => ({
 });
 
 let state: State = emptyState();
+let indexedProductsRef: Product[] | null = null;
+let indexedProductsById = new Map<string, Product>();
+let indexedProductsByBarcode = new Map<string, Product>();
+function getProductById(id: string): Product | undefined {
+  if (indexedProductsRef !== state.products) {
+    indexedProductsById = new Map(state.products.map((product) => [product.id, product]));
+    indexedProductsByBarcode = new Map();
+    for (const product of state.products) {
+      if (product.code && !indexedProductsByBarcode.has(product.code.trim())) indexedProductsByBarcode.set(product.code.trim(), product);
+      for (const barcode of product.barcodes ?? []) {
+        const value = barcode.trim();
+        if (value && !indexedProductsByBarcode.has(value)) indexedProductsByBarcode.set(value, product);
+      }
+    }
+    indexedProductsRef = state.products;
+  }
+  return indexedProductsById.get(id);
+}
+function getProductByBarcode(code: string): Product | undefined {
+  getProductById("");
+  return indexedProductsByBarcode.get(code.trim());
+}
 let receivingDraftPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let loaded = false;
 let cloudReady = false;
@@ -1772,7 +1794,7 @@ export const actions = {
     set({ contacts: (state.contacts ?? []).filter((c) => c.id !== id) });
   },
   addToCart(productId: string, qty = 1) {
-    const p = state.products.find((x) => x.id === productId);
+    const p = getProductById(productId);
     if (!p) return;
     const cur = state.cart.find((c) => c.productId === productId);
     const nextQty = Math.max(0, (cur?.qty ?? 0) + qty);
@@ -1786,7 +1808,7 @@ export const actions = {
     set({ cart }, { persist: false, localCartOnly: true });
   },
   setCartQty(productId: string, qty: number) {
-    const p = state.products.find((x) => x.id === productId);
+    const p = getProductById(productId);
     if (!p || !Number.isFinite(qty)) return;
     const normalized = p.unit === "kg" ? Math.round(Math.max(0, qty) * 1000) / 1000 : Math.floor(Math.max(0, qty));
     const nextQty = normalized;
@@ -1804,7 +1826,7 @@ export const actions = {
     const activeCash = (state.cashSessions ?? []).find((session) => session.status === "open" && isCashSessionForOperator(session, operator));
     if (!operator || !activeCash) return null;
     const items = state.cart.map((c) => {
-      const p = state.products.find((x) => x.id === c.productId)!;
+      const p = getProductById(c.productId)!;
       return { productId: p.id, name: p.name, price: effectivePrice(p), cost: p.cost, qty: c.qty, unit: p.unit };
     });
     const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -1938,7 +1960,7 @@ export const actions = {
     return Array.isArray(result.body.events) ? result.body.events as PromotionEvent[] : [];
   },
   async savePromotion(promotion: Omit<Promotion, "id" | "originalPrice" | "productName"> & { id?: string }) {
-    const product = state.products.find((p) => p.id === promotion.productId);
+    const product = getProductById(promotion.productId);
     if (!product || !Number.isFinite(promotion.promoPrice) || promotion.promoPrice < 0 || !promotion.startsAt || !promotion.endsAt || new Date(promotion.endsAt) <= new Date(promotion.startsAt)) return false;
     const existing = promotion.id ? state.promotions.find((p) => p.id === promotion.id) : undefined;
     const method = promotion.id ? "PATCH" : "POST";
@@ -2029,7 +2051,7 @@ export const actions = {
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
-      const old = state.products.find((x) => x.id === p.id);
+      const old = getProductById(p.id);
       const updated = { ...old, ...p, id: p.id } as Product;
       const movements = old && old.stock !== updated.stock ? [movementEntry({ operationId: `manual:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: old.id, productCode: old.code, productName: old.name, unit: old.unit, quantity: Math.abs(updated.stock - old.stock), totalValue: Math.round(Math.abs(updated.stock - old.stock) * updated.price * 100) / 100, stockBefore: old.stock, stockAfter: updated.stock, delta: updated.stock - old.stock, details: "Alteração manual do cadastro" })] : [];
       set({ products: state.products.map((x) => (x.id === p.id ? updated : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] });
@@ -2059,7 +2081,7 @@ export const actions = {
     }
     const stockMovements: StockMovement[] = [];
     for (const product of products) {
-      const previous = state.products.find((p) => p.id === product.id);
+      const previous = getProductById(product.id);
       if (!previous) {
         if (product.stock > 0) stockMovements.push(movementEntry({ id: `import:${product.id}:${uid()}`, operationId: `import:${product.id}`, date: new Date().toISOString(), type: "Importação", productId: product.id, productCode: product.code, productName: product.name, unit: product.unit, quantity: product.stock, totalValue: Math.round(product.stock * product.price * 100) / 100, stockBefore: 0, stockAfter: product.stock, delta: product.stock, details: "Produto incluído pela importação" }));
       } else if (previous.stock !== product.stock) {
@@ -2070,7 +2092,7 @@ export const actions = {
     return { created, updated };
   },
   updateField(id: string, field: "price" | "stock", value: number) {
-    const product = state.products.find((x) => x.id === id);
+    const product = getProductById(id);
     if (!product) return;
     const movements = field === "stock" && product.stock !== value ? [movementEntry({ operationId: `field:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: id, productCode: product.code, productName: product.name, unit: product.unit, quantity: Math.abs(value - product.stock), totalValue: Math.round(Math.abs(value - product.stock) * product.price * 100) / 100, stockBefore: product.stock, stockAfter: value, delta: value - product.stock, details: "Alteração direta do estoque" })] : [];
     set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { catalog: "balances", productUpdates: [{ ...product, [field]: value }] });
@@ -2079,7 +2101,7 @@ export const actions = {
     const reason = input.reason.trim();
     if (!reason || !input.items.length) return false;
     const prepared = input.items.map((item) => {
-      const product = state.products.find((p) => p.id === item.productId);
+      const product = getProductById(item.productId);
       if (!product || !Number.isFinite(item.quantity) || item.quantity < 0) return null;
       if (product.unit !== "kg" && !Number.isInteger(item.quantity)) return null;
       const quantity = product.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
@@ -2101,7 +2123,7 @@ export const actions = {
       const changed = items.find((item) => item.productId === product.id);
       return changed ? { ...product, stock: changed.newStock } : product;
     });
-    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: "Balanço", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (state.products.find((p) => p.id === item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
+    const stockMovements = items.map((item) => movementEntry({ id: `${id}:${item.productId}`, operationId: id, date: adjustment.date, type: "Balanço", productId: item.productId, productCode: item.code, productName: item.name, unit: item.unit, quantity: Math.abs(item.newStock - item.previousStock), totalValue: Math.round(Math.abs(item.newStock - item.previousStock) * (getProductById(item.productId)?.price ?? 0) * 100) / 100, stockBefore: item.previousStock, stockAfter: item.newStock, delta: item.newStock - item.previousStock, details: reason }));
     const queued = enqueueDomainCommand("stock", {
       operationId: id, operationType: "adjustment", reason,
       items: items.map((item) => ({ productId: item.productId, mode: item.mode === "definir" ? "set" : "add", quantity: item.quantity })),
@@ -2118,7 +2140,7 @@ export const actions = {
     const reason = input.reason;
     if (!input.items.length || (reason === "Doação" && !input.donationDestination?.trim())) return false;
     const prepared = input.items.map((item) => {
-      const p = state.products.find((x) => x.id === item.productId);
+      const p = getProductById(item.productId);
       if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null;
       const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
       const purchase = Math.max(0, p.cost ?? 0);
@@ -2186,7 +2208,7 @@ export const actions = {
   async applyStockTransfer(input: { destinationName: string; destinationDocument?: string; destinationPhone?: string; destinationStreet?: string; destinationNumber?: string; destinationCep?: string; destinationNeighborhood?: string; destinationCity?: string; destinationState?: string; costMode: "compra" | "venda" | "media"; items: { productId: string; quantity: number }[] }) {
     if (!input.destinationName.trim() || !input.items.length) return false;
     const prepared = input.items.map((item) => {
-      const p = state.products.find((x) => x.id === item.productId);
+      const p = getProductById(item.productId);
       if (!p || !Number.isFinite(item.quantity) || item.quantity <= 0 || (p.unit !== "kg" && !Number.isInteger(item.quantity))) return null;
       const quantity = p.unit === "kg" ? Math.round(item.quantity * 1000) / 1000 : item.quantity;
       const purchase = Math.max(0, p.cost ?? 0), sale = Math.max(0, p.price ?? 0);
@@ -2280,7 +2302,7 @@ export const actions = {
     set({ conferences: state.conferences.map((c) => (c.id === id ? fn(c) : c)) });
   },
   countCode(confId: string, code: string, qty = 1): Product | null {
-    const p = state.products.find((x) => productHasBarcode(x, code));
+    const p = getProductByBarcode(code);
     actions.patchConference(confId, (c) => p
       ? { ...c, counts: { ...c.counts, [p.id]: Math.max(0, (c.counts[p.id] ?? 0) + qty) } }
       : { ...c, unknown: c.unknown.includes(code) ? c.unknown : [...c.unknown, code] });
@@ -2300,7 +2322,7 @@ export const actions = {
     set({ products, conferences: state.conferences.map((c) => (c.id === id ? { ...c, status: "finalizada", adjusted: adjust } : c)), stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] });
   },
   addManualExpiry(productId: string, expiry: string, quantity: number) {
-    const product = state.products.find((p) => p.id === productId);
+    const product = getProductById(productId);
     if (!product || !expiry || !Number.isFinite(quantity) || quantity <= 0) return false;
     const [year, month, day] = expiry.split("-").map(Number);
     const formattedExpiry = year && month && day
@@ -2313,7 +2335,7 @@ export const actions = {
     return true;
   },
   updateManualExpiry(noteId: string, productId: string, expiry: string, quantity: number) {
-    const product = state.products.find((p) => p.id === productId);
+    const product = getProductById(productId);
     const existing = (state.manualExpiries ?? []).find((e) => e.id === noteId);
     if (!product || !existing || !expiry || !Number.isFinite(quantity) || quantity <= 0) return false;
     const [year, month, day] = expiry.split("-").map(Number);
@@ -2335,7 +2357,7 @@ export const actions = {
       id: uid(), number: number.trim() || "Sem número", supplier: supplier.trim() || "Fornecedor não informado", supplierCnpj: supplierCnpj?.trim() || undefined,
       date: new Date().toISOString(),
       items: items.map((i) => {
-        const p = state.products.find((x) => x.id === i.productId)!;
+        const p = getProductById(i.productId)!;
         return { productId: p.id, name: p.name, code: p.code, barcodes: p.barcodes ?? [], expected: Math.max(0, i.expected), unit: p.unit };
       }),
       status: "pendente",
@@ -2353,7 +2375,7 @@ export const actions = {
     if (!note || note.status !== "pendente") return;
     const additions = items
       .map((item) => {
-        const p = state.products.find((x) => x.id === item.productId);
+        const p = getProductById(item.productId);
         const expected = Number(item.expected);
         return p && Number.isFinite(expected) && expected > 0
           ? { productId: p.id, name: p.name, code: p.code, barcodes: p.barcodes ?? [], expected, unit: p.unit as "un" | "kg" }
@@ -2412,7 +2434,7 @@ export const actions = {
     const note = (state.receiving ?? []).find((n) => n.id === receivingId);
     if (!note || note.status !== "pendente") return false;
     const extras = Object.entries(extraCounts).filter(([, received]) => received > 0).map(([productId, received]) => {
-      const p = state.products.find((x) => x.id === productId);
+      const p = getProductById(productId);
       return p ? { productId, name: p.name, received, expiry: extraExpiries[productId] || undefined, unit: p.unit } : null;
     }).filter(Boolean) as ReceivingExtra[];
     const conference: Conference = {
@@ -2591,7 +2613,7 @@ export function printReceipt(s: Sale, companyName = "") {
   const w = window.open("", "_blank", "width=420,height=720");
   if (!w) return;
   const rows = s.items.map((item) => {
-    const product = state.products.find((entry) => entry.id === item.productId);
+    const product = getProductById(item.productId);
     const barcode = product?.barcodes?.[0] || product?.code || "";
     const productCode = barcode.replace(/\D/g, "").slice(-5) || "—";
     const quantity = item.qty.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
