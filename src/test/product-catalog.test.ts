@@ -8,8 +8,13 @@ async function* pages(items: Array<{ id: string; code: string; name: string; pri
 }
 
 describe("offline product catalog", () => {
-  beforeEach(() => {
-    indexedDB.deleteDatabase("mobflow-product-catalog");
+  beforeEach(async () => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase("mobflow-product-catalog");
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("Catalog database remained open between tests."));
+    });
   });
 
   it("keeps the previous generation visible until a full replacement commits", async () => {
