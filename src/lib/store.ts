@@ -1260,6 +1260,8 @@ export function effectivePrice(product: Product, at = new Date()): number {
 }
 
 export const actions = {
+  loadStockCatalogPage,
+  loadStockCatalogSummary,
   openCashSession(openingAmount: number, note = "") {
     const operator = typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || "" : "";
     if (!operator || !Number.isFinite(openingAmount) || openingAmount < 0) return false;
