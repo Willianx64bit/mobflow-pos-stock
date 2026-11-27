@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
+import { buildProductBarcodeIndex, searchLocalProducts } from "@/lib/product-search";
 import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 // Desktop and web share the server-side PDV user lifecycle; deletion preserves audit references in Neon.
 
@@ -97,26 +98,7 @@ function PDV() {
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const search = useRef<HTMLInputElement>(null);
-  const productsByBarcode = useMemo(() => {
-    const index = new Map<string, Product>();
-    for (const product of sellableProducts) {
-      const code = product.code.trim();
-      if (code) index.set(code, product);
-      for (const barcode of product.barcodes ?? []) {
-        const value = barcode.trim();
-        if (value) index.set(value, product);
-      }
-    }
-    for (const product of supplementalProducts) {
-      const code = product.code.trim();
-      if (code && !index.has(code)) index.set(code, product);
-      for (const barcode of product.barcodes ?? []) {
-        const value = barcode.trim();
-        if (value && !index.has(value)) index.set(value, product);
-      }
-    }
-    return index;
-  }, [sellableProducts, supplementalProducts]);
+  const productsByBarcode = useMemo(() => buildProductBarcodeIndex(sellableProducts, supplementalProducts), [sellableProducts, supplementalProducts]);
 
   useEffect(() => {
     setQuick(localStorage.getItem("mobflow:quick") === "1");
@@ -221,14 +203,7 @@ function PDV() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const localResults = useMemo(() => {
-    const n = norm(debouncedQ.trim());
-    if (!n) return sellableProducts.slice(0, 100);
-    return sellableProducts
-      .filter((p) => norm(p.name).includes(n) || p.code.includes(n) ||
-        (p.barcodes ?? []).some((code) => code.includes(n)) || norm(p.category).includes(n))
-      .slice(0, 100);
-  }, [debouncedQ, sellableProducts]);
+  const localResults = useMemo(() => searchLocalProducts(sellableProducts, debouncedQ, 100), [debouncedQ, sellableProducts]);
 
   useEffect(() => {
     const term = debouncedQ.trim();
