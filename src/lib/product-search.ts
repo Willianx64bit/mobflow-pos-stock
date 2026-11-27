@@ -26,14 +26,33 @@ export function buildProductBarcodeIndex(products: Product[], supplemental: Prod
   return index;
 }
 
-export function searchLocalProducts(products: Product[], query: string, limit = 100): Product[] {
+export type LocalProductSearchIndex = { products: Product[]; searchText: string[] };
+
+export function buildLocalProductSearchIndex(products: Product[]): LocalProductSearchIndex {
+  return {
+    products,
+    // Normalize each product once when the catalog generation changes, not on
+    // every keystroke. This keeps repeated searches over 100k rows lightweight.
+    searchText: products.map((product) => [
+      normalizeSearchText(product.name),
+      normalizeSearchText(product.code),
+      ...(product.barcodes ?? []).map(normalizeSearchText),
+      normalizeSearchText(product.category),
+    ].join("\u001f")),
+  };
+}
+
+export function searchIndexedLocalProducts(index: LocalProductSearchIndex, query: string, limit = 100): Product[] {
   const max = Math.max(1, Math.min(100, Math.floor(limit)));
   const term = normalizeSearchText(query.trim());
-  if (!term) return products.slice(0, max);
-  return products.filter((product) =>
-    normalizeSearchText(product.name).includes(term) ||
-    product.code.includes(term) ||
-    (product.barcodes ?? []).some((barcode) => barcode.includes(term)) ||
-    normalizeSearchText(product.category).includes(term)
-  ).slice(0, max);
+  if (!term) return index.products.slice(0, max);
+  const matches: Product[] = [];
+  for (let position = 0; position < index.products.length && matches.length < max; position += 1) {
+    if (index.searchText[position]?.includes(term)) matches.push(index.products[position]);
+  }
+  return matches;
+}
+
+export function searchLocalProducts(products: Product[], query: string, limit = 100): Product[] {
+  return searchIndexedLocalProducts(buildLocalProductSearchIndex(products), query, limit);
 }
