@@ -9,7 +9,7 @@ export type Product = { id: string; version?: number; active?: boolean; code: st
 export type StockCatalogSummary = { total: number; active: number; inactive: number; lowStock: number; inventoryValue: number };
 export type StockCatalogPage = { products: Product[]; hasMore: boolean; nextCursor: string | null; summary: StockCatalogSummary | null };
 export type StockProductDetails = { cost: number; unitsSold: number; salesCount: number; revenue: number; costTotal: number; grossProfit: number };
-export type StockCatalogFilters = { q?: string; category?: string; active?: "all" | "active" | "inactive"; stock?: "all" | "low" | "zero" | "positive"; cursor?: string | null };
+export type StockCatalogFilters = { q?: string; category?: string; active?: "all" | "active" | "inactive"; stock?: "all" | "low" | "zero" | "positive"; cursor?: string | null; includeSummary?: boolean };
 
 const normalizeProductUnit = (unit: unknown): "kg" | "un" => {
   const value = String(unit ?? "").trim().toLowerCase();
@@ -1943,6 +1943,7 @@ export const actions = {
     if (filters.q?.trim()) params.set("q", filters.q.trim());
     if (filters.category?.trim()) params.set("category", filters.category.trim());
     if (filters.cursor) params.set("cursor", filters.cursor);
+    if (filters.includeSummary === false) params.set("summary", "0");
     const result = await callMobFlowApi("/api/mobflow/products/inventory?" + params.toString());
     if (!result.response.ok || result.body.ok !== true || !Array.isArray(result.body.products)) {
       throw new Error(String(result.body.error ?? "Falha ao consultar a página do inventário no Neon."));
