@@ -62,17 +62,17 @@ function cleanProduct(product: OfflineCatalogProduct): OfflineCatalogProduct {
   return { ...safe, barcodes: Array.isArray(safe.barcodes) ? [...safe.barcodes] : [] };
 }
 
-export async function readOfflineCatalog(tenantId: string): Promise<{ products: OfflineCatalogProduct[]; syncedAt: number | null }> {
+export async function readOfflineCatalog(tenantId: string): Promise<{ products: OfflineCatalogProduct[]; syncedAt: number | null; hasCatalog: boolean }> {
   const db = await openCatalogDb();
   try {
     const tx = db.transaction([PRODUCT_STORE, META_STORE], "readonly");
     const meta = await requestValue(tx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
-    if (!meta?.activeGeneration) return { products: [], syncedAt: null };
+    if (!meta?.activeGeneration) return { products: [], syncedAt: null, hasCatalog: false };
     const index = tx.objectStore(PRODUCT_STORE).index("tenantGeneration");
     const range = IDBKeyRange.only([tenantId, meta.activeGeneration]);
     const records = await requestValue(index.getAll(range)) as CatalogRecord[];
     await transactionDone(tx);
-    return { products: records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product), syncedAt: meta.syncedAt };
+    return { products: records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product), syncedAt: meta.syncedAt, hasCatalog: true };
   } finally {
     db.close();
   }
