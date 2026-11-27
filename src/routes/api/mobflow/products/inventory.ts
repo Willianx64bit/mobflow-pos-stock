@@ -52,6 +52,7 @@ async function getInventory(request: Request) {
   const active = url.searchParams.get("active") ?? "all";
   const stock = url.searchParams.get("stock") ?? "all";
   const cursor = url.searchParams.get("cursor");
+  const includeSummary = url.searchParams.get("summary") !== "0";
   if (!["all", "active", "inactive"].includes(active) ||
       !["all", "low", "zero", "positive"].includes(stock) ||
       (cursor !== null && cursor.length > 160)) {
@@ -78,7 +79,7 @@ async function getInventory(request: Request) {
 
     // The global aggregate is needed on the first page and after filter changes,
     // not on every subsequent page of a long inventory browse.
-    const summaryResult = cursor === null
+    const summaryResult = cursor === null && includeSummary
       ? await client.query(
           "SELECT COUNT(*)::text AS total, " +
           "COUNT(*) FILTER (WHERE active=true)::text AS active, " +
