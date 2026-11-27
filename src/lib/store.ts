@@ -3,7 +3,7 @@ import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
-import { getOfflineCatalogStatus, readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct } from "@/lib/product-catalog";
+import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct, writeOfflineCatalogPage } from "@/lib/product-catalog";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 
@@ -696,9 +696,35 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     return activeFilter === "false" ? [] : fallbackProducts;
   }
   try {
+    // A complete catalog sync is checkpointed after every API page. If the app
+    // closes or the network drops, the next run resumes from the saved cursor.
+    const shouldStage = mode === "full" && !activeFilter && typeof localStorage !== "undefined";
+    const tenantId = shouldStage ? (cloudAccountId ?? localStorage.getItem(OWNER_KEY)) : null;
+    const resumeState = tenantId
+      ? await getOfflineCatalogSyncState(tenantId)
+      : { pending: false, cursor: null, count: 0, complete: false };
     const products: Product[] = [];
+    if (tenantId && resumeState.pending) {
+      const pending = await readPendingOfflineCatalog(tenantId);
+      products.push(...pending.map((product) => ({
+        ...product,
+        unit: normalizeProductUnit(product.unit),
+        photo: product.photoObjectKey ? `/api/mobflow/product-photo?productId=${encodeURIComponent(product.id)}` : undefined,
+      })));
+    }
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
-    let cursor: string | null = null;
+    let cursor: string | null = resumeState.pending ? resumeState.cursor : null;
+
+    // The last page may have been saved immediately before the app closed.
+    // Commit that complete generation without downloading it again.
+    if (tenantId && resumeState.complete) {
+      const committedCount = await commitOfflineCatalogSync(tenantId);
+      catalogStorageReady = committedCount > 0;
+      catalogReadAuthoritative = committedCount > 0;
+      persistLocalState();
+      return products;
+    }
+
     for (let page = 0; page < 2000; page += 1) {
       const query = new URLSearchParams({ limit: "500" });
       if (activeFilter) query.set("active", activeFilter);
@@ -706,29 +732,43 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) {
         // A transient API/network failure is not an authoritative empty catalog.
-        // Keep the last tenant-scoped catalog already verified in this session.
+        // Keep the last committed tenant catalog and the durable staging checkpoint.
         console.error("[MobFlow Catalog] Neon catalog request failed; keeping the last verified tenant catalog.");
         return activeFilter === "false" ? [] : fallbackProducts;
       }
+
+      const pageProducts: Product[] = [];
       for (const raw of body.products as any[]) {
         const previous = existing.get(String(raw.id));
-        products.push({ id: String(raw.id), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
+        pageProducts.push({
+          id: String(raw.id), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
           barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
           ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
           price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
           minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
-          unit: normalizeProductUnit(raw.unit), active: raw.active !== false, photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
+          unit: normalizeProductUnit(raw.unit), active: raw.active !== false,
+          photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined,
+          photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo,
+        });
       }
+
+      if (body.hasMore === true && (typeof body.nextCursor !== "string" || !body.nextCursor)) {
+        console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
+        return activeFilter === "false" ? [] : fallbackProducts;
+      }
+
+      if (tenantId) {
+        await writeOfflineCatalogPage(tenantId, pageProducts, body.hasMore === true ? body.nextCursor as string : null);
+      }
+      products.push(...pageProducts);
+
       if (body.hasMore !== true) {
         if (mode === "full") {
-          if (!activeFilter && typeof localStorage !== "undefined") {
-            const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
-            if (tenantId) {
-              await replaceOfflineCatalog(tenantId, (async function* () { for (let offset = 0; offset < products.length; offset += 500) yield products.slice(offset, offset + 500); })());
-              catalogStorageReady = true;
-              catalogReadAuthoritative = true;
-              persistLocalState();
-            }
+          if (tenantId) {
+            const committedCount = await commitOfflineCatalogSync(tenantId);
+            catalogStorageReady = committedCount > 0;
+            catalogReadAuthoritative = committedCount > 0;
+            persistLocalState();
           }
           return products;
         }
@@ -740,11 +780,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
           return latest ? { ...current, stock: latest.stock, price: latest.price } : current;
         });
       }
-      if (typeof body.nextCursor !== "string" || !body.nextCursor) {
-        console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
-        return activeFilter === "false" ? [] : fallbackProducts;
-      }
-      cursor = body.nextCursor;
+      cursor = body.nextCursor as string;
     }
     console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
     return activeFilter === "false" ? [] : fallbackProducts;
