@@ -587,6 +587,41 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
   }
 }
 
+
+/**
+ * Online catalog search: ask Neon for only the matching page. The full local
+ * catalog remains available as the offline fallback and for exact barcode scans.
+ */
+export async function searchCatalogProducts(query: string, limit = 50): Promise<Product[] | null> {
+  const term = query.trim();
+  if (!term || import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon" ||
+      (typeof navigator !== "undefined" && !navigator.onLine)) return null;
+  try {
+    const params = new URLSearchParams({ q: term, limit: String(Math.min(100, Math.max(1, limit))) });
+    const { response, body } = await callMobFlowApi("/api/mobflow/products?" + params.toString());
+    if (!response.ok || !Array.isArray(body.products)) return null;
+    return (body.products as Array<Record<string, unknown>>).map((raw) => ({
+      id: String(raw.id ?? ""),
+      version: Number(raw.version ?? 1),
+      code: String(raw.code ?? ""),
+      barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
+      ref: typeof raw.ref === "string" ? raw.ref : undefined,
+      name: String(raw.name ?? ""),
+      price: Number(raw.price ?? 0),
+      cost: Number(raw.cost ?? 0),
+      stock: Number(raw.stock ?? 0),
+      minStock: Number(raw.minStock ?? 0),
+      category: String(raw.category ?? ""),
+      unit: normalizeProductUnit(raw.unit),
+      active: raw.active !== false,
+      photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined,
+      photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : undefined,
+    })).filter((product) => product.id);
+  } catch {
+    return null;
+  }
+}
+
 async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
   if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
   try {
