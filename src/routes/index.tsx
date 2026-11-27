@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, searchCatalogProducts, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { searchCatalogProducts, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
