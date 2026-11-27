@@ -23,6 +23,8 @@ const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix", "Fiado"];
 function PDV() {
   const products = useStore((s) => s.products);
   const sellableProducts = useMemo(() => products.filter((product) => Number.isFinite(product.price) && product.price > 0.01), [products]);
+  const [supplementalProducts, setSupplementalProducts] = useState<Product[]>([]);
+  const supplementalRequestRef = useRef(0);
   useEffect(() => {
     let permissions: string[] = [];
     try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]").map((p: string) => p === "Conferência" ? "Operações" : p); } catch {}
@@ -38,6 +40,7 @@ function PDV() {
   const [, setPriceClock] = useState(0);
   useEffect(() => { const timer = setInterval(() => setPriceClock((v) => v + 1), 15000); return () => clearInterval(timer); }, []);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [sel, setSel] = useState(0);
   const [payment, setPayment] = useState<Payment>("Pix");
   const [received, setReceived] = useState("");
@@ -94,6 +97,26 @@ function PDV() {
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScanRef = useRef<{ code: string; at: number } | null>(null);
   const search = useRef<HTMLInputElement>(null);
+  const productsByBarcode = useMemo(() => {
+    const index = new Map<string, Product>();
+    for (const product of sellableProducts) {
+      const code = product.code.trim();
+      if (code) index.set(code, product);
+      for (const barcode of product.barcodes ?? []) {
+        const value = barcode.trim();
+        if (value) index.set(value, product);
+      }
+    }
+    for (const product of supplementalProducts) {
+      const code = product.code.trim();
+      if (code && !index.has(code)) index.set(code, product);
+      for (const barcode of product.barcodes ?? []) {
+        const value = barcode.trim();
+        if (value && !index.has(value)) index.set(value, product);
+      }
+    }
+    return index;
+  }, [sellableProducts, supplementalProducts]);
 
   useEffect(() => {
     setQuick(localStorage.getItem("mobflow:quick") === "1");
@@ -139,6 +162,7 @@ function PDV() {
   const requestAdd = (p: Product) => {
     if (!Number.isFinite(p.price) || p.price <= 0.01) { setFlash("Produto indisponível no caixa: cadastre um preço acima de R$ 0,01."); return; }
     if (!pdvAuthorized) { setFlash("PDV bloqueado"); return; }
+    if (!products.some((item) => item.id === p.id)) actions.applyCatalogProduct(p);
     if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
     actions.addToCart(p.id, 1);
     setFlash(`+1 ${p.name}`);
@@ -159,7 +183,7 @@ function PDV() {
     if (!normalized) return false;
     if (lastScanRef.current?.code === normalized && now - lastScanRef.current.at < 500) return true;
     lastScanRef.current = { code: normalized, at: now };
-    const p = sellableProducts.find((x) => productHasBarcode(x, normalized));
+    const p = productsByBarcode.get(normalized);
     if (p) { requestAdd(p); return true; }
     setFlash(`código não cadastrado: ${normalized}`);
     return false;
@@ -174,11 +198,12 @@ function PDV() {
     const barcode = multiplied?.[2] ?? value;
     if (!/^\d{6,}$/.test(barcode)) return;
     scanTimer.current = setTimeout(() => {
-      const p = sellableProducts.find((item) => productHasBarcode(item, barcode));
+      const p = productsByBarcode.get(barcode);
       if (!p) return;
       if (multiplied) {
         const qty = Number(multiplied[1] ?? "");
         if (qty > 0 && Number.isSafeInteger(qty) && p.unit === "un" && pdvAuthorized) {
+          if (!products.some((item) => item.id === p.id)) actions.applyCatalogProduct(p);
           actions.addToCart(p.id, qty);
           setFlash("+" + qty + " " + p.name);
         } else if (p.unit === "kg") {
@@ -191,11 +216,43 @@ function PDV() {
     }, 120);
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQ(q), 120);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  const localResults = useMemo(() => {
+    const n = norm(debouncedQ.trim());
+    if (!n) return sellableProducts.slice(0, 100);
+    return sellableProducts
+      .filter((p) => norm(p.name).includes(n) || p.code.includes(n) ||
+        (p.barcodes ?? []).some((code) => code.includes(n)) || norm(p.category).includes(n))
+      .slice(0, 100);
+  }, [debouncedQ, sellableProducts]);
+
+  useEffect(() => {
+    const term = debouncedQ.trim();
+    const requestId = ++supplementalRequestRef.current;
+    setSupplementalProducts([]);
+    if (term.length < 2 || isOfflineMode() || localResults.length >= 100) return;
+    const timer = setTimeout(() => {
+      void actions.searchCatalogProducts(term, 100).then((found) => {
+        if (requestId !== supplementalRequestRef.current) return;
+        setSupplementalProducts(found.filter((product) => Number.isFinite(product.price) && product.price > 0.01));
+      }).catch(() => {
+        if (requestId === supplementalRequestRef.current) setSupplementalProducts([]);
+      });
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      supplementalRequestRef.current += 1;
+    };
+  }, [debouncedQ, localResults.length]);
+
   const results = useMemo(() => {
-    const n = norm(q.trim());
-    if (!n) return sellableProducts;
-    return sellableProducts.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
-  }, [q, sellableProducts]);
+    const ids = new Set(localResults.map((product) => product.id));
+    return [...localResults, ...supplementalProducts.filter((product) => !ids.has(product.id))].slice(0, 100);
+  }, [localResults, supplementalProducts]);
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
   const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
@@ -301,9 +358,10 @@ function PDV() {
         e.preventDefault();
         if (quick) {
           if (multipliedScan) {
-            const p = sellableProducts.find((item) => productHasBarcode(item, scanCode));
+            const p = productsByBarcode.get(scanCode);
             const qty = Number(multipliedScan[1] ?? "");
             if (p && qty > 0 && Number.isSafeInteger(qty) && p.unit === "un") {
+              if (!products.some((item) => item.id === p.id)) actions.applyCatalogProduct(p);
               actions.addToCart(p.id, qty);
               setFlash("+" + qty + " " + p.name);
             } else if (p && p.unit === "kg") {
@@ -325,7 +383,7 @@ function PDV() {
       e.preventDefault();
       const m = q.match(/^(\d+)\*(.*)$/);
       const term = (m ? m[2] : q) ?? "";
-      const exact = sellableProducts.find((p) => productHasBarcode(p, term.trim()));
+      const exact = productsByBarcode.get(term.trim());
       const target = exact ?? results[sel];
       if (target) { if (m && target.unit === "un") { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
