@@ -1,18 +1,19 @@
 export type OfflineCatalogProduct = {
   id: string;
   code: string;
-  barcodes?: string[];
-  ref?: string;
+  barcodes?: string[] | undefined;
+  ref?: string | undefined;
   name: string;
   price: number;
-  cost?: number;
+  cost?: number | undefined;
   stock: number;
   minStock: number;
   category: string;
   unit: "un" | "kg";
-  active?: boolean;
-  version?: number;
-  photoObjectKey?: string;
+  active?: boolean | undefined;
+  version?: number | undefined;
+  photoObjectKey?: string | undefined;
+  photo?: string | undefined;
 };
 
 type CatalogRecord = OfflineCatalogProduct & { tenantId: string; generation: string; normalizedName: string };
