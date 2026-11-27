@@ -28,17 +28,26 @@ export function buildProductBarcodeIndex(products: Product[], supplemental: Prod
 
 export type LocalProductSearchIndex = { products: Product[]; searchText: string[] };
 
+const normalizedProductTextCache = new WeakMap<Product, string>();
+function normalizedProductSearchText(product: Product): string {
+  const cached = normalizedProductTextCache.get(product);
+  if (cached !== undefined) return cached;
+  const value = [
+    normalizeSearchText(product.name),
+    normalizeSearchText(product.code),
+    ...(product.barcodes ?? []).map(normalizeSearchText),
+    normalizeSearchText(product.category),
+  ].join("\u001f");
+  normalizedProductTextCache.set(product, value);
+  return value;
+}
+
 export function buildLocalProductSearchIndex(products: Product[]): LocalProductSearchIndex {
   return {
     products,
-    // Normalize each product once when the catalog generation changes, not on
-    // every keystroke. This keeps repeated searches over 100k rows lightweight.
-    searchText: products.map((product) => [
-      normalizeSearchText(product.name),
-      normalizeSearchText(product.code),
-      ...(product.barcodes ?? []).map(normalizeSearchText),
-      normalizeSearchText(product.category),
-    ].join("\u001f")),
+    // Product objects unaffected by stock/price events retain their cached
+    // normalized text, avoiding 100k repeated normalizations after each delta.
+    searchText: products.map(normalizedProductSearchText),
   };
 }
 
