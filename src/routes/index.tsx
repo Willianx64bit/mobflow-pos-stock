@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { productHasBarcode, searchCatalogProducts, actions, brl, buildPixPayload, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, hydrateStore, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -189,11 +189,40 @@ function PDV() {
     }, 120);
   };
 
-  const results = useMemo(() => {
+  const localResults = useMemo(() => {
     const n = norm(q.trim());
-    if (!n) return sellableProducts;
-    return sellableProducts.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
+    const matches = !n
+      ? sellableProducts
+      : sellableProducts.filter((p) => norm(p.name).includes(n) || p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n)) || norm(p.category).includes(n));
+    // Keep the offline/local fallback bounded: a large catalog must never
+    // create thousands of product cards in the PDV at once.
+    return matches.slice(0, 50);
   }, [q, sellableProducts]);
+  const [remoteSearch, setRemoteSearch] = useState<{ query: string; products: Product[] } | null>(null);
+  const [searchingRemote, setSearchingRemote] = useState(false);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2 || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      setRemoteSearch(null);
+      setSearchingRemote(false);
+      return;
+    }
+    let active = true;
+    setRemoteSearch(null);
+    const timer = window.setTimeout(() => {
+      setSearchingRemote(true);
+      void searchCatalogProducts(term, 50).then((found) => {
+        if (!active) return;
+        setRemoteSearch(found ? { query: term, products: found.filter((p) => Number.isFinite(p.price) && p.price > 0.01) } : null);
+        setSearchingRemote(false);
+      });
+    }, 220);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [q]);
+  const results = remoteSearch?.query === q.trim() ? remoteSearch.products : localResults;
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
   const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
