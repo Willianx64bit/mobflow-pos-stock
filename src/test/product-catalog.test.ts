@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
-import { readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct } from "@/lib/product-catalog";
+import { readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, type OfflineCatalogProduct } from "@/lib/product-catalog";
 
 async function* pages(items: Array<{ id: string; code: string; name: string; price: number; stock: number; minStock: number; category: string; unit: "un" | "kg" }>) {
   yield items.slice(0, 1);
@@ -19,10 +19,10 @@ describe("offline product catalog", () => {
 
   it("keeps the previous generation visible until a full replacement commits", async () => {
     const tenant = "company-a";
-    const initial = [{ id: "1", code: "001", name: "Café", price: 10, stock: 2, minStock: 1, category: "Mercearia", unit: "un" as const }];
+    const initial: OfflineCatalogProduct[] = [{ id: "1", code: "001", name: "Café", price: 10, stock: 2, minStock: 1, category: "Mercearia", unit: "un" }];
     await replaceOfflineCatalog(tenant, pages(initial));
-    const broken = async function* () {
-      yield [{ ...initial[0], name: "Parcial" }];
+    const broken = async function* (): AsyncGenerator<OfflineCatalogProduct[]> {
+      yield initial.map((product) => ({ ...product, name: "Parcial" }));
       throw new Error("network interrupted");
     };
     await expect(replaceOfflineCatalog(tenant, broken())).rejects.toThrow("network interrupted");
