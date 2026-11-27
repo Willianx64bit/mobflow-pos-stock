@@ -37,6 +37,7 @@ function Estoque() {
   const [hasMore, setHasMore] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const requestSequence = useRef(0);
+  const detailsRequestSequence = useRef(0);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
   const [exportProducts, setExportProducts] = useState<Product[] | null>(null);
@@ -88,7 +89,7 @@ function Estoque() {
     return () => { requestSequence.current += 1; };
   }, [debouncedQ, category, activeFilter, stockFilter, cursor, reloadKey]);
 
-  const refreshStockCatalog = () => setReloadKey((value) => value + 1);
+  const refreshStockCatalog = () => { setCursorHistory([null]); setReloadKey((value) => value + 1); };
   const openExport = async () => {
     setLoadingExport(true);
     setError("");
@@ -117,17 +118,24 @@ function Estoque() {
     }
   };
   const openDetails = async (product: Product) => {
+    const requestId = ++detailsRequestSequence.current;
     setDetailsFor(product);
     setDetails(null);
     setDetailsError("");
     setDetailsLoading(true);
     try {
-      setDetails(await actions.loadStockProductDetails(product.id));
+      const result = await actions.loadStockProductDetails(product.id);
+      if (requestId === detailsRequestSequence.current) setDetails(result);
     } catch (reason) {
-      setDetailsError(reason instanceof Error ? reason.message : "Não foi possível consultar os detalhes.");
+      if (requestId === detailsRequestSequence.current) setDetailsError(reason instanceof Error ? reason.message : "Não foi possível consultar os detalhes.");
     } finally {
-      setDetailsLoading(false);
+      if (requestId === detailsRequestSequence.current) setDetailsLoading(false);
     }
+  };
+  const closeDetails = () => {
+    detailsRequestSequence.current += 1;
+    setDetailsFor(null);
+    setDetailsLoading(false);
   };
 
   return (
@@ -233,7 +241,7 @@ function Estoque() {
       {importing && <ImportProducts onClose={() => { setImporting(false); refreshStockCatalog(); }} />}
       {exportProducts && <StockExportDialog products={exportProducts} onClose={() => setExportProducts(null)} />}
       {detailsFor && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-background/75 backdrop-blur-sm p-3" onClick={() => setDetailsFor(null)}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/75 backdrop-blur-sm p-3" onClick={closeDetails}>
           <section role="dialog" aria-modal="true" aria-labelledby="product-details-title" onClick={(event) => event.stopPropagation()} className="mfb-in w-full max-w-xl rounded-2xl bg-popover p-5 shadow-2xl ring-1 ring-border">
             <header className="flex items-start justify-between gap-3">
               <div className="min-w-0">
