@@ -36,8 +36,8 @@ describe("offline product catalog", () => {
     expect((await readOfflineCatalog("company-b")).products).toEqual([]);
   });
 
-  it("stores and restores an 80,000-product catalog in 500-row batches", async () => {
-    const total = 80_000;
+  it("stores and restores an 100,000-product catalog in 500-row batches", async () => {
+    const total = 100_000;
     async function* largePages(): AsyncGenerator<OfflineCatalogProduct[]> {
       for (let offset = 0; offset < total; offset += 500) {
         const end = Math.min(offset + 500, total);
@@ -96,8 +96,8 @@ describe("offline product catalog", () => {
     expect((await getOfflineCatalogSyncState("company-resume")).pending).toBe(false);
   });
 
-  it("resumes an 80,000-product paged Neon sync after an interruption", async () => {
-    const total = 80_000;
+  it("resumes an 100,000-product paged Neon sync after an interruption", async () => {
+    const total = 100_000;
     const pageSize = 500;
     const makePage = (offset: number, end: number): OfflineCatalogProduct[] => {
       const batch: OfflineCatalogProduct[] = [];
@@ -116,25 +116,25 @@ describe("offline product catalog", () => {
       return batch;
     };
 
-    // Simulate the first app session: persist 40,000 rows and a durable cursor,
+    // Simulate the first app session: persist 50,000 rows and a durable cursor,
     // then stop before the remaining pages are downloaded.
     for (let offset = 0; offset < total / 2; offset += pageSize) {
       const end = offset + pageSize;
       await writeOfflineCatalogPage(
         "company-resume-large",
         makePage(offset, end),
-        end < total / 2 ? `cursor-${end}` : `cursor-${end}`,
+        `cursor-${end}`,
       );
     }
 
     const checkpoint = await getOfflineCatalogSyncState("company-resume-large");
     expect(checkpoint).toMatchObject({
       pending: true,
-      cursor: "cursor-40000",
-      count: 40_000,
+      cursor: "cursor-50000",
+      count: 50_000,
       complete: false,
     });
-    expect(await readPendingOfflineCatalog("company-resume-large")).toHaveLength(40_000);
+    expect(await readPendingOfflineCatalog("company-resume-large")).toHaveLength(50_000);
     expect((await readOfflineCatalog("company-resume-large")).hasCatalog).toBe(false);
 
     // Simulate a fresh app session resuming from the saved cursor.
@@ -158,7 +158,7 @@ describe("offline product catalog", () => {
     expect(restored.hasCatalog).toBe(true);
     expect(restored.products).toHaveLength(total);
     expect(restored.products[0]?.id).toBe("resume-product-000000");
-    expect(restored.products[total - 1]?.id).toBe("resume-product-079999");
+    expect(restored.products[total - 1]?.id).toBe("resume-product-099999");
     expect((await getOfflineCatalogSyncState("company-resume-large")).pending).toBe(false);
   });
 
