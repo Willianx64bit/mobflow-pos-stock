@@ -1949,6 +1949,16 @@ export const actions = {
   async loadStockCatalog() {
     return readPreviewNeonCatalog(state.products ?? [], "full", true);
   },
+  async lookupCatalogBarcode(barcode: string): Promise<Product | null> {
+    const value = barcode.trim();
+    if (!value) return null;
+    const params = new URLSearchParams({ limit: "1", barcode: value });
+    const result = await callMobFlowApi("/api/mobflow/products?" + params.toString());
+    if (!result.response.ok || result.body.ok !== true || !Array.isArray(result.body.products)) {
+      throw new Error(String(result.body.error ?? "Falha ao consultar o código no Neon."));
+    }
+    return (result.body.products[0] as Product | undefined) ?? null;
+  },
   async searchCatalogProducts(query: string, limit = 100): Promise<Product[]> {
     const term = query.trim();
     if (!term) return [];
