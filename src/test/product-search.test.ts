@@ -20,7 +20,8 @@ describe("local PDV product search",()=>{
       i%2===0?`Arroz tipo ${i}`:`Produto ${i}`,
       String(i).padStart(8,"0"),
     ));
-    products[99_999] = { ...products[99_999], barcodes:["789000099999"] };
+    const lastProduct = products[99_999]!;
+    products[99_999] = { ...lastProduct, barcodes:["789000099999"] };
     const index=buildLocalProductSearchIndex(products);
     const matches=searchIndexedLocalProducts(index,"arroz",100);
     expect(matches).toHaveLength(100);
