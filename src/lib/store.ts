@@ -1321,7 +1321,7 @@ function scheduleStatePersist() {
       // Keep only the public company caption in the shared snapshot.
       const snapshot = cloneState(state);
       snapshot.contacts = [];
-      if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") snapshot.products = [];
+      if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" && Array.isArray(lastSyncedState?.products) && lastSyncedState.products.length === 0) snapshot.products = [];
       snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
       let attempts = 0;
       let saved = false;
@@ -1344,7 +1344,7 @@ function scheduleStatePersist() {
           state = mergeConcurrentState(lastSyncedState, state, remote);
           const retrySnapshot = cloneState(state);
           retrySnapshot.contacts = [];
-          if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") retrySnapshot.products = [];
+          if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" && Array.isArray(lastSyncedState?.products) && lastSyncedState.products.length === 0) retrySnapshot.products = [];
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
           Object.assign(snapshot, retrySnapshot);
           lastSyncedState = cloneState(remote);
