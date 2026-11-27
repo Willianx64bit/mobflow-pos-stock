@@ -50,19 +50,7 @@ readiness AS (
 SELECT
   CASE WHEN readiness.relational_ready THEN
     COALESCE(s.state, '{}'::jsonb) || jsonb_build_object(
-      'products', COALESCE((
-        SELECT jsonb_agg(jsonb_build_object(
-          'id', p.id, 'code', p.code, 'barcodes', COALESCE((
-            SELECT jsonb_agg(pb.barcode ORDER BY pb.is_primary DESC, pb.created_at)
-            FROM public.product_barcodes pb
-            WHERE pb.tenant_id = p.tenant_id AND pb.product_id = p.id
-          ), '[]'::jsonb),
-          'ref', p.reference, 'name', p.name, 'price', p.price, 'cost', p.cost,
-          'stock', p.stock, 'minStock', p.min_stock, 'category', COALESCE(p.category, ''),
-          'unit', p.unit
-        ) ORDER BY p.name)
-        FROM public.products p WHERE p.tenant_id = scope.owner_id
-      ), '[]'::jsonb),
+      'products', '[]'::jsonb,
       'sales', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', sale.id, 'date', sale.occurred_at, 'cashSessionId', sale.cash_session_id,
