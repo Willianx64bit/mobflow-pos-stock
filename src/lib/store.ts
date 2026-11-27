@@ -260,8 +260,8 @@ function persistLocalState() {
       localStorage.setItem(localProductsCacheKey(), JSON.stringify(state.products));
       cachedLocalProductsRef = state.products;
     }
-    const { products: _products, ...lightweightState } = state;
-    localStorage.setItem(activeStateKey, JSON.stringify({ ...lightweightState, products: [] }));
+    const lightweightState = { ...state, products: [] as Product[] };
+    localStorage.setItem(activeStateKey, JSON.stringify(lightweightState));
   } catch (error) {
     console.warn("[MobFlow Cache] Local state could not be fully persisted:", error);
   }
