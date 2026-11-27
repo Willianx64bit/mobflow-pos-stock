@@ -80,7 +80,7 @@ async function getProducts(request:Request){
  const updatedSince=updatedSinceRaw===null?null:new Date(updatedSinceRaw);
  const liveOnly=projection==="live";
  if(cursor&&cursor.length>160||active!==null&&active!=="true"&&active!=="false"||projection!==null&&!liveOnly||
-    (updatedSinceRaw!==null&&(!updatedSinceRaw||!Number.isFinite(updatedSince.getTime()))))return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
+    (updatedSinceRaw!==null&&(!updatedSinceRaw||!Number.isFinite(Date.parse(updatedSinceRaw)))))return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
  const updatedSinceIso=updatedSince?.toISOString()??null;
  let tx:any=null;
  try{
