@@ -1334,7 +1334,13 @@ export async function hydrateStore() {
         lastSyncedState = cloneState(remote);
       } else if (useDailyCache) {
         lastCloudUpdatedAt = localStorage.getItem(lastCloudUpdatedAtKey(accountId));
-        lastSyncedState = cloneState(state);
+        const cachedCloudBase = {
+          ...state,
+          products: [] as Product[],
+          contacts: [],
+          settings: { companyName: state.settings?.companyName ?? "" },
+        };
+        lastSyncedState = cloneState(cachedCloudBase);
       } else {
         state = emptyState();
         lastCloudUpdatedAt = null;
