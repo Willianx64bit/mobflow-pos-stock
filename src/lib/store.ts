@@ -68,6 +68,8 @@ const OWNER_KEY = "mobflow:owner";
 const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
 const OFFLINE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const offlineCacheTimestampKey = (tenantId: string) => `mobflow:last-sync:${tenantId}`;
+const dailyStateSyncTimestampKey = (tenantId: string) => `mobflow:daily-state-last-sync:${tenantId}`;
+const lastCloudUpdatedAtKey = (tenantId: string) => `mobflow:last-cloud-updated-at:${tenantId}`;
 const catalogSyncTimestampKey = (tenantId: string) => `mobflow:catalog-last-sync:${tenantId}`;
 const balanceSyncTimestampKey = (tenantId: string) => `mobflow:balances-last-sync:${tenantId}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -156,9 +158,9 @@ export function isOfflineMode() {
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
 const catalogCacheKey = () => `${activeStateKey}:catalog`;
+const cartCacheKey = () => `${activeStateKey}:cart`;
 let persistedCatalogKey: string | null = null;
 let persistedCatalogRef: Product[] | null = null;
-let persistedProductBalances = new Map<string, { price: number; stock: number }>();
 let productBalanceOverrides = new Map<string, [number, number]>();
 const productBalancesCacheKey = () => `${activeStateKey}:balances`;
 
@@ -167,31 +169,41 @@ const productBalancesCacheKey = () => `${activeStateKey}:balances`;
  * Cart edits and navigation-related state updates therefore never stringify
  * thousands of products. Legacy snapshots are migrated on the next local write.
  */
-function persistLocalState(options: { catalog?: "full" | "balances" } = {}) {
+function persistLocalCart() {
+  try { localStorage.setItem(cartCacheKey(), JSON.stringify(state.cart ?? [])); } catch (error) {
+    console.warn("[MobFlow Local Cache] Could not persist cart draft:", error);
+  }
+}
+
+function persistLocalState(options: { catalog?: "full" | "balances"; productIds?: string[] } = {}) {
   try {
     const key = catalogCacheKey();
-    if (options.catalog === "balances" && persistedCatalogKey === key && localStorage.getItem(key)) {
-      // Compare balances to the last durable values, then persist only changed
-      // product IDs. The 10k-row metadata catalog remains untouched by a sale.
+    if (options.catalog === "balances" && persistedCatalogKey === key && localStorage.getItem(key) && options.productIds?.length) {
+      // Only touch IDs changed by this operation. Never scan the 10k catalog on
+      // every sale/stock event just to discover which balances changed.
+      const wanted = new Set(options.productIds);
       for (const product of state.products) {
-        const previous = persistedProductBalances.get(product.id);
-        if (!previous || previous.price !== product.price || previous.stock !== product.stock) {
-          productBalanceOverrides.set(product.id, [product.price, product.stock]);
-          persistedProductBalances.set(product.id, { price: product.price, stock: product.stock });
-        }
+        if (!wanted.has(product.id)) continue;
+        productBalanceOverrides.set(product.id, [product.price, product.stock]);
       }
       localStorage.setItem(productBalancesCacheKey(), JSON.stringify(Array.from(productBalanceOverrides, ([id, value]) => [id, value[0], value[1]])));
       persistedCatalogRef = state.products;
-    } else if (persistedCatalogKey !== key || persistedCatalogRef !== state.products || !localStorage.getItem(key)) {
+    } else if (options.catalog !== "balances" && (persistedCatalogKey !== key || persistedCatalogRef !== state.products || !localStorage.getItem(key))) {
       localStorage.setItem(key, JSON.stringify(state.products));
       localStorage.removeItem(productBalancesCacheKey());
-      persistedProductBalances = new Map(state.products.map((product) => [product.id, { price: product.price, stock: product.stock }]));
+      productBalanceOverrides = new Map();
+      persistedCatalogKey = key;
+      persistedCatalogRef = state.products;
+    } else if (options.catalog === "balances" && (!localStorage.getItem(key) || persistedCatalogKey !== key)) {
+      localStorage.setItem(key, JSON.stringify(state.products));
+      localStorage.removeItem(productBalancesCacheKey());
       productBalanceOverrides = new Map();
       persistedCatalogKey = key;
       persistedCatalogRef = state.products;
     }
     const snapshot = { ...state, products: [] as Product[] };
     localStorage.setItem(activeStateKey, JSON.stringify(snapshot));
+    localStorage.setItem(cartCacheKey(), JSON.stringify(state.cart ?? []));
   } catch (error) {
     console.warn("[MobFlow Local Cache] Could not persist the local snapshot:", error);
   }
@@ -354,6 +366,11 @@ function load() {
       const parsed = JSON.parse(cachedCatalog);
       if (Array.isArray(parsed)) state.products = parsed;
     }
+    const cartRaw = localStorage.getItem(cartCacheKey());
+    if (cartRaw) {
+      const cachedCart = JSON.parse(cartRaw);
+      if (Array.isArray(cachedCart)) state.cart = cachedCart;
+    }
     const balancesRaw = localStorage.getItem(productBalancesCacheKey());
     productBalanceOverrides = new Map();
     if (balancesRaw) {
@@ -367,7 +384,6 @@ function load() {
     state.products = state.products.map((p) => ({ ...p, unit: normalizeProductUnit(p.unit) }));
     if (cachedCatalog && Array.isArray(state.products)) {
       persistedCatalogKey = catalogCacheKey();
-      persistedProductBalances = new Map(state.products.map((product) => [product.id, { price: product.price, stock: product.stock }]));
       persistedCatalogRef = state.products;
     }
     normalizeState();
@@ -1074,7 +1090,6 @@ export async function hydrateStoreOffline(accountId: string) {
   } catch { throw new Error("Os preços e saldos locais estão inválidos. Conecte-se e tente preparar novamente."); }
   state.products = state.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit) }));
   persistedCatalogKey = `${activeStateKey}:catalog`;
-  persistedProductBalances = new Map(state.products.map((product) => [product.id, { price: product.price, stock: product.stock }]));
   persistedCatalogRef = state.products;
   normalizeState();
   listeners.forEach((listener) => listener());
@@ -1445,9 +1460,10 @@ function scheduleStatePersist() {
   });
 }
 
-function set(next: Partial<State>, options: { persist?: boolean; catalog?: "full" | "balances" } = {}) {
+function set(next: Partial<State>, options: { persist?: boolean; catalog?: "full" | "balances"; productIds?: string[]; localCartOnly?: boolean } = {}) {
   state = { ...state, ...next };
-  try { persistLocalState({ catalog: options.catalog }); } catch {}
+  if (options.localCartOnly) persistLocalCart();
+  else try { persistLocalState({ catalog: options.catalog, productIds: options.productIds }); } catch {}
   listeners.forEach((l) => l());
   if (options.persist !== false) scheduleStatePersist();
 }
@@ -1726,7 +1742,7 @@ export const actions = {
     // tenant-scoped localStorage cache, but never PUT the full company snapshot
     // to Neon for an individual product tap. That snapshot can race catalog
     // refreshes and replace the visible catalog/cart with an older projection.
-    set({ cart }, { persist: false });
+    set({ cart }, { persist: false, localCartOnly: true });
   },
   setCartQty(productId: string, qty: number) {
     const p = state.products.find((x) => x.id === productId);
@@ -1736,10 +1752,10 @@ export const actions = {
     const cart = nextQty <= 0
       ? state.cart.filter((c) => c.productId !== productId)
       : state.cart.map((c) => c.productId === productId ? { ...c, qty: nextQty } : c);
-    set({ cart }, { persist: false });
+    set({ cart }, { persist: false, localCartOnly: true });
   },
-  removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }, { persist: false }); },
-  clearCart() { set({ cart: [] }, { persist: false }); },
+  removeFromCart(productId: string) { set({ cart: state.cart.filter((c) => c.productId !== productId) }, { persist: false, localCartOnly: true }); },
+  clearCart() { set({ cart: [] }, { persist: false, localCartOnly: true }); },
   checkout(payment: Payment, received?: number, customer?: string, cpf?: string, discount = 0, discountType: "R$" | "%" = "R$"): Sale | null {
     if (!state.cart.length) return null;
     // Regra de segurança: nenhuma venda pode ser registrada sem caixa aberto para o operador atual.
@@ -1800,7 +1816,7 @@ export const actions = {
           cart: [],
           sales: [finalizedSale, ...state.sales.filter((item) => item.id !== sale.id)],
           stockMovements: [...stockMovements, ...(state.stockMovements ?? [])],
-        }, { persist: false, catalog: "balances" });
+        }, { persist: false, catalog: "balances", productIds: checkoutCart.map((item) => item.productId) });
       });
     } else if (queued && lastDomainCommandPromise) {
       // Keep the checkout visible until Neon confirms the transaction.
@@ -1811,7 +1827,7 @@ export const actions = {
       });
     } else {
       // Non-browser/local fallback: retain the existing local-only behavior.
-      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: true, catalog: "balances" });
+      set({ products, cart: [], sales: [sale, ...state.sales], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: true, catalog: "balances", productIds: checkoutCart.map((item) => item.productId) });
     }
     return sale;
   },
@@ -2016,7 +2032,7 @@ export const actions = {
     const product = state.products.find((x) => x.id === id);
     if (!product) return;
     const movements = field === "stock" && product.stock !== value ? [movementEntry({ operationId: `field:${uid()}`, date: new Date().toISOString(), type: "Ajuste manual", productId: id, productCode: product.code, productName: product.name, unit: product.unit, quantity: Math.abs(value - product.stock), totalValue: Math.round(Math.abs(value - product.stock) * product.price * 100) / 100, stockBefore: product.stock, stockAfter: value, delta: value - product.stock, details: "Alteração direta do estoque" })] : [];
-    set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { catalog: "balances" });
+    set({ products: state.products.map((x) => (x.id === id ? { ...x, [field]: value } : x)), stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { catalog: "balances", productIds: [id] });
   },
   applyStockAdjustmentBatch(input: { reason: string; items: { productId: string; mode: "somar" | "definir"; quantity: number }[] }) {
     const reason = input.reason.trim();
@@ -2051,7 +2067,7 @@ export const actions = {
     });
     if (isDesktopRuntime() && !queued) return false;
     if (!queued || incrementalSyncEnabled() || isDesktopRuntime()) {
-      set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued, catalog: "balances" });
+      set({ products: updatedProducts, stockAdjustments: [adjustment, ...(state.stockAdjustments ?? [])], stockMovements: [...stockMovements, ...(state.stockMovements ?? [])] }, { persist: !queued, catalog: "balances", productIds: items.map((item) => item.productId) });
     }
     // With incremental sync disabled, enqueueDomainCommand commits through Neon and
     // hydrateStore refreshes the authoritative state before confirmLastDomainCommand resolves.
@@ -2100,7 +2116,7 @@ export const actions = {
         stockAfter: item.newStock, delta: item.newStock - item.previousStock,
         details: `${entry.number} · ${entry.reason}`,
       }));
-      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances" });
+      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances", productIds: items.map((item) => item.productId) });
       return entry;
     }
     try {
