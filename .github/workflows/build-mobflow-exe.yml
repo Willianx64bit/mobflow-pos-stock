@@ -1,5 +1,5 @@
 name: Build MobFlow Windows EXE
-# Rebuild requested after desktop outbox/reconnection fixes.
+# Build Windows EXE after desktop runtime initialization fix.
 
 on:
   workflow_dispatch:
