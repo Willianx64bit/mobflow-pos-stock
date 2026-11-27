@@ -17,7 +17,7 @@ export type OfflineCatalogProduct = {
 };
 
 type CatalogRecord = OfflineCatalogProduct & { tenantId: string; generation: string; normalizedName: string };
-type CatalogMeta = { tenantId: string; activeGeneration: string; syncedAt: number; count: number };
+type CatalogMeta = { tenantId: string; activeGeneration?: string; syncedAt?: number; count?: number; pendingGeneration?: string; pendingCursor?: string | null; pendingCount?: number; pendingComplete?: boolean; pendingStartedAt?: number };
 
 const DB_NAME = "mobflow-product-catalog";
 const DB_VERSION = 1;
@@ -94,6 +94,132 @@ export async function getOfflineCatalogStatus(tenantId: string): Promise<{ count
     const count = Number(meta?.count ?? 0);
     const hasCatalog = Boolean(meta?.activeGeneration && count > 0);
     return { count: Number.isFinite(count) ? count : 0, syncedAt: meta?.syncedAt ?? null, hasCatalog };
+  } finally {
+    db.close();
+  }
+}
+
+/** Returns the durable checkpoint for an interrupted catalog download. */
+export async function getOfflineCatalogSyncState(tenantId: string): Promise<{ pending: boolean; cursor: string | null; count: number; complete: boolean }> {
+  const db = await openCatalogDb();
+  try {
+    const tx = db.transaction(META_STORE, "readonly");
+    const done = transactionDone(tx);
+    const meta = await requestValue(tx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
+    await done;
+    const pending = Boolean(meta?.pendingGeneration);
+    return {
+      pending,
+      cursor: pending ? meta?.pendingCursor ?? null : null,
+      count: pending ? Number(meta?.pendingCount ?? 0) : 0,
+      complete: pending && meta?.pendingComplete === true,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+/** Reads only the uncommitted generation so a restarted download can continue from its saved cursor. */
+export async function readPendingOfflineCatalog(tenantId: string): Promise<OfflineCatalogProduct[]> {
+  const db = await openCatalogDb();
+  try {
+    const tx = db.transaction([PRODUCT_STORE, META_STORE], "readonly");
+    const done = transactionDone(tx);
+    const meta = await requestValue(tx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
+    if (!meta?.pendingGeneration) {
+      await done;
+      return [];
+    }
+    const index = tx.objectStore(PRODUCT_STORE).index("tenantGeneration");
+    const records = await requestValue(index.getAll(IDBKeyRange.only([tenantId, meta.pendingGeneration]))) as CatalogRecord[];
+    await done;
+    return records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product);
+  } finally {
+    db.close();
+  }
+}
+
+/** Atomically stores a downloaded page and its next cursor; both survive closing the app. */
+export async function writeOfflineCatalogPage(tenantId: string, products: OfflineCatalogProduct[], nextCursor: string | null): Promise<number> {
+  if (!tenantId) throw new Error("Empresa inválida para salvar o catálogo.");
+  const db = await openCatalogDb();
+  try {
+    const tx = db.transaction([PRODUCT_STORE, META_STORE], "readwrite");
+    const done = transactionDone(tx);
+    const metaStore = tx.objectStore(META_STORE);
+    const previous = await requestValue(metaStore.get(tenantId)) as CatalogMeta | undefined;
+    const generation = previous?.pendingGeneration ?? (
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now()) + Math.random().toString(36).slice(2)
+    );
+    const count = (previous?.pendingGeneration ? Number(previous.pendingCount ?? 0) : 0) + products.length;
+    const store = tx.objectStore(PRODUCT_STORE);
+    for (const product of products) {
+      const clean = cleanProduct(product);
+      const record: CatalogRecord = {
+        ...clean,
+        tenantId,
+        generation,
+        normalizedName: clean.name.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLocaleLowerCase("pt-BR"),
+      };
+      store.put(record);
+    }
+    metaStore.put({
+      tenantId,
+      ...(previous?.activeGeneration ? { activeGeneration: previous.activeGeneration } : {}),
+      ...(previous?.syncedAt ? { syncedAt: previous.syncedAt } : {}),
+      count: Number(previous?.count ?? 0),
+      pendingGeneration: generation,
+      pendingCursor: nextCursor,
+      pendingCount: count,
+      pendingComplete: nextCursor === null,
+      pendingStartedAt: previous?.pendingGeneration ? previous.pendingStartedAt ?? Date.now() : Date.now(),
+    } satisfies CatalogMeta);
+    await done;
+    return count;
+  } finally {
+    db.close();
+  }
+}
+
+/** Switches readers to the new generation only after the final page checkpoint is durable. */
+export async function commitOfflineCatalogSync(tenantId: string): Promise<number> {
+  const db = await openCatalogDb();
+  try {
+    const tx = db.transaction(META_STORE, "readwrite");
+    const done = transactionDone(tx);
+    const metaStore = tx.objectStore(META_STORE);
+    const previous = await requestValue(metaStore.get(tenantId)) as CatalogMeta | undefined;
+    if (!previous?.pendingGeneration) {
+      await done;
+      return Number(previous?.count ?? 0);
+    }
+    if (previous.pendingComplete !== true) {
+      await done;
+      throw new Error("O catálogo ainda possui páginas pendentes de sincronização.");
+    }
+    const previousGeneration = previous.activeGeneration;
+    const generation = previous.pendingGeneration;
+    const count = Number(previous.pendingCount ?? 0);
+    metaStore.put({ tenantId, activeGeneration: generation, syncedAt: Date.now(), count } satisfies CatalogMeta);
+    await done;
+
+    if (previousGeneration && previousGeneration !== generation) {
+      const cleanup = db.transaction(PRODUCT_STORE, "readwrite");
+      const cleanupDone = transactionDone(cleanup);
+      const index = cleanup.objectStore(PRODUCT_STORE).index("tenantGeneration");
+      const cursor = index.openKeyCursor(IDBKeyRange.only([tenantId, previousGeneration]));
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (current) {
+          cleanup.objectStore(PRODUCT_STORE).delete(current.primaryKey);
+          current.continue();
+        }
+      };
+      await cleanupDone.catch(() => undefined);
+    }
+    return count;
   } finally {
     db.close();
   }
