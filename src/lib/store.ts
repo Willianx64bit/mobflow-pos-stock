@@ -276,14 +276,19 @@ function load() {
     // Read the split catalog cache first; the products field in older state
     // snapshots remains a migration fallback for existing installations.
     const cachedProducts = localStorage.getItem(localProductsCacheKey());
+    let hasSplitCatalogCache = false;
     if (cachedProducts) {
       const parsedProducts = JSON.parse(cachedProducts);
-      if (Array.isArray(parsedProducts)) state.products = parsedProducts;
+      if (Array.isArray(parsedProducts)) {
+        state.products = parsedProducts;
+        hasSplitCatalogCache = true;
+      }
     }
     // The cache key is tenant-scoped and the authenticated account is resolved
     // before loading it. Keep the last verified catalog available offline.
     state.products = state.products.map((p) => ({ ...p, unit: normalizeProductUnit(p.unit) }));
-    cachedLocalProductsRef = state.products;
+    // A legacy installation is migrated on its next state write.
+    cachedLocalProductsRef = hasSplitCatalogCache ? state.products : null;
     normalizeState();
   } catch {}
 }
