@@ -974,7 +974,7 @@ export async function hydrateStoreOffline(accountId: string) {
   state = { ...emptyState(), ...(cached as State) };
   try {
     const catalog = await readOfflineCatalog(accountId);
-    if (catalog.products.length) state.products = catalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+    if (catalog.hasCatalog) state.products = catalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
   } catch (error) {
     if (!state.products.length) throw new Error("Não foi possível recuperar o catálogo offline desta empresa.");
     console.warn("[MobFlow Catalog] Using legacy localStorage catalog:", error);
@@ -1109,7 +1109,7 @@ export async function hydrateStore() {
       const legacyLocalProducts = [...(state.products ?? [])];
       try {
         const cachedCatalog = await readOfflineCatalog(accountId);
-        if (cachedCatalog.products.length) state.products = cachedCatalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+        if (cachedCatalog.hasCatalog) state.products = cachedCatalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
         else if (legacyLocalProducts.length) await replaceOfflineCatalog(accountId, (async function* () { yield legacyLocalProducts; })());
       } catch (catalogError) {
         console.warn("[MobFlow Catalog] IndexedDB cache unavailable; using the previous local snapshot:", catalogError);
