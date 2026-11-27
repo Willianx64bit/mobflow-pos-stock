@@ -76,15 +76,19 @@ async function getInventory(request: Request) {
       position = { createdAt: String(legacy.rows[0].created_at), id: String(legacy.rows[0].id) };
     }
 
-    const summaryResult = await client.query(
-      "SELECT COUNT(*)::text AS total, " +
-      "COUNT(*) FILTER (WHERE active=true)::text AS active, " +
-      "COUNT(*) FILTER (WHERE active=false)::text AS inactive, " +
-      "COUNT(*) FILTER (WHERE stock<=min_stock)::text AS low_stock, " +
-      "COALESCE(SUM(price*GREATEST(stock,0)),0)::text AS inventory_value " +
-      "FROM public.products WHERE tenant_id=$1",
-      [identity.accountId],
-    );
+    // The global aggregate is needed on the first page and after filter changes,
+    // not on every subsequent page of a long inventory browse.
+    const summaryResult = cursor === null
+      ? await client.query(
+          "SELECT COUNT(*)::text AS total, " +
+          "COUNT(*) FILTER (WHERE active=true)::text AS active, " +
+          "COUNT(*) FILTER (WHERE active=false)::text AS inactive, " +
+          "COUNT(*) FILTER (WHERE stock<=min_stock)::text AS low_stock, " +
+          "COALESCE(SUM(price*GREATEST(stock,0)),0)::text AS inventory_value " +
+          "FROM public.products WHERE tenant_id=$1",
+          [identity.accountId],
+        )
+      : { rows: [] };
 
     const result = await client.query(
       "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.stock::text,p.min_stock::text," +
@@ -126,13 +130,13 @@ async function getInventory(request: Request) {
       products,
       hasMore,
       nextCursor: hasMore ? encodeCursor(rows[rows.length - 1] as { created_at: string; id: string }) : null,
-      summary: {
+      summary: summaryResult.rows.length ? {
         total: Number(summary.total ?? 0),
         active: Number(summary.active ?? 0),
         inactive: Number(summary.inactive ?? 0),
         lowStock: Number(summary.low_stock ?? 0),
         inventoryValue: Number(summary.inventory_value ?? 0),
-      },
+      } : null,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     if (transaction) await releaseTransaction(transaction.client, false).catch(() => undefined);
