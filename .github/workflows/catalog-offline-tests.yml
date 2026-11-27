@@ -28,6 +28,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/catalog-offline-tests.yml"
+      - ".github/workflows/build-mobflow-exe.yml"
   workflow_dispatch:
 
 permissions:
