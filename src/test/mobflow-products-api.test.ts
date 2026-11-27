@@ -39,15 +39,26 @@ describe("Neon product catalog API",()=>{
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",name:"Arroz",stock:5}]});
   expect(client.query.mock.calls[1]?.[1]?.[0]).toBe(TENANT);
  });
- it("uses stable tenant-scoped keyset pagination and returns the last product as cursor",async()=>{
+ it("uses an opaque immutable cursor and returns the last product as cursor",async()=>{
+  const cursor="v2."+Buffer.from(JSON.stringify({createdAt:"2026-11-08T10:00:00.000Z",id:"p0"})).toString("base64url");
+  const expectedNext="v2."+Buffer.from(JSON.stringify({createdAt:"2026-11-08T10:00:00.000Z",id:"p1"})).toString("base64url");
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product,{...product,id:"p2",name:"Feijão"}]});
-  const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?limit=1&cursor=p0")});
+  const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?limit=1&cursor="+encodeURIComponent(cursor))});
   expect(response.status).toBe(200);
-  expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1"}],hasMore:true,nextCursor:"p1"});
+  expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1"}],hasMore:true,nextCursor:expectedNext});
   const [sql,params]=client.query.mock.calls[1] ?? [];
-  expect(String(sql)).toContain("(p.created_at,p.id)>(SELECT cp.created_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)");
-  expect(String(sql)).toContain("ORDER BY p.created_at,p.id LIMIT $5");
-  expect(params).toEqual([TENANT,null,"","p0",2]);
+  expect(String(sql)).toContain("(p.created_at,p.id)>($4::timestamptz,$5::text)");
+  expect(String(sql)).toContain("ORDER BY p.created_at,p.id LIMIT $6");
+  expect(params).toEqual([TENANT,null,"","2026-11-08T10:00:00.000Z","p0",2]);
+ });
+ it("resolves legacy product-ID cursors from interrupted older syncs",async()=>{
+  client.query.mockResolvedValueOnce(ready)
+   .mockResolvedValueOnce({rows:[{created_at:"2026-11-07T00:00:00.000Z",id:"legacy-p0"}]})
+   .mockResolvedValueOnce({rows:[product]});
+  const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?limit=10&cursor=legacy-p0")});
+  expect(response.status).toBe(200);
+  expect(client.query.mock.calls[1]?.[0]).toContain("SELECT created_at::text AS created_at,id");
+  expect(client.query.mock.calls[2]?.[1]).toEqual([TENANT,null,"","2026-11-07T00:00:00.000Z","legacy-p0",11]);
  });
  it("returns only compact price and stock fields for realtime refreshes",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{id:"p1",price:"12.50",stock:"8.000"}]});
