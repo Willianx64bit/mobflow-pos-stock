@@ -153,6 +153,30 @@ export function isOfflineMode() {
 }
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
+const catalogCacheKey = () => `${activeStateKey}:catalog`;
+let persistedCatalogKey: string | null = null;
+let persistedCatalogRef: Product[] | null = null;
+
+/**
+ * Keep the large product catalog outside the frequently-changing app snapshot.
+ * Cart edits and navigation-related state updates therefore never stringify
+ * thousands of products. Legacy snapshots are migrated on the next local write.
+ */
+function persistLocalState() {
+  try {
+    const key = catalogCacheKey();
+    if (persistedCatalogKey !== key || persistedCatalogRef !== state.products || !localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(state.products));
+      persistedCatalogKey = key;
+      persistedCatalogRef = state.products;
+    }
+    const snapshot = { ...state, products: [] as Product[] };
+    localStorage.setItem(activeStateKey, JSON.stringify(snapshot));
+  } catch (error) {
+    console.warn("[MobFlow Local Cache] Could not persist the local snapshot:", error);
+  }
+}
+
 const isCashSessionForOperator = (session: CashSession, username: string) => {
   const expected = username.trim().toLocaleLowerCase();
   return !!expected && (session.operatorUsername?.trim().toLocaleLowerCase() === expected || session.openedBy.trim().toLocaleLowerCase() === expected);
@@ -303,9 +327,17 @@ function load() {
   try {
     const raw = localStorage.getItem(activeStateKey);
     if (raw) state = { ...state, ...JSON.parse(raw) };
-    // The cache key is tenant-scoped (mobflow:v1:<accountId>), and the
-    // authenticated account is resolved before this cache is loaded. Keep the
-    // last verified catalog visible while Neon is being reached or offline.
+    // Prefer the separately cached catalog; fall back to the legacy embedded
+    // array so existing EXE installations migrate without losing offline data.
+    const cachedCatalog = localStorage.getItem(catalogCacheKey());
+    if (cachedCatalog) {
+      const parsed = JSON.parse(cachedCatalog);
+      if (Array.isArray(parsed)) {
+        state.products = parsed;
+        persistedCatalogKey = catalogCacheKey();
+        persistedCatalogRef = state.products;
+      }
+    }
     state.products = state.products.map((p) => ({ ...p, unit: normalizeProductUnit(p.unit) }));
     normalizeState();
   } catch {}
@@ -792,7 +824,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
     try {
-      localStorage.setItem(activeStateKey, JSON.stringify(state));
+      persistLocalState();
       localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
     } catch {}
     listeners.forEach((listener) => listener());
@@ -937,9 +969,14 @@ export async function hydrateStoreOffline(accountId: string) {
   // first-time preparation. Never hydrate a partial or legacy snapshot.
   await verifyDesktopOfflinePreparation(accountId);
   let cached: unknown;
-  try { cached = JSON.parse(raw); } catch { throw new Error("A cópia local da empresa está inválida."); }
-  if (!cached || typeof cached !== "object" || !Array.isArray((cached as State).products) ||
-      !(cached as State).products.length || !Array.isArray((cached as State).sales)) {
+  let cachedCatalog: unknown;
+  try {
+    cached = JSON.parse(raw);
+    const catalogRaw = localStorage.getItem(`${tenantStateKey(accountId)}:catalog`);
+    cachedCatalog = catalogRaw ? JSON.parse(catalogRaw) : (cached as Partial<State> | null)?.products;
+  } catch { throw new Error("A cópia local da empresa está inválida."); }
+  if (!cached || typeof cached !== "object" || !Array.isArray(cachedCatalog) ||
+      !cachedCatalog.length || !Array.isArray((cached as State).sales)) {
     throw new Error("A cópia local ainda não contém o catálogo necessário para abrir o PDV offline.");
   }
 
@@ -950,8 +987,10 @@ export async function hydrateStoreOffline(accountId: string) {
   cloudAccountId = null;
   activeStateKey = tenantStateKey(accountId);
   loaded = true;
-  state = { ...emptyState(), ...(cached as State) };
+  state = { ...emptyState(), ...(cached as State), products: cachedCatalog as Product[] };
   state.products = state.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit) }));
+  persistedCatalogKey = `${activeStateKey}:catalog`;
+  persistedCatalogRef = state.products;
   normalizeState();
   listeners.forEach((listener) => listener());
   return {
@@ -973,7 +1012,15 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
   try { snapshot = JSON.parse(raw); } catch { throw new Error("O arquivo local da empresa está inválido. Tente preparar novamente."); }
   if (!snapshot || typeof snapshot !== "object") throw new Error("A preparação local não foi concluída.");
   const cached = snapshot as Partial<State>;
-  if (!Array.isArray(cached.products) || cached.products.length === 0 ||
+  let catalog: Product[] = Array.isArray(cached.products) ? cached.products : [];
+  try {
+    const catalogRaw = localStorage.getItem(`${tenantStateKey(accountId)}:catalog`);
+    if (catalogRaw) {
+      const parsed = JSON.parse(catalogRaw);
+      if (Array.isArray(parsed)) catalog = parsed as Product[];
+    }
+  } catch { throw new Error("O catálogo local da empresa está inválido. Conecte-se e tente preparar novamente."); }
+  if (catalog.length === 0 ||
       !Array.isArray(cached.sales) || !Array.isArray(cached.cashSessions) ||
       !Array.isArray(cached.cashMovements) || !Array.isArray(cached.stockMovements) ||
       !Array.isArray(cached.stockAdjustments) || !Array.isArray(cached.stockWriteoffs) ||
@@ -986,7 +1033,7 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
       !cached.settings.pixKey.trim()) {
     throw new Error("Ainda faltam dados essenciais da empresa, do catálogo, do caixa, da chave Pix ou das Operações para liberar o modo offline.");
   }
-  const hasInvalidProduct = cached.products.some((product) =>
+  const hasInvalidProduct = catalog.some((product) =>
     !product || typeof product.id !== "string" || !product.id ||
     typeof product.name !== "string" || !product.name.trim() ||
     !Number.isFinite(Number(product.price)) || !Number.isFinite(Number(product.stock))
@@ -996,7 +1043,7 @@ export async function verifyDesktopOfflinePreparation(accountId: string) {
   if (!Number.isFinite(syncedAt) || syncedAt > Date.now() + 60_000 || Date.now() - syncedAt > OFFLINE_CACHE_TTL_MS) {
     throw new Error("Não foi possível confirmar uma preparação local recente. Conecte-se e tente novamente.");
   }
-  return { products: cached.products.length, syncedAt };
+  return { products: catalog.length, syncedAt };
 }
 /** Confirma que o shell e os módulos de rota foram realmente persistidos pelo Service Worker. */
 export async function verifyDesktopOfflineAssets() {
@@ -1290,7 +1337,7 @@ function scheduleStatePersist() {
         throw new Error(String(result.body.error ?? "Não foi possível salvar o estado completo no Neon."));
       }
       if (!saved) throw new Error("O estado mudou em outro dispositivo várias vezes. A gravação foi interrompida para evitar sobrescrita.");
-      try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+      persistLocalState();
       if (refreshAfterPersist) {
         refreshAfterPersist = false;
         void refreshFromCloud(accountId, true);
