@@ -75,7 +75,7 @@ async function getProducts(request:Request){
  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"O catálogo Neon ainda não está habilitado neste ambiente.",code:"catalog_provider_disabled"},{status:503});
  const u=new URL(request.url),raw=u.searchParams.get("limit")??"50";
  if(!/^\d+$/.test(raw)||Number(raw)<1)return Response.json({ok:false,error:"Limite inválido.",code:"invalid_product_query"},{status:400});
- const limit=Math.min(Number(raw),100),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
+ const limit=Math.min(Number(raw),500),cursor=u.searchParams.get("cursor"),q=(u.searchParams.get("q")??"").trim().slice(0,100),active=u.searchParams.get("active"),projection=u.searchParams.get("projection");
  const liveOnly=projection==="live";
  if(cursor&&cursor.length>160||active!==null&&active!=="true"&&active!=="false"||projection!==null&&!liveOnly)return Response.json({ok:false,error:"Filtro inválido.",code:"invalid_product_query"},{status:400});
  let tx:any=null;
