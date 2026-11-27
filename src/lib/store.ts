@@ -2042,7 +2042,7 @@ export const actions = {
         stockAfter: item.newStock, delta: item.newStock - item.previousStock,
         details: `${entry.number} · ${entry.reason}`,
       }));
-      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false });
+      set({ products, stockWriteoffs: [entry, ...(state.stockWriteoffs ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances" });
       return entry;
     }
     try {
@@ -2114,7 +2114,7 @@ export const actions = {
         stockAfter: item.newStock, delta: item.newStock - item.previousStock,
         details: `${entry.number} · Destino: ${entry.destinationName}`,
       }));
-      set({ products, stockTransfers: [entry, ...(state.stockTransfers ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false });
+      set({ products, stockTransfers: [entry, ...(state.stockTransfers ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances" });
       return entry;
     }
     try {
