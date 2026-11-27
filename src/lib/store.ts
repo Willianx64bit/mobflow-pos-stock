@@ -256,7 +256,9 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     if (movement.legacy || baseMovementIds.has(movement.id)) continue;
     newMovementDeltas.set(movement.productId, (newMovementDeltas.get(movement.productId) ?? 0) + movement.delta);
   }
-  const remoteProducts = Array.isArray(remote.products) && remote.products.length ? remote.products : local.products;
+  const remoteProducts = import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon"
+    ? local.products
+    : Array.isArray(remote.products) && remote.products.length ? remote.products : local.products;
   const products = remoteProducts.map((rp) => {
     const bp = base.products.find((p) => p.id === rp.id);
     const lp = local.products.find((p) => p.id === rp.id);
