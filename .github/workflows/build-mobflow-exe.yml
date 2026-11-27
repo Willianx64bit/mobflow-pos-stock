@@ -11,6 +11,7 @@ on:
       - "desktop-wrapper/**"
       - "src/routes/__root.tsx"
       - "src/routes/index.tsx"
+      - "src/routes/vendas.tsx"
       - "src/routes/analise-resultados.tsx"
       - "src/routes/transferencias.tsx"
       - "src/routes/baixa-produtos.tsx"
