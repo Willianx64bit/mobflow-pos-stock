@@ -245,16 +245,45 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   };
 }
 
+let cachedLocalProductsRef: Product[] | null = null;
+const localProductsCacheKey = () => `${activeStateKey}:products`;
+
+/**
+ * Keep the large product cache separate from the transactional state snapshot.
+ * Most PDV updates (cart, payment fields, cash UI) do not change the catalog;
+ * they should not stringify all 10k+ products on every state notification.
+ */
+function persistLocalState() {
+  if (typeof window === "undefined") return;
+  try {
+    if (cachedLocalProductsRef !== state.products) {
+      localStorage.setItem(localProductsCacheKey(), JSON.stringify(state.products));
+      cachedLocalProductsRef = state.products;
+    }
+    const { products: _products, ...lightweightState } = state;
+    localStorage.setItem(activeStateKey, JSON.stringify({ ...lightweightState, products: [] }));
+  } catch (error) {
+    console.warn("[MobFlow Cache] Local state could not be fully persisted:", error);
+  }
+}
+
 function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
   try {
     const raw = localStorage.getItem(activeStateKey);
     if (raw) state = { ...state, ...JSON.parse(raw) };
-    // The cache key is tenant-scoped (mobflow:v1:<accountId>), and the
-    // authenticated account is resolved before this cache is loaded. Keep the
-    // last verified catalog visible while Neon is being reached or offline.
+    // Read the split catalog cache first; the products field in older state
+    // snapshots remains a migration fallback for existing installations.
+    const cachedProducts = localStorage.getItem(localProductsCacheKey());
+    if (cachedProducts) {
+      const parsedProducts = JSON.parse(cachedProducts);
+      if (Array.isArray(parsedProducts)) state.products = parsedProducts;
+    }
+    // The cache key is tenant-scoped and the authenticated account is resolved
+    // before loading it. Keep the last verified catalog available offline.
     state.products = state.products.map((p) => ({ ...p, unit: normalizeProductUnit(p.unit) }));
+    cachedLocalProductsRef = state.products;
     normalizeState();
   } catch {}
 }
@@ -695,7 +724,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     lastCloudUpdatedAt = remoteUpdatedAt;
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((listener) => listener());
   } catch {
     // A próxima reconexão, foco da janela ou retorno da conexão recupera a sincronização.
@@ -901,7 +930,7 @@ export async function hydrateStore() {
       normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
-        localStorage.setItem(activeStateKey, JSON.stringify(state));
+        persistLocalState();
       } catch {}
       listeners.forEach((listener) => listener());
 
@@ -909,7 +938,7 @@ export async function hydrateStore() {
         const privateData = await loadPrivateData(Array.isArray(stateResult.body.privateContactIds) ? stateResult.body.privateContactIds : []);
         state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
         normalizeState();
-        try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+        persistLocalState();
         listeners.forEach((listener) => listener());
       } catch (error) {
         // Private settings/contacts are secondary; core relational data is already loaded.
@@ -977,7 +1006,7 @@ function scheduleStatePersist() {
         throw new Error(String(result.body.error ?? "Não foi possível salvar o estado completo no Neon."));
       }
       if (!saved) throw new Error("O estado mudou em outro dispositivo várias vezes. A gravação foi interrompida para evitar sobrescrita.");
-      try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+      persistLocalState();
       if (refreshAfterPersist) {
         refreshAfterPersist = false;
         void refreshFromCloud(accountId, true);
@@ -996,7 +1025,7 @@ function scheduleStatePersist() {
 
 function set(next: Partial<State>, options: { persist?: boolean } = {}) {
   state = { ...state, ...next };
-  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  persistLocalState();
   listeners.forEach((l) => l());
   if (options.persist !== false) scheduleStatePersist();
 }
@@ -1010,7 +1039,7 @@ export async function applyIncrementalEvents(events: import("@/lib/sync-outbox")
     const privateData = await loadPrivateData([]);
     state = { ...state, settings: { ...state.settings, ...privateData.settings } };
   }
-  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  persistLocalState();
   listeners.forEach((listener) => listener());
 }
 
@@ -1047,7 +1076,7 @@ export async function syncNewContacts(): Promise<number> {
   const additions = downloaded.filter((contact) => !currentIds.has(contact.id));
   if (additions.length) {
     state = { ...state, contacts: [...additions, ...(state.contacts ?? [])] };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((listener) => listener());
   }
   return additions.length;
@@ -1797,7 +1826,7 @@ export const actions = {
 
     const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n);
     state = { ...state, receiving: updated };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((listener) => listener());
     void hydrateStore();
     return true;
@@ -1852,7 +1881,7 @@ export const actions = {
         ? { ...n, decisions, decisionCompleted: true, status: "aceito", stockReleased: true }
         : n),
     };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((l) => l());
     void hydrateStore();
     return true;
