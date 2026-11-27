@@ -2229,7 +2229,7 @@ export const actions = {
         stockAfter: item.newStock, delta: item.newStock - item.previousStock,
         details: `${entry.number} · Destino: ${entry.destinationName}`,
       }));
-      set({ products, stockTransfers: [entry, ...(state.stockTransfers ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances" });
+      set({ products, stockTransfers: [entry, ...(state.stockTransfers ?? [])], stockMovements: [...movements, ...(state.stockMovements ?? [])] }, { persist: false, catalog: "balances", productUpdates: products.filter((product) => items.some((item) => item.productId === product.id)) });
       return entry;
     }
     try {
