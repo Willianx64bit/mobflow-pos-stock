@@ -1345,10 +1345,10 @@ function scheduleStatePersist() {
   });
 }
 
-function set(next: Partial<State>, options: { persist?: boolean } = {}) {
+function set(next: Partial<State>, options: { persist?: boolean; catalog?: boolean } = {}) {
   const previousProducts = state.products;
   state = { ...state, ...next };
-  if (next.products && next.products !== previousProducts) void persistCatalogDelta(previousProducts, state.products).catch((error) => console.warn("[MobFlow Catalog] Local product changes could not be stored:", error));
+  if (options.catalog !== false && next.products && next.products !== previousProducts) void persistCatalogDelta(previousProducts, state.products).catch((error) => console.warn("[MobFlow Catalog] Local product changes could not be stored:", error));
   persistLocalState();
   listeners.forEach((l) => l());
   if (options.persist !== false) scheduleStatePersist();
@@ -1832,8 +1832,7 @@ export const actions = {
   async refreshCatalog() {
     const previous = state.products ?? [];
     const products = await readPreviewNeonCatalog(previous, "full");
-    set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
-    if (products.length) await persistCatalogDelta(previous, products).catch((error) => console.warn("[MobFlow Catalog] Could not persist catalog changes:", error));
+    set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false, catalog: false });
     return products.length;
   },
   async loadStockCatalog() {
