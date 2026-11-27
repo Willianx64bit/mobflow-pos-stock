@@ -178,7 +178,7 @@ function persistLocalCart() {
 function persistLocalState(options: { catalog?: "full" | "balances"; productUpdates?: Product[] } = {}) {
   try {
     const key = catalogCacheKey();
-    if (options.catalog === "balances" && persistedCatalogKey === key && localStorage.getItem(key) && options.productIds?.length) {
+    if (options.catalog === "balances" && persistedCatalogKey === key && localStorage.getItem(key) && options.productUpdates?.length) {
       // Only touch IDs changed by this operation. Never scan the 10k catalog on
       // every sale/stock event just to discover which balances changed.
       for (const product of options.productUpdates ?? []) {
@@ -1084,6 +1084,11 @@ export async function hydrateStoreOffline(accountId: string) {
   loaded = true;
   state = { ...emptyState(), ...(cached as State), products: cachedCatalog as Product[] };
   try {
+    const cartRaw = localStorage.getItem(`${activeStateKey}:cart`);
+    if (cartRaw) {
+      const savedCart = JSON.parse(cartRaw);
+      if (Array.isArray(savedCart)) state.cart = savedCart;
+    }
     const balancesRaw = localStorage.getItem(`${activeStateKey}:balances`);
     productBalanceOverrides = new Map();
     if (balancesRaw) {
