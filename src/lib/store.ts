@@ -1870,7 +1870,7 @@ export const actions = {
   },
   async refreshCatalog() {
     if (catalogRefreshBarrier) await catalogRefreshBarrier;
-    let releaseBarrier: (() => void) | null = null;
+    let releaseBarrier!: () => void;
     catalogRefreshBarrier = new Promise<void>((resolve) => { releaseBarrier = resolve; });
     try {
       const previous = state.products ?? [];
@@ -1878,7 +1878,7 @@ export const actions = {
       set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false, catalog: false });
       return products.length;
     } finally {
-      releaseBarrier?.();
+      releaseBarrier();
       catalogRefreshBarrier = null;
     }
   },
