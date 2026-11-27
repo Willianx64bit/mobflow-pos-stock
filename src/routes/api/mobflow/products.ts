@@ -86,16 +86,16 @@ async function getProducts(request:Request){
       "SELECT p.id,p.price::text,p.stock::text FROM public.products p "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
-      "AND ($4::text IS NULL OR (p.name,p.id)>(SELECT cp.name,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
-      "ORDER BY p.name,p.id LIMIT $5",
+      "AND ($4::text IS NULL OR (p.created_at,p.id)>(SELECT cp.created_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
+      "ORDER BY p.created_at,p.id LIMIT $5",
       [tx.identity.accountId,active===null?null:active==="true",q,cursor,limit+1])
    : await c.query(
       "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
       "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
-      "AND ($4::text IS NULL OR (p.name,p.id)>(SELECT cp.name,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
-      "GROUP BY p.tenant_id,p.id ORDER BY p.name,p.id LIMIT $5",
+      "AND ($4::text IS NULL OR (p.created_at,p.id)>(SELECT cp.created_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
+      "GROUP BY p.tenant_id,p.id ORDER BY p.created_at,p.id LIMIT $5",
       [tx.identity.accountId,active===null?null:active==="true",q,cursor,limit+1]);
   const more=result.rows.length>limit,rows=result.rows.slice(0,limit);
   await releaseTransaction(c,true);tx=null;
