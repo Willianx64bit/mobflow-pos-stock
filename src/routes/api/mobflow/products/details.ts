@@ -30,7 +30,7 @@ async function getProductDetails(request: Request) {
       "FROM public.products p " +
       "LEFT JOIN public.sale_items si ON si.tenant_id=p.tenant_id AND si.product_id=p.id " +
       "LEFT JOIN public.sales s ON s.tenant_id=si.tenant_id AND s.id=si.sale_id AND s.status='completed' " +
-      "WHERE p.tenant_id=$1 AND p.id=$2 GROUP BY p.id",
+      "WHERE p.tenant_id=$1 AND p.id=$2 GROUP BY p.tenant_id,p.id",
       [identity.accountId, productId],
     );
     if (!result.rows.length) throw new ProductDetailsApiError("Produto não encontrado nesta empresa.", 404, "product_not_found");
