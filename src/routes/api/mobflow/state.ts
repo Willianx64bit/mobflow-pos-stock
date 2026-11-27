@@ -16,8 +16,8 @@ function finiteStateNumber(value: unknown): number | null {
 
 async function readRemoteState(client: Awaited<ReturnType<typeof beginAuthenticatedTransaction>>["client"], accountId: string) {
   const result = await client.query<StateRow>(
-    "SELECT state, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
-    [accountId],
+    "SELECT CASE WHEN $2::boolean AND to_regclass('public.products') IS NOT NULL THEN state - 'products' ELSE state END AS state, to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS updated_at FROM public.app_state WHERE owner_id = $1 LIMIT 1",
+    [accountId, process.env["MOBFLOW_RELATIONAL_BOOTSTRAP_ENABLED"] === "true"],
   );
   return result.rows[0] ?? null;
 }
