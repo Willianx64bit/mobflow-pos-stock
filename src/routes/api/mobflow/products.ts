@@ -86,7 +86,16 @@ async function getProducts(request:Request){
  try{
   tx=await beginAuthenticatedTransaction(request);const c=tx.client;await ready(c);
   const result=liveOnly
-   ? await c.query(
+   ? updatedSinceIso
+    ? await c.query(
+      "SELECT p.id,p.price::text,p.stock::text FROM public.products p "+
+      "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
+      "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
+      "AND p.updated_at > $5::timestamptz "+
+      "AND ($4::text IS NULL OR (p.updated_at,p.id)>(SELECT cp.updated_at,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)) "+
+      "ORDER BY p.updated_at,p.id LIMIT $6",
+      [tx.identity.accountId,active===null?null:active==="true",q,cursor,updatedSinceIso,limit+1])
+    : await c.query(
       "SELECT p.id,p.price::text,p.stock::text FROM public.products p "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
