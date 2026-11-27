@@ -141,10 +141,16 @@ function PDV() {
     return () => window.removeEventListener("mobflow-pdv-auth-changed", sync);
   }, []);
 
+  const applyCatalogIfNewer = (product: Product) => {
+    const existing = products.find((item) => item.id === product.id);
+    if (!existing || Number(product.version ?? 0) > Number(existing.version ?? 0)) {
+      actions.applyCatalogProduct(product);
+    }
+  };
   const requestAdd = (p: Product) => {
     if (!Number.isFinite(p.price) || p.price <= 0.01) { setFlash("Produto indisponível no caixa: cadastre um preço acima de R$ 0,01."); return; }
     if (!pdvAuthorized) { setFlash("PDV bloqueado"); return; }
-    if (!products.some((item) => item.id === p.id)) actions.applyCatalogProduct(p);
+    applyCatalogIfNewer(p);
     if (p.unit === "kg") { setPendingWeight(p); setWeightInput(""); return; }
     actions.addToCart(p.id, 1);
     setFlash(`+1 ${p.name}`);
@@ -185,7 +191,7 @@ function PDV() {
       if (multiplied) {
         const qty = Number(multiplied[1] ?? "");
         if (qty > 0 && Number.isSafeInteger(qty) && p.unit === "un" && pdvAuthorized) {
-          if (!products.some((item) => item.id === p.id)) actions.applyCatalogProduct(p);
+          applyCatalogIfNewer(p);
           actions.addToCart(p.id, qty);
           setFlash("+" + qty + " " + p.name);
         } else if (p.unit === "kg") {
@@ -225,8 +231,10 @@ function PDV() {
   }, [debouncedQ, localResults.length]);
 
   const results = useMemo(() => {
-    const ids = new Set(localResults.map((product) => product.id));
-    return [...localResults, ...supplementalProducts.filter((product) => !ids.has(product.id))].slice(0, 100);
+    const remoteById = new Map(supplementalProducts.map((product) => [product.id, product]));
+    const localIds = new Set(localResults.map((product) => product.id));
+    const mergedLocal = localResults.map((product) => remoteById.get(product.id) ?? product);
+    return [...mergedLocal, ...supplementalProducts.filter((product) => !localIds.has(product.id))].slice(0, 100);
   }, [localResults, supplementalProducts]);
 
   const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
@@ -339,7 +347,7 @@ function PDV() {
           if (multipliedScan) {
             const qty = Number(multipliedScan[1] ?? "");
             if (qty > 0 && Number.isSafeInteger(qty) && match.unit === "un") {
-              actions.applyCatalogProduct(match);
+              applyCatalogIfNewer(match);
               actions.addToCart(match.id, qty);
               setFlash("+" + qty + " " + match.name);
             } else if (match.unit === "kg") {
@@ -357,7 +365,7 @@ function PDV() {
             const p = productsByBarcode.get(scanCode);
             const qty = Number(multipliedScan[1] ?? "");
             if (p && qty > 0 && Number.isSafeInteger(qty) && p.unit === "un") {
-              if (!products.some((item) => item.id === p.id)) actions.applyCatalogProduct(p);
+              applyCatalogIfNewer(p);
               actions.addToCart(p.id, qty);
               setFlash("+" + qty + " " + p.name);
             } else if (p && p.unit === "kg") {
@@ -381,7 +389,7 @@ function PDV() {
       const term = (m ? m[2] : q) ?? "";
       const exact = productsByBarcode.get(term.trim());
       const target = exact ?? results[sel];
-      if (target) { if (m && target.unit === "un") { if (!products.some((item) => item.id === target.id)) actions.applyCatalogProduct(target); const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
+      if (target) { if (m && target.unit === "un") { applyCatalogIfNewer(target); const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
     }
   };
