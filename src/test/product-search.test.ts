@@ -7,12 +7,12 @@ const product = (id: string, name: string, code: string, barcodes: string[] = []
 });
 
 describe("local PDV product search",()=>{
-  it("builds direct code and barcode lookups while preferring the local catalog",()=>{
+  it("builds direct code and barcode lookups while preferring the fresh Neon supplement",()=>{
     const local=product("local-1","Arroz","001",["7890001"]);
     const remote=product("remote-1","Arroz remoto","001",["7890001"]);
     const index=buildProductBarcodeIndex([local],[remote]);
-    expect(index.get("001")?.id).toBe("local-1");
-    expect(index.get("7890001")?.id).toBe("local-1");
+    expect(index.get("001")?.id).toBe("remote-1");
+    expect(index.get("7890001")?.id).toBe("remote-1");
   });
   it("returns at most 100 local matches from a 100k product catalog",()=>{
     const products:Product[]=Array.from({length:100_000},(_,i)=>product(
