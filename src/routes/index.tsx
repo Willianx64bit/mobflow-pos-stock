@@ -23,6 +23,7 @@ const PAYMENTS: Payment[] = ["Dinheiro", "Cartão", "Pix", "Fiado"];
 function PDV() {
   const products = useStore((s) => s.products);
   const sellableProducts = useMemo(() => products.filter((product) => Number.isFinite(product.price) && product.price > 0.01), [products]);
+  const productsById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   useEffect(() => {
     let permissions: string[] = [];
     try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]").map((p: string) => p === "Conferência" ? "Operações" : p); } catch {}
@@ -197,7 +198,7 @@ function PDV() {
     return sellableProducts.filter((p) => norm(p.name).includes(n) || (p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n))) || norm(p.category).includes(n));
   }, [q, sellableProducts]);
 
-  const lines = cart.map((c) => ({ ...c, p: products.find((p) => p.id === c.productId)! })).filter((l) => l.p);
+  const lines = cart.map((c) => ({ ...c, p: productsById.get(c.productId)! })).filter((l) => l.p);
   const subtotal = lines.reduce((s, l) => s + effectivePrice(l.p) * l.qty, 0);
   const discountNumber = Number(discountInput.replace(",", ".")) || 0;
   const discount = discountType === "%" ? subtotal * Math.min(100, Math.max(0, discountNumber)) / 100 : Math.min(subtotal, Math.max(0, discountNumber));
@@ -207,7 +208,7 @@ function PDV() {
 
   const finish = () => {
     if (isFinalizing || isConfirmingPix) return;
-    const unavailable = cart.filter((item) => { const product = products.find((entry) => entry.id === item.productId); return !product || !Number.isFinite(product.price) || product.price <= 0.01; });
+    const unavailable = cart.filter((item) => { const product = productsById.get(item.productId); return !product || !Number.isFinite(product.price) || product.price <= 0.01; });
     if (unavailable.length) { unavailable.forEach((item) => actions.removeFromCart(item.productId)); setFlash("Produtos sem preço acima de R$ 0,01 foram retirados do carrinho. Cadastre o preço para vender."); return; }
     if (!lines.length) return;
     const operator = sessionStorage.getItem("mobflow-username")?.trim() || "";
