@@ -39,6 +39,16 @@ describe("Neon product catalog API",()=>{
   expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1",name:"Arroz",stock:5}]});
   expect(client.query.mock.calls[1]?.[1]?.[0]).toBe(TENANT);
  });
+ it("uses stable tenant-scoped keyset pagination and returns the last product as cursor",async()=>{
+  client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product,{...product,id:"p2",name:"Feijão"}]});
+  const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?limit=1&cursor=p0")});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,products:[{id:"p1"}],hasMore:true,nextCursor:"p1"});
+  const [sql,params]=client.query.mock.calls[1] ?? [];
+  expect(String(sql)).toContain("(p.name,p.id)>(SELECT cp.name,cp.id FROM public.products cp WHERE cp.tenant_id=p.tenant_id AND cp.id=$4)");
+  expect(String(sql)).toContain("ORDER BY p.name,p.id LIMIT $5");
+  expect(params).toEqual([TENANT,null,"","p0",2]);
+ });
  it("returns only compact price and stock fields for realtime refreshes",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{id:"p1",price:"12.50",stock:"8.000"}]});
   const response=await handlers.GET({request:req("GET",undefined,"https://mobflow.test/api/mobflow/products?projection=live&limit=100")});
