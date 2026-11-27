@@ -354,7 +354,28 @@ function PDV() {
       const value = q.trim();
       const multipliedScan = quick ? value.match(/^(\d+)\*(\d{6,})$/) : null;
       const scanCode = multipliedScan?.[2] ?? value;
-      if (/^\d{6,}$/.test(scanCode) && sellableProducts.some((p) => productHasBarcode(p, scanCode))) {
+      if (/^\d{6,}$/.test(scanCode) && !productsByBarcode.has(scanCode) && !isOfflineMode()) {
+        e.preventDefault();
+        void actions.searchCatalogProducts(scanCode, 10).then((found) => {
+          const match = found.find((product) => productHasBarcode(product, scanCode));
+          if (!match) { setFlash(`código não cadastrado: ${scanCode}`); return; }
+          setSupplementalProducts((current) => [...current.filter((item) => item.id !== match.id), match]);
+          if (!quick) { setFlash("bipe rápido desligado: código pesquisado, não adicionado"); return; }
+          if (multipliedScan) {
+            const qty = Number(multipliedScan[1] ?? "");
+            if (qty > 0 && Number.isSafeInteger(qty) && match.unit === "un") {
+              actions.applyCatalogProduct(match);
+              actions.addToCart(match.id, qty);
+              setFlash("+" + qty + " " + match.name);
+            } else if (match.unit === "kg") {
+              setFlash("Multiplicador disponível apenas para produtos por unidade");
+            }
+          } else requestAdd(match);
+          setQ("");
+        }).catch(() => setFlash(`não foi possível consultar o código ${scanCode} no Neon`));
+        return;
+      }
+      if (/^\d{6,}$/.test(scanCode) && productsByBarcode.has(scanCode)) {
         e.preventDefault();
         if (quick) {
           if (multipliedScan) {
@@ -385,7 +406,7 @@ function PDV() {
       const term = (m ? m[2] : q) ?? "";
       const exact = productsByBarcode.get(term.trim());
       const target = exact ?? results[sel];
-      if (target) { if (m && target.unit === "un") { const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
+      if (target) { if (m && target.unit === "un") { if (!products.some((item) => item.id === target.id)) actions.applyCatalogProduct(target); const qty = Number(m[1]); if (qty > 0) actions.addToCart(target.id, qty); } else requestAdd(target); setQ(""); }
       else if (!q && lines.length) finish();
     }
   };
