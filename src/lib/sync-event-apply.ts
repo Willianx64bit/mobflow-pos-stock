@@ -32,6 +32,15 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     cashMovements: [...(current.cashMovements ?? [])],
     stockAdjustments: [...(current.stockAdjustments ?? [])],
   };
+  const productIndexById = new Map(next.products.map((product, index) => [product.id, index]));
+  const replaceProduct = (id: string, update: (product: State["products"][number]) => State["products"][number]) => {
+    const index = productIndexById.get(id);
+    if (index === undefined) return undefined;
+    const currentProduct = next.products[index];
+    if (!currentProduct) return undefined;
+    next.products[index] = update(currentProduct);
+    return next.products[index];
+  };
 
   for (const event of events) {
     // Product catalog mutations are manual-only. A different automatic event
@@ -274,7 +283,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
     }
 
     if (event.category === "stock" && event.entity_type === "product") {
-      const product = next.products.find((item) => item.id === event.entity_id);
+      const product = next.products[productIndexById.get(event.entity_id) ?? -1];
       const absoluteStock = number(payload["stockAfter"] ?? payload["resultingStock"]);
       const deltaOnly = number(payload["delta"] ?? payload["stockDelta"]);
       if (absoluteStock === null && deltaOnly === null) throw new UnsupportedSyncEventError(event);
@@ -284,7 +293,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       const stockBefore = number(payload["stockBefore"]) ?? product.stock;
       const stockAfter = absoluteStock ?? stockBefore + deltaOnly!;
       const alreadyApplied = next.stockMovements.some((movement) => movement.id === event.event_id);
-      if (!alreadyApplied) next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, stock: stockAfter } : item);
+      if (!alreadyApplied) replaceProduct(event.entity_id, (item) => ({ ...item, stock: stockAfter }));
       const operationId = typeof payload["operationId"] === "string" ? payload["operationId"] : undefined;
       const quantity = number(payload["quantity"]) ?? (payload["source"] === "receiving" && deltaOnly !== null ? Math.abs(deltaOnly) : null);
       if (!alreadyApplied && quantity !== null) {
@@ -365,7 +374,7 @@ export function applySyncEventsToState(current: State, events: SyncEvent[]): Sta
       if (price === null) throw new UnsupportedSyncEventError(event);
       // Product metadata is refreshed through the catalog endpoint; absent products are not sold on this device.
       if (!product) continue;
-      next.products = next.products.map((item) => item.id === event.entity_id ? { ...item, price } : item);
+      replaceProduct(event.entity_id, (item) => ({ ...item, price }));
       continue;
     }
 
