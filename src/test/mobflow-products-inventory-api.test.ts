@@ -56,11 +56,11 @@ describe("Neon inventory API",()=>{
  });
  it("resolves legacy ID cursors from an older inventory page",async()=>{
   client.query.mockResolvedValueOnce({rows:[{created_at:"2026-11-07 00:00:00.123456+00",id:"legacy-p0"}]})
-    .mockResolvedValueOnce({rows:[summary]}).mockResolvedValueOnce({rows:[product]});
+    .mockResolvedValueOnce({rows:[product]});
   const response=await handler({request:req("https://mobflow.test/api/mobflow/products/inventory?cursor=legacy-p0")});
   expect(response.status).toBe(200);
   expect(client.query.mock.calls[0]?.[0]).toContain("SELECT created_at::text AS created_at,id");
-  expect(client.query.mock.calls[2]?.[1]).toEqual([TENANT,"all","","","all","2026-11-07 00:00:00.123456+00","legacy-p0",101]);
+  expect(client.query.mock.calls[1]?.[1]).toEqual([TENANT,"all","","","all","2026-11-07 00:00:00.123456+00","legacy-p0",101]);
  });
  it("blocks inventory access for operators without Gerência",async()=>{
   beginAuthenticatedTransaction.mockResolvedValueOnce({client,identity:{userId:"u1",accountId:TENANT,role:"pdv",permissions:["PDV"]}});
