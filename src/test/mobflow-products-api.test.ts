@@ -113,8 +113,10 @@ describe("Neon product catalog API",()=>{
  it("publishes active/inactive changes as automatic catalog events",async()=>{
   const disabled={...product,active:false,version:"2"};
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product]}).mockResolvedValueOnce({rows:[disabled]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]});
-  const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,code:"001",name:"Arroz",unit:"un",price:10,cost:7,minStock:1,category:"Mercearia",active:false})});
+  const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,active:false})});
   expect(response.status).toBe(200);
+  const update=client.query.mock.calls.find(c=>String(c[0]).startsWith("UPDATE public.products"));
+  expect(update?.[1]).toEqual([TENANT,"p1","001","Arroz",null,"Mercearia","un",10,7,1,false,1]);
   const statusEvent=client.query.mock.calls.find(c=>String(c[0]).includes("'catalog','automatic','product'"));
   expect(statusEvent).toBeDefined();
   expect(JSON.parse(String(statusEvent?.[1]?.[3]))).toMatchObject({operation:"upsert",product:{id:"p1",active:false,version:2}});
