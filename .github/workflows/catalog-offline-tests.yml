@@ -34,5 +34,7 @@ jobs:
         run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Test atomic offline catalog
         run: npm test -- src/test/product-catalog.test.ts
+      - name: TypeScript validation
+        run: npx tsc --noEmit
       - name: Build application bundle
         run: npm run build
