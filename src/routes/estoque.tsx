@@ -4,7 +4,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
 import { ImportProducts } from "@/components/ImportProducts";
 import { StockExportDialog } from "@/components/StockExportDialog";
-import { actions, brl, norm, useStore, type Product } from "@/lib/store";
+import { actions, brl, type Product } from "@/lib/store";
 
 export const Route = createFileRoute("/estoque")({
   head: () => ({
@@ -45,6 +45,7 @@ function Estoque() {
   const [loading, setLoading] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
@@ -55,7 +56,7 @@ function Estoque() {
     setLoading(true);
     try {
       const [page, totals] = await Promise.all([
-        actions.loadStockCatalogPage(q, null, onlyLow, 50),
+        actions.loadStockCatalogPage(debouncedQ, null, onlyLow, 50),
         actions.loadStockCatalogSummary(),
       ]);
       setCatalogProducts(page.products);
@@ -83,7 +84,11 @@ function Estoque() {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
 
-  useEffect(() => { void refreshStockCatalog().catch(() => undefined); }, [q, onlyLow]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQ(q), 220);
+    return () => window.clearTimeout(timer);
+  }, [q]);
+  useEffect(() => { void refreshStockCatalog().catch(() => undefined); }, [debouncedQ, onlyLow]);
 
   return (
     <div className="mfb-in min-h-screen p-4 md:p-6">
