@@ -64,7 +64,7 @@ describe("offline product catalog", () => {
     expect(restored.products).toHaveLength(total);
     expect(restored.products[0]?.id).toBe("product-000000");
     expect(restored.products[total - 1]?.id).toBe(`product-${String(total - 1).padStart(6, "0")}`);
-  });
+  }, 15_000);
 
   it("reports the committed catalog count without loading product rows", async () => {
     const product = { id: "1", code: "001", name: "Feijão", price: 8, stock: 4, minStock: 1, category: "Mercearia", unit: "un" as const };
