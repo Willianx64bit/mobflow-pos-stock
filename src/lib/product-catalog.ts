@@ -83,6 +83,22 @@ export async function readOfflineCatalog(tenantId: string): Promise<{ products: 
   }
 }
 
+/** Reads only committed catalog metadata; useful for validating offline readiness without loading every product. */
+export async function getOfflineCatalogStatus(tenantId: string): Promise<{ count: number; syncedAt: number | null; hasCatalog: boolean }> {
+  const db = await openCatalogDb();
+  try {
+    const tx = db.transaction(META_STORE, "readonly");
+    const done = transactionDone(tx);
+    const meta = await requestValue(tx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
+    await done;
+    const count = Number(meta?.count ?? 0);
+    const hasCatalog = Boolean(meta?.activeGeneration && count > 0);
+    return { count: Number.isFinite(count) ? count : 0, syncedAt: meta?.syncedAt ?? null, hasCatalog };
+  } finally {
+    db.close();
+  }
+}
+
 /** Writes each page into an inactive generation; readers keep using the previous complete generation until commit. */
 export async function replaceOfflineCatalog(tenantId: string, pages: AsyncIterable<OfflineCatalogProduct[]>): Promise<number> {
   if (!tenantId) throw new Error("Empresa inválida para salvar o catálogo.");
