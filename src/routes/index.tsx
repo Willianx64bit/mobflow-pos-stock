@@ -189,15 +189,17 @@ function PDV() {
     }, 120);
   };
 
+  const [localFallbackEnabled, setLocalFallbackEnabled] = useState(false);
   const localResults = useMemo(() => {
     const n = norm(q.trim());
-    const matches = !n
+    if (n.length >= 2 && !localFallbackEnabled) return [];
+    const matches = n.length < 2
       ? sellableProducts
       : sellableProducts.filter((p) => norm(p.name).includes(n) || p.code.includes(n) || (p.barcodes ?? []).some((code) => code.includes(n)) || norm(p.category).includes(n));
     // Keep the offline/local fallback bounded: a large catalog must never
     // create thousands of product cards in the PDV at once.
     return matches.slice(0, 50);
-  }, [q, sellableProducts]);
+  }, [q, sellableProducts, localFallbackEnabled]);
   const [remoteSearch, setRemoteSearch] = useState<{ query: string; products: Product[] } | null>(null);
   const [searchingRemote, setSearchingRemote] = useState(false);
   useEffect(() => {
@@ -205,15 +207,18 @@ function PDV() {
     if (term.length < 2 || (typeof navigator !== "undefined" && !navigator.onLine)) {
       setRemoteSearch(null);
       setSearchingRemote(false);
+      setLocalFallbackEnabled(true);
       return;
     }
     let active = true;
     setRemoteSearch(null);
+    setLocalFallbackEnabled(false);
     const timer = window.setTimeout(() => {
       setSearchingRemote(true);
       void searchCatalogProducts(term, 50).then((found) => {
         if (!active) return;
         setRemoteSearch(found ? { query: term, products: found.filter((p) => Number.isFinite(p.price) && p.price > 0.01) } : null);
+        setLocalFallbackEnabled(!found);
         setSearchingRemote(false);
       });
     }, 220);
@@ -392,7 +397,7 @@ function PDV() {
           </div>
           {flash && <div className={`mt-2 w-full font-mono text-sm ${flash.startsWith("+") ? "text-primary" : "text-destructive"}`}>{flash}</div>}
           {searchingRemote && <div className="mt-1 text-[11px] text-muted-foreground">Consultando catálogo no Neon…</div>}
-          {!q.trim() && sellableProducts.length > 50 && <div className="mt-1 text-[11px] text-muted-foreground">Digite para localizar entre todos os produtos. Exibindo até 50 itens por vez.</div>}
+          {q.trim().length < 2 && sellableProducts.length > 50 && <div className="mt-1 text-[11px] text-muted-foreground">Digite pelo menos 2 caracteres para pesquisar no catálogo. Exibindo até 50 itens por vez.</div>}
 
           <div className={`${productView === "cards" ? "grid grid-cols-2 sm:grid-cols-3 content-start" : "flex flex-col"} gap-2 mt-2 flex-1 min-h-0 overflow-y-auto pr-1`}>
             {results.map((p, i) => {
