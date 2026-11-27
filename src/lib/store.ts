@@ -373,7 +373,7 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   };
 }
 
-function load() {
+function load(normalize = true) {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
   try {
@@ -406,7 +406,7 @@ function load() {
       persistedCatalogKey = catalogCacheKey();
       persistedCatalogRef = state.products;
     }
-    normalizeState();
+    if (normalize) normalizeState();
   } catch {}
 }
 function normalizeState() {
@@ -1258,7 +1258,7 @@ export async function hydrateStore() {
       activeStateKey = tenantStateKey(accountId);
       loaded = false;
       state = emptyState();
-      load();
+      load(false);
       const localContacts = [...(state.contacts ?? [])];
       const localProducts = [...(state.products ?? [])];
       const localCart = [...(state.cart ?? [])];
@@ -1374,7 +1374,7 @@ export async function hydrateStore() {
 
       // Store the snapshot first, but mark it as prepared only after private company
       // settings and contacts have also been downloaded successfully.
-      if (!useDailyCache) normalizeState();
+      normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
         if (!useDailyCache) persistLocalState();
