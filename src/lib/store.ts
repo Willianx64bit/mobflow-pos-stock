@@ -318,7 +318,7 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
   const before = new Map(previous.map((product) => [product.id, product]));
   const after = new Map(next.map((product) => [product.id, product]));
   const writes: Promise<void>[] = [];
-  for (const [id, product] of after) { const old = before.get(id); if (!old || JSON.stringify(old) !== JSON.stringify(product)) writes.push(upsertOfflineCatalogProduct(tenantId, product)); }
+  for (const [id, product] of after) { const old = before.get(id); if (!old || old !== product) writes.push(upsertOfflineCatalogProduct(tenantId, product)); }
   for (const id of before.keys()) if (!after.has(id)) writes.push(removeOfflineCatalogProduct(tenantId, id));
   if (writes.length) await Promise.all(writes);
 }
@@ -797,39 +797,6 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
   }
 }
 
-async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
-  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
-  try {
-    const balances = new Map<string, { price: number; stock: number }>();
-    let cursor: string | null = null;
-    // 2,000 pages × 500 rows leaves headroom above the 100k-product target.
-    for (let page = 0; page < 2000; page += 1) {
-      const query = new URLSearchParams({ projection: "live", limit: "500" });
-      if (cursor) query.set("cursor", cursor);
-      const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
-      if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
-      for (const raw of body.products as Array<Record<string, unknown>>) {
-        const id = typeof raw["id"] === "string" ? raw["id"] : "";
-        const price = Number(raw["price"]), stock = Number(raw["stock"]);
-        if (id && Number.isFinite(price) && Number.isFinite(stock)) balances.set(id, { price, stock });
-      }
-      if (body.hasMore !== true) {
-        // Never add/remove or replace product metadata from an automatic wake-up.
-        return fallbackProducts.map((product) => {
-          const live = balances.get(product.id);
-          return live ? { ...product, price: live.price, stock: live.stock } : product;
-        });
-      }
-      if (typeof body.nextCursor !== "string" || !body.nextCursor) return fallbackProducts;
-      cursor = body.nextCursor;
-    }
-    return fallbackProducts;
-  } catch (error) {
-    console.warn("[MobFlow Realtime] Could not refresh compact product balances:", error);
-    return fallbackProducts;
-  }
-}
-
 async function refreshFromCloud(accountId: string, forceLatest = false) {
   if (catalogRefreshBarrier) await catalogRefreshBarrier;
   if (persistWorker && cloudReady && cloudAccountId === accountId) {
@@ -866,9 +833,8 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     const verifiedCatalog = state.products ?? [];
     const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
-    const beforeBalanceRefresh = state.products;
-    state.products = await readRealtimeProductBalances(catalogFallback);
-    if (state.products !== beforeBalanceRefresh) await persistCatalogDelta(beforeBalanceRefresh, state.products).catch((error) => console.warn("[MobFlow Catalog] Balance refresh could not be stored locally:", error));
+    // Product prices and stock balances arrive through the durable incremental event cursor.
+    // Never scan the complete relational catalog during an app-state refresh.
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
