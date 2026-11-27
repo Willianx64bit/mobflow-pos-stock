@@ -539,7 +539,8 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
     let cursor: string | null = null;
-    for (let page = 0; page < 100; page += 1) {
+    const seenCursors = new Set<string>();
+    while (true) {
       const query = new URLSearchParams({ limit: "100" });
       if (activeFilter) query.set("active", activeFilter);
       if (cursor) query.set("cursor", cursor);
@@ -573,10 +574,13 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
         console.error("[MobFlow Catalog] Neon catalog pagination returned an invalid cursor; keeping the last verified tenant catalog.");
         return activeFilter === "false" ? [] : fallbackProducts;
       }
+      if (seenCursors.has(body.nextCursor)) {
+        console.error("[MobFlow Catalog] Neon catalog pagination repeated a cursor; keeping the last verified tenant catalog.");
+        return activeFilter === "false" ? [] : fallbackProducts;
+      }
+      seenCursors.add(body.nextCursor);
       cursor = body.nextCursor;
     }
-    console.error("[MobFlow Catalog] Neon catalog exceeded the safe pagination limit; keeping the last verified tenant catalog.");
-    return activeFilter === "false" ? [] : fallbackProducts;
   } catch (error) {
     console.error("[MobFlow Catalog] Could not load the authoritative Neon catalog; keeping the last verified tenant catalog:", error);
     return activeFilter === "false" ? [] : fallbackProducts;
