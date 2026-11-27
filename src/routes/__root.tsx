@@ -176,6 +176,15 @@ function RootComponent() {
   useEffect(() => {
     if (previousPath.current === pathname) return;
     const previous = previousPath.current;
+    // Electron runs the complete route bundle locally. Do not force a 1.6s
+    // loading overlay on every navigation in the desktop app.
+    if (typeof window !== "undefined" && window.mobflowDesktop) {
+      previousPath.current = pathname;
+      if (loadingTimer.current) clearTimeout(loadingTimer.current);
+      loadingTimer.current = null;
+      setShowRouteLoading(false);
+      return;
+    }
     previousPath.current = pathname;
     if (loadingTimer.current) clearTimeout(loadingTimer.current);
 
