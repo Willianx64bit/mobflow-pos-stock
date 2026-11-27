@@ -962,6 +962,21 @@ function startRealtime(accountId: string) {
     syncWakeListenersInstalled = true;
   }
 
+  // If the Realtime subscription is unavailable (for example, an unapproved
+  // Preview origin), poll only the durable event cursor every 15 seconds.
+  // This never downloads the full company snapshot.
+  if (!realtimeCatchupTimer) {
+    realtimeCatchupTimer = setInterval(() => {
+      const activeAccountId = cloudAccountId;
+      if (!activeAccountId || !cloudReady || document.visibilityState !== "visible" || stopRealtimeSubscription) return;
+      if (incrementalSyncEnabled()) {
+        void syncNow().catch((error) => console.warn("[MobFlow Sync] Periodic cursor catch-up deferred:", error));
+      } else {
+        void pullReceivingConferenceEvents(activeAccountId).catch(() => undefined);
+      }
+    }, 15_000);
+  }
+
   // Realtime is only a wake-up signal; the client drains the durable outbox and pulls events by cursor.
   void subscribeToTenantEvents(
     () => {
