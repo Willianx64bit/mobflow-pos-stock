@@ -52,11 +52,17 @@ const mapProduct=(r:ProductRow)=>({
 const columns="id,code,name,reference,unit,price::text,cost::text,stock::text,min_stock::text,category,photo_object_key,active,version::text,created_at,updated_at";
 type ProductCursorPosition = { createdAt: string; id: string };
 function encodeProductCursor(row: { created_at: unknown; id: string }): string {
- const date = row.created_at instanceof Date ? row.created_at : new Date(row.created_at as string | number);
- if (!Number.isFinite(date.getTime()) || typeof row.id !== "string" || !row.id) {
+ const createdAt = typeof row.created_at === "string"
+  ? row.created_at
+  : row.created_at instanceof Date
+   ? row.created_at.toISOString()
+   : String(row.created_at ?? "");
+ if (!Number.isFinite(Date.parse(createdAt)) || typeof row.id !== "string" || !row.id) {
   throw new ProductApiError("Não foi possível criar o cursor de paginação do catálogo.",500,"invalid_product_cursor");
  }
- return "v2."+Buffer.from(JSON.stringify({createdAt:date.toISOString(),id:row.id}),"utf8").toString("base64url");
+ // Keep PostgreSQL's textual timestamp precision; converting to JS Date would
+ // truncate microseconds and could skip rows created within the same millisecond.
+ return "v2."+Buffer.from(JSON.stringify({createdAt,id:row.id}),"utf8").toString("base64url");
 }
 function decodeProductCursor(cursor: string): ProductCursorPosition | null {
  if (!cursor.startsWith("v2.")) return null;
@@ -65,7 +71,7 @@ function decodeProductCursor(cursor: string): ProductCursorPosition | null {
   if (!value || typeof value.createdAt!=="string" || typeof value.id!=="string" || !value.id || !Number.isFinite(Date.parse(value.createdAt))) {
    fail("Cursor de paginação inválido.",400,"invalid_product_cursor");
   }
-  return {createdAt:new Date(value.createdAt).toISOString(),id:value.id};
+  return {createdAt:value.createdAt,id:value.id};
  } catch (error) {
   if (error instanceof ProductApiError) throw error;
   fail("Cursor de paginação inválido.",400,"invalid_product_cursor");
@@ -110,18 +116,18 @@ async function getProducts(request:Request){
    if (!legacy.rows.length) fail("O cursor salvo não existe mais no catálogo. Reinicie a sincronização completa.",409,"stale_product_cursor");
    const date = new Date(legacy.rows[0].created_at);
    if (!Number.isFinite(date.getTime())) fail("O cursor salvo do catálogo é inválido.",409,"stale_product_cursor");
-   cursorPosition = {createdAt:date.toISOString(),id:String(legacy.rows[0].id)};
+   cursorPosition = {createdAt:String(legacy.rows[0].created_at),id:String(legacy.rows[0].id)};
   }
   const result=liveOnly
    ? await c.query(
-      "SELECT p.id,p.price::text,p.stock::text,p.created_at FROM public.products p "+
+      "SELECT p.id,p.price::text,p.stock::text,p.created_at::text AS created_at FROM public.products p "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
       "AND ($4::timestamptz IS NULL OR (p.created_at,p.id)>($4::timestamptz,$5::text)) "+
       "ORDER BY p.created_at,p.id LIMIT $6",
       [tx.identity.accountId,active===null?null:active==="true",q,cursorPosition?.createdAt??null,cursorPosition?.id??null,limit+1])
    : await c.query(
-      "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
+      "SELECT p.id,p.code,p.name,p.reference,p.unit,p.price::text,p.cost::text,p.stock::text,p.min_stock::text,p.category,p.photo_object_key,p.active,p.version::text,p.created_at::text AS created_at,p.updated_at,COALESCE(array_agg(b.barcode) FILTER(WHERE b.barcode IS NOT NULL),ARRAY[]::text[]) AS barcodes "+
       "FROM public.products p LEFT JOIN public.product_barcodes b ON b.tenant_id=p.tenant_id AND b.product_id=p.id "+
       "WHERE p.tenant_id=$1 AND p.active=COALESCE($2::boolean,true) "+
       "AND ($3::text='' OR p.code ILIKE '%'||$3||'%' OR p.name ILIKE '%'||$3||'%' OR p.reference ILIKE '%'||$3||'%' OR EXISTS(SELECT 1 FROM public.product_barcodes bx WHERE bx.tenant_id=p.tenant_id AND bx.product_id=p.id AND bx.barcode ILIKE '%'||$3||'%')) "+
