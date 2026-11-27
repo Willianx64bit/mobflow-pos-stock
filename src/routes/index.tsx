@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
+import { actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, norm, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 // Desktop and web share the server-side PDV user lifecycle; deletion preserves audit references in Neon.
 
 export const Route = createFileRoute("/")({
@@ -24,6 +24,18 @@ function PDV() {
   const products = useStore((s) => s.products);
   const sellableProducts = useMemo(() => products.filter((product) => Number.isFinite(product.price) && product.price > 0.01), [products]);
   const productsById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+  const productsByBarcode = useMemo(() => {
+    const index = new Map<string, Product>();
+    for (const product of sellableProducts) {
+      const code = product.code.trim();
+      if (code && !index.has(code)) index.set(code, product);
+      for (const barcode of product.barcodes ?? []) {
+        const value = barcode.trim();
+        if (value && !index.has(value)) index.set(value, product);
+      }
+    }
+    return index;
+  }, [sellableProducts]);
   useEffect(() => {
     let permissions: string[] = [];
     try { permissions = JSON.parse(sessionStorage.getItem("mobflow-permissions") || "[]").map((p: string) => p === "Conferência" ? "Operações" : p); } catch {}
@@ -160,7 +172,7 @@ function PDV() {
     if (!normalized) return false;
     if (lastScanRef.current?.code === normalized && now - lastScanRef.current.at < 500) return true;
     lastScanRef.current = { code: normalized, at: now };
-    const p = sellableProducts.find((x) => productHasBarcode(x, normalized));
+    const p = productsByBarcode.get(normalized);
     if (p) { requestAdd(p); return true; }
     setFlash(`código não cadastrado: ${normalized}`);
     return false;
@@ -175,7 +187,7 @@ function PDV() {
     const barcode = multiplied?.[2] ?? value;
     if (!/^\d{6,}$/.test(barcode)) return;
     scanTimer.current = setTimeout(() => {
-      const p = sellableProducts.find((item) => productHasBarcode(item, barcode));
+      const p = productsByBarcode.get(barcode);
       if (!p) return;
       if (multiplied) {
         const qty = Number(multiplied[1] ?? "");
