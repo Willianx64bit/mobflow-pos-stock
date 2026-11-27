@@ -988,7 +988,7 @@ export async function hydrateStore() {
         // refreshes, but keep only products confirmed by the authoritative tenant catalog.
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
         lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
-        lastSyncedState = cloneState(remote);
+        lastSyncedState = cloneCloudSnapshot(remote);
       } else {
         state = emptyState();
         lastCloudUpdatedAt = null;
@@ -1091,7 +1091,7 @@ function scheduleStatePersist() {
           retrySnapshot.contacts = [];
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
           Object.assign(snapshot, retrySnapshot);
-          lastSyncedState = cloneState(remote);
+          lastSyncedState = cloneCloudSnapshot(remote);
           listeners.forEach((listener) => listener());
           continue;
         }
