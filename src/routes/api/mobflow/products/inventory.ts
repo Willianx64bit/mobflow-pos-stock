@@ -120,6 +120,7 @@ async function getInventory(request: Request) {
       category: String(row.category ?? ""), active: row.active !== false,
       version: Number(row.version ?? 1),
       photoObjectKey: typeof row.photo_object_key === "string" ? row.photo_object_key : undefined,
+      photo: typeof row.photo_object_key === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(row.id))}` : undefined,
       barcodes: Array.isArray(row.barcodes) ? row.barcodes.map(String) : [],
     }));
     const summary = summaryResult.rows[0] ?? {};
