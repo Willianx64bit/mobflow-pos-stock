@@ -43,6 +43,7 @@ describe("Neon inventory API",()=>{
   expect(String(sql)).toContain("p.active=($2::text='active')");
   expect(String(sql)).toContain("p.stock<=p.min_stock");
   expect(String(sql)).toContain("p.category ILIKE '%'||$4||'%'");
+  expect(String(sql)).not.toContain("p.cost");
   expect(String(sql)).toContain("ORDER BY p.created_at,p.id LIMIT $8");
   expect(params).toEqual([TENANT,"inactive","arroz","mercearia","low",null,null,101]);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
