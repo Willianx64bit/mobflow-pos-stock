@@ -7,8 +7,10 @@ on:
     branches:
       - packaging/windows-exe-neon
       - desktop/local-runtime-foundation
+      - desktop/catalog-offline-scale
     paths:
       - "desktop-wrapper/**"
+      - "desktop-wrapper/BUILD_EXE_NOW"
       - "src/routes/__root.tsx"
       - "src/routes/index.tsx"
       - "src/routes/analise-resultados.tsx"
@@ -44,6 +46,7 @@ concurrency:
 
 jobs:
   build-and-smoke-test:
+    if: github.event_name == 'workflow_dispatch' || github.ref != 'refs/heads/desktop/catalog-offline-scale' || contains(github.event.head_commit.message || '', '[build-exe]')
     runs-on: windows-latest
     defaults:
       run:
