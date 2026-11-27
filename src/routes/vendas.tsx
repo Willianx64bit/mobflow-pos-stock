@@ -31,6 +31,7 @@ function Vendas() {
   const [productFilter, setProductFilter] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("todos");
   const [expandedSales, setExpandedSales] = useState<string[]>([]);
+  const [visibleSalesLimit, setVisibleSalesLimit] = useState(50);
   const navigate = useNavigate();
   useEffect(() => {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
@@ -61,7 +62,13 @@ function Vendas() {
     const matchesPayment = paymentFilter === "todos" || s.payment === paymentFilter;
     return inPeriod && matchesSearch && matchesProduct && matchesPayment;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [sales, dateFilterMode, selectedMonth, rangeStart, rangeEnd, searchText, productFilter, paymentFilter]);
-  const totalProfit = filteredSales.reduce((total, sale) => total + saleProfit(sale), 0);
+  const visibleSales = useMemo(() => filteredSales.slice(0, visibleSalesLimit), [filteredSales, visibleSalesLimit]);
+  const totalProfit = useMemo(() => filteredSales.reduce((total, sale) => total + saleProfit(sale), 0), [filteredSales, productIndexes]);
+  const paymentTotals = useMemo(() => filteredSales.reduce<Record<string, number>>((totals, sale) => {
+    totals[sale.payment] = (totals[sale.payment] ?? 0) + sale.total;
+    return totals;
+  }, {}), [filteredSales]);
+  useEffect(() => { setVisibleSalesLimit(50); }, [dateFilterMode, selectedMonth, rangeStart, rangeEnd, searchText, productFilter, paymentFilter]);
   const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const periodLabel = dateFilterMode === "month" ? monthLabel : rangeStart.split("-").reverse().join("/") + " a " + rangeEnd.split("-").reverse().join("/");
 
@@ -72,7 +79,7 @@ function Vendas() {
         <div className="glass p-4"><div className="label-mono">Total de vendas no período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
         <div className="glass p-4"><div className="label-mono">Lucro das vendas</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(totalProfit)}</div></div>
         {(["Dinheiro", "Cartão", "Pix", "Fiado"] as const).map((m) => (
-          <div key={m} className="glass p-4"><div className="label-mono text-sm md:text-base">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
+          <div key={m} className="glass p-4"><div className="label-mono text-sm md:text-base">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(paymentTotals[m] ?? 0)}</div></div>
         ))}
       </div>
       <section className="glass p-4">
@@ -117,7 +124,7 @@ function Vendas() {
             </div>
             <div className="divide-y divide-border/50">
           {filteredSales.length === 0 && <p className="py-10 text-center font-mono text-[11px] text-muted-foreground">Nenhuma venda encontrada nesse período.</p>}
-          {filteredSales.map((s) => {
+          {visibleSales.map((s) => {
             const isExpanded = expandedSales.includes(s.id);
             return (
               <div key={s.id} className="py-3">
@@ -158,6 +165,12 @@ function Vendas() {
             );
           })}
             </div>
+            {filteredSales.length > visibleSales.length && (
+              <button type="button" onClick={() => setVisibleSalesLimit((limit) => Math.min(limit + 50, filteredSales.length))}
+                className="my-3 w-full rounded-xl border border-border bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent">
+                Carregar mais vendas ({visibleSales.length} de {filteredSales.length})
+              </button>
+            )}
           </div>
         </div>
       </section>
