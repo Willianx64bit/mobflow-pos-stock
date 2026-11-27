@@ -700,7 +700,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
     let cursor: string | null = null;
     for (let page = 0; page < 2000; page += 1) {
-      const query = new URLSearchParams({ limit: "100" });
+      const query = new URLSearchParams({ limit: "500" });
       if (activeFilter) query.set("active", activeFilter);
       if (cursor) query.set("cursor", cursor);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
@@ -760,7 +760,7 @@ async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise
     const balances = new Map<string, { price: number; stock: number }>();
     let cursor: string | null = null;
     for (let page = 0; page < 100; page += 1) {
-      const query = new URLSearchParams({ projection: "live", limit: "100" });
+      const query = new URLSearchParams({ projection: "live", limit: "500" });
       if (cursor) query.set("cursor", cursor);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
