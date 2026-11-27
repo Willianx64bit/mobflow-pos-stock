@@ -477,6 +477,7 @@ type MobFlowApiBody = {
   nextCursor?: unknown;
   summary?: unknown;
   details?: unknown;
+  cost?: unknown;
   session?: unknown;
   data?: unknown;
 };
