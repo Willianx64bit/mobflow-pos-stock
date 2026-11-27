@@ -3,6 +3,7 @@ import { BarcodeFormat, QRCodeWriter } from "@zxing/library";
 import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
+import { readOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct } from "@/lib/product-catalog";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 
@@ -297,6 +298,20 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
   };
 }
 
+function persistLocalState() {
+  try { localStorage.setItem(activeStateKey, JSON.stringify({ ...state, products: [] })); } catch {}
+}
+
+async function persistCatalogDelta(previous: Product[], next: Product[]) {
+  const tenantId = cloudAccountId ?? (typeof localStorage !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
+  if (!tenantId || typeof indexedDB === "undefined" || previous === next) return;
+  const before = new Map(previous.map((product) => [product.id, product]));
+  const after = new Map(next.map((product) => [product.id, product]));
+  const writes: Promise<void>[] = [];
+  for (const [id, product] of after) { const old = before.get(id); if (!old || JSON.stringify(old) !== JSON.stringify(product)) writes.push(upsertOfflineCatalogProduct(tenantId, product)); }
+  for (const id of before.keys()) if (!after.has(id)) writes.push(removeOfflineCatalogProduct(tenantId, id));
+  if (writes.length) await Promise.all(writes);
+}
 function load() {
   if (loaded || typeof window === "undefined") return;
   loaded = true;
@@ -674,7 +689,7 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
     const products: Product[] = [];
     const existing = new Map(fallbackProducts.map((product) => [product.id, product]));
     let cursor: string | null = null;
-    for (let page = 0; page < 100; page += 1) {
+    for (let page = 0; page < 2000; page += 1) {
       const query = new URLSearchParams({ limit: "100" });
       if (activeFilter) query.set("active", activeFilter);
       if (cursor) query.set("cursor", cursor);
@@ -695,7 +710,13 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
           unit: normalizeProductUnit(raw.unit), active: raw.active !== false, photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
       }
       if (body.hasMore !== true) {
-        if (mode === "full") return products;
+        if (mode === "full") {
+          if (!activeFilter && typeof localStorage !== "undefined") {
+            const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
+            if (tenantId) await replaceOfflineCatalog(tenantId, (async function* () { for (let offset = 0; offset < products.length; offset += 500) yield products.slice(offset, offset + 500); })());
+          }
+          return products;
+        }
         // Realtime may refresh only high-priority fields. Catalog identity and
         // metadata remain frozen until the user runs the manual synchronization.
         const latestById = new Map(products.map((product) => [product.id, product]));
@@ -792,7 +813,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
     try {
-      localStorage.setItem(activeStateKey, JSON.stringify(state));
+      persistLocalState();
       localStorage.setItem(offlineCacheTimestampKey(accountId), new Date().toISOString());
     } catch {}
     listeners.forEach((listener) => listener());
@@ -951,6 +972,13 @@ export async function hydrateStoreOffline(accountId: string) {
   activeStateKey = tenantStateKey(accountId);
   loaded = true;
   state = { ...emptyState(), ...(cached as State) };
+  try {
+    const catalog = await readOfflineCatalog(accountId);
+    if (catalog.products.length) state.products = catalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+  } catch (error) {
+    if (!state.products.length) throw new Error("Não foi possível recuperar o catálogo offline desta empresa.");
+    console.warn("[MobFlow Catalog] Using legacy localStorage catalog:", error);
+  }
   state.products = state.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit) }));
   normalizeState();
   listeners.forEach((listener) => listener());
@@ -1078,6 +1106,15 @@ export async function hydrateStore() {
       loaded = false;
       state = emptyState();
       load();
+      const legacyLocalProducts = [...(state.products ?? [])];
+      try {
+        const cachedCatalog = await readOfflineCatalog(accountId);
+        if (cachedCatalog.products.length) state.products = cachedCatalog.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit), photo: product.photoObjectKey ? "/api/mobflow/product-photo?productId=" + encodeURIComponent(product.id) : undefined })) as Product[];
+        else if (legacyLocalProducts.length) await replaceOfflineCatalog(accountId, (async function* () { yield legacyLocalProducts; })());
+      } catch (catalogError) {
+        console.warn("[MobFlow Catalog] IndexedDB cache unavailable; using the previous local snapshot:", catalogError);
+        if (isDesktopRuntime() && legacyLocalProducts.length === 0) throw new Error("Não foi possível abrir o catálogo offline deste computador.");
+      }
       const localContacts = [...(state.contacts ?? [])];
       const localProducts = [...(state.products ?? [])];
       const localCart = [...(state.cart ?? [])];
@@ -1134,7 +1171,7 @@ export async function hydrateStore() {
         // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
         // unreachable. A successful Neon response still replaces it with the
         // authoritative active catalog.
-        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []));
+        state.products = localProducts;
         // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
         // refreshes, but keep only products confirmed by the authoritative tenant catalog.
         state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
@@ -1176,7 +1213,7 @@ export async function hydrateStore() {
       normalizeState();
       try {
         localStorage.setItem(OWNER_KEY, accountId);
-        localStorage.setItem(activeStateKey, JSON.stringify(state));
+        persistLocalState();
       } catch (error) {
         if (isDesktopRuntime()) throw new Error("Não foi possível armazenar os dados da empresa neste computador.");
       }
@@ -1187,7 +1224,7 @@ export async function hydrateStore() {
         state = { ...state, contacts: privateData.contacts, settings: { ...state.settings, ...privateData.settings } };
         normalizeState();
         try {
-          localStorage.setItem(activeStateKey, JSON.stringify(state));
+          persistLocalState();
         } catch (error) {
           if (isDesktopRuntime()) throw new Error("Não foi possível concluir o armazenamento local dos dados da empresa.");
         }
@@ -1213,6 +1250,7 @@ export async function hydrateStore() {
       // Keep the offline marker until the outbox has been acknowledged by Neon.
       // Hydration proves that a snapshot is reachable, not that queued sales were committed.
       startRealtime(accountId);
+      void actions.refreshCatalog().catch((error) => console.warn("[MobFlow Catalog] Background catalog preparation deferred:", error));
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
       void syncNow().catch((error) => console.warn("[MobFlow Sync] Initial incremental sync deferred:", error));
     } catch (error) {
@@ -1290,7 +1328,7 @@ function scheduleStatePersist() {
         throw new Error(String(result.body.error ?? "Não foi possível salvar o estado completo no Neon."));
       }
       if (!saved) throw new Error("O estado mudou em outro dispositivo várias vezes. A gravação foi interrompida para evitar sobrescrita.");
-      try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+      persistLocalState();
       if (refreshAfterPersist) {
         refreshAfterPersist = false;
         void refreshFromCloud(accountId, true);
@@ -1308,8 +1346,10 @@ function scheduleStatePersist() {
 }
 
 function set(next: Partial<State>, options: { persist?: boolean } = {}) {
+  const previousProducts = state.products;
   state = { ...state, ...next };
-  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  if (next.products && next.products !== previousProducts) void persistCatalogDelta(previousProducts, state.products).catch((error) => console.warn("[MobFlow Catalog] Local product changes could not be stored:", error));
+  persistLocalState();
   listeners.forEach((l) => l());
   if (options.persist !== false) scheduleStatePersist();
 }
@@ -1330,15 +1370,17 @@ export async function clearLocalPendingOperations(): Promise<{ pending: number; 
 }
 
 export async function applyIncrementalEvents(events: import("@/lib/sync-outbox").SyncEvent[]) {
+  const previousProducts = state.products;
   const next = applySyncEventsToState(state, events);
   state = next;
+  if (state.products !== previousProducts) await persistCatalogDelta(previousProducts, state.products).catch((error) => console.warn("[MobFlow Catalog] Incremental product event could not be stored:", error));
   // Contact records are private master data: automatic event delivery only signals
   // that something changed. Full contact details are fetched only by the manual button.
   if (events.some((event) => event.category === "settings" && event.entity_type === "company_settings")) {
     const privateData = await loadPrivateData([]);
     state = { ...state, settings: { ...state.settings, ...privateData.settings } };
   }
-  try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+  persistLocalState();
   listeners.forEach((listener) => listener());
 }
 
@@ -1375,7 +1417,7 @@ export async function syncNewContacts(): Promise<number> {
   const additions = downloaded.filter((contact) => !currentIds.has(contact.id));
   if (additions.length) {
     state = { ...state, contacts: [...additions, ...(state.contacts ?? [])] };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((listener) => listener());
   }
   return additions.length;
@@ -1788,8 +1830,10 @@ export const actions = {
     });
   },
   async refreshCatalog() {
-    const products = await readPreviewNeonCatalog(state.products ?? [], "full");
+    const previous = state.products ?? [];
+    const products = await readPreviewNeonCatalog(previous, "full");
     set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
+    if (products.length) await persistCatalogDelta(previous, products).catch((error) => console.warn("[MobFlow Catalog] Could not persist catalog changes:", error));
     return products.length;
   },
   async loadStockCatalog() {
@@ -1808,6 +1852,7 @@ export const actions = {
     return updated;
   },
   applyCatalogProduct(product: Product) {
+    const previous = state.products;
     const existing = state.products.some((item) => item.id === product.id);
     // The relational catalog API already committed this product and its sync event.
     // Do not race that transaction with a stale whole-app-state PUT.
@@ -1816,6 +1861,7 @@ export const actions = {
       : existing
         ? state.products.map((item) => item.id === product.id ? { ...item, ...product, active: true } : item)
         : [{ ...product, active: true }, ...state.products] }, { persist: false });
+    void persistCatalogDelta(previous, state.products).catch((error) => console.warn("[MobFlow Catalog] Local product event could not be stored:", error));
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
@@ -2261,7 +2307,7 @@ export const actions = {
 
     const updated = (state.receiving ?? []).map((n) => n.id === id ? { ...n, actionCompleted: true } : n);
     state = { ...state, receiving: updated };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((listener) => listener());
     void hydrateStore();
     return true;
@@ -2316,7 +2362,7 @@ export const actions = {
         ? { ...n, decisions, decisionCompleted: true, status: "aceito", stockReleased: true }
         : n),
     };
-    try { localStorage.setItem(activeStateKey, JSON.stringify(state)); } catch {}
+    persistLocalState();
     listeners.forEach((l) => l());
     void hydrateStore();
     return true;
