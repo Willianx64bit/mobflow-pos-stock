@@ -35,6 +35,7 @@ describe("Neon product details API",()=>{
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ok:true,details:{cost:4,unitsSold:12.5,salesCount:7,revenue:250,costTotal:50,grossProfit:200}});
   expect(String(client.query.mock.calls[0]?.[0])).toContain("s.status='completed'");
+  expect(String(client.query.mock.calls[0]?.[0])).toContain("GROUP BY p.tenant_id,p.id");
   expect(client.query.mock.calls[0]?.[1]).toEqual([TENANT,"p1"]);
   expect(releaseTransaction).toHaveBeenCalledWith(client,true);
  });
