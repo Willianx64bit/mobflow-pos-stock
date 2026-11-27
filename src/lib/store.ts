@@ -656,6 +656,84 @@ export async function searchCatalogProducts(query: string, limit = 50): Promise<
   }
 }
 
+
+export type StockCatalogSummary = { total: number; active: number; inactive: number; low: number; value: number };
+export type StockCatalogPage = { products: Product[]; nextCursor: string | null; hasMore: boolean };
+
+const mapCatalogSearchProduct = (raw: Record<string, unknown>): Product => ({
+  id: String(raw.id ?? ""),
+  version: Number(raw.version ?? 1),
+  code: String(raw.code ?? ""),
+  barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
+  ref: typeof raw.ref === "string" ? raw.ref : undefined,
+  name: String(raw.name ?? ""),
+  price: Number(raw.price ?? 0),
+  cost: Number(raw.cost ?? 0),
+  stock: Number(raw.stock ?? 0),
+  minStock: Number(raw.minStock ?? 0),
+  category: String(raw.category ?? ""),
+  unit: normalizeProductUnit(raw.unit),
+  active: raw.active !== false,
+  photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined,
+  photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : undefined,
+});
+
+export async function loadStockCatalogPage(query = "", cursor: string | null = null, onlyLow = false, limit = 50): Promise<StockCatalogPage> {
+  const term = query.trim();
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon" ||
+      (typeof navigator !== "undefined" && !navigator.onLine)) {
+    const local = [...(state.products ?? [])]
+      .filter((p) => (!onlyLow || p.stock <= p.minStock) &&
+        (!term || norm(p.name).includes(norm(term)) || p.code.includes(term) || (p.barcodes ?? []).some((code) => code.includes(term)) || norm(p.category).includes(norm(term))))
+      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id));
+    const start = cursor ? Math.max(0, local.findIndex((p) => p.id === cursor) + 1) : 0;
+    const products = local.slice(start, start + limit);
+    return { products, nextCursor: start + products.length < local.length ? products[products.length - 1]?.id ?? null : null, hasMore: start + products.length < local.length };
+  }
+  try {
+    const params = new URLSearchParams({ active: "all", limit: String(limit) });
+    if (term) params.set("q", term);
+    if (cursor) params.set("cursor", cursor);
+    if (onlyLow) params.set("low", "true");
+    const { response, body } = await callMobFlowApi("/api/mobflow/products?" + params.toString());
+    if (response.ok && Array.isArray(body.products)) {
+      return {
+        products: (body.products as Array<Record<string, unknown>>).map(mapCatalogSearchProduct).filter((p) => p.id),
+        nextCursor: typeof body.nextCursor === "string" ? body.nextCursor : null,
+        hasMore: body.hasMore === true,
+      };
+    }
+  } catch {}
+  const fallback = [...(state.products ?? [])]
+    .filter((p) => (!onlyLow || p.stock <= p.minStock) &&
+      (!term || norm(p.name).includes(norm(term)) || p.code.includes(term) || (p.barcodes ?? []).some((code) => code.includes(term)) || norm(p.category).includes(norm(term))))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR") || a.id.localeCompare(b.id));
+  const start = cursor ? Math.max(0, fallback.findIndex((p) => p.id === cursor) + 1) : 0;
+  const products = fallback.slice(start, start + limit);
+  return { products, nextCursor: start + products.length < fallback.length ? products[products.length - 1]?.id ?? null : null, hasMore: start + products.length < fallback.length };
+}
+
+export async function loadStockCatalogSummary(): Promise<StockCatalogSummary> {
+  if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" &&
+      !(typeof navigator !== "undefined" && !navigator.onLine)) {
+    try {
+      const { response, body } = await callMobFlowApi("/api/mobflow/products?projection=summary");
+      if (response.ok && body.summary && typeof body.summary === "object") {
+        const s = body.summary as Record<string, unknown>;
+        return { total: Number(s.total ?? 0), active: Number(s.active ?? 0), inactive: Number(s.inactive ?? 0), low: Number(s.low ?? 0), value: Number(s.value ?? 0) };
+      }
+    } catch {}
+  }
+  const products = state.products ?? [];
+  return {
+    total: products.length,
+    active: products.filter((p) => p.active !== false).length,
+    inactive: products.filter((p) => p.active === false).length,
+    low: products.filter((p) => p.active !== false && p.stock <= p.minStock).length,
+    value: products.filter((p) => p.active !== false).reduce((sum, p) => sum + p.price * Math.max(0, p.stock), 0),
+  };
+}
+
 async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
   if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
   try {
