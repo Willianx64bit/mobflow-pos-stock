@@ -1003,6 +1003,9 @@ export async function hydrateStoreOffline(accountId: string) {
     if (!state.products.length) throw new Error("Não foi possível recuperar o catálogo offline desta empresa.");
     console.warn("[MobFlow Catalog] Using legacy localStorage catalog:", error);
   }
+  if (!state.products.length) {
+    throw new Error("O catálogo local ainda não foi confirmado neste computador. Conecte-se e prepare os dados offline novamente.");
+  }
   state.products = state.products.map((product) => ({ ...product, unit: normalizeProductUnit(product.unit) }));
   normalizeState();
   listeners.forEach((listener) => listener());
