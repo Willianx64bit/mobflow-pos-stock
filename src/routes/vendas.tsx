@@ -36,11 +36,16 @@ function Vendas() {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
   const sum = (arr: typeof sales) => arr.reduce((t, s) => t + s.total, 0);
+  const productIndexes = useMemo(() => {
+    const byId = new Map(products.map((product) => [product.id, product]));
+    const byName = new Map(products.map((product) => [product.name.trim().toLocaleLowerCase("pt-BR"), product]));
+    return { byId, byName };
+  }, [products]);
   const saleProfit = (sale: (typeof sales)[number]) => {
     if (typeof sale.profit === "number") return sale.profit;
     const costTotal = sale.items.reduce((total, item) => {
-      const product = products.find((p) => p.id === item.productId)
-        ?? products.find((p) => p.name.trim().toLocaleLowerCase("pt-BR") === item.name.trim().toLocaleLowerCase("pt-BR"));
+      const product = (item.productId ? productIndexes.byId.get(item.productId) : undefined)
+        ?? productIndexes.byName.get(item.name.trim().toLocaleLowerCase("pt-BR"));
       return total + (item.cost ?? product?.cost ?? 0) * item.qty;
     }, 0);
     return sale.total - costTotal;
