@@ -66,12 +66,13 @@ export async function readOfflineCatalog(tenantId: string): Promise<{ products: 
   const db = await openCatalogDb();
   try {
     const tx = db.transaction([PRODUCT_STORE, META_STORE], "readonly");
+    const done = transactionDone(tx);
     const meta = await requestValue(tx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
     if (!meta?.activeGeneration) return { products: [], syncedAt: null, hasCatalog: false };
     const index = tx.objectStore(PRODUCT_STORE).index("tenantGeneration");
     const range = IDBKeyRange.only([tenantId, meta.activeGeneration]);
     const records = await requestValue(index.getAll(range)) as CatalogRecord[];
-    await transactionDone(tx);
+    await done;
     return { products: records.map(({ tenantId: _t, generation: _g, normalizedName: _n, ...product }) => product), syncedAt: meta.syncedAt, hasCatalog: true };
   } finally {
     db.close();
@@ -88,6 +89,7 @@ export async function replaceOfflineCatalog(tenantId: string, pages: AsyncIterab
     for await (const page of pages) {
       if (!page.length) continue;
       const tx = db.transaction(PRODUCT_STORE, "readwrite");
+      const done = transactionDone(tx);
       const store = tx.objectStore(PRODUCT_STORE);
       for (const product of page) {
         const clean = cleanProduct(product);
@@ -95,30 +97,33 @@ export async function replaceOfflineCatalog(tenantId: string, pages: AsyncIterab
         store.put(record);
         count += 1;
       }
-      await transactionDone(tx);
+      await done;
     }
     const metaTx = db.transaction(META_STORE, "readwrite");
+    const metaDone = transactionDone(metaTx);
     const metaStore = metaTx.objectStore(META_STORE);
     const previous = await requestValue(metaStore.get(tenantId)) as CatalogMeta | undefined;
     metaStore.put({ tenantId, activeGeneration: generation, syncedAt: Date.now(), count } satisfies CatalogMeta);
-    await transactionDone(metaTx);
+    await metaDone;
 
     // Cleanup is best-effort and only happens after the new generation is active.
     if (previous?.activeGeneration && previous.activeGeneration !== generation) {
       const cleanup = db.transaction(PRODUCT_STORE, "readwrite");
+      const cleanupDone = transactionDone(cleanup);
       const index = cleanup.objectStore(PRODUCT_STORE).index("tenantGeneration");
       const cursor = index.openKeyCursor(IDBKeyRange.only([tenantId, previous.activeGeneration]));
       cursor.onsuccess = () => { const current = cursor.result; if (current) { cleanup.objectStore(PRODUCT_STORE).delete(current.primaryKey); current.continue(); } };
-      await transactionDone(cleanup).catch(() => undefined);
+      await cleanupDone.catch(() => undefined);
     }
     return count;
   } catch (error) {
     // Failed staging generation is never made visible; old committed catalog remains intact.
     const cleanup = db.transaction(PRODUCT_STORE, "readwrite");
+    const cleanupDone = transactionDone(cleanup);
     const index = cleanup.objectStore(PRODUCT_STORE).index("tenantGeneration");
     const cursor = index.openKeyCursor(IDBKeyRange.only([tenantId, generation]));
     cursor.onsuccess = () => { const current = cursor.result; if (current) { cleanup.objectStore(PRODUCT_STORE).delete(current.primaryKey); current.continue(); } };
-    await transactionDone(cleanup).catch(() => undefined);
+    await cleanupDone.catch(() => undefined);
     throw error;
   } finally {
     db.close();
@@ -129,13 +134,15 @@ export async function upsertOfflineCatalogProduct(tenantId: string, product: Off
   const db = await openCatalogDb();
   try {
     const metaTx = db.transaction(META_STORE, "readonly");
+    const metaDone = transactionDone(metaTx);
     const meta = await requestValue(metaTx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
-    await transactionDone(metaTx);
+    await metaDone;
     if (!meta?.activeGeneration) return;
     const clean = cleanProduct(product);
     const tx = db.transaction(PRODUCT_STORE, "readwrite");
+    const done = transactionDone(tx);
     tx.objectStore(PRODUCT_STORE).put({ ...clean, tenantId, generation: meta.activeGeneration, normalizedName: clean.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR") } satisfies CatalogRecord);
-    await transactionDone(tx);
+    await done;
   } finally { db.close(); }
 }
 
@@ -147,7 +154,8 @@ export async function removeOfflineCatalogProduct(tenantId: string, productId: s
     await transactionDone(metaTx);
     if (!meta?.activeGeneration) return;
     const tx = db.transaction(PRODUCT_STORE, "readwrite");
+    const done = transactionDone(tx);
     tx.objectStore(PRODUCT_STORE).delete([tenantId, meta.activeGeneration, productId]);
-    await transactionDone(tx);
+    await done;
   } finally { db.close(); }
 }
