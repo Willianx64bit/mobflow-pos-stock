@@ -816,7 +816,9 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     const verifiedCatalog = state.products ?? [];
     const catalogFallback = verifiedCatalog.length ? verifiedCatalog : (remote.products ?? []);
     state = mergeConcurrentState(lastSyncedState, state, remote);
+    const beforeBalanceRefresh = state.products;
     state.products = await readRealtimeProductBalances(catalogFallback);
+    if (state.products !== beforeBalanceRefresh) await persistCatalogDelta(beforeBalanceRefresh, state.products).catch((error) => console.warn("[MobFlow Catalog] Balance refresh could not be stored locally:", error));
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
     lastSyncedState = cloneState(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
