@@ -1978,6 +1978,13 @@ export const actions = {
       summary: result.body.summary ? result.body.summary as StockCatalogSummary : null,
     };
   },
+  async loadStockProductCost(productId: string): Promise<number> {
+    const result = await callMobFlowApi("/api/mobflow/products/details?productId=" + encodeURIComponent(productId) + "&includeSales=0");
+    if (!result.response.ok || result.body.ok !== true || typeof result.body.cost !== "number") {
+      throw new Error(String(result.body.error ?? "Falha ao consultar o custo do produto no Neon."));
+    }
+    return result.body.cost;
+  },
   async loadStockProductDetails(productId: string): Promise<StockProductDetails> {
     const result = await callMobFlowApi("/api/mobflow/products/details?productId=" + encodeURIComponent(productId));
     if (!result.response.ok || result.body.ok !== true || !result.body.details) {
