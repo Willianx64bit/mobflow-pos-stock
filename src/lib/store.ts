@@ -1331,10 +1331,14 @@ function scheduleStatePersist() {
       if (!accountId || !cloudReady) break;
       // Private contacts/settings have their own authenticated endpoint.
       // Keep only the public company caption in the shared snapshot.
-      const snapshot = cloneState(state);
+      // Do not deep-clone the relational catalog just to persist app_state.
+      // In Neon catalog mode its rows are stored and synchronized separately.
+      const snapshot = {
+        ...state,
+        products: import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon" ? [] : state.products,
+      };
       snapshot.contacts = [];
       snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
-      if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon") snapshot.products = [];
       let attempts = 0;
       let saved = false;
       while (!saved && attempts < 4) {
