@@ -119,6 +119,13 @@ const incrementalSyncEnabled = () =>
   import.meta.env["VITE_MOBFLOW_INCREMENTAL_BOOTSTRAP_READY"] === "true";
 
 const cloneState = (value: State): State => JSON.parse(JSON.stringify(value));
+// The relational Neon catalog is authoritative; keep its 10k+ rows out of the
+// shared app_state snapshot so cart/sale updates do not clone and upload it.
+const cloneCloudSnapshot = (value: State): State => cloneState(
+  import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon"
+    ? { ...value, products: [] }
+    : value,
+);
 const isCashSessionForOperator = (session: CashSession, username: string) => {
   const expected = username.trim().toLocaleLowerCase();
   return !!expected && (session.operatorUsername?.trim().toLocaleLowerCase() === expected || session.openedBy.trim().toLocaleLowerCase() === expected);
@@ -196,24 +203,26 @@ function mergeConcurrentState(base: State | null, local: State, remote: State): 
     if (movement.legacy || baseMovementIds.has(movement.id)) continue;
     newMovementDeltas.set(movement.productId, (newMovementDeltas.get(movement.productId) ?? 0) + movement.delta);
   }
-  const products = remote.products.map((rp) => {
-    const bp = base.products.find((p) => p.id === rp.id);
-    const lp = local.products.find((p) => p.id === rp.id);
-    if (!lp || !bp) return rp;
-    const movementDelta = newMovementDeltas.get(rp.id);
-    if (movementDelta !== undefined) return { ...rp, stock: Math.round((bp.stock + movementDelta) * 1000) / 1000 };
-    const localStockChanged = lp.stock !== bp.stock;
-    const remoteStockChanged = rp.stock !== bp.stock;
-    if (localStockChanged && remoteStockChanged) {
-      // The same stock update can arrive through both local state and Realtime.
-      // If both sides already have the same value, use the server value instead
-      // of applying the identical delta twice.
-      if (lp.stock === rp.stock) return rp;
-      return { ...rp, stock: Math.round((bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) * 1000) / 1000 };
-    }
-    if (localStockChanged && !remoteStockChanged) return lp;
-    return rp;
-  });
+  // In Neon catalog mode, products live in the relational products table,
+  // not app_state. Keep the verified local cache during state merges; the
+  // catalog refresh path reconciles current prices and balances separately.
+  const products = import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] === "neon"
+    ? local.products
+    : remote.products.map((rp) => {
+        const bp = base.products.find((p) => p.id === rp.id);
+        const lp = local.products.find((p) => p.id === rp.id);
+        if (!lp || !bp) return rp;
+        const movementDelta = newMovementDeltas.get(rp.id);
+        if (movementDelta !== undefined) return { ...rp, stock: Math.round((bp.stock + movementDelta) * 1000) / 1000 };
+        const localStockChanged = lp.stock !== bp.stock;
+        const remoteStockChanged = rp.stock !== bp.stock;
+        if (localStockChanged && remoteStockChanged) {
+          if (lp.stock === rp.stock) return rp;
+          return { ...rp, stock: Math.round((bp.stock + (lp.stock - bp.stock) + (rp.stock - bp.stock)) * 1000) / 1000 };
+        }
+        if (localStockChanged && !remoteStockChanged) return lp;
+        return rp;
+      });
   // In Neon catalog mode, the relational tenant catalog is authoritative. Never resurrect
   // cached products that are absent from the server response (including products deleted
   // from this company or left in an old full-state snapshot).
@@ -803,7 +812,7 @@ async function refreshFromCloud(accountId: string, forceLatest = false) {
     state = mergeConcurrentState(lastSyncedState, state, remote);
     state.products = await readRealtimeProductBalances(catalogFallback);
     state.cart = (state.cart ?? []).filter((item) => state.products.some((product) => product.id === item.productId));
-    lastSyncedState = cloneState(remote);
+    lastSyncedState = cloneCloudSnapshot(remote);
     lastCloudUpdatedAt = remoteUpdatedAt;
     if (typeof body.syncCursor === "string") await syncOutbox.setCursor(accountId, body.syncCursor);
     realtimeRevision += 1;
@@ -1056,7 +1065,7 @@ function scheduleStatePersist() {
       if (!accountId || !cloudReady) break;
       // Private contacts/settings have their own authenticated endpoint.
       // Keep only the public company caption in the shared snapshot.
-      const snapshot = cloneState(state);
+      const snapshot = cloneCloudSnapshot(state);
       snapshot.contacts = [];
       snapshot.settings = { companyName: snapshot.settings?.companyName ?? "" };
       let attempts = 0;
@@ -1078,7 +1087,7 @@ function scheduleStatePersist() {
           const remote = result.body.remoteState as State;
           lastCloudUpdatedAt = typeof result.body.remoteUpdatedAt === "string" ? result.body.remoteUpdatedAt : null;
           state = mergeConcurrentState(lastSyncedState, state, remote);
-          const retrySnapshot = cloneState(state);
+          const retrySnapshot = cloneCloudSnapshot(state);
           retrySnapshot.contacts = [];
           retrySnapshot.settings = { companyName: retrySnapshot.settings?.companyName ?? "" };
           Object.assign(snapshot, retrySnapshot);
