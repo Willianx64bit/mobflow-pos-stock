@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/lib/product-catalog.ts",
+    "src/test/product-catalog.test.ts"
+  ],
+  "compilerOptions": {
+    "noEmit": true
+  }
+}
