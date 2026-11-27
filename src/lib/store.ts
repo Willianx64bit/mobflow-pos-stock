@@ -795,7 +795,8 @@ async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise
   try {
     const balances = new Map<string, { price: number; stock: number }>();
     let cursor: string | null = null;
-    for (let page = 0; page < 100; page += 1) {
+    // 2,000 pages × 500 rows leaves headroom above the 100k-product target.
+    for (let page = 0; page < 2000; page += 1) {
       const query = new URLSearchParams({ projection: "live", limit: "500" });
       if (cursor) query.set("cursor", cursor);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
