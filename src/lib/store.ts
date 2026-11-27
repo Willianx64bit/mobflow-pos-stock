@@ -69,6 +69,7 @@ const OUTBOX_BACKUP_KEY = "mobflow:sync-outbox-backup";
 const OFFLINE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const offlineCacheTimestampKey = (tenantId: string) => `mobflow:last-sync:${tenantId}`;
 const catalogSyncTimestampKey = (tenantId: string) => `mobflow:catalog-last-sync:${tenantId}`;
+const balanceSyncTimestampKey = (tenantId: string) => `mobflow:balances-last-sync:${tenantId}`;
 const uid = () => Math.random().toString(36).slice(2, 10);
 const currentOperator = () => typeof window !== "undefined" ? sessionStorage.getItem("mobflow-username")?.trim() || undefined : undefined;
 const movementEntry = (input: Omit<StockMovement, "id" | "operator"> & { id?: string; operator?: string }): StockMovement => ({ ...input, id: input.id ?? uid(), operator: input.operator ?? currentOperator() });
@@ -765,7 +766,10 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
           // The request-start timestamp ensures edits made during pagination are
           // included in the next manual sync instead of being skipped.
           if (tenantId && fullSyncStartedAt) {
-            try { localStorage.setItem(catalogSyncTimestampKey(tenantId), fullSyncStartedAt); } catch {}
+            try {
+              localStorage.setItem(catalogSyncTimestampKey(tenantId), fullSyncStartedAt);
+              localStorage.setItem(balanceSyncTimestampKey(tenantId), fullSyncStartedAt);
+            } catch {}
           }
           return products;
         }
@@ -809,11 +813,19 @@ async function readIncrementalNeonCatalog(fallbackProducts: Product[], updatedSi
 async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise<Product[]> {
   if (import.meta.env["VITE_MOBFLOW_CATALOG_READ_PROVIDER"] !== "neon") return fallbackProducts;
   try {
+    const tenantId = cloudAccountId ?? localStorage.getItem(OWNER_KEY);
+    const syncKey = tenantId ? balanceSyncTimestampKey(tenantId) : null;
+    const previousSync = syncKey ? localStorage.getItem(syncKey) : null;
+    const startedAt = new Date().toISOString();
+    const updatedSince = previousSync && Number.isFinite(Date.parse(previousSync))
+      ? new Date(Date.parse(previousSync) - 2_000).toISOString()
+      : undefined;
     const balances = new Map<string, { price: number; stock: number }>();
     let cursor: string | null = null;
     for (let page = 0; page < 100; page += 1) {
       const query = new URLSearchParams({ projection: "live", limit: "100" });
       if (cursor) query.set("cursor", cursor);
+      if (updatedSince) query.set("updatedSince", updatedSince);
       const { response, body } = await callMobFlowApi("/api/mobflow/products?" + query.toString());
       if (!response.ok || !Array.isArray(body.products)) return fallbackProducts;
       for (const raw of body.products as Array<Record<string, unknown>>) {
@@ -822,11 +834,15 @@ async function readRealtimeProductBalances(fallbackProducts: Product[]): Promise
         if (id && Number.isFinite(price) && Number.isFinite(stock)) balances.set(id, { price, stock });
       }
       if (body.hasMore !== true) {
-        // Never add/remove or replace product metadata from an automatic wake-up.
-        return fallbackProducts.map((product) => {
-          const live = balances.get(product.id);
-          return live ? { ...product, price: live.price, stock: live.stock } : product;
-        });
+        // Realtime downloads only changed balances; catalog metadata remains cached.
+        const next = balances.size
+          ? fallbackProducts.map((product) => {
+              const live = balances.get(product.id);
+              return live ? { ...product, price: live.price, stock: live.stock } : product;
+            })
+          : fallbackProducts;
+        if (syncKey) localStorage.setItem(syncKey, startedAt);
+        return next;
       }
       if (typeof body.nextCursor !== "string" || !body.nextCursor) return fallbackProducts;
       cursor = body.nextCursor;
@@ -1923,7 +1939,10 @@ export const actions = {
       ? await readIncrementalNeonCatalog(state.products ?? [], updatedSince)
       : await readPreviewNeonCatalog(state.products ?? [], "full", false, undefined, undefined, true, tenantId ?? undefined);
     set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false });
-    if (syncKey) localStorage.setItem(syncKey, startedAt);
+    if (syncKey) {
+      localStorage.setItem(syncKey, startedAt);
+      localStorage.setItem(balanceSyncTimestampKey(tenantId!), startedAt);
+    }
     return products.length;
   },
   async loadStockCatalog() {
