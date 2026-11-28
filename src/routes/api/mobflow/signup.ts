@@ -236,7 +236,7 @@ async function createCompany(body: Record<string, unknown>) {
       monthly_price: monthlyPrice,
       contracted_amount: configuredPrice,
       plan_code: planCode,
-      plan_months: planMonths[planCode],
+      plan_months: planMonths[planCode] ?? 1,
       payment_method: "pix",
       recipient_name: "MOBFLOW",
       recipient_city: "CAPAO BONITO",
