@@ -53,8 +53,10 @@ function fingerprint(products: OfflineSearchDocument[]) {
   let sum = 0;
   let count = 0;
   for (const product of products) {
-    if (!product.id || !offlineSearchText(product)) continue;
-    const value = hash(product.id + "\u0000" + offlineSearchText(product));
+    if (!product.id) continue;
+    const text = offlineSearchText(product);
+    if (!text) continue;
+    const value = hash(product.id + "\u0000" + text);
     xor = (xor ^ value) >>> 0;
     sum = (sum + value) >>> 0;
     count += 1;
@@ -135,6 +137,9 @@ export class OfflineProductSearchEngine {
       return { ready: true, rebuilt: false, count: stored.count };
     }
 
+    // Invalidate the previous marker before clearing/rebuilding. If the app
+    // closes mid-build, the next launch must never trust a partial index.
+    await writeMeta({ tenantId, schema: SEARCH_SCHEMA, count: -1, xor: 0, sum: 0 });
     await this.index.clear();
     for (let offset = 0; offset < products.length; offset += BATCH_SIZE) {
       const batch = products.slice(offset, offset + BATCH_SIZE);
