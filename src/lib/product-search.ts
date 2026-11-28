@@ -109,14 +109,14 @@ export function createOfflineProductSearchClient(tenantId: string): OfflineProdu
   };
 
   const client: OfflineProductSearchClient = {
-    initialize: (products) => send({ type: "initialize", tenantId, products: products.map(toSearchDocument).filter((item): item is OfflineSearchDocument => Boolean(item)) }),
+    initialize: (products) => send<{ ready: boolean; rebuilt: boolean; count: number }>({ type: "initialize", tenantId, products: products.map(toSearchDocument).filter((item): item is OfflineSearchDocument => Boolean(item)) }),
     search: (query, limit = 100) => send<string[]>({ type: "search", query, limit }),
     applyDelta: (changes) => {
       const deltas: OfflineSearchDelta[] = changes.map((change) => ({
         ...(change.previous ? { previous: toSearchDocument(change.previous) } : {}),
         ...(change.next ? { next: toSearchDocument(change.next) } : {}),
       })).filter((change) => Boolean(change.previous || change.next));
-      return deltas.length ? send({ type: "delta", changes: deltas }) : Promise.resolve();
+      return deltas.length ? send<void>({ type: "delta", changes: deltas }) : Promise.resolve();
     },
     destroy: () => {
       closed = true;
