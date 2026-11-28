@@ -4,7 +4,7 @@ import { subscribeToTenantEvents } from "@/lib/neon-realtime";
 import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncrementalSync } from "@/lib/sync-outbox";
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 import { buildDesktopStockCatalogPage } from "@/lib/desktop-stock-inventory";
-import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct, writeOfflineCatalogPage } from "@/lib/product-catalog";
+import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, upsertOfflineCatalogProducts, removeOfflineCatalogProduct, writeOfflineCatalogPage } from "@/lib/product-catalog";
 import { refreshOfflineProductSearchIndex, syncOfflineProductSearchDelta } from "@/lib/product-search";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
@@ -370,7 +370,13 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
       searchDeltas.push({ previous: product });
     }
   }
-  if (writes.length) await Promise.all(writes);
+  const changedProducts = [...after.values()].filter((product) => {
+    const oldProduct = before.get(product.id);
+    return !oldProduct || oldProduct !== product;
+  });
+  if (changedProducts.length) await upsertOfflineCatalogProducts(tenantId, changedProducts);
+  const removedIds = [...before.keys()].filter((id) => !after.has(id));
+  if (removedIds.length) await Promise.all(removedIds.map((id) => removeOfflineCatalogProduct(tenantId, id)));
   if (searchDeltas.length) void syncOfflineProductSearchDelta(tenantId, searchDeltas).catch((error) => console.warn("[MobFlow Offline Search] Atualização do índice não concluída:", error));
 }
 function load() {
@@ -2085,6 +2091,14 @@ export const actions = {
       : existing
         ? state.products.map((item) => item.id === product.id ? { ...item, ...product, active: true } : item)
         : [{ ...product, active: true }, ...state.products] }, { persist: false });
+  },
+  applyCatalogProducts(products: Product[]) {
+    if (!products.length) return;
+    const byId = new Map(state.products.map((product) => [product.id, product]));
+    for (const product of products) byId.set(product.id, { ...byId.get(product.id), ...product, active: true } as Product);
+    const incoming = new Set(products.map((product) => product.id));
+    const merged = [...state.products.filter((product) => !incoming.has(product.id)), ...products.map((product) => byId.get(product.id)!)];
+    set({ products: merged }, { persist: false });
   },
   saveProduct(p: Omit<Product, "id"> & { id?: string | undefined }) {
     if (p.id && state.products.some((x) => x.id === p.id)) {
