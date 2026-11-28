@@ -49,6 +49,7 @@ const mapProduct=(r:ProductRow)=>({
   version:Number(r.version),createdAt:r.created_at,updatedAt:r.updated_at,barcodes:r.barcodes??[],
 });
 const columns="id,code,name,reference,unit,price::text,cost::text,stock::text,min_stock::text,category,photo_object_key,active,version::text,created_at,updated_at";
+const qualifiedColumns=columns.split(",").map((column)=>"p."+column).join(",");
 async function ready(client:any,requireEvents=false){
  const r=await client.query("SELECT to_regclass('public.products')::text AS p,to_regclass('public.product_barcodes')::text AS b,to_regclass('public.mobflow_sync_events')::text AS e,to_regprocedure('public.mobflow_append_sync_event(uuid,uuid,text,text,text,text,jsonb)')::text AS fn");
  if(!r.rows[0]?.p||!r.rows[0]?.b||(requireEvents&&(!r.rows[0]?.e||!r.rows[0]?.fn)))throw new ProductApiError("O catálogo relacional ainda não foi preparado neste ambiente.",503,"catalog_schema_not_ready");
@@ -229,7 +230,7 @@ async function writeProductsBatch(request:Request){
    }
   }
   const updatedRows=updates.length?await c.query(
-   "UPDATE public.products p SET name=x.name,version=p.version+1,updated_at=now() FROM jsonb_to_recordset($2::jsonb) AS x(id text,name text,expected_version bigint) WHERE p.tenant_id=$1 AND p.id=x.id AND p.version=x.expected_version RETURNING "+columns,
+   "UPDATE public.products p SET name=x.name,version=p.version+1,updated_at=now() FROM jsonb_to_recordset($2::jsonb) AS x(id text,name text,expected_version bigint) WHERE p.tenant_id=$1 AND p.id=x.id AND p.version=x.expected_version RETURNING "+qualifiedColumns,
    [i.accountId,JSON.stringify(updates)]
   ): {rows:[]};
   if(updatedRows.rows.length!==updates.length)fail("Um ou mais produtos foram alterados em outro dispositivo.",409,"version_conflict");
