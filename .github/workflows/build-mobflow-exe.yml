@@ -20,6 +20,7 @@ on:
       - "src/lib/product-search.ts"
       - "src/lib/offline-search-engine.ts"
       - "src/lib/product-search.worker.ts"
+      - "src/test/product-search-persistent.test.ts"
       - "src/lib/desktop-stock-inventory.ts"
       - "src/routes/analise-resultados.tsx"
       - "src/routes/transferencias.tsx"
