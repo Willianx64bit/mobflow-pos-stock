@@ -264,6 +264,11 @@ function PDV() {
       return;
     }
     if (term.length >= 2 && offlineCatalogSearch) {
+      const exactLocalProduct = productsByBarcode.get(term);
+      if (exactLocalProduct) {
+        setLocalResults([exactLocalProduct]);
+        return;
+      }
       if (offlineSearchFallback && fallbackSearchIndex) {
         setLocalResults(searchIndexedLocalProducts(fallbackSearchIndex, term, 100));
         return;
@@ -286,7 +291,7 @@ function PDV() {
       return () => { active = false; };
     }
     setLocalResults(sellableProducts.slice(0, 100));
-  }, [debouncedQ, offlineCatalogSearch, offlineSearchReady, offlineSearchFallback, fallbackSearchIndex, productById, sellableProducts]);
+  }, [debouncedQ, offlineCatalogSearch, offlineSearchReady, offlineSearchFallback, fallbackSearchIndex, productById, productsByBarcode, sellableProducts]);
 
   useEffect(() => {
     const term = debouncedQ.trim();
