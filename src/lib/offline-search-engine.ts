@@ -120,13 +120,12 @@ export class OfflineProductSearchEngine {
     if (this.tenantId !== tenantId || !this.index) {
       this.tenantId = tenantId;
       this.meta = null;
-      this.index = new Index({
+      this.index = new Index<false, IndexedDB>({
         tokenize: "forward",
         cache: 1000,
-        db: new IndexedDB("mobflow-product-search-v1-" + safeTenantKey(tenantId)),
         commit: false,
       });
-      await this.index.db;
+      await this.index.mount(new IndexedDB("mobflow-product-search-v1-" + safeTenantKey(tenantId)));
     }
 
     const nextMeta = { tenantId, schema: SEARCH_SCHEMA, ...fingerprint(products) };
