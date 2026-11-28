@@ -347,7 +347,7 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
     }
     if (sameOrder) {
       if (changedProducts.length) {
-        await Promise.all(changedProducts.map((product) => upsertOfflineCatalogProduct(tenantId, product)));
+        await upsertOfflineCatalogProducts(tenantId, changedProducts);
         void syncOfflineProductSearchDelta(tenantId, searchDeltas).catch((error) => console.warn("[MobFlow Offline Search] Delta do índice não foi aplicada:", error));
       }
       return;
@@ -360,7 +360,7 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
   for (const [id, product] of after) {
     const oldProduct = before.get(id);
     if (!oldProduct || oldProduct !== product) {
-      writes.push(upsertOfflineCatalogProduct(tenantId, product));
+      // Batched below in one IndexedDB transaction.
       searchDeltas.push({ ...(oldProduct ? { previous: oldProduct } : {}), next: product });
     }
   }
