@@ -279,6 +279,29 @@ export async function replaceOfflineCatalog(tenantId: string, pages: AsyncIterab
   }
 }
 
+export async function upsertOfflineCatalogProducts(tenantId: string, products: OfflineCatalogProduct[]): Promise<void> {
+  if (!products.length) return;
+  const db = await openCatalogDb();
+  try {
+    const metaTx = db.transaction(META_STORE, "readonly");
+    const metaDone = transactionDone(metaTx);
+    const meta = await requestValue(metaTx.objectStore(META_STORE).get(tenantId)) as CatalogMeta | undefined;
+    await metaDone;
+    const generations = [...new Set([meta?.activeGeneration, meta?.pendingGeneration].filter((value): value is string => Boolean(value)))];
+    if (!generations.length) return;
+    const tx = db.transaction(PRODUCT_STORE, "readwrite");
+    const done = transactionDone(tx);
+    const store = tx.objectStore(PRODUCT_STORE);
+    for (const product of products) {
+      const clean = cleanProduct(product);
+      for (const generation of generations) {
+        store.put({ ...clean, tenantId, generation, normalizedName: clean.name.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLocaleLowerCase("pt-BR") } satisfies CatalogRecord);
+      }
+    }
+    await done;
+  } finally { db.close(); }
+}
+
 export async function upsertOfflineCatalogProduct(tenantId: string, product: OfflineCatalogProduct): Promise<void> {
   const db = await openCatalogDb();
   try {
