@@ -246,7 +246,7 @@ async function writeProductsBatch(request:Request){
   );
   const movements=newProducts.map((p:any)=>{const op="product-registration:"+p.id;return {id:op+":"+p.id,operation_id:op,product_id:p.id,code:p.code,name:p.name,idempotency_key:stableUuid(i.accountId+":product-registration:"+p.id)};});
   if(movements.length)await c.query(
-   "INSERT INTO public.stock_movements(tenant_id,id,operation_id,operation_type,line_key,product_id,product_code,product_name,unit,quantity,total_value,stock_before,stock_after,delta,operator_profile_id,operator_snapshot,details,occurred_at,idempotency_key) SELECT $1,x.id,x.operation_id,'registration','1',x.product_id,x.code,x.name,'un',0,0,0,0,0,$2,$3,'Produto cadastrado',now(),x.idempotency_key FROM jsonb_to_recordset($4::jsonb) AS x(id text,operation_id text,product_id text,code text,name text,idempotency_key text)",
+   "INSERT INTO public.stock_movements(tenant_id,id,operation_id,operation_type,line_key,product_id,product_code,product_name,unit,quantity,total_value,stock_before,stock_after,delta,operator_profile_id,operator_snapshot,details,occurred_at,idempotency_key) SELECT $1,x.id,x.operation_id,'registration','1',x.product_id,x.code,x.name,'un',0,0,0,0,0,$2,$3,'Produto cadastrado',now(),x.idempotency_key FROM jsonb_to_recordset($4::jsonb) AS x(id text,operation_id text,product_id text,code text,name text,idempotency_key uuid)",
    [i.accountId,i.userId,i.displayName||i.username,JSON.stringify(movements)]
   );
   const resultByCode=new Map<string,any>();
