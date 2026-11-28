@@ -1516,6 +1516,14 @@ export const actions = {
     set({ products }, { persist: false });
     return updated;
   },
+  applyCatalogProducts(products: Product[]) {
+    if (!products.length) return;
+    const incoming = new Map(products.map((product) => [product.id, product]));
+    const next = state.products.map((item) => incoming.has(item.id) ? { ...item, ...incoming.get(item.id), active: true } : item);
+    const present = new Set(state.products.map((item) => item.id));
+    for (const product of products) if (!present.has(product.id) && product.active !== false) next.unshift({ ...product, active: true });
+    set({ products: next }, { persist: false });
+  },
   applyCatalogProduct(product: Product) {
     const existing = state.products.some((item) => item.id === product.id);
     // The relational catalog API already committed this product and its sync event.

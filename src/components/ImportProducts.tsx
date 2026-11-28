@@ -108,35 +108,50 @@ export function ImportProducts({ onClose }: { onClose: () => void }) {
         created = result.created;
         updated = result.updated;
       } else {
-        for (const [index, row] of rows.entries()) {
+        const byCode = new Map<string, Product>();
+        for (const product of products) {
+          byCode.set(product.code, product);
+          for (const barcode of product.barcodes ?? []) byCode.set(barcode, product);
+        }
+        const submitBatch = async (chunk: Row[], offset: number): Promise<void> => {
+          const items = chunk.map((row) => {
+            const existing = byCode.get(row.code);
+            return {
+              id: existing?.id ?? crypto.randomUUID(),
+              ...(existing?.version ? { expectedVersion: existing.version } : {}),
+              code: row.code,
+              name: row.name,
+            };
+          });
           try {
-            const existing = products.find((product) => product.code === row.code || (product.barcodes ?? []).includes(row.code));
-            const id = existing?.id ?? crypto.randomUUID();
-            const body = existing
-              ? {
-                  id, expectedVersion: existing.version, code: existing.code, name: row.name,
-                  ref: existing.ref ?? null, category: existing.category || "Geral", unit: existing.unit,
-                  price: existing.price, cost: existing.cost ?? 0, minStock: existing.minStock ?? 0,
-                  barcodes: Array.from(new Set([...(existing.barcodes ?? []), ...(existing.code === row.code ? [] : [row.code])])),
-                }
-              : {
-                  id, code: row.code, name: row.name, ref: null, category: "Geral", unit: "un",
-                  price: 0, cost: 0, stock: 0, minStock: 0, barcodes: [],
-                };
             const response = await fetch("/api/mobflow/products", {
-              method: existing ? "PATCH" : "POST",
+              method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
+              body: JSON.stringify({ items }),
             });
             const result = await response.json().catch(() => null);
-            if (!response.ok || result?.ok !== true || !result?.product) {
-              throw new Error(result?.error || "O servidor não confirmou o produto.");
+            if (!response.ok || result?.ok !== true || !Array.isArray(result?.products) || result.products.length !== chunk.length) {
+              if ((response.status === 400 || response.status === 409) && chunk.length > 1) {
+                const middle = Math.ceil(chunk.length / 2);
+                await submitBatch(chunk.slice(0, middle), offset);
+                await submitBatch(chunk.slice(middle), offset + middle);
+                return;
+              }
+              throw new Error(result?.error || "O servidor não confirmou este lote.");
             }
-            actions.applyCatalogProduct(result.product as Product);
-            if (existing) updated++; else created++;
+            actions.applyCatalogProducts(result.products as Product[]);
+            created += Number(result.created ?? 0);
+            updated += Number(result.updated ?? 0);
           } catch (error) {
-            failures.push(`Linha ${index + 2} (${row.code}): ${error instanceof Error ? error.message : "falha ao gravar"}`);
+            const message = error instanceof Error ? error.message : "falha ao gravar o lote";
+            for (let index = 0; index < chunk.length; index++) {
+              const row = chunk[index]!;
+              failures.push("Linha " + (offset + index + 2) + " (" + row.code + "): " + message);
+            }
           }
+        };
+        for (let offset = 0; offset < rows.length; offset += 100) {
+          await submitBatch(rows.slice(offset, offset + 100), offset);
         }
       }
       setDone(`${created} produto(s) novo(s) e ${updated} atualizado(s). Os produtos novos entraram com estoque zero.`);

@@ -181,6 +181,97 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
   await releaseTransaction(c,true);tx=null;return Response.json({ok:true,product:mapProduct({...upd.rows[0],barcodes:b.rows.map((x:any)=>x.barcode)})});
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
+async function writeProductsBatch(request:Request){
+ if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"Catálogo Neon indisponível.",code:"catalog_provider_disabled"},{status:503});
+ let tx:any=null;
+ try{
+  const body=await request.json().catch(()=>null);
+  if(!body||!Array.isArray(body.items)||!body.items.length||body.items.length>100)fail("Lote inválido (máximo 100 produtos).");
+  const items=body.items as any[],codes:string[]=[],ids:string[]=[],seen=new Set<string>();
+  for(const x of items){
+   const code=field(x?.code,"código",true,80)!;field(x?.name,"nome",true,160);
+   if(seen.has(code))fail("Código repetido no lote: "+code);seen.add(code);
+   codes.push(code);ids.push(field(x?.id,"id",true,80)!);
+   if(x.expectedVersion!==undefined&&(!Number.isSafeInteger(Number(x.expectedVersion))||Number(x.expectedVersion)<1))fail("Versão esperada inválida.");
+  }
+  tx=await beginAuthenticatedTransaction(request);const c=tx.client,i=tx.identity;
+  if(!canWrite(i))fail("Somente a Gerência pode importar produtos.",403,"permission_denied");
+  await ready(c,true);
+  const locked=await c.query("SELECT "+columns+" FROM public.products p WHERE p.tenant_id=$1 AND (p.code=ANY($2::text[]) OR p.id=ANY($3::text[]) OR EXISTS(SELECT 1 FROM public.product_barcodes b WHERE b.tenant_id=p.tenant_id AND b.product_id=p.id AND b.barcode=ANY($2::text[]))) FOR UPDATE",[i.accountId,codes,ids]);
+  const byId=new Map<string,any>(locked.rows.map((p:any)=>[p.id,p]));
+  const aliasesById=new Map<string,string[]>();
+  if(locked.rows.length){
+   const aliases=await c.query("SELECT product_id,barcode FROM public.product_barcodes WHERE tenant_id=$1 AND product_id=ANY($2::text[]) ORDER BY product_id,is_primary DESC,created_at",[i.accountId,locked.rows.map((p:any)=>p.id)]);
+   for(const b of aliases.rows){const list=aliasesById.get(String(b.product_id))??[];list.push(String(b.barcode));aliasesById.set(String(b.product_id),list);}
+  }
+  const codeToProduct=new Map<string,any>();
+  for(const p of locked.rows){codeToProduct.set(p.code,p);for(const code of aliasesById.get(p.id)??[])codeToProduct.set(code,p);}
+  const updates:any[]=[],newProducts:any[]=[],newAliases:any[]=[],replayed=new Map<string,any>(),usedIds=new Set<string>();
+  for(let n=0;n<items.length;n++){
+   const x=items[n],code=codes[n]!,name=field(x.name,"nome",true,160)!;
+   const byCode=codeToProduct.get(code),byIdRow=byId.get(ids[n]!);
+   if(byCode&&byIdRow&&byCode.id!==byIdRow.id)fail("O produto mudou no catálogo. Atualize e tente novamente.",409,"version_conflict");
+   const existing=byCode??byIdRow;
+   if(existing){
+    const aliases=aliasesById.get(existing.id)??[];
+    if(existing.id===ids[n]&&existing.code!==code&&!aliases.includes(code))fail("ID do produto já utilizado com outro código.",409,"idempotency_conflict");
+    if(usedIds.has(existing.id))fail("Mais de um código da planilha aponta para o mesmo produto: "+code+".",409,"duplicate_product_reference");
+    usedIds.add(existing.id);
+    if(x.expectedVersion!==undefined&&Number(existing.version)!==Number(x.expectedVersion)&&existing.name!==name)fail("Produto "+code+" foi alterado em outro dispositivo.",409,"version_conflict");
+    if(x.expectedVersion!==undefined&&Number(existing.version)!==Number(x.expectedVersion)&&existing.name===name&&(code===existing.code||aliases.includes(code))){
+     replayed.set(code,mapProduct({...existing,barcodes:aliases}));continue;
+    }
+    updates.push({id:existing.id,name,expected_version:Number(existing.version),code});
+    if(code!==existing.code&&!aliases.includes(code))newAliases.push({id:existing.id+":barcode:"+aliases.length,product_id:existing.id,barcode:code});
+   }else{
+    if(usedIds.has(ids[n]!))fail("ID repetido no lote.");usedIds.add(ids[n]!);
+    newProducts.push({id:ids[n],code,name});
+   }
+  }
+  const updatedRows=updates.length?await c.query(
+   "UPDATE public.products p SET name=x.name,version=p.version+1,updated_at=now() FROM jsonb_to_recordset($2::jsonb) AS x(id text,name text,expected_version bigint) WHERE p.tenant_id=$1 AND p.id=x.id AND p.version=x.expected_version RETURNING "+columns,
+   [i.accountId,JSON.stringify(updates)]
+  ): {rows:[]};
+  if(updatedRows.rows.length!==updates.length)fail("Um ou mais produtos foram alterados em outro dispositivo.",409,"version_conflict");
+  const insertedRows=newProducts.length?await c.query(
+   "INSERT INTO public.products(tenant_id,id,code,name,reference,unit,price,cost,stock,min_stock,category) SELECT $1,x.id,x.code,x.name,NULL,'un',0,0,0,0,'Geral' FROM jsonb_to_recordset($2::jsonb) AS x(id text,code text,name text) RETURNING "+columns,
+   [i.accountId,JSON.stringify(newProducts)]
+  ): {rows:[]};
+  if(insertedRows.rows.length!==newProducts.length)fail("O banco não confirmou todos os produtos do lote.",500,"catalog_write_unconfirmed");
+  if(newAliases.length)await c.query(
+   "INSERT INTO public.product_barcodes(tenant_id,id,product_id,barcode,is_primary) SELECT $1,x.id,x.product_id,x.barcode,false FROM jsonb_to_recordset($2::jsonb) AS x(id text,product_id text,barcode text)",
+   [i.accountId,JSON.stringify(newAliases)]
+  );
+  const movements=newProducts.map((p:any)=>{const op="product-registration:"+p.id;return {id:op+":"+p.id,operation_id:op,product_id:p.id,code:p.code,name:p.name,idempotency_key:stableUuid(i.accountId+":product-registration:"+p.id)};});
+  if(movements.length)await c.query(
+   "INSERT INTO public.stock_movements(tenant_id,id,operation_id,operation_type,line_key,product_id,product_code,product_name,unit,quantity,total_value,stock_before,stock_after,delta,operator_profile_id,operator_snapshot,details,occurred_at,idempotency_key) SELECT $1,x.id,x.operation_id,'registration','1',x.product_id,x.code,x.name,'un',0,0,0,0,0,$2,$3,'Produto cadastrado',now(),x.idempotency_key FROM jsonb_to_recordset($4::jsonb) AS x(id text,operation_id text,product_id text,code text,name text,idempotency_key text)",
+   [i.accountId,i.userId,i.displayName||i.username,JSON.stringify(movements)]
+  );
+  const resultByCode=new Map<string,any>();
+  for(const [code,p] of replayed)resultByCode.set(code,p);
+  const updatedById=new Map<string,any>(updatedRows.rows.map((p:any)=>[p.id,p]));
+  const eventRows:any[]=[];
+  for(const update of updates){
+   const row=updatedById.get(update.id);if(!row)continue;
+   const aliases=[...(aliasesById.get(update.id)??[])];
+   for(const alias of newAliases)if(alias.product_id===update.id)aliases.push(alias.barcode);
+   const product=mapProduct({...row,barcodes:aliases});resultByCode.set(update.code,product);
+   eventRows.push({event_id:randomUUID(),idempotency_key:stableUuid(i.accountId+":catalog:"+row.id+":"+Number(row.version)),entity_id:row.id,payload:{operation:"upsert",product}});
+  }
+  for(const row of insertedRows.rows){
+   const product=mapProduct({...row,barcodes:[]});resultByCode.set(row.code,product);
+   eventRows.push({event_id:randomUUID(),idempotency_key:stableUuid(i.accountId+":catalog:"+row.id+":"+Number(row.version)),entity_id:row.id,payload:{operation:"upsert",product}});
+  }
+  if(eventRows.length)await c.query(
+   "SELECT public.mobflow_append_sync_event(x.event_id::uuid,x.idempotency_key::uuid,'catalog','manual','product',x.entity_id,x.payload) FROM jsonb_to_recordset($1::jsonb) AS x(event_id text,idempotency_key text,entity_id text,payload jsonb)",
+   [JSON.stringify(eventRows)]
+  );
+  const products=items.map((_:any,n:number)=>resultByCode.get(codes[n]!));
+  if(products.some((p:any)=>!p))fail("Não foi possível confirmar todos os produtos.",500,"catalog_write_unconfirmed");
+  await releaseTransaction(c,true);tx=null;
+  return Response.json({ok:true,products,processed:products.length,created:insertedRows.rows.length,updated:updatedRows.rows.length});
+ }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
+}
 function r2Client(){
  const account=process.env["CLOUDFLARE_R2_ACCOUNT_ID"],access=process.env["CLOUDFLARE_R2_ACCESS_KEY_ID"],secret=process.env["CLOUDFLARE_R2_SECRET_ACCESS_KEY"];
  const bucket=process.env["CLOUDFLARE_R2_BUCKET_NAME"];
@@ -236,5 +327,5 @@ async function deleteProduct(request:Request){
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 export const Route=createFileRoute("/api/mobflow/products")({server:{handlers:{
- GET:({request})=>getProducts(request),POST:({request})=>writeProduct(request,"POST"),PATCH:({request})=>writeProduct(request,"PATCH"),DELETE:({request})=>deleteProduct(request)
+ GET:({request})=>getProducts(request),POST:({request})=>request.clone().json().then((body:any)=>Array.isArray(body?.items)?writeProductsBatch(request):writeProduct(request,"POST")).catch(()=>writeProduct(request,"POST")),PATCH:({request})=>writeProduct(request,"PATCH"),DELETE:({request})=>deleteProduct(request)
 }}});

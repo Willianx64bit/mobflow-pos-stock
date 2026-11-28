@@ -98,6 +98,28 @@ describe("Neon product catalog API",()=>{
   expect(statusEvent).toBeDefined();
   expect(JSON.parse(String(statusEvent?.[1]?.[3]))).toMatchObject({operation:"upsert",product:{id:"p1",active:false,version:2}});
  });
+ it("imports a batch in one transaction and records each new product",async()=>{
+  const created={...product,id:"p-batch",code:"002",name:"Feijão",version:"1",stock:"0.000",price:"0.00",cost:"0.00",min_stock:"0.000",category:"Geral"};
+  client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[created]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[]});
+  const response=await handlers.POST({request:req("POST",{items:[{id:"p-batch",code:"002",name:"Feijão"}]})});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,created:1,updated:0,products:[{id:"p-batch",code:"002",stock:0}]});
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("INSERT INTO public.stock_movements"))).toBe(true);
+  expect(client.query.mock.calls.some(c=>String(c[0]).includes("mobflow_append_sync_event"))).toBe(true);
+  expect(releaseTransaction).toHaveBeenCalledWith(client,true);
+ });
+ it("updates imported products without changing stock, price or cost",async()=>{
+  const updated={...product,name:"Arroz integral",version:"2"};
+  client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[product]}).mockResolvedValueOnce({rows:[]}).mockResolvedValueOnce({rows:[updated]}).mockResolvedValueOnce({rows:[]});
+  const response=await handlers.POST({request:req("POST",{items:[{id:"p1",expectedVersion:1,code:"001",name:"Arroz integral"}]})});
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ok:true,created:0,updated:1,products:[{id:"p1",name:"Arroz integral",stock:5,price:10,cost:7}]});
+  const update=client.query.mock.calls.find(c=>String(c[0]).startsWith("UPDATE public.products p SET name="));
+  expect(update).toBeDefined();
+  expect(String(update?.[0])).not.toContain("stock=");
+  expect(String(update?.[0])).not.toContain("price=");
+  expect(String(update?.[0])).not.toContain("cost=");
+ });
  it("returns version conflict instead of overwriting a concurrent edit",async()=>{
   client.query.mockResolvedValueOnce(ready).mockResolvedValueOnce({rows:[{...product,version:"2"}]});
   const response=await handlers.PATCH({request:req("PATCH",{id:"p1",expectedVersion:1,price:12})});
