@@ -240,7 +240,7 @@ function PDV() {
     }
     setOfflineSearchReady(false);
     setOfflineSearchFallback(false);
-    void client.initialize(sellableProducts).then(() => {
+    void client.initialize().then(() => {
       if (!cancelled) setOfflineSearchReady(true);
     }).catch((error) => {
       console.warn("[MobFlow Offline Search] Não foi possível preparar o índice persistente.", error);

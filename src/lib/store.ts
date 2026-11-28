@@ -1977,7 +1977,7 @@ export const actions = {
       const products = await readPreviewNeonCatalog(previous, "full");
       set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false, catalog: false });
       const tenantId = cloudAccountId ?? (typeof localStorage !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
-      if (tenantId) void refreshOfflineProductSearchIndex(tenantId, products).catch((error) => console.warn("[MobFlow Offline Search] Atualização completa do índice não concluída:", error));
+      if (tenantId) void refreshOfflineProductSearchIndex(tenantId).catch((error) => console.warn("[MobFlow Offline Search] Atualização completa do índice não concluída:", error));
       return products.length;
     } finally {
       releaseBarrier();

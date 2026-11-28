@@ -1,4 +1,5 @@
 // Dedicated offline search runtime: keeps catalog indexing and queries off the PDV UI thread.
+import { readOfflineCatalog } from "./product-catalog";
 import type { OfflineSearchDelta, OfflineSearchDocument } from "./offline-search-engine";
 
 // FlexSearch's IndexedDB adapter detects the browser database through
@@ -11,7 +12,7 @@ if (typeof workerGlobal.window === "undefined") {
 const enginePromise = import("./offline-search-engine").then(({ OfflineProductSearchEngine }) => new OfflineProductSearchEngine());
 
 type Request =
-  | { id: number; type: "initialize"; tenantId: string; products: OfflineSearchDocument[] }
+  | { id: number; type: "initialize"; tenantId: string }
   | { id: number; type: "search"; query: string; limit: number }
   | { id: number; type: "delta"; changes: OfflineSearchDelta[] };
 
@@ -26,7 +27,18 @@ async function handle(request: Request) {
     const engine = await enginePromise;
     let result: unknown;
     if (request.type === "initialize") {
-      result = await engine.initialize(request.tenantId, request.products);
+      const catalog = await readOfflineCatalog(request.tenantId);
+      if (!catalog.hasCatalog) throw new Error("O catálogo offline ainda não foi preparado neste computador.");
+      const products: OfflineSearchDocument[] = catalog.products
+        .filter((product) => Number.isFinite(product.price) && product.price > 0.01)
+        .map((product) => ({
+          id: product.id,
+          name: product.name,
+          code: product.code,
+          barcodes: product.barcodes ?? [],
+          category: product.category ?? "",
+        }));
+      result = await engine.initialize(request.tenantId, products);
     } else if (request.type === "search") {
       result = await engine.search(request.query, request.limit);
     } else {

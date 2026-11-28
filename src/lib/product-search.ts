@@ -61,7 +61,7 @@ export function searchLocalProducts(products: Product[], query: string, limit = 
 }
 
 export type OfflineProductSearchClient = {
-  initialize(products: Product[]): Promise<{ ready: boolean; rebuilt: boolean; count: number }>;
+  initialize(): Promise<{ ready: boolean; rebuilt: boolean; count: number }>;
   search(query: string, limit?: number): Promise<string[]>;
   applyDelta(changes: OfflineSearchDelta[]): Promise<void>;
   destroy(): void;
@@ -109,7 +109,7 @@ export function createOfflineProductSearchClient(tenantId: string): OfflineProdu
   };
 
   const client: OfflineProductSearchClient = {
-    initialize: (products) => send<{ ready: boolean; rebuilt: boolean; count: number }>({ type: "initialize", tenantId, products: products.map(toSearchDocument).filter((item): item is OfflineSearchDocument => Boolean(item)) }),
+    initialize: () => send<{ ready: boolean; rebuilt: boolean; count: number }>({ type: "initialize", tenantId }),
     search: (query, limit = 100) => send<string[]>({ type: "search", query, limit }),
     applyDelta: (changes) => {
       const deltas: OfflineSearchDelta[] = changes.map((change) => ({
@@ -147,7 +147,7 @@ export async function syncOfflineProductSearchDelta(
   if (relevant.length) await client.applyDelta(relevant);
 }
 
-export async function refreshOfflineProductSearchIndex(tenantId: string, products: Product[]): Promise<void> {
+export async function refreshOfflineProductSearchIndex(tenantId: string): Promise<void> {
   const client = activeClients.get(tenantId);
-  if (client) await client.initialize(products);
+  if (client) await client.initialize();
 }
