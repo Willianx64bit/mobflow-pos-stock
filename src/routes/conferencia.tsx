@@ -39,7 +39,7 @@ function Conferencia() {
     const finished = !!n.actionCompleted || released;
     return n.status === "rejeitado" ? "Recusado" : needsAction ? "Ação necessária" : finished ? (hasDivergence ? "Finalizado com divergência" : "Finalizado") : n.status === "analisando" ? "Analisando" : "Pendente";
   };
-  const monthStart = `${historyMonth}-01`; const [monthYear,monthNumber] = historyMonth.split("-").map(Number); const monthEnd = historyMonth ? `${historyMonth}-${String(new Date(monthYear,monthNumber,0).getDate()).padStart(2,"0")}` : ""; const dateFrom = dateMode === "month" ? monthStart : historyFrom; const dateTo = dateMode === "month" ? monthEnd : historyTo;
+  const monthStart = `${historyMonth}-01`; const [monthYear,monthNumber] = historyMonth.split("-").map(Number); const monthEnd = historyMonth ? `${historyMonth}-${String(new Date(monthYear ?? 0,monthNumber ?? 1,0).getDate()).padStart(2,"0")}` : ""; const dateFrom = dateMode === "month" ? monthStart : historyFrom; const dateTo = dateMode === "month" ? monthEnd : historyTo;
   const filteredHistory = history.filter(n => {
     const rawDate = String(n.date ?? "").slice(0, 10);
     const matchesFrom = !dateFrom || (!!rawDate && rawDate >= dateFrom);
