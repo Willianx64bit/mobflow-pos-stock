@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { buildLocalProductSearchIndex, buildProductBarcodeIndex, searchIndexedLocalProducts } from "@/lib/product-search";
+import { buildLocalProductSearchIndex, buildProductBarcodeIndex, createOfflineProductSearchClient, searchIndexedLocalProducts, syncOfflineProductSearchDelta, type OfflineProductSearchClient } from "@/lib/product-search";
 import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 // Desktop and web share the server-side PDV user lifecycle; deletion preserves audit references in Neon.
 
@@ -210,19 +210,80 @@ function PDV() {
   }, [q]);
 
   const offlineCatalogSearch = isOfflineMode();
-  const localSearchIndex = useMemo(
-    () => offlineCatalogSearch
-      ? buildLocalProductSearchIndex(sellableProducts)
-      : { products: sellableProducts, searchText: [] },
-    [sellableProducts, offlineCatalogSearch],
+  const offlineTenantId = typeof window !== "undefined" ? localStorage.getItem("mobflow:owner") || "" : "";
+  const offlineSearchClientRef = useRef<OfflineProductSearchClient | null>(null);
+  const [offlineSearchReady, setOfflineSearchReady] = useState(false);
+  const [offlineSearchFallback, setOfflineSearchFallback] = useState(false);
+  const [localResults, setLocalResults] = useState<Product[]>([]);
+  const productById = useMemo(() => new Map(sellableProducts.map((product) => [product.id, product])), [sellableProducts]);
+  const fallbackSearchIndex = useMemo(
+    () => offlineSearchFallback ? buildLocalProductSearchIndex(sellableProducts) : null,
+    [offlineSearchFallback, sellableProducts],
   );
-  const localResults = useMemo(() => {
+
+  useEffect(() => {
+    if (!offlineCatalogSearch || !offlineTenantId) {
+      setOfflineSearchReady(false);
+      setOfflineSearchFallback(false);
+      setLocalResults([]);
+      return;
+    }
+    let cancelled = false;
+    let client: OfflineProductSearchClient;
+    try {
+      client = createOfflineProductSearchClient(offlineTenantId);
+      offlineSearchClientRef.current = client;
+    } catch (error) {
+      console.warn("[MobFlow Offline Search] Worker indisponível; usando busca local de segurança.", error);
+      setOfflineSearchFallback(true);
+      return;
+    }
+    setOfflineSearchReady(false);
+    setOfflineSearchFallback(false);
+    void client.initialize(sellableProducts).then(() => {
+      if (!cancelled) setOfflineSearchReady(true);
+    }).catch((error) => {
+      console.warn("[MobFlow Offline Search] Não foi possível preparar o índice persistente.", error);
+      if (!cancelled) setOfflineSearchFallback(true);
+    });
+    return () => {
+      cancelled = true;
+      client.destroy();
+      if (offlineSearchClientRef.current === client) offlineSearchClientRef.current = null;
+    };
+  }, [offlineCatalogSearch, offlineTenantId]);
+
+  useEffect(() => {
     const term = debouncedQ.trim();
-    // Online search belongs to Neon; avoid scanning and normalizing the full
-    // 10k–100k local catalog for every keystroke. Offline keeps the local index.
-    if (term.length === 1 || (term.length >= 2 && !offlineCatalogSearch)) return [];
-    return searchIndexedLocalProducts(localSearchIndex, term, 100);
-  }, [localSearchIndex, debouncedQ, offlineCatalogSearch]);
+    if (term.length === 1) {
+      setLocalResults([]);
+      return;
+    }
+    if (term.length >= 2 && !offlineCatalogSearch) {
+      setLocalResults([]);
+      return;
+    }
+    if (term.length >= 2 && offlineCatalogSearch) {
+      if (offlineSearchFallback && fallbackSearchIndex) {
+        setLocalResults(searchIndexedLocalProducts(fallbackSearchIndex, term, 100));
+        return;
+      }
+      const client = offlineSearchClientRef.current;
+      if (!client || !offlineSearchReady) {
+        setLocalResults([]);
+        return;
+      }
+      let active = true;
+      void client.search(term, 100).then((ids) => {
+        if (active) setLocalResults(ids.map((id) => productById.get(id)).filter((product): product is Product => Boolean(product)));
+      }).catch((error) => {
+        console.warn("[MobFlow Offline Search] Consulta falhou.", error);
+        if (active) setLocalResults([]);
+      });
+      return () => { active = false; };
+    }
+    setLocalResults(sellableProducts.slice(0, 100));
+  }, [debouncedQ, offlineCatalogSearch, offlineSearchReady, offlineSearchFallback, fallbackSearchIndex, productById, sellableProducts]);
 
   useEffect(() => {
     const term = debouncedQ.trim();

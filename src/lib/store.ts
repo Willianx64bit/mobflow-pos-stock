@@ -5,6 +5,7 @@ import { SyncOutbox, createSyncCommand, flushSyncOutbox, pullSyncEvents, runIncr
 import { applySyncEventsToState, UnsupportedSyncEventError } from "@/lib/sync-event-apply";
 import { buildDesktopStockCatalogPage } from "@/lib/desktop-stock-inventory";
 import { commitOfflineCatalogSync, getOfflineCatalogStatus, getOfflineCatalogSyncState, readOfflineCatalog, readPendingOfflineCatalog, replaceOfflineCatalog, upsertOfflineCatalogProduct, removeOfflineCatalogProduct, writeOfflineCatalogPage } from "@/lib/product-catalog";
+import { refreshOfflineProductSearchIndex, syncOfflineProductSearchDelta } from "@/lib/product-search";
 
 export type Product = { id: string; version?: number; active?: boolean; code: string; barcodes?: string[]; ref?: string | undefined; name: string; price: number; cost?: number | undefined; stock: number; minStock: number; category: string; unit: "un" | "kg"; photo?: string | undefined; photoObjectKey?: string | undefined };
 export type StockCatalogSummary = { total: number; active: number; inactive: number; lowStock: number; inventoryValue: number };
@@ -331,6 +332,7 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
   if (previous.length === next.length) {
     let sameOrder = true;
     const changedProducts: Product[] = [];
+    const searchDeltas: Array<{ previous?: Product; next?: Product }> = [];
     for (let index = 0; index < next.length; index += 1) {
       const oldProduct = previous[index];
       const newProduct = next[index];
@@ -338,11 +340,15 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
         sameOrder = false;
         break;
       }
-      if (oldProduct !== newProduct) changedProducts.push(newProduct);
+      if (oldProduct !== newProduct) {
+        changedProducts.push(newProduct);
+        searchDeltas.push({ previous: oldProduct, next: newProduct });
+      }
     }
     if (sameOrder) {
       if (changedProducts.length) {
         await Promise.all(changedProducts.map((product) => upsertOfflineCatalogProduct(tenantId, product)));
+        void syncOfflineProductSearchDelta(tenantId, searchDeltas).catch((error) => console.warn("[MobFlow Offline Search] Delta do índice não foi aplicada:", error));
       }
       return;
     }
@@ -350,12 +356,22 @@ async function persistCatalogDelta(previous: Product[], next: Product[]) {
   // Insertions, deletions and reordered imports use the full diff fallback.
   const before = new Map(previous.map((product) => [product.id, product]));
   const after = new Map(next.map((product) => [product.id, product]));
+  const searchDeltas: Array<{ previous?: Product; next?: Product }> = [];
   for (const [id, product] of after) {
     const oldProduct = before.get(id);
-    if (!oldProduct || oldProduct !== product) writes.push(upsertOfflineCatalogProduct(tenantId, product));
+    if (!oldProduct || oldProduct !== product) {
+      writes.push(upsertOfflineCatalogProduct(tenantId, product));
+      searchDeltas.push({ ...(oldProduct ? { previous: oldProduct } : {}), next: product });
+    }
   }
-  for (const id of before.keys()) if (!after.has(id)) writes.push(removeOfflineCatalogProduct(tenantId, id));
+  for (const [id, product] of before) {
+    if (!after.has(id)) {
+      writes.push(removeOfflineCatalogProduct(tenantId, id));
+      searchDeltas.push({ previous: product });
+    }
+  }
   if (writes.length) await Promise.all(writes);
+  if (searchDeltas.length) void syncOfflineProductSearchDelta(tenantId, searchDeltas).catch((error) => console.warn("[MobFlow Offline Search] Atualização do índice não concluída:", error));
 }
 function load() {
   if (loaded || typeof window === "undefined") return;
@@ -1960,6 +1976,8 @@ export const actions = {
       const previous = state.products ?? [];
       const products = await readPreviewNeonCatalog(previous, "full");
       set({ products, cart: (state.cart ?? []).filter((item) => products.some((product) => product.id === item.productId)) }, { persist: false, catalog: false });
+      const tenantId = cloudAccountId ?? (typeof localStorage !== "undefined" ? localStorage.getItem(OWNER_KEY) : null);
+      if (tenantId) void refreshOfflineProductSearchIndex(tenantId, products).catch((error) => console.warn("[MobFlow Offline Search] Atualização completa do índice não concluída:", error));
       return products.length;
     } finally {
       releaseBarrier();
