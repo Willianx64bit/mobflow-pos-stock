@@ -108,36 +108,57 @@ export function ImportProducts({ onClose }: { onClose: () => void }) {
         created = result.created;
         updated = result.updated;
       } else {
-        for (const [index, row] of rows.entries()) {
-          try {
-            const existing = products.find((product) => product.code === row.code || (product.barcodes ?? []).includes(row.code));
-            const id = existing?.id ?? crypto.randomUUID();
-            const body = existing
+        const byCode = new Map<string, Product>();
+        for (const product of products) {
+          byCode.set(product.code, product);
+          for (const barcode of product.barcodes ?? []) byCode.set(barcode, product);
+        }
+        const confirmed: Product[] = [];
+        const importChunk = async (chunk: Row[], firstIndex: number): Promise<void> => {
+          const items = chunk.map((row) => {
+            const existing = byCode.get(row.code);
+            return existing
               ? {
-                  id, expectedVersion: existing.version, code: existing.code, name: row.name,
-                  ref: existing.ref ?? null, category: existing.category || "Geral", unit: existing.unit,
-                  price: existing.price, cost: existing.cost ?? 0, minStock: existing.minStock ?? 0,
-                  barcodes: Array.from(new Set([...(existing.barcodes ?? []), ...(existing.code === row.code ? [] : [row.code])])),
+                  id: existing.id, expectedVersion: existing.version, code: existing.code, name: row.name,
                 }
               : {
-                  id, code: row.code, name: row.name, ref: null, category: "Geral", unit: "un",
-                  price: 0, cost: 0, stock: 0, minStock: 0, barcodes: [],
+                  id: crypto.randomUUID(), code: row.code, name: row.name,
                 };
+          });
+          try {
             const response = await fetch("/api/mobflow/products", {
-              method: existing ? "PATCH" : "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
+              method: "POST",
+              headers: { "Content-Type": "application/vnd.mobflow.batch+json" },
+              body: JSON.stringify({ items }),
             });
             const result = await response.json().catch(() => null);
-            if (!response.ok || result?.ok !== true || !result?.product) {
-              throw new Error(result?.error || "O servidor não confirmou o produto.");
+            if (!response.ok || result?.ok !== true || !Array.isArray(result?.products) || result.products.length !== chunk.length) {
+              const message = String(result?.error || "O servidor não confirmou o lote.");
+              if (chunk.length > 1 && (response.status === 400 || response.status === 409)) {
+                const middle = Math.floor(chunk.length / 2);
+                await importChunk(chunk.slice(0, middle), firstIndex);
+                await importChunk(chunk.slice(middle), firstIndex + middle);
+                return;
+              }
+              failures.push(`Linhas ${firstIndex + 2}-${firstIndex + chunk.length + 1}: ${message}`);
+              return;
             }
-            actions.applyCatalogProduct(result.product as Product);
-            if (existing) updated++; else created++;
+            const returned = result.products as Product[];
+            confirmed.push(...returned);
+            for (const product of returned) {
+              byCode.set(product.code, product);
+              for (const barcode of product.barcodes ?? []) byCode.set(barcode, product);
+            }
+            created += Number(result.created ?? 0);
+            updated += Number(result.updated ?? 0);
           } catch (error) {
-            failures.push(`Linha ${index + 2} (${row.code}): ${error instanceof Error ? error.message : "falha ao gravar"}`);
+            failures.push(`Linhas ${firstIndex + 2}-${firstIndex + chunk.length + 1}: ${error instanceof Error ? error.message : "falha de comunicação"}`);
           }
+        };
+        for (let offset = 0; offset < rows.length; offset += 100) {
+          await importChunk(rows.slice(offset, offset + 100), offset);
         }
+        if (confirmed.length) actions.applyCatalogProducts(confirmed);
       }
       setDone(`${created} produto(s) novo(s) e ${updated} atualizado(s). Os produtos novos entraram com estoque zero.`);
       setRows([]);
