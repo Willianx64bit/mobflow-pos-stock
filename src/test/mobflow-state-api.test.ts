@@ -77,7 +77,7 @@ describe("MobFlow Neon state API", () => {
     });
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("LEFT JOIN public.mobflow_sync_counters"),
-      [ACCOUNT_ID, false],
+      [ACCOUNT_ID, false, true],
     );
     const bootstrapSql = String(client.query.mock.calls[0]?.[0]);
     expect(bootstrapSql).toContain("AS relational_ready");
