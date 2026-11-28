@@ -146,8 +146,11 @@ export class OfflineProductSearchEngine {
         const text = offlineSearchText(product);
         if (product.id && text) this.index.add(product.id, text);
       }
-      await this.index.commit();
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     }
+    // One bulk commit avoids rewriting the growing persistent index after
+    // every small batch (which would make a large initial build quadratic).
+    await this.index.commit();
     await writeMeta(nextMeta);
     this.meta = nextMeta;
     return { ready: true, rebuilt: true, count: nextMeta.count };

@@ -23,7 +23,7 @@ async function deleteDatabase(name: string) {
 
 describe("persistent offline FlexSearch", () => {
   beforeEach(async () => {
-    await deleteDatabase("mobflow-product-search-v1-" + encodeURIComponent(tenant).replace(/%/g, "_").slice(0, 120));
+    await deleteDatabase("flexsearch:mobflow-product-search-v1-" + encodeURIComponent(tenant).replace(/%/g, "_").slice(0, 120));
     await deleteDatabase("mobflow-offline-search-meta");
   });
 
