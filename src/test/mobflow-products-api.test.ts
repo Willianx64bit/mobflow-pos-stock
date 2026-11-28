@@ -116,6 +116,7 @@ describe("Neon product catalog API",()=>{
   expect(await response.json()).toMatchObject({ok:true,created:0,updated:1,products:[{id:"p1",name:"Arroz integral",stock:5,price:10,cost:7}]});
   const update=client.query.mock.calls.find(c=>String(c[0]).startsWith("UPDATE public.products p SET name="));
   expect(update).toBeDefined();
+  expect(String(update?.[0])).toContain("RETURNING p.id");
   expect(String(update?.[0])).not.toContain("stock=");
   expect(String(update?.[0])).not.toContain("price=");
   expect(String(update?.[0])).not.toContain("cost=");
