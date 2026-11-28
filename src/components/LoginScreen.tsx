@@ -525,7 +525,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
                     </div>
                     <div className="mt-1 text-xl font-black text-foreground">{plan.price === null ? "Preço não configurado" : plan.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
                     {available && <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <span>{(plan.price / plan.months).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por mês</span>
+                      <span>{((plan.price ?? 0) / plan.months).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por mês</span>
                       {savingsPercent > 0 && <span className="font-semibold text-primary">Economize {savings.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} · {savingsPercent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</span>}
                     </div>}
                     {!available && <p className="mt-1 text-xs text-muted-foreground">Aguarde a configuração deste plano pelo administrador.</p>}
