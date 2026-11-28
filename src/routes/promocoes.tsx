@@ -120,7 +120,7 @@ function Promotions() {
     if (historyType !== "all" && event.payload?.operation !== historyType) return false;
     if (historyProduct) {
       const promotion = event.payload?.promotion as Record<string, unknown> | undefined;
-      if (String(promotion?.productId ?? "") !== historyProduct) return false;
+      if (String(promotion?.["productId"] ?? "") !== historyProduct) return false;
     }
     return true;
   }), [history, historyMonth, historyFrom, historyTo, historyType, historyProduct]);
@@ -192,7 +192,7 @@ function Promotions() {
           {!historyLoading && !historyError && history.length > 0 && filteredHistory.length === 0 && <p className="mt-3 rounded-xl bg-secondary/50 p-4 text-sm text-muted-foreground">Nenhum evento encontrado com esses filtros.</p>}
           {!historyLoading && !historyError && filteredHistory.length > 0 && <div className="mt-4 overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[620px] border-collapse text-sm"><thead className="bg-secondary/70 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-3 py-3 font-semibold">Data hora</th><th className="px-3 py-3 font-semibold">Eventos</th><th className="px-3 py-3 font-semibold">Data hora início</th><th className="px-3 py-3 font-semibold">Data hora fim</th></tr></thead>
-              <tbody>{filteredHistory.map((event) => { const op = event.payload?.operation; const label = op === "create" ? "Criou" : op === "update" ? "Editou" : op === "delete" ? "Excluiu" : "Evento"; const promotion = event.payload?.promotion as Record<string, unknown> | undefined; return <tr key={event.event_id} className="border-t border-border/70"><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(event.created_at)}</td><td className="px-3 py-3 font-semibold text-heading">{label}</td><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(promotion?.startsAt)}</td><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(promotion?.endsAt)}</td></tr>; })}</tbody>
+              <tbody>{filteredHistory.map((event) => { const op = event.payload?.operation; const label = op === "create" ? "Criou" : op === "update" ? "Editou" : op === "delete" ? "Excluiu" : "Evento"; const promotion = event.payload?.promotion as Record<string, unknown> | undefined; return <tr key={event.event_id} className="border-t border-border/70"><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(event.created_at)}</td><td className="px-3 py-3 font-semibold text-heading">{label}</td><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(promotion?.["startsAt"])}</td><td className="whitespace-nowrap px-3 py-3 text-muted-foreground">{formatEventDate(promotion?.["endsAt"])}</td></tr>; })}</tbody>
             </table>
           </div>}
         </section>
