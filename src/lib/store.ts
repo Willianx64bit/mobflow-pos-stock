@@ -645,14 +645,14 @@ export async function searchCatalogProducts(query: string, limit = 50): Promise<
     if (!response.ok || !Array.isArray(body.products)) return null;
     const found = (body.products as Array<Record<string, unknown>>).map((raw) => ({
       id: String(raw["id"] ?? ""),
-      version: Number(raw.version ?? 1),
-      code: String(raw.code ?? ""),
-      barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
-      ref: typeof raw.ref === "string" ? raw.ref : undefined,
-      name: String(raw.name ?? ""),
-      price: Number(raw.price ?? 0),
-      cost: Number(raw.cost ?? 0),
-      stock: Number(raw.stock ?? 0),
+      version: Number(raw["version"] ?? 1),
+      code: String(raw["code"] ?? ""),
+      barcodes: Array.isArray(raw["barcodes"]) ? raw["barcodes"].map(String) : [],
+      ref: typeof raw["ref"] === "string" ? raw["ref"] : undefined,
+      name: String(raw["name"] ?? ""),
+      price: Number(raw["price"] ?? 0),
+      cost: Number(raw["cost"] ?? 0),
+      stock: Number(raw["stock"] ?? 0),
       minStock: Number(raw["minStock"] ?? 0),
       category: String(raw["category"] ?? ""),
       unit: normalizeProductUnit(raw["unit"]),
@@ -735,9 +735,10 @@ export async function loadStockCatalogSummary(): Promise<StockCatalogSummary> {
       !(typeof navigator !== "undefined" && !navigator.onLine)) {
     try {
       const { response, body } = await callMobFlowApi("/api/mobflow/products?projection=summary");
-      if (response.ok && body["summary"] && typeof body["summary"] === "object") {
-        const s = body["summary"] as Record<string, unknown>;
-        return { total: Number(s.total ?? 0), active: Number(s.active ?? 0), inactive: Number(s.inactive ?? 0), low: Number(s.low ?? 0), value: Number(s.value ?? 0) };
+      const responseBody = body as unknown as Record<string, unknown>;
+      if (response.ok && responseBody["summary"] && typeof responseBody["summary"] === "object") {
+        const s = responseBody["summary"] as Record<string, unknown>;
+        return { total: Number(s["total"] ?? 0), active: Number(s["active"] ?? 0), inactive: Number(s["inactive"] ?? 0), low: Number(s["low"] ?? 0), value: Number(s["value"] ?? 0) };
       }
     } catch {}
   }
