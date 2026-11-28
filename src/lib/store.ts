@@ -959,7 +959,9 @@ export async function hydrateStore() {
       const localCart = [...(state.cart ?? [])];
       const sameOwner = true;
 
-      const stateResult = await callMobFlowApi("/api/mobflow/state");
+      // Product catalog is fetched separately after the core application state is ready.
+      // Avoid aggregating and transferring the entire relational catalog twice during startup.
+      const stateResult = await callMobFlowApi("/api/mobflow/state?includeProducts=false");
       if (!stateResult.response.ok || !stateResult.body.ok) {
         throw new Error("Não foi possível carregar os dados da empresa pelo Neon.");
       }
@@ -983,10 +985,11 @@ export async function hydrateStore() {
         // Keep the tenant-scoped local catalog as fallback if Neon is temporarily
         // unreachable. A successful Neon response still replaces it with the
         // authoritative active catalog.
-        state.products = await readPreviewNeonCatalog(localProducts.length ? localProducts : (state.products ?? []));
-        // The cart is a tenant-scoped local draft, not a Neon sale. Preserve it across
-        // refreshes, but keep only products confirmed by the authoritative tenant catalog.
-        state.cart = localCart.filter((item) => state.products.some((product) => product.id === item.productId));
+        // Show the last tenant-scoped catalog immediately (including offline cache).
+        // The authoritative Neon catalog is reconciled in the background below.
+        state.products = localProducts;
+        // Preserve the local cart draft while its product catalog is refreshed.
+        state.cart = localCart;
         lastCloudUpdatedAt = stateResult.body.updatedAt ?? null;
         lastSyncedState = cloneCloudSnapshot(remote);
       } else {
@@ -1040,6 +1043,21 @@ export async function hydrateStore() {
       cloudAccountId = accountId;
       cloudReady = true;
       startRealtime(accountId);
+      // Reconcile the full catalog without blocking the first screen. This can involve
+      // hundreds of paginated requests for large tenants and is not required to render
+      // the initial PDV/operations shell when a local tenant cache is available.
+      void (async () => {
+        const catalog = await readPreviewNeonCatalog(localProducts);
+        if (cloudAccountId !== accountId) return;
+        state = {
+          ...state,
+          products: catalog,
+          cart: (state.cart ?? []).filter((item) => catalog.some((product) => product.id === item.productId)),
+        };
+        normalizeState();
+        persistLocalState();
+        listeners.forEach((listener) => listener());
+      })().catch((error) => console.warn("[MobFlow Catalog] Background catalog hydration deferred:", error));
       // Catch up only the two enabled modules in compatibility mode; no global incremental cutover.
       if (!incrementalSyncEnabled()) void pullReceivingConferenceEvents(accountId).catch(() => undefined);
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
