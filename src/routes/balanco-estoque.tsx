@@ -156,7 +156,7 @@ function BalancoEstoque() {
   const [historyFrom, setHistoryFrom] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01`; });
   const [historyTo, setHistoryTo] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(new Date(d.getFullYear(),d.getMonth()+1,0).getDate()).padStart(2,"0")}`; });
   const [historyMode, setHistoryMode] = useState("Todos");
-  const monthStart = `${historyMonth}-01`; const [monthYear,monthNumber] = historyMonth.split("-").map(Number); const monthEnd = historyMonth ? `${historyMonth}-${String(new Date(monthYear,monthNumber,0).getDate()).padStart(2,"0")}` : ""; const dateFrom = dateMode === "month" ? monthStart : historyFrom; const dateTo = dateMode === "month" ? monthEnd : historyTo;
+  const monthStart = `${historyMonth}-01`; const [monthYear,monthNumber] = historyMonth.split("-").map(Number); const monthEnd = historyMonth ? `${historyMonth}-${String(new Date(monthYear ?? 0,monthNumber ?? 1,0).getDate()).padStart(2,"0")}` : ""; const dateFrom = dateMode === "month" ? monthStart : historyFrom; const dateTo = dateMode === "month" ? monthEnd : historyTo;
   const filteredHistory = useMemo(() => history.filter((entry) => {
     const parsed = new Date(entry.date);
     if (Number.isNaN(parsed.getTime())) return false;
