@@ -643,7 +643,7 @@ export async function searchCatalogProducts(query: string, limit = 50): Promise<
     const params = new URLSearchParams({ q: term, limit: String(Math.min(100, Math.max(1, limit))) });
     const { response, body } = await callMobFlowApi("/api/mobflow/products?" + params.toString());
     if (!response.ok || !Array.isArray(body.products)) return null;
-    return (body.products as Array<Record<string, unknown>>).map((raw) => ({
+    const found = (body.products as Array<Record<string, unknown>>).map((raw) => ({
       id: String(raw.id ?? ""),
       version: Number(raw.version ?? 1),
       code: String(raw.code ?? ""),
@@ -660,6 +660,14 @@ export async function searchCatalogProducts(query: string, limit = 50): Promise<
       photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined,
       photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : undefined,
     })).filter((product) => product.id);
+    // Search results must become part of the active store so selecting a product
+    // from Neon also resolves correctly in the cart and checkout.
+    if (found.length) {
+      const byId = new Map((state.products ?? []).map((product) => [product.id, product]));
+      for (const product of found) byId.set(product.id, { ...byId.get(product.id), ...product });
+      set({ products: [...byId.values()] }, { persist: false });
+    }
+    return found;
   } catch {
     return null;
   }
@@ -1047,17 +1055,19 @@ export async function hydrateStore() {
       // hundreds of paginated requests for large tenants and is not required to render
       // the initial PDV/operations shell when a local tenant cache is available.
       void (async () => {
-        const catalog = await readPreviewNeonCatalog(localProducts);
-        if (cloudAccountId !== accountId) return;
-        state = {
-          ...state,
-          products: catalog,
-          cart: (state.cart ?? []).filter((item) => catalog.some((product) => product.id === item.productId)),
-        };
+        // The web app is online-first: load only the first 50 active products.
+        // Further results are fetched from Neon on demand by searchCatalogProducts.
+        const params = new URLSearchParams({ active: "true", limit: "50" });
+        const { response, body } = await callMobFlowApi("/api/mobflow/products?" + params.toString());
+        if (!response.ok || !Array.isArray(body.products) || cloudAccountId !== accountId) return;
+        const initialProducts = (body.products as Array<Record<string, unknown>>).map(mapCatalogSearchProduct);
+        const byId = new Map((state.products ?? []).map((product) => [product.id, product]));
+        for (const product of initialProducts) byId.set(product.id, { ...byId.get(product.id), ...product });
+        state = { ...state, products: [...byId.values()] };
         normalizeState();
         persistLocalState();
         listeners.forEach((listener) => listener());
-      })().catch((error) => console.warn("[MobFlow Catalog] Background catalog hydration deferred:", error));
+      })().catch((error) => console.warn("[MobFlow Catalog] Initial 50 products could not be loaded:", error));
       // Catch up only the two enabled modules in compatibility mode; no global incremental cutover.
       if (!incrementalSyncEnabled()) void pullReceivingConferenceEvents(accountId).catch(() => undefined);
       // Initial synchronization uses the same incremental outbox and event-pull path as Realtime.
