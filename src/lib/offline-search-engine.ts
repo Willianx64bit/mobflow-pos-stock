@@ -122,6 +122,7 @@ export class OfflineProductSearchEngine {
       this.meta = null;
       this.index = new Index<false, IndexedDB>({
         tokenize: "forward",
+        encoder: { numeric: false },
         cache: 1000,
         commit: false,
       });

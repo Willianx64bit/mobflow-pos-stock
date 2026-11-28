@@ -34,6 +34,7 @@ describe("persistent offline FlexSearch", () => {
     expect(initialized).toMatchObject({ ready: true, rebuilt: true, count: 50_000 });
     expect(await first.search("arr", 100)).toHaveLength(100);
     expect(await first.search("7890000000042", 5)).toContain("product-000042");
+    expect(await first.search("00000042", 5)).toContain("product-000042");
 
     const second = new OfflineProductSearchEngine();
     const restored = await second.initialize(tenant, products);
