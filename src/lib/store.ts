@@ -19,7 +19,7 @@ export type Sale = { id: string; date: string; cashSessionId?: string; items: { 
 export type ReceivingItem = { productId: string; name: string; code?: string | undefined; barcodes?: string[] | undefined; expected: number; received?: number | undefined; expiry?: string | undefined; unit: "un" | "kg" };
 export type Supplier = { name: string; cnpj?: string | undefined };
 export type BusinessContact = { id: string; type: "Fornecedor" | "Cliente"; name: string; document?: string; phone?: string; cep?: string; street?: string; number?: string; neighborhood?: string; city?: string; state?: string };
-export type ReceivingExtra = { productId: string; name: string; received: number; expiry?: string; unit: "un" | "kg" };
+export type ReceivingExtra = { productId: string; name: string; code?: string; barcodes?: string[]; received: number; expiry?: string; unit: "un" | "kg" };
 export type ReceivingNote = {
   id: string;
   number: string;
@@ -596,10 +596,10 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
       }
       for (const raw of body.products as any[]) {
         const previous = existing.get(String(raw["id"]));
-        products.push({ id: String(raw["id"]), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
-          barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
-          ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
-          price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
+        products.push({ id: String(raw["id"]), version: Number(raw["version"] ?? 1), code: String(raw["code"] ?? ""),
+          barcodes: Array.isArray(raw["barcodes"]) ? raw["barcodes"].map(String) : [],
+          ref: typeof raw["ref"] === "string" ? raw["ref"] as string : undefined, name: String(raw["name"] ?? ""),
+          price: Number(raw["price"] ?? 0), cost: Number(raw["cost"] ?? 0), stock: Number(raw["stock"] ?? 0),
           minStock: Number(raw["minStock"] ?? 0), category: String(raw["category"] ?? ""),
           unit: normalizeProductUnit(raw["unit"]), active: raw["active"] !== false, photoObjectKey: typeof raw["photoObjectKey"] === "string" ? raw["photoObjectKey"] : undefined, photo: typeof raw["photoObjectKey"] === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw["id"]))}` : previous?.photo });
       }
