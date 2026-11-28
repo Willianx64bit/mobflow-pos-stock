@@ -228,8 +228,8 @@ function AnaliseResultados() {
       Produto: item.name, Quantidade: item.quantity, CustoUnitario: item.unitCost, ValorTransferido: item.totalCost
     })))), "Transferências");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(filteredWriteoffs.flatMap((entry) => (entry.items ?? []).map((item) => ({
-      Data: entry.date, Motivo: entry.reason, Produto: item.name, Quantidade: item.qty,
-      CustoUnitario: item.cost, CustoTotal: item.totalCost
+      Data: entry.date, Motivo: entry.reason, Produto: item.name, Quantidade: item.quantity,
+      CustoUnitario: item.unitCost, CustoTotal: item.totalCost
     })))), "Baixas");
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(productPerformance.map((item) => ({
       Produto: item.name, QuantidadeVendida: item.quantity, Faturamento: item.revenue,
