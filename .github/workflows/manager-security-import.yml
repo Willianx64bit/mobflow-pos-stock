@@ -1,0 +1,30 @@
+name: Manager security import rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Confirme que o destino é somente o Neon mobflow_auth_import_rehearsal"
+        required: true
+        type: choice
+        options:
+          - "no"
+          - "yes"
+
+jobs:
+  import-manager-security:
+    if: github.event.inputs.confirm == 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Import manager password hashes into isolated Neon rehearsal
+        run: bun scripts/migrate-supabase-manager-security.mjs --apply
+        env:
+          SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+          MOBFLOW_AUTH_DATABASE_URL: ${{ secrets.MOBFLOW_AUTH_DATABASE_URL }}
+          CONFIRM_MANAGER_SECURITY_IMPORT: "YES"

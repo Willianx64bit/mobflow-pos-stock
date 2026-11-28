@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppHeader } from "@/components/AppHeader";
 import { actions, useStore, productHasBarcode, type ReceivingNote, type Product } from "@/lib/store";
-import { Filter, History, Search, Loader2, Download, Pencil, Trash2 } from "lucide-react";
+import { Filter, History, Search, Loader2, Download, Pencil, Trash2, ReceiptText, Building2, Package, ArrowUpRight, ClipboardCheck } from "lucide-react";
 
 export const Route = createFileRoute("/recebimento")({
   head: () => ({ meta: [{ title: "MobFlow — Recebimento" }, { name: "description", content: "Cadastro e aprovação de notas recebidas." }] }),
@@ -129,7 +129,11 @@ function Recebimento() {
     if (!file) return;
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-      const rows = XLSX.utils.sheet_to_json<any>(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) throw new Error("A planilha não contém uma aba para importar.");
+      const firstSheet = workbook.Sheets[firstSheetName];
+      if (!firstSheet) throw new Error("Não foi possível ler a primeira aba da planilha.");
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "" });
       const imported: { productId: string; quantity: string }[] = [];
       const missing: string[] = [];
       for (const row of rows) {
@@ -170,7 +174,6 @@ function Recebimento() {
     setTransitioningTo(next);
     setError("");
     setMessage("");
-    await new Promise(resolve => window.setTimeout(resolve, 2000));
     setStep(next);
     setTransitioningTo(null);
   };
@@ -205,10 +208,10 @@ function Recebimento() {
     setMessage("");
     await new Promise(resolve => window.setTimeout(resolve, 2000));
     try {
-      actions.createReceiving(number.trim(), supplier.trim(), supplierCnpj || undefined, drafts.map(d => ({ productId: d.productId, expected: Number(d.quantity.replace(",", ".")) })));
+      await actions.createReceiving(number.trim(), supplier.trim(), supplierCnpj || undefined, drafts.map(d => ({ productId: d.productId, expected: Number(d.quantity.replace(",", ".")) })));
       resetForm();
-    } catch {
-      setError("Não foi possível salvar a nota. Confira os dados e tente novamente.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Não foi possível salvar a nota. Confira os dados e tente novamente.");
     } finally {
       setSavingNote(false);
     }
@@ -217,12 +220,15 @@ function Recebimento() {
   if (selected) return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><ReceivingDetail note={selected} onBack={() => navigate({ to: "/recebimento" })} /></div>;
 
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader />
-    <section className="glass p-4">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div>
-        <div className="flex items-center gap-2">
-          {!showNewNote && <button type="button" onClick={() => { resetForm(); setShowNewNote(true); }} className="rounded-xl bg-primary px-6 py-3 text-base font-bold text-primary-foreground shadow-sm hover:opacity-90">+ Nova nota</button>}
-          {!showNewNote && <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-accent">← Voltar</button>}
+    <section className="glass p-4 md:p-6">
+      <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><ReceiptText className="h-5 w-5" /></div>
+          <div><div className="font-display text-2xl tracking-[.12em] text-heading">RECEBIMENTO</div><p className="text-sm text-muted-foreground">Entrada e acompanhamento de notas fiscais</p></div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+          {!showNewNote && <button type="button" onClick={() => { resetForm(); setShowNewNote(true); }} className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90 sm:px-5"><span className="text-lg leading-none">+</span> Nova nota</button>}
+          {!showNewNote && <button type="button" onClick={() => navigate({ to: "/gerencia" })} className="inline-flex items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground hover:bg-accent"><ArrowUpRight className="h-4 w-4 rotate-[-135deg]" /> Voltar</button>}
         </div>
       </div>
 
@@ -252,7 +258,7 @@ function Recebimento() {
 
         {step === 2 && <div className="space-y-4">
           <div className="rounded-xl bg-secondary/60 p-3 text-sm">Fornecedor: <b>{supplier}</b> · CNPJ: <b>{supplierCnpj || "—"}</b></div>
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><p className="text-sm font-semibold">Inserir rápido</p><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { setQuickInsert(v => !v); setProductSearch(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${quickInsert ? "bg-primary" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`}/></button></div>
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 p-3"><div className="flex items-center gap-2"><p className="text-sm font-semibold">Ação rápida</p>{quickInsert && <span className="text-[10px] font-bold tracking-wide text-emerald-600 dark:text-emerald-400">ATIVO</span>}</div><button type="button" role="switch" aria-checked={quickInsert} onClick={() => { setQuickInsert(v => !v); setProductSearch(""); setError(""); setMessage(""); }} aria-label="Ativar inserção rápida por código de barras" className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${quickInsert ? "bg-emerald-600" : "bg-muted"}`}><span className={`pointer-events-none absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/10 transition-all duration-200 ${quickInsert ? "left-[22px]" : "left-0.5"}`}/></button></div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-secondary/30 p-3"><p className="text-sm font-semibold">Planilha de importação</p><div className="flex flex-wrap gap-2"><input ref={importInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => void importProducts(e.target.files?.[0])}/><button type="button" onClick={() => importInputRef.current?.click()} className="rounded-xl bg-secondary px-4 py-2.5 text-sm font-bold text-secondary-foreground">Importar planilha</button><button type="button" onClick={downloadImportTemplate} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground"><Download className="h-4 w-4"/>Baixar planilha modelo</button></div></div>
           <label className="mb-2 block text-sm font-semibold">Adicionar produto</label>
           <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input value={productSearch} onChange={e => setProductSearch(e.target.value)} onKeyDown={handleScannerKeyDown} placeholder={quickInsert ? "Digite ou bipe o código de barras" : "Código de barras, nome ou REF"} autoComplete="off" className="field w-full pl-10 text-sm text-foreground"/></div>
@@ -285,16 +291,35 @@ function Recebimento() {
         <div><label className="mb-1 block text-xs font-semibold">Situação</label><select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="field w-full"><option value="todos">Todas as situações</option><option value="Aceito correto">Aceito correto</option><option value="Aceito com divergências">Aceito com divergências</option><option value="Recusado">Recusado</option><option value="Pendente">Pendente</option><option value="Em conferência">Em conferência</option><option value="Ação pendente">Ação pendente</option></select></div>
         <div className="sm:col-span-2 lg:col-span-4"><button type="button" onClick={() => { setFilterStart(""); setFilterEnd(""); setFilterNumber(""); setFilterSupplier(""); setFilterStatus("todos"); }} className="rounded-lg bg-secondary px-3 py-2 text-sm font-semibold">Limpar filtros</button></div>
       </div>}
-      <div className="divide-y divide-border/50">
-        {!filteredNotes.length && <p className="py-8 text-center font-mono text-[11px] text-muted-foreground">{notes.length ? "nenhuma nota corresponde aos filtros" : "nenhuma nota cadastrada"}</p>}
-        {filteredNotes.map(n => <div key={n.id} className="py-3 flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-56"><div className="font-semibold text-foreground">NF {n.number}</div><div className="font-mono text-[11px] text-muted-foreground">{n.supplier}{n.supplierCnpj ? ` · ${n.supplierCnpj}` : ""} · ${n.items.length} produtos${n.extras?.length ? ` · ${n.extras.length} extras` : ""}</div></div>
-          <span className={`font-mono text-[11px] rounded-md px-2 py-1 ${receivingLabel(n) === "Aceito correto" ? "bg-emerald-500/15 text-emerald-700" : receivingLabel(n) === "Aceito com divergências" || receivingLabel(n) === "Ação pendente" ? "bg-amber-300/30 text-amber-800" : receivingLabel(n) === "Recusado" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground"}`}>{receivingLabel(n)}</span>
-          <button onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Abrir</button>
-          {n.status === "pendente" && <button onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-semibold">Conferir</button>}
-          {(n.status === "divergente" || n.status === "conferido") && <div className="flex gap-2"><button onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-bold disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button onClick={() => actions.rejectReceiving(n.id)} className="rounded-lg bg-secondary ring-1 ring-border px-3 py-1.5 text-sm font-semibold text-secondary-foreground">Rejeitar</button>}</div>}
-          {n.status === "rejeitado" && <span className="text-[11px] text-muted-foreground">estoque não alterado</span>}
-        </div>)}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {!filteredNotes.length && <p className="col-span-full py-8 text-center text-sm text-muted-foreground">{notes.length ? "Nenhuma nota corresponde aos filtros." : "Nenhuma nota cadastrada ainda."}</p>}
+        {filteredNotes.map(n => {
+          const status = receivingLabel(n);
+          const statusClass = status === "Aceito correto" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : status === "Aceito com divergências" || status === "Ação pendente" ? "bg-amber-300/30 text-amber-800 dark:text-amber-300" : status === "Recusado" ? "bg-destructive/15 text-destructive" : "bg-secondary text-secondary-foreground";
+          return <article key={n.id} className="min-w-0 rounded-xl border border-border bg-background/70 p-3 shadow-sm transition-colors hover:border-primary/30 md:p-4">
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><ReceiptText className="h-5 w-5" /></div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-semibold text-foreground">NF {n.number}</h3>
+                  <span className={`inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[11px] font-semibold ${statusClass}`}>{status}</span>
+                </div>
+                <div className="mt-1 flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground"><Building2 className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{n.supplier}</span></div>
+                {n.supplierCnpj && <div className="mt-0.5 pl-5 font-mono text-[11px] text-muted-foreground">{n.supplierCnpj}</div>}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-secondary/70 px-2 py-1"><Package className="h-3.5 w-3.5" />{n.items.length} {n.items.length === 1 ? "produto" : "produtos"}</span>
+              {!!n.extras?.length && <span className="inline-flex items-center gap-1.5 rounded-md bg-secondary/70 px-2 py-1"><ClipboardCheck className="h-3.5 w-3.5" />{n.extras.length} {n.extras.length === 1 ? "extra" : "extras"}</span>}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => navigate({ to: "/recebimento", search: { nota: n.id } as any })} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border hover:bg-accent"><ArrowUpRight className="h-4 w-4" /> Abrir nota</button>
+              {n.status === "pendente" && <button type="button" onClick={() => navigate({ to: "/conferencia", search: { nota: n.id } as any })} className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"><ClipboardCheck className="h-4 w-4" /> Conferir</button>}
+              {(n.status === "divergente" || n.status === "conferido") && <div className="flex w-full flex-wrap gap-2"><button type="button" onClick={() => actions.acceptReceiving(n.id)} disabled={!!n.stockReleased} className="min-h-10 flex-1 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50">{n.stockReleased ? "Estoque já liberado" : "Aceitar e liberar estoque"}</button>{!n.stockReleased && <button type="button" onClick={async () => { try { await actions.rejectReceiving(n.id); } catch (error) { alert(error instanceof Error ? error.message : "Não foi possível rejeitar o recebimento."); } }} className="min-h-10 rounded-lg bg-secondary px-3 py-2 text-sm font-semibold text-secondary-foreground ring-1 ring-border">Rejeitar</button>}</div>}
+              {n.status === "rejeitado" && <p className="w-full text-xs text-muted-foreground">Estoque não alterado.</p>}
+            </div>
+          </article>;
+        })}
       </div>
     </section>}
   </div>;
@@ -325,6 +350,9 @@ function expiryInfo(expiry?: string) {
 
 function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => void }) {
   const products = useStore((s) => s.products);
+  useEffect(() => {
+    void actions.refreshCatalog();
+  }, []);
   const conference = useStore((s) => s.conferences.find(c => c.receivingId === note.id));
   const [productId, setProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
@@ -336,10 +364,10 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
     const term = productSearch.trim().toLowerCase();
     return !term || p.name.toLowerCase().includes(term) || p.code.toLowerCase().includes(term) || (p.barcodes ?? []).some(code => code.toLowerCase().includes(term));
   }).slice(0, 8);
-  const addProduct = () => {
+  const addProduct = async () => {
     const n = Number(qty.replace(",", "."));
     if (!productId || !Number.isFinite(n) || n <= 0) return;
-    actions.addReceivingItems(note.id, [{ productId, expected: n }]);
+    try { await actions.addReceivingItems(note.id, [{ productId, expected: n }]); } catch (error) { alert(error instanceof Error ? error.message : "Não foi possível atualizar o recebimento."); return; }
     setProductId("");
     setProductSearch("");
     setQty("");
@@ -380,8 +408,8 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
     <div className="overflow-x-auto">
       <table className="w-full min-w-[900px] table-auto text-[13px]"><thead><tr className="label-mono text-left"><th className="py-2 pr-4">Produto</th><th className="px-3 py-2 text-right whitespace-nowrap">Esperado</th><th className="px-3 py-2 text-right whitespace-nowrap">Recebido</th><th className="px-4 py-2 text-right whitespace-nowrap">Diferença</th><th className="pl-4 pr-3 py-2 text-left whitespace-nowrap">Validade</th><th className="pl-3 py-2 text-right whitespace-nowrap">Decisão</th></tr></thead>
       <tbody className="divide-y divide-border/50">
-      {note.items.map((i: any) => { const received=Number(receivedByProduct.get(i.productId)||0); const diff=received-i.expected; const p=products.find(x=>x.id===i.productId); const decision=note.decisions?.[i.productId]; return <tr key={i.productId}><td className="py-3"><div className="text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{p?.code}</div></td><td className="text-right font-mono">{i.expected} {i.unit==="kg"?"kg":"un."}</td><td className="text-right font-mono">{received} {i.unit==="kg"?"kg":"un."}</td><td className={`px-4 text-right font-mono whitespace-nowrap ${diff===0?"text-primary":"text-destructive"}`}>{diff>0?"+":""}{diff} {i.unit==="kg"?"kg":"un."}</td><td className="py-2 pl-4 pr-3 whitespace-nowrap">{i.expiry ? (() => { const info = expiryInfo(i.expiry); return info ? <span className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold whitespace-nowrap ${info.className}`}>{info.label}</span> : "—"; })() : <span className="text-xs text-muted-foreground">—</span>}</td><td className="py-2"><div className="flex justify-end gap-1">{note.status === "analisando" ? <><button type="button" onClick={() => actions.setReceivingDecision(note.id, i.productId, "aceitar")} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="aceitar"?"bg-emerald-600 text-white":"bg-secondary text-secondary-foreground"}`}>Aceitar</button><button type="button" onClick={() => actions.setReceivingDecision(note.id, i.productId, "devolver")} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="devolver"?"bg-amber-600 text-white":"bg-secondary text-secondary-foreground"}`}>Devolver</button></> : decision ? <span className={decision==="aceitar"?"text-emerald-700":"text-amber-700"}>{decision==="aceitar"?"Aceito":"Devolver"}</span> : "—"}</div></td></tr>; })}
-      {note.extras?.map((extra) => { const decision=note.decisions?.[extra.productId]; return <tr key={"extra-" + extra.productId}><td className="py-3"><div className="text-destructive">{extra.name} <span className="text-[10px]">(extra)</span></div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === extra.productId)?.code || "Sem código"}{extra.expiry ? ` · Validade ${extra.expiry}` : ""}</div></td><td className="text-right font-mono">0 {extra.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{extra.received} {extra.unit === "kg" ? "kg" : "un."}</td><td className="px-4 text-right font-mono text-destructive whitespace-nowrap">+{extra.received} {extra.unit === "kg" ? "kg" : "un."}</td><td className="py-2 pl-4 pr-3 whitespace-nowrap">{extra.expiry ? (() => { const info = expiryInfo(extra.expiry); return info ? <span className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold whitespace-nowrap ${info.className}`}>{info.label}</span> : "—"; })() : <span className="text-xs text-muted-foreground">—</span>}</td><td className="py-2"><div className="flex justify-end gap-1">{note.status === "analisando" ? <><button type="button" onClick={() => actions.setReceivingDecision(note.id, extra.productId, "aceitar")} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="aceitar"?"bg-emerald-600 text-white":"bg-secondary text-secondary-foreground"}`}>Aceitar</button><button type="button" onClick={() => actions.setReceivingDecision(note.id, extra.productId, "devolver")} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="devolver"?"bg-amber-600 text-white":"bg-secondary text-secondary-foreground"}`}>Devolver</button></> : decision ? <span className={decision==="aceitar"?"text-emerald-700":"text-amber-700"}>{decision==="aceitar"?"Aceito":"Devolver"}</span> : "—"}</div></td></tr>; })}
+      {note.items.map((i: any) => { const received=Number(receivedByProduct.get(i.productId)||0); const diff=received-i.expected; const p=products.find(x=>x.id===i.productId); const decision=note.decisions?.[i.productId]; return <tr key={i.productId}><td className="py-3"><div className="text-foreground">{i.name}</div><div className="font-mono text-[10px] text-muted-foreground">{i.code || i.barcodes?.[0] || p?.code || p?.barcodes?.[0] || "Sem código"}</div></td><td className="text-right font-mono">{i.expected} {i.unit==="kg"?"kg":"un."}</td><td className="text-right font-mono">{received} {i.unit==="kg"?"kg":"un."}</td><td className={`px-4 text-right font-mono whitespace-nowrap ${diff===0?"text-primary":"text-destructive"}`}>{diff>0?"+":""}{diff} {i.unit==="kg"?"kg":"un."}</td><td className="py-2 pl-4 pr-3 whitespace-nowrap">{i.expiry ? (() => { const info = expiryInfo(i.expiry); return info ? <span className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold whitespace-nowrap ${info.className}`}>{info.label}</span> : "—"; })() : <span className="text-xs text-muted-foreground">—</span>}</td><td className="py-2"><div className="flex justify-end gap-1">{note.status === "analisando" ? <><button type="button" onClick={async () => { try { await actions.setReceivingDecision(note.id, i.productId, "aceitar"); } catch (error) { alert(error instanceof Error ? error.message : "Falha ao salvar decisão."); } }} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="aceitar"?"bg-emerald-600 text-white":"bg-secondary text-secondary-foreground"}`}>Aceitar</button><button type="button" onClick={async () => { try { await actions.setReceivingDecision(note.id, i.productId, "devolver"); } catch (error) { alert(error instanceof Error ? error.message : "Falha ao salvar decisão."); } }} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="devolver"?"bg-amber-600 text-white":"bg-secondary text-secondary-foreground"}`}>Devolver</button></> : decision ? <span className={decision==="aceitar"?"text-emerald-700":"text-amber-700"}>{decision==="aceitar"?"Aceito":"Devolver"}</span> : "—"}</div></td></tr>; })}
+      {note.extras?.map((extra) => { const decision=note.decisions?.[extra.productId]; return <tr key={"extra-" + extra.productId}><td className="py-3"><div className="text-destructive">{extra.name} <span className="text-[10px]">(extra)</span></div><div className="font-mono text-[10px] text-muted-foreground">{products.find(p => p.id === extra.productId)?.code || "Sem código"}{extra.expiry ? ` · Validade ${extra.expiry}` : ""}</div></td><td className="text-right font-mono">0 {extra.unit === "kg" ? "kg" : "un."}</td><td className="text-right font-mono">{extra.received} {extra.unit === "kg" ? "kg" : "un."}</td><td className="px-4 text-right font-mono text-destructive whitespace-nowrap">+{extra.received} {extra.unit === "kg" ? "kg" : "un."}</td><td className="py-2 pl-4 pr-3 whitespace-nowrap">{extra.expiry ? (() => { const info = expiryInfo(extra.expiry); return info ? <span className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold whitespace-nowrap ${info.className}`}>{info.label}</span> : "—"; })() : <span className="text-xs text-muted-foreground">—</span>}</td><td className="py-2"><div className="flex justify-end gap-1">{note.status === "analisando" ? <><button type="button" onClick={async () => { try { await actions.setReceivingDecision(note.id, extra.productId, "aceitar"); } catch (error) { alert(error instanceof Error ? error.message : "Falha ao salvar decisão."); } }} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="aceitar"?"bg-emerald-600 text-white":"bg-secondary text-secondary-foreground"}`}>Aceitar</button><button type="button" onClick={async () => { try { await actions.setReceivingDecision(note.id, extra.productId, "devolver"); } catch (error) { alert(error instanceof Error ? error.message : "Falha ao salvar decisão."); } }} className={`rounded-md px-2 py-1 text-xs font-semibold ${decision==="devolver"?"bg-amber-600 text-white":"bg-secondary text-secondary-foreground"}`}>Devolver</button></> : decision ? <span className={decision==="aceitar"?"text-emerald-700":"text-amber-700"}>{decision==="aceitar"?"Aceito":"Devolver"}</span> : "—"}</div></td></tr>; })}
       </tbody></table>
       {note.status === "analisando" && <div className="mt-4 flex flex-col gap-2"><div className="text-sm text-muted-foreground">Escolha Aceitar ou Devolver para cada produto, inclusive os extras. O estoque só recebe as quantidades aceitas.</div><button type="button" onClick={async () => { setDecisionSaving(true); setDecisionError(""); try { const ok = await actions.completeReceivingDecision(note.id); if (!ok) setDecisionError("Não foi possível confirmar a liberação no servidor. A conferência e as decisões foram mantidas; tente finalizar novamente. Você não precisa conferir os produtos outra vez."); } catch { setDecisionError("Ocorreu um erro ao finalizar. Tente novamente."); } finally { setDecisionSaving(false); } }} disabled={decisionSaving || [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)].some(key => !note.decisions?.[key])} className="w-full rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:opacity-50">{decisionSaving ? "Salvando decisões e atualizando estoque..." : "Finalizar decisões e liberar estoque aceito"}</button>{decisionError && <p role="alert" className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{decisionError}</p>}</div>}
       {acceptAllConfirmOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
@@ -390,7 +418,7 @@ function ReceivingDetail({ note, onBack }: { note: ReceivingNote; onBack: () => 
         <p className="mt-2 text-sm text-muted-foreground">Marcar todos os produtos e extras desta nota como aceitos? Você ainda poderá alterar as decisões individuais antes de finalizar.</p>
         <div className="mt-5 flex gap-2">
           <button type="button" onClick={() => setAcceptAllConfirmOpen(false)} className="flex-1 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-secondary-foreground">Cancelar</button>
-          <button type="button" onClick={() => { [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)].forEach(key => actions.setReceivingDecision(note.id, key, "aceitar")); setAcceptAllConfirmOpen(false); }} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">Sim, aceitar tudo</button>
+          <button type="button" onClick={async () => { try { for (const key of [...note.items.map(i => i.productId), ...(note.extras ?? []).map(i => i.productId)]) await actions.setReceivingDecision(note.id, key, "aceitar"); setAcceptAllConfirmOpen(false); } catch (error) { alert(error instanceof Error ? error.message : "Falha ao salvar decisões."); } }} className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white">Sim, aceitar tudo</button>
         </div>
       </div>
     </div>}

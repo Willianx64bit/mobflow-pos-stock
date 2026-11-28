@@ -1,3 +1,4 @@
+import "../lib/network-monitor";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -13,7 +14,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { supabase } from "@/lib/supabase";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { hydrateStore } from "@/lib/store";
 import { LoginScreen } from "@/components/LoginScreen";
 
@@ -102,23 +103,38 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function RouteLoadingScreen() {
+function RouteLoadingBar() {
   return (
-    <div role="status" aria-live="polite" className="fixed inset-0 z-[9999] grid place-items-center bg-background/95 backdrop-blur-[2px]">
-      <div className="flex flex-col items-center gap-3 rounded-2xl px-8 py-7 text-center">
-        <div className="flex items-baseline gap-1.5 text-xl font-semibold tracking-wide text-foreground">
-          <span>Carregando</span>
-          <span className="mf-loading-dot mf-loading-dot-1">.</span>
-          <span className="mf-loading-dot mf-loading-dot-2">.</span>
-          <span className="mf-loading-dot mf-loading-dot-3">.</span>
-        </div>
-      </div>
+    <div role="status" aria-live="polite" aria-label="Carregando tela" className="mf-route-loading-bar">
+      <span />
       <style>{`
-        @keyframes mf-dot-blink { 0%, 20% { opacity: .2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } 80%, 100% { opacity: .2; transform: translateY(0); } }
-        .mf-loading-dot { animation: mf-dot-blink 1s infinite ease-in-out; }
-        .mf-loading-dot-2 { animation-delay: .16s; }
-        .mf-loading-dot-3 { animation-delay: .32s; }
-        @media (prefers-reduced-motion: reduce) { .mf-loading-dot { animation: none; opacity: 1; } }
+        .mf-route-loading-bar {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 2px;
+          z-index: 10000;
+          overflow: hidden;
+          pointer-events: none;
+          background: transparent;
+        }
+        .mf-route-loading-bar > span {
+          display: block;
+          width: 34%;
+          height: 2px;
+          border-radius: 999px;
+          background: #7dd3fc;
+          box-shadow: 0 0 5px #7dd3fc, 0 0 11px #38bdf8, 0 0 18px rgb(56 189 248 / 85%);
+          animation: mf-route-loading-sweep 1s ease-in-out infinite;
+        }
+        @keyframes mf-route-loading-sweep {
+          from { transform: translateX(-110%); }
+          to { transform: translateX(310%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .mf-route-loading-bar > span { animation: none; width: 100%; }
+        }
       `}</style>
     </div>
   );
@@ -181,29 +197,16 @@ function RootComponent() {
     let active = true;
     const bootstrap = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const session = data.session;
+        let profile: { role: string; username: string; active?: boolean; permissions?: unknown } | null = null;
 
-        if (!session) {
-          localStorage.removeItem("mobflow-authenticated");
-          sessionStorage.removeItem("mobflow-role");
-          sessionStorage.removeItem("mobflow-username");
-          sessionStorage.removeItem("mobflow-pdv-authorized");
-          if (active) {
-            setAuthenticated(false);
-            setCheckingSession(false);
-          }
-          return;
+        const response = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+        if (response.ok) {
+          const body = await response.json();
+          if (body?.ok && body.user) profile = { ...body.user, active: true };
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role,username,active,permissions")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
         if (!profile || profile.active === false || profile.role === "admin") {
-          await supabase.auth.signOut();
+          await mobflowAuthClient.signOut().catch(() => undefined);
           localStorage.removeItem("mobflow-authenticated");
           sessionStorage.removeItem("mobflow-role");
           sessionStorage.removeItem("mobflow-username");
@@ -301,7 +304,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <><Outlet />{showRouteLoading && <RouteLoadingScreen />}</>
+      <><Outlet />{showRouteLoading && <RouteLoadingBar />}</>
     </QueryClientProvider>
   );
 }

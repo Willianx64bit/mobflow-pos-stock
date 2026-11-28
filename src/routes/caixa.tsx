@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, brl, useStore } from "@/lib/store";
-import { Banknote, ArrowDownToLine, ArrowUpFromLine, Clock3, CircleAlert, CheckCircle2 } from "lucide-react";
+import { actions, brl, confirmLastDomainCommand, hydrateStore, useStore } from "@/lib/store";
+import { Banknote, ArrowDownToLine, ArrowUpFromLine, Clock3, CircleAlert, CheckCircle2, Filter } from "lucide-react";
 
 export const Route = createFileRoute("/caixa")({
   head: () => ({ meta: [{ title: "MobFlow — Abertura e fechamento de caixa" }] }),
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/caixa")({
 
 type Mode = "abrir" | "fechar" | "movimentacao" | "historico";
 const money = (value: string) => Number(value.replace(/\./g, "").replace(",", "."));
-const fmtDate = (value: string) => new Date(value).toLocaleString("pt-BR");
+const fmtDate = (value: string, withSeconds = false) => new Date(value).toLocaleString("pt-BR", withSeconds ? { dateStyle: "short", timeStyle: "medium" } : { dateStyle: "short", timeStyle: "short" });
 
 function CashPage() {
   const navigate = useNavigate();
@@ -19,8 +19,14 @@ function CashPage() {
   const movements = useStore((s) => s.cashMovements ?? []);
   const sales = useStore((s) => s.sales);
   const [mode, setMode] = useState<Mode>("abrir");
-  const [historyMonth, setHistoryMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; });
+  const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const [historyDateMode, setHistoryDateMode] = useState<"range" | "month">("range");
+  const [historyStart, setHistoryStart] = useState(todayKey);
+  const [historyEnd, setHistoryEnd] = useState(todayKey);
+  const [historyMonth, setHistoryMonth] = useState(() => todayKey().slice(0, 7));
   const [historyDifference, setHistoryDifference] = useState<"todos" | "negative" | "positive">("todos");
+  const [showHistoryFilters, setShowHistoryFilters] = useState(false);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const [opening, setOpening] = useState("150,00");
   const [counted, setCounted] = useState("");
   const [amount, setAmount] = useState("");
@@ -31,12 +37,21 @@ function CashPage() {
   const [result, setResult] = useState<{ expectedCash: number; countedCash: number; difference: number } | null>(null);
   const [username, setUsername] = useState("");
   const [busyAction, setBusyAction] = useState<"abrir" | "fechar" | "movimentacao" | null>(null);
-  const waitForConfirmation = () => new Promise<void>((resolve) => window.setTimeout(resolve, 1500));
-  const active = sessions.find((s) => s.status === "open" && s.openedBy === username);
-  const myClosed = sessions.filter((s) => s.status === "closed" && (s.openedBy === username || s.closedBy === username)).filter((s) => (s.closedAt || s.openedAt).slice(0, 7) === historyMonth).filter((s) => historyDifference === "todos" || (historyDifference === "negative" ? (s.difference ?? 0) < 0 : (s.difference ?? 0) > 0)).sort((a, b) => new Date(b.closedAt || b.openedAt).getTime() - new Date(a.closedAt || a.openedAt).getTime());
+  const [closingSnapshot, setClosingSnapshot] = useState<{ session: (typeof sessions)[number]; expected: number; cashSales: number; withdrawals: number; additions: number } | null>(null);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const confirmServer = async () => {
+    try { await confirmLastDomainCommand(); return true; }
+    catch (error) {
+      await hydrateStore().catch(() => undefined);
+      setMessage(error instanceof Error ? error.message : "O servidor não confirmou a operação. Tente sincronizar novamente.");
+      return false;
+    }
+  };
+  const active = sessions.find((s) => s.status === "open" && (s.operatorUsername?.trim().toLocaleLowerCase() === username.trim().toLocaleLowerCase() || s.openedBy.trim().toLocaleLowerCase() === username.trim().toLocaleLowerCase()));
+  const myClosed = sessions.filter((s) => s.status === "closed" && (s.openedBy === username || s.closedBy === username)).filter((s) => { const date = (s.closedAt || s.openedAt).slice(0, 10); return historyDateMode === "month" ? date.slice(0, 7) === historyMonth : date >= historyStart && date <= historyEnd; }).filter((s) => historyDifference === "todos" || (historyDifference === "negative" ? (s.difference ?? 0) < 0 : (s.difference ?? 0) > 0)).sort((a, b) => new Date(b.closedAt || b.openedAt).getTime() - new Date(a.closedAt || a.openedAt).getTime());
   const activeSales = useMemo(() => sales.filter((s) => s.cashSessionId === active?.id), [sales, active?.id]);
   const activeMovements = movements.filter((m) => m.sessionId === active?.id);
-  const cashSales = activeSales.filter((s) => s.payment === "Dinheiro" && s.paid !== false).reduce((sum, s) => sum + s.total, 0);
+  const cashSales = activeSales.reduce((sum, sale) => sum + (sale.payment === "Dinheiro" && sale.paid !== false ? sale.total : sale.payment === "Fiado" ? (sale.payments ?? []).filter((payment) => payment.method === "cash").reduce((paid, payment) => paid + payment.value, 0) : 0), 0);
   const withdrawals = activeMovements.filter((m) => m.type === "sangria").reduce((sum, m) => sum + m.amount, 0);
   const additions = activeMovements.filter((m) => m.type === "reforco").reduce((sum, m) => sum + m.amount, 0);
   const expected = active ? Math.round((active.openingAmount + cashSales - withdrawals + additions) * 100) / 100 : 0;
@@ -62,10 +77,10 @@ function CashPage() {
     if (!Number.isFinite(value) || value < 0) { setMessage("Informe um valor inicial válido."); return; }
     setBusyAction("abrir");
     try {
-      await waitForConfirmation();
       const id = actions.openCashSession(value, note);
       if (!id) { setMessage("Não foi possível abrir. Confira se já existe um caixa aberto para este usuário."); return; }
-      setMessage("Caixa aberto com sucesso."); setNote("");
+      if (!(await confirmServer())) return;
+      setMessage("Caixa aberto e confirmado pelo servidor."); setNote("");
     } finally { setBusyAction(null); }
   };
   const saveMovement = async () => {
@@ -75,10 +90,10 @@ function CashPage() {
     if (!Number.isFinite(value) || value <= 0 || !reason.trim()) { setMessage("Informe um valor maior que zero e o motivo da movimentação."); return; }
     setBusyAction("movimentacao");
     try {
-      await waitForConfirmation();
       const id = actions.addCashMovement(movementType, value, reason);
       if (!id) { setMessage("Não foi possível registrar. Confirme se há um caixa aberto."); return; }
-      setMessage(movementType === "sangria" ? "Sangria registrada." : "Reforço registrado."); setAmount(""); setReason("");
+      if (!(await confirmServer())) return;
+      setMessage(movementType === "sangria" ? "Sangria confirmada pelo servidor." : "Reforço confirmado pelo servidor."); setAmount(""); setReason("");
     } finally { setBusyAction(null); }
   };
   const closeCash = async () => {
@@ -86,25 +101,77 @@ function CashPage() {
     setMessage(""); setResult(null);
     const value = money(counted);
     if (!Number.isFinite(value) || value < 0) { setMessage("Informe o dinheiro contado no caixa."); return; }
+    setClosingSnapshot({ session: active!, expected, cashSales, withdrawals, additions });
     setBusyAction("fechar");
     try {
-      await waitForConfirmation();
       const closed = actions.closeCashSession(value, note);
       if (!closed) { setMessage("Não foi possível fechar o caixa. Confira se existe uma sessão aberta."); return; }
-      setResult(closed); setMessage("Fechamento registrado. A diferença ficou salva no histórico."); setCounted(""); setNote("");
-    } finally { setBusyAction(null); }
+      if (!(await confirmServer())) return;
+      setResult(closed); setMessage("Fechamento confirmado pelo servidor. A diferença ficou salva no histórico."); setCounted(""); setNote("");
+    } finally { setBusyAction(null); setClosingSnapshot(null); }
   };
+
+  const closingSession = busyAction === "fechar" ? (active ?? closingSnapshot?.session) : active;
+  const closingExpected = busyAction === "fechar" && closingSnapshot ? closingSnapshot.expected : expected;
+  const closingCashSales = busyAction === "fechar" && closingSnapshot ? closingSnapshot.cashSales : cashSales;
+  const closingWithdrawals = busyAction === "fechar" && closingSnapshot ? closingSnapshot.withdrawals : withdrawals;
+  const closingAdditions = busyAction === "fechar" && closingSnapshot ? closingSnapshot.additions : additions;
 
   return <div className="min-h-screen bg-background text-foreground"><AppHeader /><main className="mx-auto w-full max-w-4xl px-4 pb-12 pt-20 md:pt-8">
     <div className="mb-6 flex items-center gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><Banknote className="h-6 w-6" /></div><div><div><h1 className="text-2xl font-bold">{mode === "abrir" ? "Abertura de Caixa" : mode === "fechar" ? "Fechamento de Caixa" : mode === "movimentacao" ? "Sangria/Reforço" : "Histórico de Caixa"}</h1><p className="text-sm text-muted-foreground">{mode === "abrir" ? "Informe o valor inicial para começar o turno." : mode === "fechar" ? "Confira o dinheiro físico e registre o fechamento." : mode === "movimentacao" ? "Registre entradas e retiradas de dinheiro." : "Consulte os fechamentos e movimentações anteriores."}</p></div></div></div>
     {message && <div className="mb-4 rounded-xl border border-border bg-card p-3 text-sm" role="status">{message}</div>}
-    {active && mode === "abrir" && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm"><h2 className="text-lg font-bold">Já existe um caixa aberto</h2><p className="mt-2 text-sm text-muted-foreground">Este caixa foi aberto em {fmtDate(active.openedAt)}. Para continuar, use Fechamento, Sangria/Reforço ou Histórico no menu lateral.</p></section>}
-    {!active && mode === "abrir" && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm"><h2 className="mb-1 text-lg font-bold">Abrir caixa</h2><p className="mb-4 text-sm text-muted-foreground">Conte o dinheiro que ficará na gaveta para dar troco. Esse valor não é uma venda.</p><label className="mb-1 block text-sm font-medium">Dinheiro inicial (R$)</label><input value={opening} onChange={(e) => setOpening(e.target.value)} inputMode="decimal" placeholder="150,00" className="mb-4 w-full rounded-xl border border-border bg-background px-3 py-3 text-lg" /><label className="mb-1 block text-sm font-medium">Observação (opcional)</label><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: troco conferido" className="mb-5 w-full rounded-xl border border-border bg-background px-3 py-3" /><button onClick={openCash} disabled={busyAction !== null} className="w-full rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-70">{busyAction === "abrir" ? "Carregando..." : "Confirmar abertura"}</button></section>}
+    {active && mode === "abrir" && busyAction !== "abrir" && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm"><h2 className="text-lg font-bold">Já existe um caixa aberto</h2><p className="mt-2 text-sm text-muted-foreground">Este caixa foi aberto em {fmtDate(active.openedAt)}. Para continuar, use Fechamento, Sangria/Reforço ou Histórico no menu lateral.</p></section>}
+    {(!active || busyAction === "abrir") && mode === "abrir" && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm"><h2 className="mb-1 text-lg font-bold">Abrir caixa</h2><label className="mb-1 block text-sm font-medium">Dinheiro inicial (R$)</label><input value={opening} onChange={(e) => setOpening(e.target.value)} inputMode="decimal" placeholder="150,00" className="mb-4 w-full rounded-xl border border-border bg-background px-3 py-3 text-lg" /><label className="mb-1 block text-sm font-medium">Observação (opcional)</label><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: troco conferido" className="mb-5 w-full rounded-xl border border-border bg-background px-3 py-3" /><button onClick={openCash} disabled={busyAction !== null} className="w-full rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-70">{busyAction === "abrir" ? "Carregando..." : "Confirmar abertura"}</button></section>}
     {active && mode === "movimentacao" && <section className="mb-5 rounded-2xl border border-border bg-card p-5 shadow-sm"><h2 className="mb-3 text-lg font-bold">Sangria ou reforço</h2><p className="mb-4 text-sm text-muted-foreground">Sangria é retirar dinheiro da gaveta; reforço é colocar dinheiro adicional no caixa. Os dois ficam registrados no histórico.</p><div className="mb-3 grid grid-cols-2 gap-2"><button onClick={() => setMovementType("sangria")} className={`rounded-xl border p-3 font-semibold ${movementType === "sangria" ? "border-red-500 bg-red-500/10 text-red-700" : "border-border"}`}><ArrowUpFromLine className="mr-2 inline h-4 w-4" />Sangria</button><button onClick={() => setMovementType("reforco")} className={`rounded-xl border p-3 font-semibold ${movementType === "reforco" ? "border-green-500 bg-green-500/10 text-green-700" : "border-border"}`}><ArrowDownToLine className="mr-2 inline h-4 w-4" />Reforço</button></div><label className="mb-1 block text-sm font-medium">Valor (R$)</label><input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="0,00" className="mb-3 w-full rounded-xl border border-border bg-background px-3 py-3" /><label className="mb-1 block text-sm font-medium">Motivo obrigatório</label><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ex.: retirada para o cofre" className="mb-4 w-full rounded-xl border border-border bg-background px-3 py-3" /><button onClick={saveMovement} disabled={busyAction !== null} className="w-full rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-70">{busyAction === "movimentacao" ? "Carregando..." : "Registrar movimentação"}</button></section>}
-    {active && mode === "fechar" && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm"><div className="mb-4 rounded-xl border border-border bg-muted/40 p-3"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">Caixa aberto</h2><span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700">Em andamento</span></div><p className="mb-3 text-xs text-muted-foreground">Aberto: {fmtDate(active.openedAt)}</p><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[{label:"Troco inicial",value:active.openingAmount},{label:"Vendas em dinheiro",value:cashSales},{label:"Sangrias",value:-withdrawals},{label:"Reforços",value:additions}].map((item) => <div key={item.label} className="rounded-lg bg-background p-2"><p className="text-xs text-muted-foreground">{item.label}</p><p className="mt-1 font-bold">R$ {brl(item.value)}</p></div>)}</div><p className="mt-3 text-sm text-muted-foreground">Dinheiro esperado na gaveta</p><p className="text-2xl font-bold">R$ {brl(expected)}</p><p className="mt-1 text-xs text-muted-foreground">Pix e cartão não entram no dinheiro físico esperado.</p></div><h2 className="mb-1 text-lg font-bold">Fechar caixa</h2><p className="mb-4 text-sm text-muted-foreground">Conte somente o dinheiro físico que está na gaveta, incluindo o troco inicial e considerando sangrias e reforços.</p><div className="mb-4 rounded-xl bg-muted/50 p-3"><div className="flex justify-between text-sm"><span>Dinheiro esperado</span><strong>R$ {brl(expected)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Vendas em dinheiro</span><strong>R$ {brl(cashSales)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Movimentações líquidas</span><strong>R$ {brl(additions - withdrawals)}</strong></div></div><label className="mb-1 block text-sm font-medium">Dinheiro contado (R$)</label><input value={counted} onChange={(e) => setCounted(e.target.value)} inputMode="decimal" placeholder="0,00" className="mb-4 w-full rounded-xl border border-border bg-background px-3 py-3 text-lg" /><label className="mb-1 block text-sm font-medium">Observação (opcional)</label><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: diferença conferida com gerente" className="mb-5 w-full rounded-xl border border-border bg-background px-3 py-3" /><button onClick={closeCash} disabled={busyAction !== null} className="w-full rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-70">{busyAction === "fechar" ? "Carregando..." : "Confirmar fechamento"}</button></section>}
+    {closingSession && mode === "fechar" && <section className="rounded-2xl border border-border bg-card p-5 shadow-sm"><div className="mb-4 rounded-xl border border-border bg-muted/40 p-3"><div className="mb-3 flex items-center justify-between gap-3"><h2 className="text-lg font-bold">Caixa aberto</h2><span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-semibold text-green-700">Em andamento</span></div><p className="mb-3 text-xs text-muted-foreground">Aberto: {fmtDate(closingSession.openedAt)}</p><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[{label:"Troco inicial",value:closingSession.openingAmount},{label:"Vendas em dinheiro",value:closingCashSales},{label:"Sangrias",value:-closingWithdrawals},{label:"Reforços",value:closingAdditions}].map((item) => <div key={item.label} className="rounded-lg bg-background p-2"><p className="text-xs text-muted-foreground">{item.label}</p><p className="mt-1 font-bold">R$ {brl(item.value)}</p></div>)}</div><p className="mt-3 text-sm text-muted-foreground">Dinheiro esperado na gaveta</p><p className="text-2xl font-bold">R$ {brl(closingExpected)}</p><p className="mt-1 text-xs text-muted-foreground">Pix e cartão não entram no dinheiro físico esperado.</p></div><h2 className="mb-1 text-lg font-bold">Fechar caixa</h2><p className="mb-4 text-sm text-muted-foreground">Conte somente o dinheiro físico que está na gaveta, incluindo o troco inicial e considerando sangrias e reforços.</p><div className="mb-4 rounded-xl bg-muted/50 p-3"><div className="flex justify-between text-sm"><span>Dinheiro esperado</span><strong>R$ {brl(closingExpected)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Vendas em dinheiro</span><strong>R$ {brl(closingCashSales)}</strong></div><div className="mt-2 flex justify-between text-sm"><span>Movimentações líquidas</span><strong>R$ {brl(closingAdditions - closingWithdrawals)}</strong></div></div><label className="mb-1 block text-sm font-medium">Dinheiro contado (R$)</label><input value={counted} onChange={(e) => setCounted(e.target.value)} inputMode="decimal" placeholder="0,00" className="mb-4 w-full rounded-xl border border-border bg-background px-3 py-3 text-lg" /><label className="mb-1 block text-sm font-medium">Observação (opcional)</label><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: diferença conferida com gerente" className="mb-5 w-full rounded-xl border border-border bg-background px-3 py-3" /><button onClick={() => setConfirmCloseOpen(true)} disabled={busyAction !== null} className="w-full rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:cursor-wait disabled:opacity-70">{busyAction === "fechar" ? "Carregando..." : "Fechar o Caixa"}</button></section>}
+    {confirmCloseOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && busyAction === null) setConfirmCloseOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="confirm-close-title" className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl"><h2 id="confirm-close-title" className="text-lg font-bold">Fechar o caixa?</h2><p className="mt-2 text-sm text-muted-foreground">Confirma o fechamento desta sessão? O valor contado será registrado e a diferença ficará salva no histórico.</p><div className="mt-5 flex gap-3"><button type="button" onClick={() => setConfirmCloseOpen(false)} disabled={busyAction !== null} className="flex-1 rounded-xl border border-border px-4 py-3 font-semibold disabled:opacity-60">Cancelar</button><button type="button" onClick={() => { setConfirmCloseOpen(false); void closeCash(); }} disabled={busyAction !== null} className="flex-1 rounded-xl bg-primary px-4 py-3 font-bold text-primary-foreground disabled:opacity-60">Confirmar fechamento</button></div></section></div>}
     {result && <div className={`mt-4 rounded-2xl border p-4 ${result.difference === 0 ? "border-green-500/40 bg-green-500/10" : "border-amber-500/40 bg-amber-500/10"}`}><div className="flex items-center gap-2 font-bold">{result.difference === 0 ? <CheckCircle2 className="h-5 w-5" /> : <CircleAlert className="h-5 w-5" />}{result.difference === 0 ? "Caixa conferido sem diferença" : "Fechamento com diferença"}</div><div className="mt-3 grid grid-cols-3 gap-2 text-sm"><div><p className="text-muted-foreground">Esperado</p><strong>R$ {brl(result.expectedCash)}</strong></div><div><p className="text-muted-foreground">Contado</p><strong>R$ {brl(result.countedCash)}</strong></div><div><p className="text-muted-foreground">Diferença</p><strong>R$ {brl(result.difference)}</strong></div></div><p className="mt-2 text-xs text-muted-foreground">O fechamento foi salvo no histórico.</p></div>}
     {mode === "historico" && active && activeMovements.length > 0 && <section className="mt-5 rounded-2xl border border-border bg-card p-5"><h2 className="mb-3 font-bold">Movimentações desta sessão</h2><div className="space-y-2">{activeMovements.map((m) => <div key={m.id} className="flex items-center justify-between gap-3 border-b border-border pb-2 text-sm"><div><p className="font-medium">{m.type === "sangria" ? "Sangria" : "Reforço"} · {m.reason}</p><p className="text-xs text-muted-foreground">{fmtDate(m.date)} · {m.operator}</p></div><strong>R$ {brl(m.amount)}</strong></div>)}</div></section>}
-    {mode === "historico" && <section className="mt-5 rounded-2xl border border-border bg-card p-5"><h2 className="mb-3 flex items-center gap-2 font-bold"><Clock3 className="h-4 w-4" />Histórico dos últimos fechamentos</h2><div className="mb-4 grid gap-3 sm:grid-cols-2"><label className="text-sm font-medium">Mês<input aria-label="Selecionar mês" type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" /></label><label className="text-sm font-medium">Diferença do caixa<select value={historyDifference} onChange={(e) => setHistoryDifference(e.target.value as "todos" | "negative" | "positive")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="todos">Todas</option><option value="negative">Diferença negativa</option><option value="positive">Diferença positiva</option></select></label></div>{myClosed.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Nenhum fechamento encontrado para os filtros selecionados.</p> : <div className="space-y-3">{myClosed.map((s) => <div key={s.id} className="border-b border-border pb-3 last:border-0"><div className="flex flex-wrap justify-between gap-2"><strong>{fmtDate(s.closedAt || s.openedAt)}</strong><strong className={s.difference === 0 ? "text-green-700" : "text-amber-700"}>Diferença: R$ {brl(s.difference ?? 0)}</strong></div><p className="text-sm text-muted-foreground">Operador: {s.openedBy} · Esperado: R$ {brl(s.expectedCash ?? 0)} · Contado: R$ {brl(s.countedCash ?? 0)}</p></div>)}</div>}</section>}
+     {mode === "historico" && <section className="mt-5 rounded-2xl border border-border bg-card p-5">
+       <h2 className="mb-3 flex items-center gap-2 font-bold"><Clock3 className="h-4 w-4" />Histórico de caixa</h2>
+       <div className="mb-4">
+         <button type="button" onClick={() => setShowHistoryFilters((open) => !open)} aria-expanded={showHistoryFilters} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent">
+           <Filter className="h-4 w-4" />Filtros<span className="text-xs text-muted-foreground">{showHistoryFilters ? "−" : "+"}</span>
+         </button>
+         {showHistoryFilters && (
+       <div className="mb-4 grid gap-3 sm:grid-cols-2">
+         <label className="text-sm font-medium">Período<select value={historyDateMode} onChange={(e) => setHistoryDateMode(e.target.value as "range" | "month")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="range">Data personalizada</option><option value="month">Mês</option></select></label>
+         {historyDateMode === "month" ? <label className="text-sm font-medium">Mês<input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" /></label> : <div className="grid grid-cols-2 gap-2">
+           <label className="text-sm font-medium">Data inicial<input type="date" value={historyStart} max={historyEnd || undefined} onChange={(e) => setHistoryStart(e.target.value)} className="mt-1 block w-full min-w-0 rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" /></label>
+           <label className="text-sm font-medium">Data final<input type="date" value={historyEnd} min={historyStart || undefined} onChange={(e) => setHistoryEnd(e.target.value)} className="mt-1 block w-full min-w-0 rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" /></label>
+         </div>}
+         <label className="text-sm font-medium">Diferença do caixa<select value={historyDifference} onChange={(e) => setHistoryDifference(e.target.value as "todos" | "negative" | "positive")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"><option value="todos">Todas</option><option value="negative">Diferença negativa</option><option value="positive">Diferença positiva</option></select></label>
+       </div>
+         )}
+       </div>
+       {myClosed.length === 0 ? <p className="py-4 text-center text-sm text-muted-foreground">Nenhum fechamento encontrado para os filtros selecionados.</p> : <div className="space-y-3">{myClosed.map((s) => {
+         const sessionMovements = movements.filter((m) => m.sessionId === s.id).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+         const withdrawalsTotal = sessionMovements.filter((m) => m.type === "sangria").reduce((sum, m) => sum + m.amount, 0);
+         const additionsTotal = sessionMovements.filter((m) => m.type === "reforco").reduce((sum, m) => sum + m.amount, 0);
+         const expanded = expandedSessionId === s.id;
+         return <div key={s.id} className="overflow-hidden rounded-xl border border-border">
+           <button type="button" onClick={() => setExpandedSessionId(expanded ? null : s.id)} aria-expanded={expanded} className="flex w-full flex-wrap items-center justify-between gap-2 p-3 text-left transition-colors hover:bg-accent/50">
+             <div><strong className="block">{fmtDate(s.closedAt || s.openedAt)} · {(s.closedBy || s.openedBy).toLocaleUpperCase("pt-BR")}</strong><span className="mt-1 block text-xs font-medium text-green-700">Finalizado</span></div>
+             <div className="flex items-center gap-2"><strong className={(s.difference ?? 0) === 0 ? "text-green-700" : "text-amber-700"}>Diferença: R$ {brl(s.difference ?? 0)}</strong><span className="text-muted-foreground">{expanded ? "−" : "+"}</span></div>
+           </button>
+           {expanded && <div className="border-t border-border bg-muted/20 p-3">
+             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+               <div><p className="text-xs text-muted-foreground">Data inicial</p><p className="font-medium">{fmtDate(s.openedAt, true)}</p></div>
+               <div><p className="text-xs text-muted-foreground">Data final</p><p className="font-medium">{fmtDate(s.closedAt || s.openedAt, true)}</p></div>
+               <div><p className="text-xs text-muted-foreground">Operador</p><p className="font-medium">{(s.closedBy || s.openedBy).toLocaleUpperCase("pt-BR")}</p></div>
+               <div><p className="text-xs text-muted-foreground">Saldo inicial</p><p className="font-medium">R$ {brl(s.openingAmount)}</p></div>
+               <div><p className="text-xs text-muted-foreground">Sangria / reforço</p><p className="font-medium"><span className="text-red-600">− R$ {brl(withdrawalsTotal)}</span> / <span className="text-green-700">+ R$ {brl(additionsTotal)}</span></p></div>
+               <div><p className="text-xs text-muted-foreground">Saldo final contado</p><p className="font-medium">R$ {brl(s.countedCash ?? 0)}</p></div>
+               <div><p className="text-xs text-muted-foreground">Diferença</p><p className={(s.difference ?? 0) === 0 ? "font-semibold text-green-700" : "font-semibold text-amber-700"}>R$ {brl(s.difference ?? 0)}</p></div>
+             </div>
+             {s.note && <div className="mt-3 border-t border-border pt-3"><p className="text-xs text-muted-foreground">Observação</p><p className="text-sm">{s.note}</p></div>}
+             <div className="mt-4 border-t border-border pt-3"><h3 className="mb-2 text-sm font-bold">Movimentações</h3>
+               {sessionMovements.length === 0 ? <p className="text-sm text-muted-foreground">Nenhuma sangria ou reforço registrado.</p> : <div className="space-y-3">{sessionMovements.map((m) => <div key={m.id} className="border-b border-border/70 pb-2 last:border-0"><p className={m.type === "sangria" ? "font-semibold text-red-600" : "font-semibold text-green-700"}>{m.type === "sangria" ? "Sangria" : "Reforço"}</p><p className="text-sm">{m.type === "sangria" ? "−" : "+"} R$ {brl(m.amount)} / {m.reason}</p><p className="text-xs text-muted-foreground">{fmtDate(m.date, true)} · {m.operator.toLocaleUpperCase("pt-BR")}</p></div>)}</div>}
+             </div>
+           </div>}
+         </div>;
+       })}</div>}
+     </section>}
     {!active && mode === "movimentacao" && <section className="rounded-2xl border border-border bg-card p-5"><p className="text-sm text-muted-foreground">Abra o caixa antes de registrar sangrias ou reforços.</p><button onClick={() => setMode("abrir")} className="mt-3 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">Ir para abertura</button></section>}
     {mode === "historico" && !active && myClosed.length === 0 && <section className="rounded-2xl border border-border bg-card p-5"><p className="text-sm text-muted-foreground">Ainda não há fechamentos registrados para este usuário.</p></section>}
     {!active && mode === "fechar" && !result && <section className="rounded-2xl border border-border bg-card p-5"><p className="text-sm text-muted-foreground">Não há caixa aberto para este usuário. Selecione “Abrir caixa” para iniciar uma nova sessão.</p><button onClick={() => setMode("abrir")} className="mt-3 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground">Ir para abrir caixa</button></section>}

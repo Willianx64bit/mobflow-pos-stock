@@ -1,11 +1,93 @@
-import { FormEvent, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { mobflowAuthClient } from "@/lib/auth-client";
 import { useStore } from "@/lib/store";
 import { ArrowLeft, CheckCircle2, Copy, LogOut } from "lucide-react";
 
 const AUTH_KEY = "mobflow-authenticated";
 const REMEMBER_KEY = "mobflow-remember-login";
 const PENDING_PAYMENT_KEY = "mobflow-pending-payment";
+
+function getMobFlowDeviceId(): string {
+  const key = "mobflow-device-id";
+  const existing = localStorage.getItem(key);
+  if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+  const id = window.crypto.randomUUID();
+  localStorage.setItem(key, id);
+  return id;
+}
+
+
+type LoginLocation = {
+  permission: "granted" | "denied" | "unavailable" | "not_requested";
+  latitude?: number;
+  longitude?: number;
+  altitude?: number;
+  accuracy?: number;
+  altitudeAccuracy?: number;
+  positionTimestamp?: number;
+};
+
+async function requestLoginLocation(): Promise<LoginLocation> {
+  if (!("geolocation" in navigator)) return { permission: "unavailable" };
+
+  try {
+    const permission = await navigator.permissions?.query({ name: "geolocation" });
+    if (permission?.state === "denied") return { permission: "denied" };
+    // A autorização persistente do navegador dispensa repetir o aviso visual.
+    if (permission?.state === "granted") localStorage.setItem("mobflow-location-notice-accepted", "1");
+  } catch {
+    // A Permissions API não existe em todos os navegadores; a leitura GPS continua.
+  }
+
+  // Uma nova solicitação real em CADA envio. maximumAge: 0 impede reutilizar
+  // a posição armazenada pelo navegador; não depende de uma segunda leitura.
+  return new Promise((resolve) => {
+    let watchId: number | null = null;
+    let timeoutId: number | null = null;
+    let settled = false;
+
+    const finish = (result: LoginLocation) => {
+      if (settled) return;
+      settled = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      resolve(result);
+    };
+
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const coords = position.coords;
+          const accuracy = coords.accuracy;
+          if (!Number.isFinite(coords.latitude) || !Number.isFinite(coords.longitude) ||
+              !Number.isFinite(accuracy) || accuracy <= 0) return;
+
+          // Em navegadores sem Permissions API, a primeira posição válida confirma a autorização.
+          localStorage.setItem("mobflow-location-notice-accepted", "1");
+          finish({
+            permission: "granted",
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            ...(typeof coords.altitude === "number" && Number.isFinite(coords.altitude)
+              ? { altitude: coords.altitude } : {}),
+            accuracy,
+            ...(typeof coords.altitudeAccuracy === "number" && Number.isFinite(coords.altitudeAccuracy)
+              ? { altitudeAccuracy: coords.altitudeAccuracy } : {}),
+            positionTimestamp: position.timestamp,
+          });
+        },
+        (error) => {
+          if (error.code === 1) finish({ permission: "denied" });
+          // Falhas temporárias continuam aguardando até o timeout.
+        },
+        { enableHighAccuracy: true, timeout: 25000, maximumAge: 0 },
+      );
+      timeoutId = window.setTimeout(() => finish({ permission: "granted" }), 25000);
+    } catch {
+      finish({ permission: "unavailable" });
+    }
+  });
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -27,7 +109,7 @@ export async function logout() {
   sessionStorage.removeItem("mobflow-username");
   sessionStorage.removeItem("mobflow-management");
   sessionStorage.removeItem("mobflow-pdv-authorized");
-  await supabase.auth.signOut();
+  await mobflowAuthClient.signOut().catch(() => undefined);
 }
 
 export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (options?: { firstManagerLogin?: boolean }) => void; onClose?: () => void; mode?: "empresa" | "pdv" }) {
@@ -37,6 +119,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   // Deixa o campo vazio para o navegador oferecer o CNPJ salvo ao tocar nele.
   const [cnpj, setCnpj] = useState("");
   const [error, setError] = useState("");
+  const [captchaRequired, setCaptchaRequired] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const captchaContainerRef = useRef<HTMLDivElement | null>(null);
+  const captchaWidgetIdRef = useRef<string | null>(null);
+  const [showLocationNotice, setShowLocationNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(() => localStorage.getItem(REMEMBER_KEY) === "1");
   const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] = useState(false);
@@ -44,10 +132,11 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [signupResult, setSignupResult] = useState<{
-    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string; requestToken?: string;
+    amount: number; pixCopyPaste: string; pixQrCode: string; pixRecipientName: string; username: string; requestToken?: string; planCode: string; months: number;
   } | null>(null);
   const [signupCopied, setSignupCopied] = useState(false);
-  const [signupMonthlyPrice, setSignupMonthlyPrice] = useState<number | null>(null);
+  const [signupPrices, setSignupPrices] = useState<{ monthly: number; semiannual: number | null; annual: number | null } | null>(null);
+  const [selectedSignupPlan, setSelectedSignupPlan] = useState<"monthly" | "semiannual" | "annual">("monthly");
   const [pendingPayment, setPendingPayment] = useState<any>(null);
   const [savedPendingPayment, setSavedPendingPayment] = useState<any>(() => {
     try { return JSON.parse(localStorage.getItem(PENDING_PAYMENT_KEY) || "null"); } catch { return null; }
@@ -59,13 +148,21 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   useEffect(() => {
     if (mode !== "empresa" || !showSignup || signupResult) return;
     let cancelled = false;
-    fetch("https://xsitutjpdshmidzpgxpx.supabase.co/functions/v1/mobflow-public-billing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) })
+    fetch("/api/mobflow/signup", { method: "GET", credentials: "same-origin" })
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("Configuração indisponível")))
       .then((settings) => {
-        const price = Number(settings?.monthly_price);
-        if (!cancelled && settings?.ok === true && Number.isFinite(price) && price > 0) setSignupMonthlyPrice(price);
+        const monthly = Number(settings?.monthly_price);
+        const semiannual = settings?.semiannual_price == null ? null : Number(settings.semiannual_price);
+        const annual = settings?.annual_price == null ? null : Number(settings.annual_price);
+        if (!cancelled && settings?.ok === true && Number.isFinite(monthly) && monthly > 0) {
+          setSignupPrices({
+            monthly,
+            semiannual: semiannual !== null && Number.isFinite(semiannual) && semiannual > 0 ? semiannual : null,
+            annual: annual !== null && Number.isFinite(annual) && annual > 0 ? annual : null,
+          });
+        }
       })
-      .catch(() => { if (!cancelled) setSignupMonthlyPrice(null); });
+      .catch(() => { if (!cancelled) setSignupPrices(null); });
     return () => { cancelled = true; };
   }, [mode, showSignup, signupResult]);
 
@@ -75,11 +172,59 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setUsername("");
     setPassword("");
     setError("");
+    setCaptchaRequired(false);
+    setCaptchaToken("");
+    setLockoutRemaining(0);
     setRememberLogin(localStorage.getItem(REMEMBER_KEY) === "1");
   }, [mode]);
 
+  useEffect(() => {
+    if (!captchaRequired) return;
+    let cancelled = false;
+    let widgetId: string | undefined;
+    const renderWidget = () => {
+      const turnstile = (window as Window & { turnstile?: { render: (container: HTMLElement, options: Record<string, unknown>) => string; remove: (id: string) => void; reset: (id: string) => void } }).turnstile;
+      if (cancelled || !captchaContainerRef.current || !turnstile) return;
+      widgetId = turnstile.render(captchaContainerRef.current, {
+        sitekey: import.meta.env["VITE_TURNSTILE_SITE_KEY"],
+        callback: (token: string) => setCaptchaToken(token),
+        "expired-callback": () => setCaptchaToken(""),
+        "error-callback": () => setCaptchaToken(""),
+        theme: "auto",
+      });
+      captchaWidgetIdRef.current = widgetId;
+    };
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src*="challenges.cloudflare.com/turnstile/v0/api.js"]');
+    if ((window as Window & { turnstile?: unknown }).turnstile) {
+      renderWidget();
+    } else if (existingScript) {
+      existingScript.addEventListener("load", renderWidget, { once: true });
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.defer = true;
+      script.addEventListener("load", renderWidget, { once: true });
+      document.head.appendChild(script);
+    }
+    return () => {
+      cancelled = true;
+      const turnstile = (window as Window & { turnstile?: { remove: (id: string) => void } }).turnstile;
+      if (widgetId && turnstile) turnstile.remove(widgetId);
+      captchaWidgetIdRef.current = null;
+    };
+  }, [captchaRequired, mode]);
+
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const interval = window.setInterval(() => {
+      setLockoutRemaining((seconds) => seconds <= 1 ? 0 : seconds - 1);
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [lockoutRemaining > 0]);
+
   const logoutAccount = async () => {
-    await supabase.auth.signOut();
+    await mobflowAuthClient.signOut().catch(() => undefined);
     localStorage.removeItem(AUTH_KEY);
     sessionStorage.removeItem("mobflow-role");
     sessionStorage.removeItem("mobflow-username");
@@ -91,112 +236,138 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
   };
 
   const formatCnpj = (value: string) => value.replace(/\D/g, "").slice(0, 14).replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
+  const formatLockout = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
+  const checkExistingLockout = async () => {
+    const normalizedUsername = username.trim();
+    if (mode !== "empresa" || normalizedUsername.length < 1) return;
+    try {
+      const response = await fetch("/api/mobflow/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-MobFlow-Device": getMobFlowDeviceId() },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          action: "status",
+          username: normalizedUsername,
+          expectedRole: "manager",
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.status === 429 && result?.locked) {
+        setLockoutRemaining(Math.max(1, Number(result.retryAfterSeconds) || 1800));
+        setError(String(result.error || "Acesso temporariamente bloqueado por 30 minutos."));
+      } else if (response.ok && result?.ok) {
+        setLockoutRemaining(0);
+        setError((current) => current.includes("temporariamente bloqueado") ? "" : current);
+      }
+    } catch {
+      // A consulta informativa não substitui a validação obrigatória no servidor ao entrar.
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (lockoutRemaining > 0) return;
     setLoading(true);
     setError("");
     localStorage.setItem(REMEMBER_KEY, rememberLogin ? "1" : "0");
     if (!rememberLogin) localStorage.removeItem(AUTH_KEY);
 
     try {
-      // Reutiliza o CNPJ da empresa atual sem pedir que o operador o digite.
-      // O login da gerência o salva; se existir sessão ativa, confirmamos pelo perfil.
+      // Reutiliza o CNPJ da empresa atual no acesso do operador.
       let loginCnpj = cnpj.replace(/\D/g, "");
       if (mode === "pdv") {
         loginCnpj = (localStorage.getItem("mobflow-company-cnpj") || "").replace(/\D/g, "");
-        const { data: sessionData } = await supabase.auth.getSession();
-        const currentUser = sessionData.session?.user;
-        if (currentUser) {
-          const { data: currentProfile, error: profileError } = await supabase
-            .from("profiles")
-            .select("cnpj, role")
-            .eq("id", currentUser.id)
-            .maybeSingle();
-          if (!profileError && currentProfile?.cnpj && ["manager", "pdv"].includes(currentProfile.role)) {
-            loginCnpj = String(currentProfile.cnpj).replace(/\D/g, "");
-            localStorage.setItem("mobflow-company-cnpj", loginCnpj);
-          }
-        }
         if (loginCnpj.length !== 14) {
           setError("Não foi possível identificar a empresa. Entre novamente na gerência.");
           return;
         }
       }
 
-      // Limpa apenas a sessão local antes de autenticar. O signOut remoto pode
-      // ficar preso quando o serviço Auth está instável, impedindo o login de começar.
-      await withTimeout(supabase.auth.signOut({ scope: "local" }), 5000);
+      // Cada envio do formulário faz uma leitura nova; nunca reutiliza
+      // coordenadas capturadas ao abrir a tela ou em uma tentativa anterior.
+      setShowLocationNotice(
+        mode === "empresa" &&
+        localStorage.getItem("mobflow-location-notice-accepted") !== "1"
+      );
+      const loginLocation = await requestLoginLocation();
+
+      await mobflowAuthClient.signOut().catch(() => undefined);
       sessionStorage.removeItem("mobflow-management");
       sessionStorage.removeItem("mobflow-pdv-authorized");
       sessionStorage.removeItem("mobflow-role");
       sessionStorage.removeItem("mobflow-username");
 
-      const { data, error } = await withTimeout(
-        supabase.functions.invoke("mobflow-login", {
-          body: { username: username.trim(), password, cnpj: loginCnpj, expectedRole: mode === "pdv" ? "pdv" : "manager" },
-        }),
-        20000,
-      );
-
-      if (error || !data?.session) {
-        let serverMessage = String(data?.error || "");
-        if (error && !serverMessage && error.context && typeof error.context.clone === "function") {
-          try { const detail = await error.context.clone().json(); serverMessage = String(detail?.error || ""); } catch { /* mantém mensagem genérica */ }
+      const validationResponse = await withTimeout(fetch("/api/mobflow/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-MobFlow-Device": getMobFlowDeviceId() },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            username: username.trim(),
+            password,
+            cnpj: loginCnpj,
+            expectedRole: mode === "pdv" ? "pdv" : "manager",
+            captchaToken,
+            location: loginLocation,
+          }),
+        }), 20000);
+        const validation = await validationResponse.json().catch(() => ({}));
+        if (validationResponse.status === 429 && validation?.locked) {
+          setLockoutRemaining(Math.max(1, Number(validation?.retryAfterSeconds) || 1800));
+          setError(String(validation?.error || "Muitas tentativas incorretas. Acesso temporariamente bloqueado."));
+          return;
         }
-        if (mode === "empresa") {
-          const saved = savedPendingPayment;
-          const enteredUsername = username.trim().toUpperCase();
-          const enteredCnpj = cnpj.replace(/\D/g, "");
-          if (saved && saved.username === enteredUsername && saved.cnpj === enteredCnpj && saved.amount && saved.pixCopyPaste && saved.pixQrCode) {
-            setPendingPayment(saved);
-            setError("");
-            return;
-          }
-          if (/aguarda confirmação e ativação|assinatura ainda aguarda confirmação|pagamento pendente/i.test(serverMessage)) {
-            setError("Pagamento pendente. Se você fez o cadastro neste dispositivo, informe o mesmo usuário e CNPJ para abrir o Pix.");
-            return;
-          }
+        if (validationResponse.status === 428 && validation?.captchaRequired) {
+          setCaptchaRequired(true);
+          setCaptchaToken("");
+          const turnstile = (window as Window & { turnstile?: { reset: (id: string) => void } }).turnstile;
+          if (captchaWidgetIdRef.current && turnstile) turnstile.reset(captchaWidgetIdRef.current);
+          setError(String(validation?.error || "Confirme a verificação de segurança para continuar."));
+          return;
         }
-        // Nunca revelar se o usuário existe ou se pertence a outra empresa.
-        setError("Usuário ou senha inválido.");
+        if (!validationResponse.ok || !validation?.ok || !validation?.profile) {
+          setError(String(validation?.error || "Usuário ou senha inválido."));
+          return;
+        }
+
+        const email = String(validation.profile.authEmail || "");
+        if (!email) {
+          setError("Não foi possível identificar a conta de autenticação deste usuário.");
+          return;
+        }
+        const authResult = await withTimeout(
+          mobflowAuthClient.signIn.email({ email, password }),
+          15000,
+        );
+        if (authResult.error) {
+          await mobflowAuthClient.signOut().catch(() => undefined);
+          setError("Usuário ou senha inválido.");
+          return;
+        }
+
+        localStorage.setItem(AUTH_KEY, "1");
+        setCaptchaRequired(false);
+        setCaptchaToken("");
+        setLockoutRemaining(0);
+        if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
+        if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
+        sessionStorage.setItem("mobflow-role", validation.profile.role);
+        sessionStorage.setItem("mobflow-username", validation.profile.username);
+        const savedPermissions = Array.isArray(validation.profile.permissions)
+          ? validation.profile.permissions
+          : (validation.profile.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
+        const normalizedPermissions = Array.from(new Set(savedPermissions.map((p: string) => p === "Conferência" ? "Operações" : p)));
+        sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
+        const firstManagerLogin = mode === "empresa" && validation.firstManagerLogin === true;
+        if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
+        onLogin({ firstManagerLogin });
         return;
-      }
-
-      if (mode === "pdv" && data.profile?.role !== "pdv") {
-        setError("Usuário ou senha inválido.");
-        return;
-      }
-
-      const { error: sessionError } = await withTimeout(
-        supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        }),
-        15000,
-      );
-
-      if (sessionError) {
-        setError("Não foi possível iniciar a sessão.");
-        return;
-      }
-
-      localStorage.setItem(AUTH_KEY, "1");
-      if (mode === "empresa") localStorage.setItem("mobflow-company-cnpj", loginCnpj);
-      if (mode === "pdv") sessionStorage.setItem("mobflow-pdv-authorized", "1");
-      sessionStorage.setItem("mobflow-role", data.profile?.role || (mode === "pdv" ? "pdv" : "manager"));
-      sessionStorage.setItem("mobflow-username", data.profile?.username || username.trim().toUpperCase());
-      const savedPermissions = data.profile?.permissions || (data.profile?.role === "manager" ? ["PDV", "Conferência", "Validade", "Fiado", "Gerência"] : ["PDV", "Conferência"]);
-      const normalizedPermissions = Array.from(new Set(savedPermissions.map((p: string) => p === "Conferência" ? "Operações" : p)));
-      sessionStorage.setItem("mobflow-permissions", JSON.stringify(normalizedPermissions));
-      const firstManagerLogin = mode === "empresa" && data.firstManagerLogin === true;
-      if (firstManagerLogin) sessionStorage.setItem("mobflow-first-manager-setup", "1");
-      onLogin({ firstManagerLogin });
     } catch (err) {
       setError(err instanceof Error && err.message === "LOGIN_TIMEOUT"
         ? "O servidor está demorando para responder. Tente novamente em instantes."
         : "Não foi possível conectar ao servidor.");
     } finally {
+      setShowLocationNotice(false);
       setLoading(false);
     }
   };
@@ -206,22 +377,24 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     setSignupLoading(true);
     setSignupError("");
     try {
-      const { data, error } = await supabase.functions.invoke("mobflow-signup", {
-        body: {
-          companyName: signupForm.companyName.trim(),
-          username: signupForm.username.trim().toUpperCase(),
-          password: signupForm.password,
-          cnpj: signupForm.cnpj,
-          email: signupForm.email.trim().toLowerCase(),
-          phone: signupForm.phone,
-        },
-      });
-      if (error || !data?.ok) {
-        let message = data?.error || error?.message || "Não foi possível concluir o cadastro.";
-        if (error && !data?.error && error.context && typeof error.context.json === "function") {
-          try { const detail = await error.context.json(); if (detail?.error) message = detail.error; } catch { /* mantém a mensagem padrão */ }
-        }
-        throw new Error(message);
+      const signupBody = {
+        companyName: signupForm.companyName.trim(),
+        username: signupForm.username.trim().toUpperCase(),
+        password: signupForm.password,
+        cnpj: signupForm.cnpj,
+        email: signupForm.email.trim().toLowerCase(),
+        phone: signupForm.phone,
+        planCode: selectedSignupPlan,
+      };
+      const response = await withTimeout(fetch("/api/mobflow/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(signupBody),
+      }), 20000);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data?.ok) {
+        throw new Error(String(data?.error || "Não foi possível concluir o cadastro."));
       }
       setSignupResult({
         amount: Number(data.amount),
@@ -230,6 +403,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         pixRecipientName: String(data.pixRecipientName || "MOBFLOW"),
         username: String(data.username || signupForm.username.toUpperCase()),
         requestToken: String(data.requestToken || ""),
+        planCode: String(data.planCode || selectedSignupPlan),
+        months: Number(data.months || (selectedSignupPlan === "annual" ? 12 : selectedSignupPlan === "semiannual" ? 6 : 1)),
       });
       const pending = {
         amount: Number(data.amount), pixCopyPaste: String(data.pixCopyPaste), pixQrCode: String(data.pixQrCode),
@@ -237,6 +412,8 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         username: String(data.username || signupForm.username.toUpperCase()),
         requestToken: String(data.requestToken || ""), cnpj: signupForm.cnpj.replace(/\D/g, ""),
         email: signupForm.email.trim().toLowerCase(),
+        planCode: String(data.planCode || selectedSignupPlan),
+        months: Number(data.months || (selectedSignupPlan === "annual" ? 12 : selectedSignupPlan === "semiannual" ? 6 : 1)),
       };
       localStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify(pending));
       setSavedPendingPayment(pending);
@@ -293,7 +470,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-secondary text-primary"><CheckCircle2 className="h-7 w-7" /></div>
             <h1 className="mt-4 font-display text-xl tracking-[.08em] text-heading">CADASTRO RECEBIDO</h1>
             <p className="mt-2 text-sm text-muted-foreground">Usuário gerente: <strong>{signupResult.username}</strong></p>
-            <p className="mt-3 text-sm text-muted-foreground">Mensalidade: <strong className="text-foreground">{signupResult.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong></p>
+            <p className="mt-3 text-sm text-muted-foreground">Plano {signupResult.planCode === "annual" ? "anual" : signupResult.planCode === "semiannual" ? "semestral" : "mensal"} · {signupResult.months} {signupResult.months === 1 ? "mês" : "meses"}: <strong className="text-foreground">{signupResult.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong></p>
           </div>
           <div className="mt-5 rounded-xl border border-border bg-background p-4 text-center">
             <p className="mb-3 text-sm font-semibold">Pague com Pix para {signupResult.pixRecipientName}</p>
@@ -324,7 +501,40 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
           <button type="button" onClick={() => { setShowSignup(false); setSignupError(""); }} className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Voltar ao login</button>
           <h1 className="font-display text-xl tracking-[.08em] text-heading">CRIAR CONTA</h1>
           <p className="mt-1 text-sm text-muted-foreground">Preencha os dados da empresa para gerar a cobrança Pix.</p>
-          <div className="mt-4 rounded-xl border border-primary/30 bg-primary/10 p-4"><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Mensalidade do MobFlow</p><div className="mt-1 flex items-baseline gap-2"><span className="text-3xl font-black text-foreground">{signupMonthlyPrice === null ? "Consultar valor" : signupMonthlyPrice.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>{signupMonthlyPrice !== null && <span className="text-sm text-muted-foreground">/ mês</span>}</div><p className="mt-1 text-xs leading-5 text-muted-foreground">O pagamento inicial é feito por Pix e o acesso é liberado após a confirmação do administrador.</p></div>
+          <div className="mt-4 rounded-xl border border-border bg-background p-4">
+            <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary">Escolha seu plano</p>
+            <div className="mt-3 grid gap-2">
+              {([
+                { code: "monthly" as const, title: "Mensal", months: 1, price: signupPrices?.monthly ?? null },
+                { code: "semiannual" as const, title: "Semestral", months: 6, price: signupPrices?.semiannual ?? null },
+                { code: "annual" as const, title: "Anual", months: 12, price: signupPrices?.annual ?? null },
+              ]).map((plan) => {
+                const reference = signupPrices ? signupPrices.monthly * plan.months : 0;
+                const savings = plan.price !== null ? reference - plan.price : 0;
+                const savingsPercent = reference > 0 && savings > 0 ? (savings / reference) * 100 : 0;
+                const available = plan.price !== null;
+                const selected = selectedSignupPlan === plan.code;
+                return (
+                  <button key={plan.code} type="button" disabled={!available || signupLoading}
+                    onClick={() => setSelectedSignupPlan(plan.code)}
+                    aria-pressed={selected}
+                    className={`w-full rounded-xl border p-3 text-left transition ${selected ? "border-primary bg-primary/10 ring-1 ring-primary/30" : "border-border bg-surface hover:bg-accent"} ${!available ? "cursor-not-allowed opacity-50" : ""}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-foreground">{plan.title}</span>
+                      <span className="text-xs text-muted-foreground">{plan.months} {plan.months === 1 ? "mês" : "meses"}</span>
+                    </div>
+                    <div className="mt-1 text-xl font-black text-foreground">{plan.price === null ? "Preço não configurado" : plan.price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</div>
+                    {available && <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                      <span>{((plan.price ?? 0) / plan.months).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} por mês</span>
+                      {savingsPercent > 0 && <span className="font-semibold text-primary">Economize {savings.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} · {savingsPercent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%</span>}
+                    </div>}
+                    {!available && <p className="mt-1 text-xs text-muted-foreground">Aguarde a configuração deste plano pelo administrador.</p>}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">O Pix será gerado pelo valor total do período escolhido. O acesso é liberado após a confirmação do administrador.</p>
+          </div>
           <form onSubmit={submitSignup} className="mt-5 space-y-3" autoComplete="off">
             <div><label className="label-mono mb-1 block">Nome da empresa</label><input required minLength={2} maxLength={120} value={signupForm.companyName} onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })} className="field w-full text-foreground" placeholder="Nome da empresa" /></div>
             <div><label className="label-mono mb-1 block">Usuário do gerente</label><input required minLength={3} maxLength={40} pattern="[A-Za-z0-9._-]+" value={signupForm.username} onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value.toUpperCase() })} className="field w-full text-foreground" placeholder="Ex.: MERCADO01" /></div>
@@ -344,6 +554,12 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
     <div className="grid min-h-[100dvh] place-items-center bg-background px-4 py-8 text-foreground md:px-8 md:py-10">
       <style>{`input.field, input.field[type="password"], input.field[type="text"] { background-color: #fff !important; color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; color-scheme: light; } input.field:-webkit-autofill, input.field:-webkit-autofill:hover, input.field:-webkit-autofill:focus, input.field:-webkit-autofill:active { -webkit-text-fill-color: #0f172a !important; -webkit-box-shadow: 0 0 0 1000px #fff inset !important; box-shadow: 0 0 0 1000px #fff inset !important; background-color: #fff !important; caret-color: #0f172a !important; color-scheme: light; } @keyframes mobflowLoginReveal { 0% { opacity: 0; transform: translateX(26px) scale(.975); filter: blur(7px); } 65% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } } @media (prefers-reduced-motion: reduce) { .mobflow-login-reveal { animation: none !important; } }`}</style>
       <div className={`mobflow-login-reveal relative w-full rounded-2xl border border-border bg-surface p-6 text-foreground shadow-xl shadow-black/10 sm:p-8 ${mode === "empresa" ? "max-w-xl lg:max-w-3xl lg:p-12" : "max-w-xl lg:max-w-2xl lg:p-12"}`} style={{ animation: "mobflowLoginReveal 850ms cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+        {mode === "empresa" && showLocationNotice && (
+          <div role="status" aria-live="polite" className="absolute left-3 right-3 top-3 z-20 mx-auto max-w-2xl rounded-xl border border-primary/20 bg-background/95 px-4 py-3 text-center text-sm text-foreground shadow-lg backdrop-blur-sm sm:left-5 sm:right-5">
+            <span className="font-semibold">Mais segurança para sua empresa.</span>{" "}
+            Se permitir, aguardaremos alguns segundos para confirmar uma posição GPS precisa. A localização é opcional e você pode recusar e continuar normalmente.
+          </div>
+        )}
         {mode === "pdv" && !onClose && (
           <button type="button" onClick={() => setShowAccountLogoutConfirm(true)} className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900" aria-label="Sair da conta" title="Sair da conta">
             <LogOut className="h-4 w-4" /><span>Sair da conta</span>
@@ -389,7 +605,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
         <form onSubmit={submit} className={`mt-5 space-y-4 ${mode === "empresa" ? "lg:mt-8 lg:space-y-5" : ""}`} autoComplete="on">
           <div>
             <label className="label-mono mb-1.5 block !text-muted-foreground">Usuário</label>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
+            <input value={username} onChange={(e) => { setUsername(e.target.value); setLockoutRemaining(0); }} onBlur={checkExistingLockout} autoComplete={mode === "pdv" ? "new-password" : "off"} name={mode === "pdv" ? "operator-login-field" : "company-login"} placeholder="Nome de usuário" className="field w-full border border-border bg-background text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary lg:py-3.5 lg:text-base" autoFocus />
           </div>
 
           <div>
@@ -397,7 +613,16 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" autoComplete={mode === "pdv" ? "new-password" : "current-password"} name={mode === "pdv" ? "operator-password-field" : "company-password"} placeholder="Senha" className="field w-full !border-slate-300 !bg-white !text-slate-900 placeholder:!text-slate-400 focus:!border-primary lg:py-3.5 lg:text-base" />
           </div>
 
+          {captchaRequired && (
+            <div className="rounded-xl border border-border bg-background p-3">
+              <p className="mb-2 text-sm font-medium text-foreground">Verificação adicional de segurança</p>
+              <div ref={captchaContainerRef} className="flex min-h-[65px] justify-center" />
+              {!captchaToken && <p className="mt-1 text-center text-xs text-muted-foreground">Conclua a verificação para liberar o acesso.</p>}
+            </div>
+          )}
+
           {error && <div className="rounded-lg bg-destructive/10 ring-1 ring-destructive/30 px-3 py-2 text-center text-sm text-destructive">{error}</div>}
+          {lockoutRemaining > 0 && <p className="text-center text-xs font-medium text-destructive">Nova tentativa liberada em {`${String(Math.floor(lockoutRemaining / 60)).padStart(2, "0")}:${String(lockoutRemaining % 60).padStart(2, "0")}`}.</p>}
 
           {mode !== "pdv" && (
             <div>
@@ -411,7 +636,7 @@ export function LoginScreen({ onLogin, onClose, mode = "empresa" }: { onLogin: (
             <span>Salvar login</span>
           </label>
 
-          <button type="submit" disabled={loading} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={loading || lockoutRemaining > 0 || (captchaRequired && !captchaToken)} className="w-full rounded-xl bg-primary py-3.5 font-bold text-primary-foreground hover:bg-primary/85 transition-colors disabled:opacity-50">
             {loading ? "Validando..." : "Entrar"}
           </button>
           {mode === "empresa" && !onClose && (

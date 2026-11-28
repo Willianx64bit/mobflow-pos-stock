@@ -2,36 +2,25 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, LockKeyhole, Trash2, AlertTriangle } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
-import { actions, hydrateStore, useStore } from "@/lib/store";
-import { supabase } from "@/lib/supabase";
+import { compressImageTo200KB } from "@/lib/imageCompression";
+import { actions, useStore } from "@/lib/store";
 import { verifyManagerPassword } from "@/lib/manager-auth";
 
 
 async function callUsers(opts: { body: Record<string, unknown> }): Promise<{ data: any; error: unknown }> {
   try {
-    const refreshed = await supabase.auth.refreshSession();
-    let session = refreshed.data.session;
-    if (!session) session = (await supabase.auth.getSession()).data.session;
-
-    if (!session?.access_token) {
-      sessionStorage.removeItem("mobflow-management");
-      return { data: { error: "Sessão da gerência expirada. Entre novamente na gerência." }, error: true };
-    }
-
-    const requestBody = { ...opts.body };
-    const { data, error } = await supabase.functions.invoke("mobflow-users", { ...opts, body: requestBody });
-    if (!error) return { data, error: null };
-
-    let errorBody: any = null;
-    try { errorBody = await (error as { context?: Response }).context?.json(); } catch {}
-    const raw = String(errorBody?.error ?? "");
-    const friendly = raw.includes("Sessão inválida") || raw.includes("Sessão não encontrada")
-      ? "Sessão da gerência expirada. Entre novamente na gerência."
-      : raw.includes("Acesso de gerência")
-        ? "Só a conta da gerência pode cadastrar usuários do PDV. Entre com o login da empresa."
-      : raw.includes("Database error")
-        ? "O banco recusou a criação do usuário. Verifique a configuração do banco e tente de novo."
-        : raw;
+    const response = await fetch("/api/mobflow/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(opts.body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) return { data, error: null };
+    const raw = String(data?.error ?? "");
+    const friendly = raw.includes("Sessão") ? "Sessão da gerência expirada. Entre novamente na gerência."
+      : raw.includes("Acesso de gerência") ? "Só a conta da gerência pode cadastrar usuários do PDV. Entre com o login da empresa."
+      : raw;
     return { data: { error: friendly || undefined }, error: true };
   } catch {
     return { data: null, error: true };
@@ -57,7 +46,11 @@ function Configuracoes() {
   const [companyNeighborhood, setCompanyNeighborhood] = useState(settings.companyNeighborhood ?? "");
   const [companyCity, setCompanyCity] = useState(settings.companyCity ?? "");
   const [companyState, setCompanyState] = useState(settings.companyState ?? "");
-  const [logo, setLogo] = useState(settings.companyLogo ?? "");
+  const [logo, setLogo] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoObjectKey, setLogoObjectKey] = useState(settings.companyLogoObjectKey ?? "");
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const [logoSaving, setLogoSaving] = useState(false);
   const [pixKey, setPixKey] = useState(settings.pixKey ?? "");
   const [pixKeyType, setPixKeyType] = useState<NonNullable<typeof settings.pixKeyType>>(settings.pixKeyType ?? "aleatoria");
   const [pixEditing, setPixEditing] = useState(false);
@@ -102,9 +95,22 @@ function Configuracoes() {
     let active = true;
     const verifyManager = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        setCurrentAuthUserId(sessionData.session?.user?.id ?? null);
-        if (!sessionData.session) {
+        let hasSession = false;
+        let status: any = null;
+        let statusError: unknown = null;
+        const sessionResponse = await fetch("/api/mobflow/session-context", { credentials: "same-origin" });
+        const sessionBody = await sessionResponse.json().catch(() => ({}));
+        hasSession = sessionResponse.ok && sessionBody?.ok === true;
+        setCurrentAuthUserId(sessionBody?.user?.id ?? null);
+        const statusResponse = await fetch("/api/mobflow/reauth-manager", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ action: "status" }),
+        });
+        status = await statusResponse.json().catch(() => null);
+        statusError = statusResponse.ok ? null : true;
+        if (!hasSession) {
           if (active) navigate({ to: "/gerencia" });
           return;
         }
@@ -112,10 +118,6 @@ function Configuracoes() {
         // A Gerência já foi desbloqueada com a senha na tela anterior.
         // Confirme a permissão pelo servidor para não depender de uma consulta
         // direta a profiles que pode ser bloqueada por RLS.
-        const { data: status, error: statusError } = await supabase.functions.invoke(
-          "mobflow-reauth-manager",
-          { body: { action: "status" } },
-        );
         const allowedRole = status?.role === "manager" || status?.role === "pdv";
         const unlocked = sessionStorage.getItem("mobflow-management") === "1";
         const allowed = !statusError && status?.configured === true && allowedRole && unlocked;
@@ -128,7 +130,7 @@ function Configuracoes() {
         }
 
         // Somente a conta principal da empresa pode ver e gerenciar usuários do PDV.
-        if (status.role === "manager") {
+        if (status.canManage === true) {
           setUsersLoading(true);
           setUserError("");
           const { data, error: usersError } = await callUsers({ body: { action: "list" } });
@@ -149,20 +151,7 @@ function Configuracoes() {
     let active = true;
     const loadCompanyCnpj = async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        if (!user) {
-          if (active) setCompanyCnpj(String(settings.companyCnpj ?? ""));
-          return;
-        }
-        // A coluna no banco é "cnpj" (minúscula), igual à usada pelo login.
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("cnpj")
-          .eq("id", user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        if (active) setCompanyCnpj(String(profile?.cnpj ?? settings.companyCnpj ?? ""));
+        if (active) setCompanyCnpj(String(settings.companyCnpj ?? "").trim() || String(localStorage.getItem("mobflow-company-cnpj") ?? "").trim());
       } catch {
         // Evita deixar o campo preso em "Carregando" se a consulta falhar.
         if (active) setCompanyCnpj(String(settings.companyCnpj ?? ""));
@@ -184,10 +173,27 @@ function Configuracoes() {
     setCompanyNeighborhood(settings.companyNeighborhood ?? "");
     setCompanyCity(settings.companyCity ?? "");
     setCompanyState(settings.companyState ?? "");
-    setLogo(settings.companyLogo ?? "");
+    setLogoObjectKey(settings.companyLogoObjectKey ?? "");
     setPixKey(settings.pixKey ?? "");
     setPixKeyType(settings.pixKeyType ?? "aleatoria");
   }, [settings]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    const loadLogo = async () => {
+      if (!settings.companyLogoObjectKey) { setLogo(""); return; }
+      try {
+        const response = await fetch(`/api/mobflow/company-logo?key=${encodeURIComponent(settings.companyLogoObjectKey)}`, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("logo_load_failed");
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        if (active) setLogo(objectUrl);
+      } catch { if (active) setLogo(""); }
+    };
+    void loadLogo();
+    return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [settings.companyLogoObjectKey]);
 
   const loadPdvUsers = async () => {
     setUsersLoading(true);
@@ -298,22 +304,48 @@ function Configuracoes() {
     await loadPdvUsers();
   };
 
-  const chooseLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const chooseLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("A logo deve ter no máximo 5 MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => setLogo(String(reader.result));
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageTo200KB(file);
+      const reader = new FileReader();
+      setLogoFile(compressed);
+      setLogoRemoved(false);
+      reader.onload = () => setLogo(String(reader.result));
+      reader.readAsDataURL(compressed);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível compactar a logo.");
+    } finally { e.target.value = ""; }
   };
 
-  const save = () => {
-    actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: logo || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1800);
+  const save = async () => {
+    if (logoSaving) return;
+    setLogoSaving(true);
+    try {
+      let nextLogoKey = logoObjectKey;
+      if (logoFile) {
+        const form = new FormData();
+        form.append("file", logoFile);
+        const response = await fetch("/api/mobflow/company-logo", { method: "POST", credentials: "same-origin", body: form });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.ok || typeof result.objectKey !== "string") throw new Error(result?.error || "Não foi possível enviar a logo para o Cloudflare R2.");
+        nextLogoKey = result.objectKey;
+      } else if (logoRemoved && logoObjectKey) {
+        const response = await fetch(`/api/mobflow/company-logo?key=${encodeURIComponent(logoObjectKey)}`, { method: "DELETE", credentials: "same-origin" });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.ok) throw new Error(result?.error || "Não foi possível remover a logo do Cloudflare R2.");
+        nextLogoKey = "";
+      }
+      await actions.updateSettings({ ...settings, companyName: name.trim(), companyPhone: companyPhone.trim(), companyStreet: companyStreet.trim(), companyNumber: companyNumber.trim(), companyCep: companyCep.trim(), companyComplement: companyComplement.trim(), companyNeighborhood: companyNeighborhood.trim(), companyCity: companyCity.trim(), companyState: companyState.trim(), companyLogo: undefined, companyLogoObjectKey: nextLogoKey || undefined, pixKey: pixKey.trim() || undefined, pixKeyType });
+      setLogoObjectKey(nextLogoKey);
+      setLogoFile(null);
+      setLogoRemoved(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1800);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível salvar as configurações.");
+    } finally { setLogoSaving(false); }
   };
 
   const unlockPixEditing = async () => {
@@ -327,8 +359,9 @@ function Configuracoes() {
     setPixKeyType(settings.pixKeyType ?? "aleatoria");
   };
 
-  const savePix = () => {
-    actions.updateSettings({ ...settings, pixKey: pixKey.trim() || undefined, pixKeyType });
+  const savePix = async () => {
+    try { await actions.updateSettings({ ...settings, pixKey: pixKey.trim() || undefined, pixKeyType }); }
+    catch (error) { alert(error instanceof Error ? error.message : "Não foi possível salvar a chave Pix."); return; }
     setPixEditing(false);
     setPixError("");
     setSaved(true);
@@ -346,10 +379,10 @@ function Configuracoes() {
     const result = await callUsers({ body: { action: "reset_application", managerPassword: securityPassword } });
     setSecurityBusy(false);
     if (result.error || !result.data?.ok || result.data?.cloudCleared !== true) {
-      setSecurityError(result.data?.error || "O Supabase não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
+      setSecurityError(result.data?.error || "O Neon/R2 não confirmou a limpeza completa. A aplicação não foi marcada como zerada."); return;
     }
-    await hydrateStore(); actions.resetAppData();
-    setName(""); setLogo(""); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
+    await actions.resetAppData();
+    setName(""); setLogo(""); setLogoObjectKey(""); setLogoRemoved(false); setPixKey(""); setPixKeyType("aleatoria"); setPixEditing(false); setSaved(false);
     setPdvUsers([]); setUsersDetailsOpen(true); setAddUserOpen(true);
     setResetOpen(false); setSecurityModal(null); setSecurityPassword(""); setSecurityError(""); setResetError("");
     setUserMessage("Limpeza confirmada. " + (result.data.deleted ?? 0) + " usuário(s) do PDV excluído(s). A senha da Gerência foi preservada. Cadastre agora o novo usuário do PDV.");
@@ -426,9 +459,9 @@ function Configuracoes() {
                     <div className="mt-3 rounded-xl border border-border/60 bg-background/70 p-3">
                       <div className="mb-2 text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>
                       <div className="flex flex-wrap gap-3">{["PDV", "Operações", "Validade", "Fiado", "Gerência"].map(area => <label key={area} className="flex items-center gap-1.5 text-sm text-foreground"><input type="checkbox" checked={newUserPermissions.includes(area)} onChange={e => setNewUserPermissions(current => e.target.checked
-                          ? [...current.filter(permission => permission !== area && !(area === "Operações" && permission === "Gerência") && !(area === "Gerência" && permission === "Operações")), area]
+                          ? [...current.filter(permission => permission !== area), area]
                           : current.filter(permission => permission !== area))} className="accent-primary" />{area}</label>)}</div>
-                      <p className="mt-2 text-xs text-muted-foreground">Quem tiver acesso a Operações poderá usar todas as rotinas dessa área e não terá acesso à Gerência. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
+                      <p className="mt-2 text-xs text-muted-foreground">As permissões Operações e Gerência são independentes: o usuário pode receber ambas. O primeiro usuário da empresa continua recebendo Gerência automaticamente para não bloquear a configuração inicial.</p>
                     </div>
                     <button type="button" onClick={() => void createPdvUser()} disabled={creatingPdvUser || userUsername.trim().length < 3 || userPassword.length < 6} className="mt-3 w-full rounded-xl bg-primary py-3 font-bold text-primary-foreground disabled:opacity-40">{creatingPdvUser ? "Aguarde, criando usuário..." : "Criar usuário do PDV"}</button>
                   </div>
@@ -445,7 +478,7 @@ function Configuracoes() {
                       <div className="w-full rounded-xl bg-background/70 p-3 mt-2"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-semibold text-muted-foreground">PERMISSÕES DE ACESSO</div>{savingPermissionsUserId === user.id && <span role="status" className="text-xs font-semibold text-primary">Salvando permissões… aguarde</span>}</div><div className="flex flex-wrap gap-3">{["PDV","Operações","Validade","Fiado","Gerência"].map(area => { const isOwnUser = user.id === currentAuthUserId; const hasGerencia = ((user.permissions ?? ["PDV","Operações"]).map(p => p === "Conferência" ? "Operações" : p)).includes("Gerência"); return <label key={area} className={`flex items-center gap-1.5 text-xs text-foreground ${savingPermissionsUserId === user.id ? "opacity-60" : ""}`}><input type="checkbox" checked={((user.permissions ?? ["PDV","Operações"]).map(p => p === "Conferência" ? "Operações" : p)).includes(area)} disabled={!!savingPermissionsUserId || !!togglingUserId || !!deletingUserId || (isOwnUser && area === "Gerência" && hasGerencia)} onChange={e => {
                         const current = Array.from(new Set((user.permissions ?? ["PDV", "Operações"]).map(p => p === "Conferência" ? "Operações" : p)));
                         const next = e.target.checked
-                          ? [...current.filter(p => p !== area && !(area === "Operações" && p === "Gerência") && !(area === "Gerência" && p === "Operações")), area]
+                          ? [...current.filter(p => p !== area), area]
                           : current.filter(p => p !== area);
                         void saveUserPermissions(user, next);
                       }} className="accent-primary" />{area}</label>; })}</div>{user.id === currentAuthUserId && ((user.permissions ?? ["PDV","Operações"]).map(p => p === "Conferência" ? "Operações" : p)).includes("Gerência") && <p className="mt-2 text-xs text-muted-foreground">Usuário logado com acesso a gerência não pode desabilitar gerência, poderá perder acesso total!</p>}</div><button onClick={() => void resetPdvPassword(user)} className="rounded-lg bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Trocar senha</button>
@@ -547,13 +580,13 @@ function Configuracoes() {
                     </div>
                     <label className="block cursor-pointer">
                       <span className="label-mono">Logo da empresa</span>
-                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(até 5 MB)</span></div>
+                      <div className="mt-1.5 rounded-xl border border-dashed border-border px-3 py-3 text-sm text-secondary-foreground hover:bg-accent">Escolher imagem <span className="text-xs text-muted-foreground">(PNG, JPG ou WEBP · compactada até 200 KB)</span></div>
                       <input type="file" accept="image/*" onChange={chooseLogo} className="hidden" />
                     </label>
-                    {logo && <button type="button" onClick={() => setLogo("")} className="text-xs text-destructive hover:underline">Remover logo</button>}
+                    {logo && <button type="button" onClick={() => { setLogo(""); setLogoFile(null); setLogoRemoved(true); }} className="text-xs text-destructive hover:underline">Remover logo</button>}
                   </div>
                 </div>
-                <button onClick={save} className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90">{saved ? "✓ Salvo" : "Salvar configurações"}</button>
+                <button onClick={save} disabled={logoSaving} className="mt-5 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">{logoSaving ? "Salvando..." : saved ? "✓ Salvo" : "Salvar configurações"}</button>
               </div>
             )}
           </div>

@@ -18,9 +18,10 @@ export const Route = createFileRoute("/vendas")({
 
 function Vendas() {
   const sales = useStore((s) => s.sales);
+  const products = useStore((s) => s.products);
   const companyName = useStore((s) => s.settings.companyName);
   const savedCompanyName = companyName || (() => { try { const raw = localStorage.getItem("mobflow:v1"); if (!raw) return ""; const parsed = JSON.parse(raw); return parsed?.settings?.companyName || ""; } catch { return ""; } })();
-  const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("month");
+  const [dateFilterMode, setDateFilterMode] = useState<"month" | "range">("range");
   const todayKey = new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0") + "-" + String(new Date().getDate()).padStart(2, "0");
   const [selectedMonth, setSelectedMonth] = useState(todayKey.slice(0, 7));
   const [rangeStart, setRangeStart] = useState(todayKey);
@@ -35,6 +36,15 @@ function Vendas() {
     if (sessionStorage.getItem("mobflow-management") !== "1") navigate({ to: "/gerencia" });
   }, [navigate]);
   const sum = (arr: typeof sales) => arr.reduce((t, s) => t + s.total, 0);
+  const saleProfit = (sale: (typeof sales)[number]) => {
+    if (typeof sale.profit === "number") return sale.profit;
+    const costTotal = sale.items.reduce((total, item) => {
+      const product = products.find((p) => p.id === item.productId)
+        ?? products.find((p) => p.name.trim().toLocaleLowerCase("pt-BR") === item.name.trim().toLocaleLowerCase("pt-BR"));
+      return total + (item.cost ?? product?.cost ?? 0) * item.qty;
+    }, 0);
+    return sale.total - costTotal;
+  };
   const productOptions = useMemo(() => Array.from(new Set(sales.flatMap(s => s.items.map(i => i.name))).values()).sort((a, b) => a.localeCompare(b, "pt-BR")), [sales]);
   const filteredSales = useMemo(() => sales.filter((s) => {
     const d = new Date(s.date);
@@ -46,6 +56,7 @@ function Vendas() {
     const matchesPayment = paymentFilter === "todos" || s.payment === paymentFilter;
     return inPeriod && matchesSearch && matchesProduct && matchesPayment;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [sales, dateFilterMode, selectedMonth, rangeStart, rangeEnd, searchText, productFilter, paymentFilter]);
+  const totalProfit = filteredSales.reduce((total, sale) => total + saleProfit(sale), 0);
   const monthLabel = new Date(selectedMonth + "-01T12:00:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const periodLabel = dateFilterMode === "month" ? monthLabel : rangeStart.split("-").reverse().join("/") + " a " + rangeEnd.split("-").reverse().join("/");
 
@@ -54,7 +65,7 @@ function Vendas() {
       <AppHeader />
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
         <div className="glass p-4"><div className="label-mono">Total de vendas no período</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(sum(filteredSales))}</div></div>
-        <div className="glass p-4"><div className="label-mono text-sm md:text-base">Vendas</div><div className="font-display text-4xl mt-1 text-heading">{filteredSales.length}</div></div>
+        <div className="glass p-4"><div className="label-mono">Lucro das vendas</div><div className="font-display text-4xl mt-1 text-primary">R$ {brl(totalProfit)}</div></div>
         {(["Dinheiro", "Cartão", "Pix", "Fiado"] as const).map((m) => (
           <div key={m} className="glass p-4"><div className="label-mono text-sm md:text-base">{m}</div><div className="font-display text-4xl mt-1 text-heading">R$ {brl(sum(filteredSales.filter((s) => s.payment === m)))}</div></div>
         ))}
@@ -88,7 +99,7 @@ function Vendas() {
               <input type="date" aria-label="Data final" value={rangeEnd} min={rangeStart} onChange={e => e.target.value && setRangeEnd(e.target.value)} className="mt-1 block w-full cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground" />
             </label>
           </>}
-          <div className="flex items-end"><button type="button" onClick={() => { setSearchText(""); setProductFilter(""); setPaymentFilter("todos"); setDateFilterMode("month"); setSelectedMonth(todayKey.slice(0, 7)); setRangeStart(todayKey); setRangeEnd(todayKey); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-accent">Limpar filtros</button></div>
+          <div className="flex items-end"><button type="button" onClick={() => { setSearchText(""); setProductFilter(""); setPaymentFilter("todos"); setDateFilterMode("range"); setSelectedMonth(todayKey.slice(0, 7)); setRangeStart(todayKey); setRangeEnd(todayKey); }} className="rounded-lg px-3 py-2 text-sm font-semibold text-primary hover:bg-accent">Limpar filtros</button></div>
         </div>}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">Período: <strong className="capitalize text-foreground">{periodLabel}</strong></span>

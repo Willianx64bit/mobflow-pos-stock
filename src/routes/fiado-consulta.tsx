@@ -14,6 +14,7 @@ function FiadoConsulta() {
   const navigate = useNavigate();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"todos" | "pendentes" | "pagos">("todos");
   const today = new Date();
   const todayKey = today.getFullYear() + "-" + String(today.getMonth()+1).padStart(2,"0") + "-" + String(today.getDate()).padStart(2,"0");
   const [mode, setMode] = useState<"month" | "range">("month");
@@ -38,8 +39,8 @@ function FiadoConsulta() {
       const inPeriod = mode === "month" ? day.slice(0,7) === month : startDate <= endDate && day >= startDate && day <= endDate;
       if (inPeriod) map.set(key, [...(map.get(key) || []), s]);
     });
-    return [...map.entries()].map(([name, rows]) => ({ name, rows: rows.sort((a,b) => +new Date(b.date)-+new Date(a.date)), total: rows.reduce((n,s)=>n+s.total,0), paid: rows.reduce((n,s)=>n+paidTotal(s),0), due: rows.reduce((n,s)=>n+remaining(s),0) })).filter(c => c.name.toLocaleLowerCase("pt-BR").includes(customerSearch.trim().toLocaleLowerCase("pt-BR"))).sort((a,b)=>a.name.localeCompare(b.name));
-  }, [sales, mode, month, startDate, endDate, customerSearch]);
+    return [...map.entries()].map(([name, rows]) => ({ name, rows: rows.sort((a,b) => +new Date(b.date)-+new Date(a.date)), total: rows.reduce((n,s)=>n+s.total,0), paid: rows.reduce((n,s)=>n+paidTotal(s),0), due: rows.reduce((n,s)=>n+remaining(s),0) })).filter(c => c.name.toLocaleLowerCase("pt-BR").includes(customerSearch.trim().toLocaleLowerCase("pt-BR"))).filter(c => statusFilter === "todos" || (statusFilter === "pendentes" ? c.due > 0.005 : c.due <= 0.005)).sort((a,b)=>a.name.localeCompare(b.name));
+  }, [sales, mode, month, startDate, endDate, customerSearch, statusFilter]);
 
   const totalDue = customers.reduce((sum,c)=>sum+c.due,0);
   return <div className="mfb-in min-h-screen p-4 md:p-6"><AppHeader /><main className="mx-auto max-w-6xl space-y-4">
@@ -51,9 +52,10 @@ function FiadoConsulta() {
       <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Clientes no período</div><div className="mt-1 font-display text-2xl">{customers.length}</div></div><div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Saldo pendente</div><div className="mt-1 font-display text-2xl text-orange-600">R$ {brl(totalDue)}</div></div><div className="rounded-xl border border-border bg-background/70 p-4"><div className="text-sm text-muted-foreground">Compras no período</div><div className="mt-1 font-display text-2xl">{customers.reduce((n,c)=>n+c.rows.length,0)}</div></div></div>
       {filtersOpen && <div className="mt-4 grid gap-3 rounded-xl border border-border bg-secondary/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm text-muted-foreground sm:col-span-2">Buscar cliente<div className="relative mt-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"/><input value={customerSearch} onChange={e=>setCustomerSearch(e.target.value)} placeholder="Digite o nome do cliente" className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-foreground"/></div></label>
+        <div className="sm:col-span-2"><div className="mb-1 text-sm text-muted-foreground">Situação</div><div className="flex flex-wrap gap-2">{(["todos", "pendentes", "pagos"] as const).map((item) => <button key={item} type="button" onClick={() => setStatusFilter(item)} className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors ${statusFilter === item ? "bg-primary text-primary-foreground" : "border border-border bg-background text-muted-foreground hover:bg-secondary"}`}>{item === "todos" ? "Todos" : item === "pendentes" ? "Pendentes" : "Pagos"}</button>)}</div></div>
         <label className="text-sm text-muted-foreground">Período<select value={mode} onChange={e=>setMode(e.target.value as "month"|"range")} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"><option value="month">Por mês</option><option value="range">Data personalizada</option></select></label>
         {mode==="month" ? <label className="text-sm text-muted-foreground">Mês<input type="month" value={month} onChange={e=>e.target.value&&setMonth(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"/></label> : <><label className="text-sm text-muted-foreground">Data inicial<input type="date" value={startDate} max={endDate} onChange={e=>e.target.value&&setStartDate(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"/></label><label className="text-sm text-muted-foreground">Data final<input type="date" value={endDate} min={startDate} onChange={e=>e.target.value&&setEndDate(e.target.value)} className="mt-1 block w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground"/></label></>}
-        <div className="flex items-end"><button onClick={()=>{setCustomerSearch("");setMode("month");setMonth(todayKey.slice(0,7));setStartDate(todayKey);setEndDate(todayKey);}} className="rounded-lg px-3 py-2 font-semibold text-primary">Limpar filtros</button></div>
+        <div className="flex items-end"><button onClick={()=>{setCustomerSearch("");setStatusFilter("todos");setMode("month");setMonth(todayKey.slice(0,7));setStartDate(todayKey);setEndDate(todayKey);}} className="rounded-lg px-3 py-2 font-semibold text-primary">Limpar filtros</button></div>
       </div>}
     </section>
     <section className="glass p-4"><p className="mb-3 text-sm text-muted-foreground">Agrupado por cliente · {mode==="month" ? new Date(month+"-01T12:00:00").toLocaleDateString("pt-BR",{month:"long",year:"numeric"}) : startDate.split("-").reverse().join("/")+" a "+endDate.split("-").reverse().join("/")}</p>
