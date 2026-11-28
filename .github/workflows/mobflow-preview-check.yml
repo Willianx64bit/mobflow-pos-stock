@@ -30,7 +30,7 @@ jobs:
   build-and-unit:
     if: github.event_name != 'deployment_status'
     name: TypeScript, unit tests and build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +51,7 @@ jobs:
   authenticated-preview-smoke:
     name: Authenticated Preview login smoke test
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'migration/neon-preparation')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +84,7 @@ jobs:
   preview-browser-smoke:
     name: Real browser smoke test on PDV Preview
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' && github.event.deployment.ref == 'migration/neon-preparation')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
