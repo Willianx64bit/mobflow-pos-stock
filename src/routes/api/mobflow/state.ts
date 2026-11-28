@@ -31,6 +31,7 @@ export const Route = createFileRoute("/api/mobflow/state")({
           transaction = await beginAuthenticatedTransaction(request);
           // Read the snapshot and its event high-water mark in one SQL statement.
           // This gives the client a cursor consistent with the bootstrap snapshot.
+          const includeProducts = new URL(request.url).searchParams.get("includeProducts") !== "false";
           const remoteResult = await transaction.client.query<{
             state: Record<string, unknown> | null;
             updated_at: string | null;
@@ -50,7 +51,7 @@ readiness AS (
 SELECT
   CASE WHEN readiness.relational_ready THEN
     COALESCE(s.state, '{}'::jsonb) || jsonb_build_object(
-      'products', COALESCE((
+      'products', CASE WHEN $3::boolean THEN COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', p.id, 'code', p.code, 'barcodes', COALESCE((
             SELECT jsonb_agg(pb.barcode ORDER BY pb.is_primary DESC, pb.created_at)
@@ -62,7 +63,7 @@ SELECT
           'unit', p.unit
         ) ORDER BY p.name)
         FROM public.products p WHERE p.tenant_id = scope.owner_id
-      ), '[]'::jsonb),
+      ), '[]'::jsonb) ELSE '[]'::jsonb END,
       'sales', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
           'id', sale.id, 'date', sale.occurred_at, 'cashSessionId', sale.cash_session_id,
@@ -196,7 +197,7 @@ FROM scope
 CROSS JOIN readiness
 LEFT JOIN public.app_state AS s ON s.owner_id = scope.owner_id
 LEFT JOIN public.mobflow_sync_counters AS c ON c.tenant_id = scope.owner_id`,
-            [transaction.identity.accountId, process.env["MOBFLOW_RELATIONAL_BOOTSTRAP_ENABLED"] === "true"],
+            [transaction.identity.accountId, process.env["MOBFLOW_RELATIONAL_BOOTSTRAP_ENABLED"] === "true", includeProducts],
           );
           const remote = remoteResult.rows[0];
           await releaseTransaction(transaction.client, true);
