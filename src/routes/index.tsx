@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, LockKeyhole, ReceiptText, LayoutGrid, List } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { ProductForm } from "@/components/ProductForm";
-import { buildLocalProductSearchIndex, buildProductBarcodeIndex, createOfflineProductSearchClient, searchIndexedLocalProducts, syncOfflineProductSearchDelta, type OfflineProductSearchClient } from "@/lib/product-search";
+import { buildLocalProductSearchIndex, buildProductBarcodeIndex, createOfflineProductSearchClient, searchIndexedLocalProducts, type OfflineProductSearchClient } from "@/lib/product-search";
 import { productHasBarcode, actions, brl, buildPixPayload, buildPixQrMatrix, effectivePrice, formatCpf, printReceipt, confirmLastDomainCommand, getStoreState, hydrateStore, isOfflineMode, useStore, type Payment, type Product, type Sale } from "@/lib/store";
 // Desktop and web share the server-side PDV user lifecycle; deletion preserves audit references in Neon.
 
@@ -224,7 +224,7 @@ function PDV() {
   useEffect(() => {
     if (!offlineCatalogSearch || !offlineTenantId) {
       setOfflineSearchReady(false);
-      setOfflineSearchFallback(false);
+      setOfflineSearchFallback(offlineCatalogSearch);
       setLocalResults([]);
       return;
     }
@@ -278,7 +278,10 @@ function PDV() {
         if (active) setLocalResults(ids.map((id) => productById.get(id)).filter((product): product is Product => Boolean(product)));
       }).catch((error) => {
         console.warn("[MobFlow Offline Search] Consulta falhou.", error);
-        if (active) setLocalResults([]);
+        if (active) {
+          setLocalResults([]);
+          setOfflineSearchFallback(true);
+        }
       });
       return () => { active = false; };
     }

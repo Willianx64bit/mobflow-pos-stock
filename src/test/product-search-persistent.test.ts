@@ -39,6 +39,8 @@ describe("persistent offline FlexSearch", () => {
     const restored = await second.initialize(tenant, products);
     expect(restored).toMatchObject({ ready: true, rebuilt: false, count: 50_000 });
     expect(await second.search("arroz tipo 42", 10)).toContain("product-000042");
+    await first.close();
+    await second.close();
   }, 120_000);
 
   it("updates and removes only changed product documents without rebuilding the full index", async () => {
@@ -47,13 +49,15 @@ describe("persistent offline FlexSearch", () => {
     await engine.initialize(tenant, products);
     const previous = products[0]!;
     const renamed = { ...previous, name: "Café especial" };
-    await engine.applyDelta([{ previous, next: renamed }, { previous: products[1]! }]);
+    await engine.applyDelta([{ previous, next: renamed }, { previous: products[2]! }]);
     expect(await engine.search("cafe", 10)).toContain(previous.id);
-    expect(await engine.search("arroz", 100)).not.toContain(products[1]!.id);
+    expect(await engine.search("arroz", 100)).not.toContain(products[2]!.id);
 
     const reopened = new OfflineProductSearchEngine();
-    const afterRestart = await reopened.initialize(tenant, [renamed, ...products.slice(2)]);
+    const afterRestart = await reopened.initialize(tenant, [renamed, ...products.slice(1, 2), ...products.slice(3)]);
     expect(afterRestart.rebuilt).toBe(false);
     expect(await reopened.search("cafe", 10)).toContain(previous.id);
+    await engine.close();
+    await reopened.close();
   });
 });

@@ -109,7 +109,7 @@ function safeTenantKey(tenantId: string): string {
 }
 
 export class OfflineProductSearchEngine {
-  private index: Index | null = null;
+  private index: Index<false, IndexedDB> | null = null;
   private tenantId = "";
   private meta: SearchMeta | null = null;
 
@@ -147,6 +147,15 @@ export class OfflineProductSearchEngine {
     await writeMeta(nextMeta);
     this.meta = nextMeta;
     return { ready: true, rebuilt: true, count: nextMeta.count };
+  }
+
+  async close(): Promise<void> {
+    if (!this.index) return;
+    const storage = await this.index.db;
+    await storage.close();
+    this.index = null;
+    this.meta = null;
+    this.tenantId = "";
   }
 
   async search(query: string, limit = 100): Promise<string[]> {
