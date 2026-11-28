@@ -1,3 +1,4 @@
+// Dedicated offline search runtime: keeps catalog indexing and queries off the PDV UI thread.
 import { OfflineProductSearchEngine, type OfflineSearchDelta, type OfflineSearchDocument } from "./offline-search-engine";
 
 type Request =
