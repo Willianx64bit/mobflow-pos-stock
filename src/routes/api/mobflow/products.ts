@@ -183,6 +183,7 @@ async function writeProduct(request:Request,method:"POST"|"PATCH"){
  }catch(e){if(tx)await releaseTransaction(tx.client,false).catch(()=>{});return errorResponse(e);}
 }
 async function writeProductsBatch(request:Request){
+ // A single Neon transaction applies the validated batch atomically.
  if(process.env["MOBFLOW_AUTH_PROVIDER"]!=="better-auth")return Response.json({ok:false,error:"Catálogo Neon indisponível.",code:"catalog_provider_disabled"},{status:503});
  let tx:any=null;
  try{
