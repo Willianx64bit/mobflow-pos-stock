@@ -101,6 +101,7 @@ describe("MobFlow Better Auth login validation", () => {
 
   it("blocks access when the company subscription is inactive", async () => {
     client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@mobflow.test" }] };
       if (sql.includes("mobflow_find_login_profile")) return { rows: [PROFILE] };
       if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "suspended", subscription_expires_at: null }] };
       return { rows: [] };
@@ -113,6 +114,7 @@ describe("MobFlow Better Auth login validation", () => {
 
   it("validates an active PDV operator with the correct company and operator role", async () => {
     client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@mobflow.test" }] };
       if (sql.includes("mobflow_find_login_profile")) {
         return { rows: [{ ...PROFILE, role: "pdv", permissions: ["PDV", "Conferência"] }] };
       }
@@ -140,6 +142,7 @@ describe("MobFlow Better Auth login validation", () => {
 
   it("creates the first manager only when the username and CNPJ are allowlisted", async () => {
     client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@mobflow.test" }] };
       if (sql.includes("mobflow_find_login_profile")) return { rows: [] };
       if (sql.includes("FROM public.account_allowlist")) return { rows: [{ "?column?": 1 }] };
       if (sql.includes("FROM public.profiles") && sql.includes("WHERE cnpj")) return { rows: [] };
