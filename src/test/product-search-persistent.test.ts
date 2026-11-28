@@ -45,18 +45,28 @@ describe("persistent offline FlexSearch", () => {
 
   it("updates and removes only changed product documents without rebuilding the full index", async () => {
     const products = makeProducts(300);
+    const first = new OfflineProductSearchEngine();
+    await first.initialize(tenant, products);
+    await first.close();
+
+    // Reopen the persistent index before applying a rename/delete. This
+    // verifies FlexSearch removes old terms even when the in-memory register
+    // starts empty after an application restart.
     const engine = new OfflineProductSearchEngine();
-    await engine.initialize(tenant, products);
+    const restored = await engine.initialize(tenant, products);
+    expect(restored.rebuilt).toBe(false);
     const previous = products[0]!;
     const renamed = { ...previous, name: "Café especial" };
     await engine.applyDelta([{ previous, next: renamed }, { previous: products[2]! }]);
     expect(await engine.search("cafe", 10)).toContain(previous.id);
+    expect(await engine.search("arroz", 100)).not.toContain(previous.id);
     expect(await engine.search("arroz", 100)).not.toContain(products[2]!.id);
 
     const reopened = new OfflineProductSearchEngine();
     const afterRestart = await reopened.initialize(tenant, [renamed, ...products.slice(1, 2), ...products.slice(3)]);
     expect(afterRestart.rebuilt).toBe(false);
     expect(await reopened.search("cafe", 10)).toContain(previous.id);
+    expect(await reopened.search("arroz", 100)).not.toContain(previous.id);
     await engine.close();
     await reopened.close();
   });
