@@ -59,6 +59,7 @@ describe("MobFlow Better Auth login validation", () => {
     process.env["MOBFLOW_AUTH_PROVIDER"] = "better-auth";
     passwordHash = await bcrypt.hash("senha-correta", 4);
     client.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT email FROM public."user"')) return { rows: [{ email: "teste.manager@mobflow.test" }] };
       if (sql.includes("mobflow_find_login_profile")) return { rows: [PROFILE] };
       if (sql.includes("FROM public.companies")) return { rows: [{ subscription_status: "active", subscription_expires_at: null }] };
       if (sql.includes("mobflow_is_first_manager_login")) return { rows: [{ first_manager_login: false }] };
