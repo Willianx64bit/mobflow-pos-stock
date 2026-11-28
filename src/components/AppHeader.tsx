@@ -87,7 +87,7 @@ export function AppHeader({ showCompanyBar = false }: { showCompanyBar?: boolean
       if (Array.isArray(saved)) attempts = saved.filter((value): value is number => Number.isFinite(value) && now - value < 60_000 && value <= now);
     } catch {}
     if (attempts.length >= 2) {
-      setSyncCooldown(Math.max(1, Math.ceil((attempts[0] + 60_000 - now) / 1000)));
+      setSyncCooldown(Math.max(1, Math.ceil(((attempts[0] ?? now) + 60_000 - now) / 1000)));
       showCooldownToast();
       return;
     }
