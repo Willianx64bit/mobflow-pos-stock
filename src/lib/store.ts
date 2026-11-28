@@ -595,13 +595,13 @@ async function readPreviewNeonCatalog(fallbackProducts: Product[], mode: "full" 
         return activeFilter === "false" ? [] : fallbackProducts;
       }
       for (const raw of body.products as any[]) {
-        const previous = existing.get(String(raw.id));
-        products.push({ id: String(raw.id), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
+        const previous = existing.get(String(raw["id"]));
+        products.push({ id: String(raw["id"]), version: Number(raw.version ?? 1), code: String(raw.code ?? ""),
           barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
           ref: typeof raw.ref === "string" ? raw.ref : undefined, name: String(raw.name ?? ""),
           price: Number(raw.price ?? 0), cost: Number(raw.cost ?? 0), stock: Number(raw.stock ?? 0),
-          minStock: Number(raw.minStock ?? 0), category: String(raw.category ?? ""),
-          unit: normalizeProductUnit(raw.unit), active: raw.active !== false, photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined, photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : previous?.photo });
+          minStock: Number(raw["minStock"] ?? 0), category: String(raw["category"] ?? ""),
+          unit: normalizeProductUnit(raw["unit"]), active: raw["active"] !== false, photoObjectKey: typeof raw["photoObjectKey"] === "string" ? raw["photoObjectKey"] : undefined, photo: typeof raw["photoObjectKey"] === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw["id"]))}` : previous?.photo });
       }
       if (body.hasMore !== true) {
         if (mode === "full") return products;
@@ -644,7 +644,7 @@ export async function searchCatalogProducts(query: string, limit = 50): Promise<
     const { response, body } = await callMobFlowApi("/api/mobflow/products?" + params.toString());
     if (!response.ok || !Array.isArray(body.products)) return null;
     const found = (body.products as Array<Record<string, unknown>>).map((raw) => ({
-      id: String(raw.id ?? ""),
+      id: String(raw["id"] ?? ""),
       version: Number(raw.version ?? 1),
       code: String(raw.code ?? ""),
       barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
@@ -653,12 +653,12 @@ export async function searchCatalogProducts(query: string, limit = 50): Promise<
       price: Number(raw.price ?? 0),
       cost: Number(raw.cost ?? 0),
       stock: Number(raw.stock ?? 0),
-      minStock: Number(raw.minStock ?? 0),
-      category: String(raw.category ?? ""),
-      unit: normalizeProductUnit(raw.unit),
-      active: raw.active !== false,
-      photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined,
-      photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : undefined,
+      minStock: Number(raw["minStock"] ?? 0),
+      category: String(raw["category"] ?? ""),
+      unit: normalizeProductUnit(raw["unit"]),
+      active: raw["active"] !== false,
+      photoObjectKey: typeof raw["photoObjectKey"] === "string" ? raw["photoObjectKey"] : undefined,
+      photo: typeof raw["photoObjectKey"] === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw["id"]))}` : undefined,
     })).filter((product) => product.id);
     // Search results must become part of the active store so selecting a product
     // from Neon also resolves correctly in the cart and checkout.
@@ -678,7 +678,7 @@ export type StockCatalogSummary = { total: number; active: number; inactive: num
 export type StockCatalogPage = { products: Product[]; nextCursor: string | null; hasMore: boolean };
 
 const mapCatalogSearchProduct = (raw: Record<string, unknown>): Product => ({
-  id: String(raw.id ?? ""),
+  id: String(raw["id"] ?? ""),
   version: Number(raw.version ?? 1),
   code: String(raw.code ?? ""),
   barcodes: Array.isArray(raw.barcodes) ? raw.barcodes.map(String) : [],
@@ -687,12 +687,12 @@ const mapCatalogSearchProduct = (raw: Record<string, unknown>): Product => ({
   price: Number(raw.price ?? 0),
   cost: Number(raw.cost ?? 0),
   stock: Number(raw.stock ?? 0),
-  minStock: Number(raw.minStock ?? 0),
-  category: String(raw.category ?? ""),
-  unit: normalizeProductUnit(raw.unit),
-  active: raw.active !== false,
-  photoObjectKey: typeof raw.photoObjectKey === "string" ? raw.photoObjectKey : undefined,
-  photo: typeof raw.photoObjectKey === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw.id))}` : undefined,
+  minStock: Number(raw["minStock"] ?? 0),
+  category: String(raw["category"] ?? ""),
+  unit: normalizeProductUnit(raw["unit"]),
+  active: raw["active"] !== false,
+  photoObjectKey: typeof raw["photoObjectKey"] === "string" ? raw["photoObjectKey"] : undefined,
+  photo: typeof raw["photoObjectKey"] === "string" ? `/api/mobflow/product-photo?productId=${encodeURIComponent(String(raw["id"]))}` : undefined,
 });
 
 export async function loadStockCatalogPage(query = "", cursor: string | null = null, onlyLow = false, limit = 50): Promise<StockCatalogPage> {
@@ -735,8 +735,8 @@ export async function loadStockCatalogSummary(): Promise<StockCatalogSummary> {
       !(typeof navigator !== "undefined" && !navigator.onLine)) {
     try {
       const { response, body } = await callMobFlowApi("/api/mobflow/products?projection=summary");
-      if (response.ok && body.summary && typeof body.summary === "object") {
-        const s = body.summary as Record<string, unknown>;
+      if (response.ok && body["summary"] && typeof body["summary"] === "object") {
+        const s = body["summary"] as Record<string, unknown>;
         return { total: Number(s.total ?? 0), active: Number(s.active ?? 0), inactive: Number(s.inactive ?? 0), low: Number(s.low ?? 0), value: Number(s.value ?? 0) };
       }
     } catch {}
